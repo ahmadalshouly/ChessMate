@@ -1,10 +1,11 @@
+import { DEFAULT_RATING } from '@chessmate/core';
+
+import { useAuth } from '@/lib/auth';
+
 /**
  * What the app shell needs to know about whoever is using the app.
  *
- * This is a stand-in until accounts land: everyone is a guest with a
- * provisional rating. The accounts work should replace the body of
- * `useCurrentUser` (e.g. read from `useAuth()` and the player's ratings) and
- * keep this return shape, so the header, sidebar and profile tab need no edits.
+ * Keep this return shape stable: the header, sidebar and profile tab read it.
  */
 export type CurrentUser = {
   status: 'loading' | 'guest' | 'signedIn';
@@ -16,16 +17,17 @@ export type CurrentUser = {
   avatarUrl: string | null;
 };
 
-const GUEST: CurrentUser = {
-  status: 'guest',
-  displayName: 'Guest',
-  rating: 1200,
-  provisional: true,
-  avatarUrl: null,
-};
-
+/**
+ * Backed by the auth session. Ratings come from the rating service once it is
+ * wired in; until then everyone shows the provisional starting rating.
+ */
 export function useCurrentUser(): CurrentUser {
-  return GUEST;
+  const { status, user, guestName } = useAuth();
+  if (status === 'loading') return { status: 'loading', displayName: '', rating: null, provisional: true, avatarUrl: null };
+  if (status === 'signedIn' && user) {
+    return { status: 'signedIn', displayName: user.username, rating: Math.round(DEFAULT_RATING.rating), provisional: true, avatarUrl: null };
+  }
+  return { status: 'guest', displayName: guestName ?? 'Guest', rating: null, provisional: true, avatarUrl: null };
 }
 
 export function initialsOf(name: string): string {

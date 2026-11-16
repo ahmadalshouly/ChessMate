@@ -1,11 +1,12 @@
 import { parseTimeControl, type Color } from '@chessmate/core';
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { clockRemaining, useOnlineGame } from '@/lib/useOnlineGame';
@@ -25,10 +26,18 @@ const REASONS: Record<string, string> = {
 };
 
 export default function OnlinePlay() {
+  // Signed-in players connect with their access token; guests with "guest:<name>".
+  const { getGameToken } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  useEffect(() => {
+    getGameToken().then(setToken, () => {});
+  }, [getGameToken]);
+  return token ? <OnlineGame token={token} /> : <Screen>{null}</Screen>;
+}
+
+function OnlineGame({ token }: { token: string }) {
   const { tc: tcParam } = useLocalSearchParams<{ tc?: string }>();
   const timeControl = useMemo(() => parseTimeControl(tcParam ?? '5+0'), [tcParam]);
-  // Guest identity until accounts land.
-  const [token] = useState(() => `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`);
   const { state, actions } = useOnlineGame(token);
   const size = useBoardSize(300);
   const playing = state.status === 'playing';
