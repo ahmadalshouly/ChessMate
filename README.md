@@ -83,6 +83,10 @@ Cloud builds count against the Expo account's build quota, so they only run when
 
 `pnpm --filter @chessmate/app export:web` produces a static site in `apps/app/dist`.
 
+## Fair play
+
+Server-side move validation, rate limiting, Stockfish-based cheat flagging, a moderator review queue and bans with rating refunds. Analysis is optional locally: set `STOCKFISH_PATH` to turn it on. See [docs/fair-play.md](docs/fair-play.md).
+
 ## Roadmap
 
 1. Accounts and persistence (Postgres for players, games and ratings; signed session tokens in place of guest tokens).
