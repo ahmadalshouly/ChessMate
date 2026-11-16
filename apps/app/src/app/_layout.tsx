@@ -15,6 +15,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: 'ChessMate' }} />
         <Stack.Screen name="play/online" options={{ title: 'Play online' }} />
         <Stack.Screen name="play/local" options={{ title: 'Practice board' }} />
+        <Stack.Screen name="analysis" options={{ title: 'Analysis board' }} />
+        <Stack.Screen name="review" options={{ title: 'Game review' }} />
       </Stack>
     </ThemeProvider>
   );

@@ -1,5 +1,5 @@
 import { parseTimeControl, type Color } from '@chessmate/core';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -92,6 +92,18 @@ export default function OnlinePlay() {
                 {state.outcome.winner === null ? 'Draw' : state.outcome.winner === state.you ? 'You won' : 'You lost'} · {REASONS[state.outcome.reason] ?? state.outcome.reason}
               </Label>
               <Button title="New game" onPress={actions.newGame} />
+              {history.length > 0 && (
+                <Button
+                  variant="secondary"
+                  title="Review game"
+                  onPress={() =>
+                    router.push({
+                      pathname: '/review',
+                      params: { gameId: state.gameId ?? '', moves: history.map((m) => m.uci).join(','), orientation: state.you },
+                    })
+                  }
+                />
+              )}
             </>
           )}
           {state.error && <Label muted>{state.error}</Label>}
