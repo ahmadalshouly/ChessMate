@@ -37,15 +37,8 @@ jobs:
         working-directory: .
       - name: Check token
         run: test -n "$EXPO_TOKEN" || (echo "::error::EXPO_TOKEN secret is missing" && exit 1)
-      - name: Link EAS project
-        run: npx eas-cli@latest init --non-interactive --force
-      - name: Show project id
-        run: |
-          ID=$(node -p "require('./app.json').expo.extra?.eas?.projectId ?? ''")
-          echo "EAS project id: $ID"
-          echo "EAS project id: \`$ID\` (commit it to apps/app/app.json under expo.extra.eas.projectId)" >> "$GITHUB_STEP_SUMMARY"
       - name: Build
         run: |
           npx eas-cli@latest build --profile simulator --platform "${{ inputs.platform || 'all' }}" --non-interactive --no-wait --json > builds.json
           cat builds.json
-          node -e "for (const b of require('./builds.json')) console.log('- ' + b.platform + ': https://expo.dev/accounts/' + b.project.ownerAccount.name + '/projects/' + b.project.slug + '/builds/' + b.id)" >> "$GITHUB_STEP_SUMMARY"
+          node -e "for (const b of require('./builds.json')) console.log('- ' + b.platform + ' build ' + b.id + ': https://expo.dev/accounts/ahmadshouly/projects/chessmate/builds/' + b.id)" >> "$GITHUB_STEP_SUMMARY"

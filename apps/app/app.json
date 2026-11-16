@@ -40,6 +40,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "owner": "ahmadshouly",
+    "extra": {
+      "eas": {
+        "projectId": "234d00a0-483e-46e7-87c0-1986215644dd"
+      }
     }
   }
 }
