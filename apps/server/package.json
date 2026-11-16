@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@chessmate/core": "workspace:*",
+    "@chessmate/db": "workspace:*",
+    "drizzle-orm": "^0.45.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {
