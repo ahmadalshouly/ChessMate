@@ -1,15 +1,15 @@
 import { formatScore, isMatedScore, type MoveClass, type Score } from '@chessmate/core';
 
 /** Move classification badges. Colour is reserved for game signals like these. */
-export const MOVE_CLASS: Record<MoveClass, { label: string; symbol: string; color: string }> = {
-  best: { label: 'Best', symbol: '★', color: '#2F9E6B' },
-  excellent: { label: 'Excellent', symbol: '!', color: '#4FB286' },
-  good: { label: 'Good', symbol: '✓', color: '#8E8E96' },
-  book: { label: 'Book', symbol: 'B', color: '#8E8E96' },
-  forced: { label: 'Forced', symbol: '□', color: '#8E8E96' },
-  inaccuracy: { label: 'Inaccuracy', symbol: '?!', color: '#D9A21B' },
-  mistake: { label: 'Mistake', symbol: '?', color: '#E07B24' },
-  blunder: { label: 'Blunder', symbol: '??', color: '#D64545' },
+export const MOVE_CLASS: Record<MoveClass, { label: string; phrase: string; symbol: string; color: string }> = {
+  best: { label: 'Best', phrase: 'the best move', symbol: '★', color: '#2F9E6B' },
+  excellent: { label: 'Excellent', phrase: 'excellent', symbol: '!', color: '#4FB286' },
+  good: { label: 'Good', phrase: 'good', symbol: '✓', color: '#8E8E96' },
+  book: { label: 'Book', phrase: 'a book move', symbol: 'B', color: '#8E8E96' },
+  forced: { label: 'Forced', phrase: 'forced', symbol: '□', color: '#8E8E96' },
+  inaccuracy: { label: 'Inaccuracy', phrase: 'an inaccuracy', symbol: '?!', color: '#D9A21B' },
+  mistake: { label: 'Mistake', phrase: 'a mistake', symbol: '?', color: '#E07B24' },
+  blunder: { label: 'Blunder', phrase: 'a blunder', symbol: '??', color: '#D64545' },
 };
 
 export const REVIEW_ORDER: MoveClass[] = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'];

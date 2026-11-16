@@ -13,7 +13,7 @@ import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
 
-const EVAL_BAR = 16;
+const EVAL_BAR = 20;
 
 /**
  * Analysis board: explore any position (from a FEN, a PGN, or a finished

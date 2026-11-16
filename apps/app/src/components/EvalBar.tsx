@@ -7,7 +7,7 @@ import { formatEval } from '@/constants/analysis';
  * Vertical evaluation bar. White's share fills from White's side of the
  * board, so it follows the board orientation.
  */
-export function EvalBar({ score, orientation, height, width = 16 }: { score: Score | null; orientation: Color; height: number; width?: number }) {
+export function EvalBar({ score, orientation, height, width = 20 }: { score: Score | null; orientation: Color; height: number; width?: number }) {
   const white = score ? evalBarFraction(score) : 0.5;
   const whiteOnBottom = orientation === 'w';
   const whiteAhead = white >= 0.5;
@@ -35,7 +35,7 @@ export function EvalBar({ score, orientation, height, width = 16 }: { score: Sco
           adjustsFontSizeToFit
           style={[
             styles.label,
-            { color: whiteAhead ? '#0B0B0C' : '#F5F5F7', fontSize: Math.min(10, width * 0.62) },
+            { color: whiteAhead ? '#0B0B0C' : '#F5F5F7', fontSize: Math.min(10, width * 0.45), letterSpacing: -0.3 },
             labelAtBottom ? { bottom: 3 } : { top: 3 },
           ]}>
           {label}

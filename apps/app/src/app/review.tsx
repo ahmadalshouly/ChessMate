@@ -13,7 +13,7 @@ import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
 
-const EVAL_BAR = 16;
+const EVAL_BAR = 20;
 
 /**
  * Game review: Stockfish grades every move of a finished game (best to
@@ -137,7 +137,7 @@ export default function Review() {
                     <View style={styles.row}>
                       <Badge cls={current.judgement.classification} />
                       <Label bold size={17}>
-                        {moveNumber(current)} {current.san} is {MOVE_CLASS[current.judgement.classification].label.toLowerCase()}
+                        {moveNumber(current)} {current.san} is {MOVE_CLASS[current.judgement.classification].phrase}
                       </Label>
                       <View style={{ marginLeft: 'auto' }}>
                         <Label muted>{formatEval(current.scoreAfter)}</Label>

@@ -24,6 +24,7 @@ packages/
 | `rating.ts` | Glicko-2 ratings per time category |
 | `protocol.ts` | Typed client/server WebSocket messages |
 | `coach.ts` | Structured prompt for the AI coach plus deterministic quick feedback |
+| `analysis.ts` | Engine lines for display, FEN/PGN import, per-move game review (`buildReview`) and coach context (`coachContextFor`) |
 
 ### Design decisions
 
@@ -44,6 +45,27 @@ pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 ```
 
 Checks: `pnpm test` and `pnpm typecheck`.
+
+## Engine analysis
+
+The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games. The app gets:
+
+- **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move.
+- **Game review** (after an online game → Review game, or from the analysis board): every move graded best / excellent / good / inaccuracy / mistake / blunder, accuracy per side, eval graph, and the better move drawn on the board.
+
+Engine help is refused while you have a live game, and for any position currently on the board in a live game.
+
+Which Stockfish runs:
+
+1. `STOCKFISH_PATH` set: that native binary (fastest; used by the Docker image).
+2. Otherwise the `stockfish` npm package's WebAssembly build, run by a child Node process. This is installed by `pnpm install`, so nothing extra is needed for local development on Windows, macOS or Linux.
+
+Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 14) and `REVIEW_MOVETIME_MS` (default 400, per position). For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
+
+```powershell
+$env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"
+pnpm dev:server
+```
 
 ## Trying it on your own devices
 
@@ -86,8 +108,7 @@ Cloud builds count against the Expo account's build quota, so they only run when
 ## Roadmap
 
 1. Accounts and persistence (Postgres for players, games and ratings; signed session tokens in place of guest tokens).
-2. Engine service: Stockfish workers behind a queue for post-game review and evaluation bar.
-3. AI coach: game review that explains each mistake, using the structured context from `coach.ts`.
-4. Promotion picker, drag-to-move, premoves, sounds, original piece set.
-5. Puzzles and openings from the CC0 Lichess databases.
-6. Horizontal scaling of the game server (route by game id, Redis pub/sub), anti-cheat signals.
+2. AI coach: game review that explains each mistake, using the structured context from `coach.ts`.
+3. Promotion picker, drag-to-move, premoves, sounds, original piece set.
+4. Puzzles and openings from the CC0 Lichess databases.
+5. Horizontal scaling of the game server (route by game id, Redis pub/sub), anti-cheat signals.
