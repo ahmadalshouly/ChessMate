@@ -1,6 +1,7 @@
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { Rating } from './rating';
+import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
 import type { Color } from './types';
 
@@ -40,7 +41,10 @@ export type ClientMessage =
   | { t: 'offerDraw'; gameId: string }
   | { t: 'acceptDraw'; gameId: string }
   | { t: 'declineDraw'; gameId: string }
-  | { t: 'abort'; gameId: string };
+  | { t: 'abort'; gameId: string }
+  /** Spectate a live game: the server then sends gameState and every later game event. */
+  | { t: 'watch'; gameId: string }
+  | { t: 'unwatch'; gameId: string };
 
 export type ServerMessage =
   | { t: 'welcome'; v: number; player: PlayerInfo }
@@ -54,6 +58,10 @@ export type ServerMessage =
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
+  | { t: 'watching'; gameId: string; spectators: number }
+  /** A friend or followed player came online, went offline, or started/finished a game. */
+  | { t: 'presence'; userId: string; presence: Presence }
+  | { t: 'social'; event: SocialEvent }
   | { t: 'error'; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -64,7 +72,8 @@ export type ErrorCode =
   | 'illegal_move'
   | 'stale_ply'
   | 'game_over'
-  | 'rate_limited';
+  | 'rate_limited'
+  | 'forbidden';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

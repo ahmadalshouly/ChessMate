@@ -87,6 +87,9 @@ importers:
       '@chessmate/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@chessmate/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       ws:
         specifier: ^8.18.0
         version: 8.23.0
