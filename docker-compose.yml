@@ -1,0 +1,21 @@
+# Optional local Postgres. Without it the server uses embedded Postgres (PGlite) in .data/pglite.
+#   docker compose up -d
+#   DATABASE_URL=postgres://chessmate:chessmate@localhost:5432/chessmate pnpm dev:server
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: chessmate
+      POSTGRES_PASSWORD: chessmate
+      POSTGRES_DB: chessmate
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chessmate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  pgdata:
