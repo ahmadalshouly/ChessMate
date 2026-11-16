@@ -35,7 +35,7 @@ packages/
 
 ## Design system
 
-UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open `/design` (web: http://localhost:8081/design, or type the path in Expo Go via a deep link `chessmate://design`) to see every component in light and dark.
+UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open http://localhost:8081/design in the browser to see every component in light and dark.
 
 ## Getting started
 
