@@ -11,7 +11,7 @@ import {
   type ServerMessage,
 } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
-import { createServer, type Server as HttpServer } from 'node:http';
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
@@ -24,7 +24,12 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** Extra HTTP routes (REST API), tried in order before the 404. */
+  http?: HttpRoute[];
 }
+
+/** Returns true when it handled the request. */
+export type HttpRoute = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean | Promise<boolean>;
 
 interface Connection {
   ws: WebSocket;
@@ -57,11 +62,23 @@ export class ChessServer {
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
         return;
       }
-      res.writeHead(404).end();
+      void this.routeHttp(req, res);
     });
     this.wss = new WebSocketServer({ server: this.http, path: '/ws', maxPayload: 16 * 1024 });
     this.wss.on('connection', (ws) => this.onConnection(ws));
     this.matchTimer = setInterval(() => this.runMatching(), opts.matchIntervalMs ?? 500);
+  }
+
+  private async routeHttp(req: IncomingMessage, res: ServerResponse) {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    try {
+      for (const route of this.opts.http ?? []) if (await route(req, res, url)) return;
+    } catch (e) {
+      console.error('http route failed', e);
+      if (!res.headersSent) res.writeHead(500);
+      return void res.end();
+    }
+    res.writeHead(404).end();
   }
 
   listen(): Promise<number> {

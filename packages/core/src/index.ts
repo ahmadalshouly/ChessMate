@@ -8,3 +8,4 @@ export * from './uci';
 export * from './rating';
 export * from './protocol';
 export * from './coach';
+export * from './profile';

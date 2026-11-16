@@ -3,16 +3,7 @@ import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { board as colors } from '@/constants/theme';
-
-// Text presentation selector (U+FE0E) stops platforms rendering pieces as emoji.
-const GLYPH: Record<string, string> = {
-  k: '♚︎',
-  q: '♛︎',
-  r: '♜︎',
-  b: '♝︎',
-  n: '♞︎',
-  p: '♟︎',
-};
+import { pieceStyle, useBoardAppearance } from '@/features/account/boardThemes';
 
 export interface BoardProps {
   /** Position to display. Boards are driven by immutable FEN strings. */
@@ -38,6 +29,9 @@ export const Board = memo(function Board(props: BoardProps) {
   const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], onSquarePress } = props;
   const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
   const cell = size / 8;
+  // Square colours, piece set and markers follow the user's board settings.
+  const look = useBoardAppearance();
+  const sqColors = look.squares;
   const squares = useMemo(() => {
     const ordered = [...ALL_SQUARES].sort((a, b) => {
       const ra = Number(a[1]);
@@ -60,7 +54,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const row = Math.floor(i / 8);
         const col = i % 8;
         const overlays: string[] = [];
-        if (lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
+        if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
         if (threatSet.has(sq)) overlays.push(colors.threat);
         if (selected === sq) overlays.push(colors.selected);
         if (checkSquare === sq) overlays.push(colors.check);
@@ -75,34 +69,21 @@ export const Board = memo(function Board(props: BoardProps) {
               top: row * cell,
               width: cell,
               height: cell,
-              backgroundColor: isLight ? colors.light : colors.dark,
+              backgroundColor: isLight ? sqColors.light : sqColors.dark,
             }}>
             {overlays.map((c, k) => (
               <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
             ))}
-            {col === 0 && (
-              <Text style={[styles.coord, { color: isLight ? colors.dark : colors.light, top: 2, left: 3, fontSize: cell * 0.18 }]}>{rank}</Text>
+            {look.coordinates && col === 0 && (
+              <Text style={[styles.coord, { color: isLight ? sqColors.dark : sqColors.light, top: 2, left: 3, fontSize: cell * 0.18 }]}>{rank}</Text>
             )}
-            {row === 7 && (
-              <Text style={[styles.coord, { color: isLight ? colors.dark : colors.light, bottom: 1, right: 3, fontSize: cell * 0.18 }]}>
+            {look.coordinates && row === 7 && (
+              <Text style={[styles.coord, { color: isLight ? sqColors.dark : sqColors.light, bottom: 1, right: 3, fontSize: cell * 0.18 }]}>
                 {FILES[fileIdx]}
               </Text>
             )}
-            {piece && (
-              <Text
-                style={[
-                  styles.piece,
-                  {
-                    fontSize: cell * 0.78,
-                    lineHeight: cell,
-                    color: piece.color === 'w' ? '#FFFFFF' : '#15171B',
-                    textShadowColor: piece.color === 'w' ? '#15171B' : 'rgba(255,255,255,0.35)',
-                  },
-                ]}>
-                {GLYPH[piece.type]}
-              </Text>
-            )}
-            {targetSet.has(sq) && (
+            {piece && <PieceGlyph type={piece.type} color={piece.color} set={look.pieces} cell={cell} />}
+            {look.showLegalMoves && targetSet.has(sq) && (
               <View
                 pointerEvents="none"
                 style={
@@ -118,6 +99,19 @@ export const Board = memo(function Board(props: BoardProps) {
     </View>
   );
 });
+
+function PieceGlyph({ type, color, set, cell }: { type: string; color: Color; set: Parameters<typeof pieceStyle>[0]; cell: number }) {
+  const p = pieceStyle(set, type, color);
+  return (
+    <Text
+      style={[
+        styles.piece,
+        { fontSize: cell * p.scale, lineHeight: cell, color: p.color, textShadowColor: p.shadow, textShadowRadius: p.shadowRadius },
+      ]}>
+      {p.glyph}
+    </Text>
+  );
+}
 
 const styles = StyleSheet.create({
   board: { borderRadius: 6, overflow: 'hidden' },

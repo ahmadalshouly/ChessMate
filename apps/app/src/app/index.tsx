@@ -42,6 +42,20 @@ export default function Home() {
           <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
           <Button title="Open practice board" onPress={() => router.push('/play/local')} />
         </Card>
+
+        <Card>
+          <Label size={18} bold>
+            Your account
+          </Label>
+          <View style={styles.grid}>
+            <View style={styles.cell}>
+              <Button variant="secondary" title="Profile" onPress={() => router.push('/profile')} />
+            </View>
+            <View style={styles.cell}>
+              <Button variant="secondary" title="Settings" onPress={() => router.push('/settings')} />
+            </View>
+          </View>
+        </Card>
       </View>
     </ScrollView>
     </Screen>
