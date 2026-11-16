@@ -1,3 +1,4 @@
+import type { GameReview, PositionAnalysis } from './analysis';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { Rating } from './rating';
@@ -40,7 +41,11 @@ export type ClientMessage =
   | { t: 'offerDraw'; gameId: string }
   | { t: 'acceptDraw'; gameId: string }
   | { t: 'declineDraw'; gameId: string }
-  | { t: 'abort'; gameId: string };
+  | { t: 'abort'; gameId: string }
+  // Engine analysis (refused while the player has a live game).
+  | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number }
+  | { t: 'analyzeStop'; id: number }
+  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string };
 
 export type ServerMessage =
   | { t: 'welcome'; v: number; player: PlayerInfo }
@@ -54,7 +59,10 @@ export type ServerMessage =
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
-  | { t: 'error'; code: ErrorCode; message: string };
+  | { t: 'analysis'; id: number; analysis: PositionAnalysis; done: boolean }
+  | { t: 'reviewProgress'; id: number; done: number; total: number }
+  | { t: 'reviewResult'; id: number; review: GameReview }
+  | { t: 'error'; code: ErrorCode; message: string; id?: number };
 
 export type ErrorCode =
   | 'bad_request'
@@ -64,7 +72,9 @@ export type ErrorCode =
   | 'illegal_move'
   | 'stale_ply'
   | 'game_over'
-  | 'rate_limited';
+  | 'rate_limited'
+  | 'engine_locked'
+  | 'engine_unavailable';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);
