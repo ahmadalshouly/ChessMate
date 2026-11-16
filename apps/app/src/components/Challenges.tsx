@@ -1,0 +1,245 @@
+import {
+  PRESET_TIME_CONTROLS,
+  describeChallengeColor,
+  formatTimeControl,
+  timeCategory,
+  type Challenge,
+  type ChallengeColor,
+  type ChallengeEndReason,
+  type PlayerInfo,
+  type TimeControl,
+} from '@chessmate/core';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+
+import { Button, Label } from '@/components/ui';
+import { useTheme } from '@/constants/theme';
+import { challengeLink, copyText, shareLink } from '@/lib/links';
+
+type Actions = {
+  createChallenge: (o: { to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }) => void;
+  getChallenge: (id: string) => void;
+  acceptChallenge: (id: string) => void;
+  declineChallenge: (id: string) => void;
+  cancelChallenge: (id: string) => void;
+};
+
+const ENDED: Record<ChallengeEndReason, string> = {
+  accepted: 'Challenge accepted',
+  declined: 'Your challenge was declined',
+  cancelled: 'This challenge was cancelled',
+  expired: 'This challenge expired',
+};
+
+export function isGuestId(id: string | undefined): boolean {
+  return !id || id.startsWith('g_');
+}
+
+export function summary(c: Pick<Challenge, 'timeControl' | 'rated'>): string {
+  return `${formatTimeControl(c.timeControl)} ${timeCategory(c.timeControl)} · ${c.rated ? 'rated' : 'casual'}`;
+}
+
+/** Colour the viewer will play if they accept. */
+function viewerColor(c: Challenge): string {
+  return c.color === 'w' ? 'Black' : c.color === 'b' ? 'White' : 'Random colour';
+}
+
+/** Small segmented control in the monochrome glass style. */
+function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.segment, { borderColor: t.glassBorder, backgroundColor: t.surface }]}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange(o.value)}
+            style={[styles.segmentItem, on && { backgroundColor: t.accent }]}>
+            <Text style={{ color: on ? t.onAccent : t.text, fontWeight: '600', fontSize: 14 }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      onPress={onPress}
+      style={[styles.chip, { borderColor: on ? t.accent : t.glassBorder, backgroundColor: on ? t.accent : t.surface }]}>
+      <Text style={{ color: on ? t.onAccent : t.text, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Set up a game with a friend: pick time control and colour, then either
+ * create a shareable invite link or send a challenge to a player id.
+ */
+export function CreateChallenge({ me, actions, initialTo, initialTc }: { me: PlayerInfo | null; actions: Actions; initialTo?: string; initialTc?: TimeControl }) {
+  const t = useTheme();
+  const [tc, setTc] = useState<TimeControl>(initialTc ?? PRESET_TIME_CONTROLS[5]!);
+  const [color, setColor] = useState<ChallengeColor>('random');
+  const [rated, setRated] = useState(false);
+  const [to, setTo] = useState(initialTo ?? '');
+  const guest = isGuestId(me?.id);
+  const target = to.trim();
+
+  return (
+    <View style={{ gap: 12 }}>
+      <Label size={18} bold>
+        Play a friend
+      </Label>
+      <Label muted>Time control</Label>
+      <View style={styles.wrap}>
+        {PRESET_TIME_CONTROLS.map((p) => {
+          const key = formatTimeControl(p);
+          return <Chip key={key} label={key} on={formatTimeControl(tc) === key} onPress={() => setTc(p)} />;
+        })}
+      </View>
+      <Label muted>Your colour</Label>
+      <Segmented<ChallengeColor>
+        value={color}
+        onChange={setColor}
+        options={[
+          { value: 'w', label: 'White' },
+          { value: 'random', label: 'Random' },
+          { value: 'b', label: 'Black' },
+        ]}
+      />
+      <View style={styles.row}>
+        <Label muted>{guest ? 'Rated games need an account' : 'Rated game'}</Label>
+        <Switch value={rated && !guest} onValueChange={setRated} disabled={guest} style={{ marginLeft: 'auto' }} />
+      </View>
+      <Button title="Create invite link" onPress={() => actions.createChallenge({ timeControl: tc, rated: rated && !guest, color })} />
+      <Label muted>Or challenge a player directly by their player ID</Label>
+      <TextInput
+        value={to}
+        onChangeText={setTo}
+        placeholder="Player ID"
+        placeholderTextColor={t.muted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={[styles.input, { color: t.text, borderColor: t.glassBorder, backgroundColor: t.surface }]}
+      />
+      <Button
+        variant="secondary"
+        title="Send challenge"
+        disabled={!target || target === me?.id}
+        onPress={() => actions.createChallenge({ to: target, timeControl: tc, rated: rated && !guest, color })}
+      />
+      {me && <Label muted>Your player ID: {me.id}</Label>}
+    </View>
+  );
+}
+
+/** A challenge you sent: link to share, status, cancel. */
+export function OutgoingChallenge({ challenge, actions }: { challenge: Challenge; actions: Actions }) {
+  const link = challengeLink(challenge.id);
+  const [note, setNote] = useState<string | null>(null);
+  const t = useTheme();
+  return (
+    <View style={{ gap: 10 }}>
+      <Label bold>{challenge.to ? `Waiting for ${challenge.to.name} to accept...` : 'Invite link ready'}</Label>
+      <Label muted>
+        {summary(challenge)} · you play {describeChallengeColor(challenge.color).toLowerCase()}
+      </Label>
+      {!challenge.to && (
+        <>
+          <Text selectable style={[styles.link, { color: t.text, borderColor: t.glassBorder, backgroundColor: t.surface }]}>
+            {link}
+          </Text>
+          <View style={styles.row}>
+            <Button
+              title="Share link"
+              onPress={async () => {
+                const r = await shareLink(link, 'Play chess with me on ChessMate:');
+                setNote(r === 'copied' ? 'Link copied' : r === 'failed' ? 'Copy the link above to share it' : null);
+              }}
+            />
+            <Button variant="secondary" title="Copy" onPress={async () => setNote((await copyText(link)) ? 'Link copied' : 'Long-press the link to copy it')} />
+          </View>
+          {note && <Label muted>{note}</Label>}
+          <Label muted>The game starts as soon as your friend opens the link and accepts. Keep this screen open.</Label>
+        </>
+      )}
+      <Button variant="secondary" title="Cancel challenge" onPress={() => actions.cancelChallenge(challenge.id)} />
+    </View>
+  );
+}
+
+/** A direct challenge someone sent you. */
+export function IncomingChallenge({ challenge, actions }: { challenge: Challenge; actions: Actions }) {
+  return (
+    <View style={{ gap: 8 }}>
+      <Label bold>
+        {challenge.from.name} ({challenge.from.rating}
+        {challenge.from.provisional ? '?' : ''}) challenges you
+      </Label>
+      <Label muted>
+        {summary(challenge)} · you play {viewerColor(challenge).toLowerCase()}
+      </Label>
+      <View style={styles.row}>
+        <Button title="Accept" onPress={() => actions.acceptChallenge(challenge.id)} />
+        <Button variant="secondary" title="Decline" onPress={() => actions.declineChallenge(challenge.id)} />
+      </View>
+    </View>
+  );
+}
+
+/** Someone opened an invite link: look it up and offer to join. */
+export function InviteDetails({
+  id,
+  me,
+  challenge,
+  ended,
+  error,
+  connected,
+  actions,
+}: {
+  id: string;
+  me: PlayerInfo | null;
+  challenge: Challenge | undefined;
+  ended: ChallengeEndReason | undefined;
+  error: string | null;
+  connected: boolean;
+  actions: Actions;
+}) {
+  useEffect(() => {
+    if (connected) actions.getChallenge(id);
+    // Re-fetch after every reconnect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, connected]);
+
+  if (ended && ended !== 'accepted') return <Label>{ENDED[ended]}.</Label>;
+  if (!challenge) return <Label muted>{error ?? (connected ? 'Loading invite...' : 'Connecting...')}</Label>;
+  if (challenge.status === 'accepted') return <Label muted>This invite was already used to start a game.</Label>;
+  if (me && challenge.from.id === me.id) return <OutgoingChallenge challenge={challenge} actions={actions} />;
+  return (
+    <View style={{ gap: 8 }}>
+      <IncomingChallenge challenge={challenge} actions={actions} />
+      {error && <Label muted>{error}</Label>}
+    </View>
+  );
+}
+
+export function challengeEndedText(reason: ChallengeEndReason): string {
+  return ENDED[reason];
+}
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  segment: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
+  segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  link: { borderWidth: 1, borderRadius: 12, padding: 10, fontSize: 13 },
+});
