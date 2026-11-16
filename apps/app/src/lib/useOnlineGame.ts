@@ -11,6 +11,7 @@ import {
   type GameSnapshot,
   type PlayedMove,
   type PlayerInfo,
+  type ServerMessage,
   type TimeControl,
 } from '@chessmate/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -64,6 +65,12 @@ export function useOnlineGame(token: string) {
   const ws = useRef<WebSocket | null>(null);
   const game = useRef(new Game());
   const retry = useRef(0);
+  /** Extra message listeners (chat, etc.) so features can live in their own hooks. */
+  const listeners = useRef(new Set<(m: ServerMessage) => void>());
+  const subscribe = useCallback((fn: (m: ServerMessage) => void) => {
+    listeners.current.add(fn);
+    return () => void listeners.current.delete(fn);
+  }, []);
 
   const send = useCallback((m: ClientMessage) => {
     if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(encode(m));
@@ -100,6 +107,7 @@ export function useOnlineGame(token: string) {
       sock.onmessage = (ev) => {
         const m = decodeServer(String(ev.data));
         if (!m) return;
+        for (const fn of listeners.current) fn(m);
         switch (m.t) {
           case 'welcome':
             return setState((p) => ({ ...p, me: m.player, status: p.gameId ? p.status : 'idle', error: null }));
@@ -133,6 +141,7 @@ export function useOnlineGame(token: string) {
           case 'gameOver':
             return setState((p) => ({ ...p, status: 'finished', outcome: m.outcome, drawOfferBy: null }));
           case 'error':
+            if (m.code === 'chat_restricted') return; // shown by the chat panel
             return setState((p) => ({ ...p, error: m.message }));
           default:
             return;
@@ -176,7 +185,7 @@ export function useOnlineGame(token: string) {
     },
   };
 
-  return { state, actions };
+  return { state, actions, send, subscribe };
 }
 
 /** Remaining time for a side, corrected for server clock offset. */

@@ -4,10 +4,12 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { ChatPanel } from '@/components/ChatPanel';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
+import { useGameChat } from '@/lib/useGameChat';
 import { clockRemaining, useOnlineGame } from '@/lib/useOnlineGame';
 
 const REASONS: Record<string, string> = {
@@ -29,7 +31,8 @@ export default function OnlinePlay() {
   const timeControl = useMemo(() => parseTimeControl(tcParam ?? '5+0'), [tcParam]);
   // Guest identity until accounts land.
   const [token] = useState(() => `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`);
-  const { state, actions } = useOnlineGame(token);
+  const { state, actions, send, subscribe } = useOnlineGame(token);
+  const chat = useGameChat(state.gameId, state.me?.id ?? null, send, subscribe);
   const size = useBoardSize(300);
   const playing = state.status === 'playing';
   useTicker(playing && !!state.clock?.running);
@@ -101,6 +104,7 @@ export default function OnlinePlay() {
             </Label>
           )}
         </Card>
+        {state.gameId && <ChatPanel chat={chat} me={state.me} opponent={players[opp]} canChat={playing || state.status === 'finished'} />}
       </View>
     </ScrollView>
     </Screen>
