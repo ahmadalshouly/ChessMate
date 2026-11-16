@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../theme/ThemeProvider';
@@ -66,10 +66,24 @@ export function Screen({
 export function Backdrop() {
   const c = useAppTheme().colors;
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
       <LinearGradient colors={c.bgGradient} style={StyleSheet.absoluteFill} />
-      <View style={[styles.glow, { top: -120, right: -80, backgroundColor: c.bgGlow[0] }]} />
-      <View style={[styles.glow, { bottom: -160, left: -120, width: 420, height: 420, backgroundColor: c.bgGlow[1] }]} />
+      <Glow color={c.bgGlow[0]} size={380} style={{ top: -140, right: -120 }} />
+      <Glow color={c.bgGlow[1]} size={460} style={{ bottom: -200, left: -160 }} />
+    </View>
+  );
+}
+
+/** Soft round light. Web uses a CSS blur; native fakes the falloff with stacked translucent discs. */
+function Glow({ color, size, style }: { color: string; size: number; style: ViewStyle }) {
+  if (Platform.OS === 'web') {
+    return <View style={[{ position: 'absolute', width: size, height: size, borderRadius: size, backgroundColor: color }, { filter: 'blur(70px)' } as ViewStyle, style]} />;
+  }
+  return (
+    <View style={[{ position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
+      {[1, 0.78, 0.56, 0.34].map((k) => (
+        <View key={k} style={{ position: 'absolute', width: size * k, height: size * k, borderRadius: size, backgroundColor: color, opacity: 0.45 }} />
+      ))}
     </View>
   );
 }
@@ -126,6 +140,3 @@ export function SectionHeader({ title, action }: { title: string; action?: React
   );
 }
 
-const styles = StyleSheet.create({
-  glow: { position: 'absolute', width: 360, height: 360, borderRadius: 999 },
-});

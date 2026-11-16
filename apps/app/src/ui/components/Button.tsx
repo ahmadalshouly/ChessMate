@@ -84,7 +84,7 @@ export function Button({
         }
         const bg = variant === 'primary' ? c.accent : variant === 'danger' ? c.danger : pressed ? c.surfacePressed : 'transparent';
         return (
-          <View style={[{ borderRadius: s.radius, backgroundColor: bg }, variant === 'primary' && t.shadows.sm, pressStyle]}>{content}</View>
+          <View style={[{ borderRadius: s.radius, backgroundColor: bg, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: 'transparent' }, variant === 'primary' && t.shadows.sm, pressStyle]}>{content}</View>
         );
       }}
     </Pressable>

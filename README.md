@@ -33,6 +33,10 @@ packages/
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
 - **Original look.** Monochrome, frosted-glass brand; no assets taken from other chess sites.
 
+## Design system
+
+UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open `/design` (web: http://localhost:8081/design, or type the path in Expo Go via a deep link `chessmate://design`) to see every component in light and dark.
+
 ## Getting started
 
 Requirements: Node 22+ and pnpm 12 (`npm i -g pnpm@12`). Works on Windows, macOS and Linux.
