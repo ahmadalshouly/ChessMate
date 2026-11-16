@@ -81,6 +81,14 @@ EXPO_PUBLIC_SERVER_URL=ws://192.168.1.20:8787/ws pnpm dev:app --tunnel
 
 A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
 
+### Accounts and sign-in
+
+`pnpm dev:server` also serves the accounts API (`/api/auth/*`) on the same port, and the app finds it automatically the same way it finds the game server. To point the app at a different API host, set `EXPO_PUBLIC_API_URL` (for example `http://192.168.1.20:8787`), alongside `EXPO_PUBLIC_SERVER_URL` when using a tunnel.
+
+- First launch opens the welcome screen: create an account, sign in, or continue as a guest (casual games and the practice board).
+- Sessions are kept in the iOS Keychain / Android Keystore (`expo-secure-store`); on web they are kept in the browser's local storage.
+- Password reset: there is no email provider in development, so the reset link is printed in the server's terminal. Open it on the device (`chessmate://reset-password?token=...`) or in the browser (`http://localhost:8081/reset-password?token=...`).
+
 ### Builds (uses EAS build quota)
 
 Cloud builds count against the Expo account's build quota, so they only run when started on purpose:

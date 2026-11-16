@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   wrap: { gap: 6 },
   label: { fontSize: 13, fontWeight: '600', letterSpacing: 0.2 },
   box: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, minHeight: 48 },
-  input: { flex: 1, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12 },
+  input: { flex: 1, minWidth: 0, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12 },
   toggle: { paddingHorizontal: 14, paddingVertical: 10 },
   note: { fontSize: 13, lineHeight: 18 },
   meterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -6 },

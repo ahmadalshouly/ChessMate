@@ -18,7 +18,8 @@ export interface FormError {
 
 export function toFormError(e: unknown): FormError {
   if (e instanceof ApiError) {
-    const message = COPY[e.code] ?? e.message;
+    // The server explains weak passwords precisely (too common, matches username), so prefer its text.
+    const message = e.code === 'weak_password' && e.message ? e.message : (COPY[e.code] ?? e.message);
     const field = e.field ?? (e.code === 'username_taken' ? 'username' : e.code === 'email_taken' ? 'email' : e.code === 'weak_password' ? 'password' : undefined);
     return { field, message };
   }
