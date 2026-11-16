@@ -1,5 +1,6 @@
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
+import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
 import type { TimeControl } from './timeControl';
 import type { Color } from './types';
@@ -54,6 +55,7 @@ export type ServerMessage =
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
+  | { t: 'notification'; notification: AppNotification; unread: number }
   | { t: 'error'; code: ErrorCode; message: string };
 
 export type ErrorCode =

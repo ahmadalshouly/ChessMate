@@ -72,6 +72,16 @@ EXPO_PUBLIC_SERVER_URL=ws://192.168.1.20:8787/ws pnpm dev:app --tunnel
 
 A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
 
+### Notifications
+
+The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.
+
+- **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running. Until sign-in lands, each device uses a development identity.
+- **Send a test** on the settings screen sends yourself a sample notification (development servers only).
+- **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
+- **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
+- Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
+
 ### Builds (uses EAS build quota)
 
 Cloud builds count against the Expo account's build quota, so they only run when started on purpose:

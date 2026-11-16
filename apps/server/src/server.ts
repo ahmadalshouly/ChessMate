@@ -15,6 +15,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
+import { ExpoPushSender, MemoryNotificationStore, NotificationService, handleNotificationsHttp, yourTurn, type HttpAuth } from './notifications';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
 
 export interface ServerOptions {
@@ -24,6 +25,10 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** Notification service; defaults to in-memory storage with Expo push. */
+  notifications?: NotificationService;
+  /** Maps an HTTP bearer token to a user id. Defaults to dev tokens ("dev:<id>:<name>") outside production. */
+  httpAuth?: HttpAuth;
 }
 
 interface Connection {
@@ -47,17 +52,34 @@ export class ChessServer {
   private readonly graceTimers = new Map<string, NodeJS.Timeout>();
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
+  readonly notifications: NotificationService;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
+    this.notifications =
+      opts.notifications ??
+      new NotificationService({
+        store: new MemoryNotificationStore(),
+        push: new ExpoPushSender({ accessToken: process.env.EXPO_ACCESS_TOKEN, log: console.warn }),
+        log: console.warn,
+      });
+    this.notifications.attach({
+      deliver: (userId, notification, unread) => {
+        for (const ws of this.sockets.get(userId) ?? []) this.send(ws, { t: 'notification', notification, unread });
+      },
+      isOnline: (userId) => (this.sockets.get(userId)?.size ?? 0) > 0,
+    });
+    const httpAuth = opts.httpAuth ?? devHttpAuth;
     this.http = createServer((req, res) => {
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
         return;
       }
-      res.writeHead(404).end();
+      handleNotificationsHttp(req, res, { service: this.notifications, auth: httpAuth, now: this.now, dev: process.env.NODE_ENV !== 'production' })
+        .then((handled) => handled || res.writeHead(404).end())
+        .catch(() => res.headersSent || res.writeHead(500).end());
     });
     this.wss = new WebSocketServer({ server: this.http, path: '/ws', maxPayload: 16 * 1024 });
     this.wss.on('connection', (ws) => this.onConnection(ws));
@@ -235,6 +257,7 @@ export class ChessServer {
         const t = this.now();
         this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
         this.schedule(r);
+        this.notifyTurnIfAway(r, m.san);
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
@@ -284,6 +307,15 @@ export class ChessServer {
     );
   }
 
+  /** Pushes "your turn" to the player to move when they have no open connection (app closed or backgrounded). */
+  private notifyTurnIfAway(room: GameRoom, san: string) {
+    if (room.outcome) return;
+    const toMove = room.game.turn === 'w' ? room.white : room.black;
+    const mover = room.game.turn === 'w' ? room.black : room.white;
+    if (toMove.id.startsWith('g_') || this.sockets.has(toMove.id)) return;
+    this.notifications.notify(toMove.id, yourTurn({ gameId: room.id, opponentName: mover.name, san }));
+  }
+
   private activeRoomOf(playerId: string): GameRoom | undefined {
     for (const r of this.rooms.values()) if (!r.outcome && r.colorOf(playerId)) return r;
     return undefined;
@@ -304,6 +336,12 @@ export class ChessServer {
     if (ws.readyState === ws.OPEN) ws.send(encode(msg));
   }
 }
+
+/** Development bearer tokens mirror the WebSocket dev tokens: "dev:<id>:<name>". */
+const devHttpAuth: HttpAuth = (token) => {
+  if (process.env.NODE_ENV === 'production') return null;
+  return /^dev:([\w-]{1,64}):[\w .-]{1,24}$/.exec(token)?.[1] ?? null;
+};
 
 function err(code: ErrorCode, message: string): ServerMessage {
   return { t: 'error', code, message };
