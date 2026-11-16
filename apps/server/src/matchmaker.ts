@@ -8,7 +8,21 @@ export interface Seek {
   createdAt: number;
   /** Optional explicit bounds chosen by the player. */
   ratingRange?: [number, number];
+  /** Fixed ± window chosen by the player; it never widens past this. */
+  range?: number;
 }
+
+export interface MatchOptions {
+  /** Window at the moment a seek is placed (± points). */
+  baseGap: number;
+  /** How fast the window widens while waiting. */
+  gapPerSecond: number;
+  maxGap: number;
+  /** After this long without a fixed range, anyone in the pool is acceptable. */
+  openAfterMs: number;
+}
+
+export const DEFAULT_MATCH_OPTIONS: MatchOptions = { baseGap: 100, gapPerSecond: 20, maxGap: 600, openAfterMs: 45_000 };
 
 export interface Pairing {
   a: Seek;
@@ -18,14 +32,17 @@ export interface Pairing {
 /**
  * Pools seeks by (time control, rated) and pairs the closest ratings. The
  * acceptable rating gap widens the longer a player waits so nobody waits
- * forever on a quiet pool.
+ * forever on a quiet pool; after `openAfterMs` the window is unlimited unless
+ * the player fixed a range.
  */
 export class Matchmaker {
   private pools = new Map<string, Seek[]>();
 
-  constructor(
-    private readonly opts = { baseGap: 100, gapPerSecond: 20, maxGap: 800 },
-  ) {}
+  private readonly opts: MatchOptions;
+
+  constructor(opts: Partial<MatchOptions> = {}) {
+    this.opts = { ...DEFAULT_MATCH_OPTIONS, ...opts };
+  }
 
   private key(s: Pick<Seek, 'timeControl' | 'rated'>) {
     return `${formatTimeControl(s.timeControl)}:${s.rated ? 'r' : 'c'}`;
@@ -62,9 +79,36 @@ export class Matchmaker {
     return n;
   }
 
+  get(playerId: string): Seek | undefined {
+    for (const pool of this.pools.values()) {
+      const s = pool.find((x) => x.playerId === playerId);
+      if (s) return s;
+    }
+    return undefined;
+  }
+
+  all(): Seek[] {
+    return [...this.pools.values()].flat();
+  }
+
+  /** Seeks sharing this seek's pool, including itself. */
+  poolSize(seek: Seek): number {
+    return this.pools.get(this.key(seek))?.length ?? 0;
+  }
+
+  stats(): { timeControl: Seek['timeControl']; rated: boolean; seeking: number }[] {
+    return [...this.pools.values()]
+      .filter((p) => p.length > 0)
+      .map((p) => ({ timeControl: p[0]!.timeControl, rated: p[0]!.rated, seeking: p.length }));
+  }
+
+  /** Current ± rating window for a seek; Infinity once the window is fully open. */
   allowedGap(seek: Seek, now: number): number {
-    const waited = Math.max(0, now - seek.createdAt) / 1000;
-    return Math.min(this.opts.maxGap, this.opts.baseGap + waited * this.opts.gapPerSecond);
+    const waitedMs = Math.max(0, now - seek.createdAt);
+    const grown = this.opts.baseGap + (waitedMs / 1000) * this.opts.gapPerSecond;
+    if (seek.range !== undefined) return Math.min(seek.range, grown);
+    if (waitedMs >= this.opts.openAfterMs) return Infinity;
+    return Math.min(this.opts.maxGap, grown);
   }
 
   private compatible(a: Seek, b: Seek, now: number): boolean {
