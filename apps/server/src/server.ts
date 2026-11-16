@@ -2,24 +2,26 @@ import {
   PROTOCOL_VERSION,
   decodeClient,
   encode,
-  timeCategory,
-  updateRating,
   type ClientMessage,
   type Color,
   type ErrorCode,
   type Rating,
   type ServerMessage,
+  canSeekRated,
+  sanitizeRatingRange,
 } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
-import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
+import { MemoryPlayerStore, authenticate, isGuest, playerInfo, type Player, type PlayerStore } from './players';
+import { RatingService } from './ratingService';
 
 export interface ServerOptions {
   port: number;
   store?: PlayerStore;
+  ratings?: RatingService;
   /** How long a disconnected player may be away before forfeiting. */
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
@@ -40,6 +42,7 @@ export class ChessServer {
   readonly http: HttpServer;
   readonly wss: WebSocketServer;
   private readonly store: PlayerStore;
+  readonly ratings: RatingService;
   private readonly matchmaker = new Matchmaker();
   private readonly rooms = new Map<string, GameRoom>();
   private readonly sockets = new Map<string, Set<WebSocket>>();
@@ -50,6 +53,7 @@ export class ChessServer {
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
+    this.ratings = opts.ratings ?? new RatingService();
     this.now = opts.now ?? Date.now;
     this.http = createServer((req, res) => {
       if (req.url === '/health') {
@@ -112,7 +116,7 @@ export class ChessServer {
       set.add(ws);
       this.sockets.set(player.id, set);
       this.cancelGrace(player.id);
-      this.send(ws, { t: 'welcome', v: PROTOCOL_VERSION, player: { id: player.id, name: player.name, rating: 1500, provisional: true } });
+      this.send(ws, { t: 'welcome', v: PROTOCOL_VERSION, player: playerInfo(player, this.ratings.get(player.id, 'blitz', this.now())) });
       // Resume any game in progress.
       for (const room of this.rooms.values()) {
         const color = room.colorOf(player.id);
@@ -134,13 +138,15 @@ export class ChessServer {
         if (this.activeRoomOf(player.id)) return this.send(ws, err('bad_request', 'Already in a game'));
         const tc = msg.timeControl;
         if (!validTimeControl(tc)) return this.send(ws, err('bad_request', 'Invalid time control'));
+        const r = this.ratings.forTimeControl(player.id, tc, now);
         this.matchmaker.add({
           playerId: player.id,
-          rating: ratingFor(player, tc).rating,
+          rating: r.rating,
+          rd: r.rd,
           timeControl: tc,
-          rated: !!msg.rated && !player.id.startsWith('g_'),
+          rated: !!msg.rated && canSeekRated(isGuest(player)),
           createdAt: now,
-          ratingRange: msg.ratingRange,
+          ratingRange: sanitizeRatingRange(msg.ratingRange, r.rating) ?? undefined,
         });
         return this.send(ws, { t: 'seeking', timeControl: tc });
       }
@@ -230,7 +236,14 @@ export class ChessServer {
 
   createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number): GameRoom {
     const id = randomUUID().slice(0, 8);
-    const room = new GameRoom(id, playerInfo(white, tc), playerInfo(black, tc), tc, rated, now, {
+    const room = new GameRoom(
+      id,
+      playerInfo(white, this.ratings.forTimeControl(white.id, tc, now)),
+      playerInfo(black, this.ratings.forTimeControl(black.id, tc, now)),
+      tc,
+      rated,
+      now,
+      {
       onMove: (r, m) => {
         const t = this.now();
         this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
@@ -238,7 +251,7 @@ export class ChessServer {
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
-        const ratingChange = r.rated && outcome.reason !== 'aborted' ? this.applyRatings(r) : undefined;
+        const ratingChange = this.applyRatings(r);
         this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
@@ -257,19 +270,28 @@ export class ChessServer {
     return room;
   }
 
-  private applyRatings(room: GameRoom): Record<Color, { before: Rating; after: Rating }> | undefined {
+  private applyRatings(room: GameRoom): Record<Color, { before: Rating; after: Rating; delta: number }> | undefined {
+    if (!room.outcome) return undefined;
     const w = this.store.get(room.white.id);
     const b = this.store.get(room.black.id);
-    if (!w || !b || !room.outcome) return undefined;
-    const cat = timeCategory(room.timeControl);
-    const rw = ratingFor(w, room.timeControl);
-    const rb = ratingFor(b, room.timeControl);
-    const score = room.outcome.winner === 'w' ? 1 : room.outcome.winner === 'b' ? 0 : 0.5;
-    const nw = updateRating(rw, [{ opponent: rb, score }]);
-    const nb = updateRating(rb, [{ opponent: rw, score: 1 - score }]);
-    this.store.save({ ...w, ratings: { ...w.ratings, [cat]: nw } });
-    this.store.save({ ...b, ratings: { ...b.ratings, [cat]: nb } });
-    return { w: { before: rw, after: nw }, b: { before: rb, after: nb } };
+    const res = this.ratings.applyGame({
+      gameId: room.id,
+      rated: room.rated,
+      whiteId: room.white.id,
+      blackId: room.black.id,
+      whiteIsGuest: !w || isGuest(w),
+      blackIsGuest: !b || isGuest(b),
+      timeControl: room.timeControl,
+      reason: room.outcome.reason,
+      winner: room.outcome.winner,
+      plies: room.game.ply,
+      endedAt: this.now(),
+    });
+    if (!res.rated) return undefined;
+    return {
+      w: { before: res.w.before, after: res.w.after, delta: res.w.delta },
+      b: { before: res.b.before, after: res.b.after, delta: res.b.delta },
+    };
   }
 
   private schedule(room: GameRoom) {
