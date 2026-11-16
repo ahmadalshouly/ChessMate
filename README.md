@@ -12,6 +12,15 @@ packages/
   core/      Shared TypeScript chess logic used by app and server
 ```
 
+### App navigation
+
+The app shell lives in `apps/app/src/components/shell/` and wraps the main sections:
+
+- Phones and narrow windows: glass header (logo, section title, rating, avatar) and a floating bottom tab bar.
+- Wide screens (960px and up, e.g. desktop web): a glass sidebar with the same sections and a user card.
+
+Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`, `social`, `profile`), each with its own stack. Add a screen by adding a file to the section's folder; deeper screens get a glass header with a back button automatically. Tabs are configured in `apps/app/src/navigation/tabs.ts`. Full-screen flows such as games stay outside the shell (`apps/app/src/app/play/`). The header reads the player from `useCurrentUser()` in `apps/app/src/lib/currentUser.ts`, a guest stand-in until accounts land.
+
 `@chessmate/core` holds everything both sides must agree on:
 
 | Module | What it does |
