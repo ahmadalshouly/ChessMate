@@ -35,31 +35,53 @@ packages/
 
 ## Getting started
 
-Requirements: Node 22+, pnpm 10.
+Requirements: Node 22+ and pnpm 12 (`npm i -g pnpm@12`). Works on Windows, macOS and Linux.
 
 ```bash
 pnpm install
-pnpm dev:server          # game server on ws://localhost:8787/ws
-pnpm dev:app             # Expo dev server: press w for web, scan the QR with Expo Go for phones
+pnpm dev:server          # terminal 1: game server on port 8787
+pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 ```
 
-Point the app at a deployed server with `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
-
-Checks:
-
-```bash
-pnpm test
-pnpm typecheck
-```
+Checks: `pnpm test` and `pnpm typecheck`.
 
 ## Trying it on your own devices
 
-- **Phone, fastest:** `pnpm dev:app -- --tunnel`, then scan the QR code with Expo Go (iOS/Android). Run the server somewhere the phone can reach and set `EXPO_PUBLIC_SERVER_URL`.
-- **Installable preview builds:** `npx eas-cli@latest build --profile preview --platform all` creates an internal-distribution build (iOS ad hoc, Android APK) with an install link and QR code.
-- **Simulator builds** (for Expo's hosted simulators or local ones): `npx eas-cli@latest build --profile simulator`.
-- **Web:** `pnpm --filter @chessmate/app export:web` produces a static site in `apps/app/dist`.
+### Phone on the same Wi-Fi (Expo Go)
 
-Before the first EAS build, run `npx eas-cli@latest init` once to link the project to your Expo account, and set the real server URL in `eas.json`.
+1. Start the server: `pnpm dev:server`.
+2. Start Expo: `pnpm dev:app`.
+3. Scan the QR code with Expo Go (Android) or the Camera app (iOS).
+
+The app finds the game server automatically: it uses the same computer address that Expo shows in the QR code (for example `192.168.1.20`), port 8787. If Windows asks, allow Node.js through the firewall on private networks.
+
+### Phone on another network (tunnel)
+
+`pnpm dev:app --tunnel` makes the bundle reachable from anywhere, but the game server is still only on your network, so tell the app where it is:
+
+```powershell
+# Windows PowerShell
+$env:EXPO_PUBLIC_SERVER_URL = "ws://192.168.1.20:8787/ws"   # your computer's LAN IP (ipconfig)
+pnpm dev:app --tunnel
+```
+
+```bash
+# macOS / Linux
+EXPO_PUBLIC_SERVER_URL=ws://192.168.1.20:8787/ws pnpm dev:app --tunnel
+```
+
+A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
+
+### Builds (uses EAS build quota)
+
+Cloud builds count against the Expo account's build quota, so they only run when started on purpose:
+
+- Simulator builds: run the "EAS simulator build" GitHub workflow, or add the `simulator-build` label to a PR.
+- Installable preview builds: `npx eas-cli@latest build --profile preview --platform all`.
+
+### Web
+
+`pnpm --filter @chessmate/app export:web` produces a static site in `apps/app/dist`.
 
 ## Roadmap
 
