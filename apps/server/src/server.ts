@@ -2,6 +2,8 @@ import {
   PROTOCOL_VERSION,
   decodeClient,
   encode,
+  positionKey,
+  START_FEN,
   timeCategory,
   updateRating,
   type ClientMessage,
@@ -13,6 +15,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
+import type { AnalysisService } from './engine/analysisService';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
@@ -24,6 +27,8 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** Engine analysis. Without it, analysis requests get `engine_unavailable`. */
+  analysis?: AnalysisService | null;
 }
 
 interface Connection {
@@ -75,6 +80,7 @@ export class ChessServer {
 
   async close(): Promise<void> {
     clearInterval(this.matchTimer);
+    this.opts.analysis?.close();
     for (const t of [...this.timers.values(), ...this.graceTimers.values()]) clearTimeout(t);
     for (const c of this.wss.clients) c.terminate();
     await new Promise<void>((r) => this.wss.close(() => r()));
@@ -179,9 +185,59 @@ export class ChessServer {
           if (ok) this.broadcast(r, { t: 'drawDeclined', gameId: r.id });
           return ok;
         });
+      case 'analyze':
+      case 'analyzeStop':
+      case 'review':
+        return this.onAnalysisMessage(player, ws, msg);
       default:
         return this.send(ws, err('bad_request', 'Unknown message'));
     }
+  }
+
+  // ---- engine analysis ----
+
+  /**
+   * Engine help is refused while the player has a live game, and for any
+   * position that is currently on the board in a live game (so a second
+   * account cannot be used to look up moves).
+   */
+  private onAnalysisMessage(player: Player, ws: WebSocket, msg: Extract<ClientMessage, { t: 'analyze' | 'analyzeStop' | 'review' }>) {
+    const analysis = this.opts.analysis;
+    if (msg.t === 'analyzeStop') return analysis?.stop(player.id, msg.id);
+    const id = Number(msg.id);
+    if (!analysis) return this.send(ws, { ...err('engine_unavailable', 'Engine analysis is not running on this server'), id });
+    const locked = () => this.send(ws, { ...err('engine_locked', 'Engine analysis is disabled during live games'), id });
+    if (this.activeRoomOf(player.id)) return locked();
+    const send = (m: ServerMessage) => this.send(ws, m);
+
+    if (msg.t === 'analyze') {
+      if (typeof msg.fen !== 'string' || msg.fen.length > 120) return this.send(ws, { ...err('bad_request', 'Invalid position'), id });
+      if (this.isLivePosition(msg.fen)) return locked();
+      void analysis.analyze(player.id, { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined }, send);
+      return;
+    }
+
+    let moves: string[];
+    let initialFen: string;
+    if (msg.gameId) {
+      const room = this.rooms.get(String(msg.gameId));
+      if (room && !room.outcome) return locked();
+      moves = room ? room.game.uciHistory() : msg.moves;
+      initialFen = room ? room.initialFen : (msg.initialFen ?? START_FEN);
+    } else {
+      moves = msg.moves;
+      initialFen = msg.initialFen ?? START_FEN;
+    }
+    if (!Array.isArray(moves) || !moves.every((m) => typeof m === 'string') || typeof initialFen !== 'string') {
+      return this.send(ws, { ...err('bad_request', 'Invalid move list'), id });
+    }
+    void analysis.review(player.id, { id, moves, initialFen }, send);
+  }
+
+  private isLivePosition(fen: string): boolean {
+    const key = positionKey(fen);
+    for (const r of this.rooms.values()) if (!r.outcome && positionKey(r.game.fen) === key) return true;
+    return false;
   }
 
   private withRoom(ws: WebSocket, gameId: string, fn: (r: GameRoom) => boolean) {
@@ -196,6 +252,7 @@ export class ChessServer {
     if (set && set.size > 0) return;
     this.sockets.delete(playerId);
     this.matchmaker.remove(playerId);
+    this.opts.analysis?.cancel(playerId);
     const room = this.activeRoomOf(playerId);
     if (!room) return;
     this.broadcast(room, { t: 'opponentConnection', gameId: room.id, connected: false }, playerId);
@@ -247,6 +304,9 @@ export class ChessServer {
       },
     });
     this.rooms.set(id, room);
+    // No engine help once a live game starts.
+    this.opts.analysis?.cancel(white.id);
+    this.opts.analysis?.cancel(black.id);
     for (const [p, color] of [
       [white, 'w'],
       [black, 'b'],
@@ -305,7 +365,7 @@ export class ChessServer {
   }
 }
 
-function err(code: ErrorCode, message: string): ServerMessage {
+function err(code: ErrorCode, message: string): Extract<ServerMessage, { t: 'error' }> {
   return { t: 'error', code, message };
 }
 
