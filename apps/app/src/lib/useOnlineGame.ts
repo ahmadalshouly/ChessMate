@@ -4,6 +4,9 @@ import {
   decodeServer,
   encode,
   remaining,
+  type Challenge,
+  type ChallengeColor,
+  type ChallengeEndReason,
   type ClientMessage,
   type ClockState,
   type Color,
@@ -36,6 +39,10 @@ export interface OnlineState {
   drawOfferBy: Color | null;
   opponentConnected: boolean;
   error: string | null;
+  /** Challenges involving this player, plus any invite looked up by link, keyed by id. */
+  challenges: Record<string, Challenge>;
+  /** Why a challenge went away, keyed by id (declined, cancelled, expired, accepted). */
+  challengeEnded: Record<string, ChallengeEndReason>;
 }
 
 const initial: OnlineState = {
@@ -53,6 +60,8 @@ const initial: OnlineState = {
   drawOfferBy: null,
   opponentConnected: true,
   error: null,
+  challenges: {},
+  challengeEnded: {},
 };
 
 /**
@@ -132,6 +141,13 @@ export function useOnlineGame(token: string) {
             return setState((p) => ({ ...p, opponentConnected: m.connected }));
           case 'gameOver':
             return setState((p) => ({ ...p, status: 'finished', outcome: m.outcome, drawOfferBy: null }));
+          case 'challenge':
+            return setState((p) => ({ ...p, challenges: { ...p.challenges, [m.challenge.id]: m.challenge }, error: null }));
+          case 'challengeGone':
+            return setState((p) => {
+              const { [m.id]: _gone, ...rest } = p.challenges;
+              return { ...p, challenges: rest, challengeEnded: { ...p.challengeEnded, [m.id]: m.reason } };
+            });
           case 'error':
             return setState((p) => ({ ...p, error: m.message }));
           default:
@@ -172,8 +188,15 @@ export function useOnlineGame(token: string) {
     declineDraw: () => state.gameId && send({ t: 'declineDraw', gameId: state.gameId }),
     newGame: () => {
       game.current = new Game();
-      setState((p) => ({ ...initial, me: p.me, status: 'idle' }));
+      setState((p) => ({ ...initial, me: p.me, status: 'idle', challenges: p.challenges }));
     },
+    /** Direct challenge when `to` is a player id; open invite link otherwise. */
+    createChallenge: (opts: { to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }) =>
+      send({ t: 'challengeCreate', ...opts }),
+    getChallenge: (id: string) => send({ t: 'challengeGet', id }),
+    acceptChallenge: (id: string) => send({ t: 'challengeAccept', id }),
+    declineChallenge: (id: string) => send({ t: 'challengeDecline', id }),
+    cancelChallenge: (id: string) => send({ t: 'challengeCancel', id }),
   };
 
   return { state, actions };

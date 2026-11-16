@@ -1,9 +1,13 @@
 import {
   PROTOCOL_VERSION,
+  isChallengeId,
+  resolveChallengeColor,
   decodeClient,
   encode,
   timeCategory,
   updateRating,
+  type Challenge,
+  type ChallengeEndReason,
   type ClientMessage,
   type Color,
   type ErrorCode,
@@ -13,6 +17,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './challenges';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
@@ -23,6 +28,7 @@ export interface ServerOptions {
   /** How long a disconnected player may be away before forfeiting. */
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
+  challengeLimits?: ChallengeLimits;
   now?: () => number;
 }
 
@@ -41,6 +47,7 @@ export class ChessServer {
   readonly wss: WebSocketServer;
   private readonly store: PlayerStore;
   private readonly matchmaker = new Matchmaker();
+  private readonly challenges: ChallengeBook;
   private readonly rooms = new Map<string, GameRoom>();
   private readonly sockets = new Map<string, Set<WebSocket>>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
@@ -51,6 +58,7 @@ export class ChessServer {
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
+    this.challenges = new ChallengeBook(opts.challengeLimits);
     this.http = createServer((req, res) => {
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -121,6 +129,10 @@ export class ChessServer {
           this.broadcast(room, { t: 'opponentConnection', gameId: room.id, connected: true }, player.id);
         }
       }
+      const now = this.now();
+      for (const c of [...this.challenges.incoming(player.id), ...this.challenges.outgoing(player.id)]) {
+        if (c.expiresAt > now) this.send(ws, { t: 'challenge', challenge: c });
+      }
       return;
     }
     const player = conn.player;
@@ -179,6 +191,12 @@ export class ChessServer {
           if (ok) this.broadcast(r, { t: 'drawDeclined', gameId: r.id });
           return ok;
         });
+      case 'challengeCreate':
+      case 'challengeGet':
+      case 'challengeAccept':
+      case 'challengeDecline':
+      case 'challengeCancel':
+        return this.onChallengeMessage(player, ws, msg, now);
       default:
         return this.send(ws, err('bad_request', 'Unknown message'));
     }
@@ -215,10 +233,97 @@ export class ChessServer {
     this.graceTimers.delete(playerId);
   }
 
+  // ---- challenges and invite links ----
+
+  private onChallengeMessage(
+    player: Player,
+    ws: WebSocket,
+    msg: Extract<ClientMessage, { t: `challenge${string}` }>,
+    now: number,
+  ) {
+    if (msg.t === 'challengeCreate') {
+      const tc = msg.timeControl;
+      if (!validTimeControl(tc)) return this.send(ws, err('bad_request', 'Invalid time control'));
+      if (!['w', 'b', 'random'].includes(msg.color)) return this.send(ws, err('bad_request', 'Invalid colour'));
+      if (this.activeRoomOf(player.id)) return this.send(ws, err('busy', 'Finish your current game first'));
+      let to: Player | null = null;
+      if (msg.to !== undefined) {
+        to = typeof msg.to === 'string' ? (this.store.get(msg.to) ?? null) : null;
+        if (!to) return this.send(ws, err('not_found', 'No such player'));
+      }
+      const created = this.challenges.create(
+        {
+          from: playerInfo(player, tc),
+          to: to && playerInfo(to, tc),
+          timeControl: tc,
+          // Guests never play rated; an open invite is re-checked when someone accepts.
+          rated: !!msg.rated && !isGuest(player.id) && (!to || !isGuest(to.id)),
+          color: msg.color,
+        },
+        now,
+      );
+      if (typeof created === 'string') return this.send(ws, challengeErr(created));
+      this.sendToPlayer(player.id, { t: 'challenge', challenge: created });
+      if (to) this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
+      return;
+    }
+
+    if (!isChallengeId(msg.id)) return this.send(ws, err('bad_request', 'Invalid challenge id'));
+
+    switch (msg.t) {
+      case 'challengeGet': {
+        const c = this.challenges.get(msg.id, now);
+        if (!c) return this.send(ws, err('not_found', 'This invite has expired or was cancelled'));
+        if (c.to && c.to.id !== player.id && c.from.id !== player.id) return this.send(ws, err('not_found', 'This invite is for another player'));
+        return this.send(ws, { t: 'challenge', challenge: c });
+      }
+      case 'challengeAccept': {
+        const c = this.challenges.canAccept(msg.id, player.id, now);
+        if (typeof c === 'string') return this.send(ws, challengeErr(c));
+        const from = this.store.get(c.from.id);
+        if (!from) return this.send(ws, err('not_found', 'Challenger not found'));
+        if (!this.sockets.has(from.id)) return this.send(ws, err('offline', `${from.name} is not online right now`));
+        if (this.activeRoomOf(player.id)) return this.send(ws, err('busy', 'Finish your current game first'));
+        if (this.activeRoomOf(from.id)) return this.send(ws, err('busy', `${from.name} is in another game`));
+        const fromColor = resolveChallengeColor(c.color);
+        const [white, black] = fromColor === 'w' ? [from, player] : [player, from];
+        const rated = c.rated && !isGuest(player.id);
+        this.matchmaker.remove(from.id);
+        this.matchmaker.remove(player.id);
+        const room = this.createGame(white, black, c.timeControl, rated, now);
+        const done = this.challenges.markAccepted(c.id, room.id, now) ?? c;
+        this.notifyChallengeGone(done, 'accepted', player.id);
+        // Other pending challenges from either player are stale now that they are playing.
+        for (const id of [from.id, player.id]) for (const other of this.challenges.cancelAllFrom(id)) this.notifyChallengeGone(other, 'cancelled');
+        return;
+      }
+      case 'challengeDecline': {
+        const c = this.challenges.decline(msg.id, player.id, now);
+        if (typeof c === 'string') return this.send(ws, challengeErr(c));
+        return this.notifyChallengeGone(c, 'declined');
+      }
+      case 'challengeCancel': {
+        const c = this.challenges.cancel(msg.id, player.id, now);
+        if (typeof c === 'string') return this.send(ws, challengeErr(c));
+        return this.notifyChallengeGone(c, 'cancelled');
+      }
+    }
+  }
+
+  private notifyChallengeGone(c: Challenge, reason: ChallengeEndReason, alsoPlayer?: string) {
+    const ids = new Set([c.from.id, ...(c.to ? [c.to.id] : []), ...(alsoPlayer ? [alsoPlayer] : [])]);
+    for (const id of ids) this.sendToPlayer(id, { t: 'challengeGone', id: c.id, reason });
+  }
+
+  private sendToPlayer(playerId: string, msg: ServerMessage) {
+    for (const ws of this.sockets.get(playerId) ?? []) this.send(ws, msg);
+  }
+
   // ---- games ----
 
   private runMatching() {
     const now = this.now();
+    for (const c of this.challenges.sweep(now)) this.notifyChallengeGone(c, 'expired');
     for (const { a, b } of this.matchmaker.tick(now)) {
       const pa = this.store.get(a.playerId);
       const pb = this.store.get(b.playerId);
@@ -307,6 +412,20 @@ export class ChessServer {
 
 function err(code: ErrorCode, message: string): ServerMessage {
   return { t: 'error', code, message };
+}
+
+function isGuest(playerId: string): boolean {
+  return playerId.startsWith('g_');
+}
+
+function challengeErr(e: ChallengeError): ServerMessage {
+  const text: Record<ChallengeError, string> = {
+    not_found: 'This invite has expired or was cancelled',
+    not_allowed: 'This challenge is for another player',
+    too_many: 'You have too many open challenges',
+    self: 'You cannot play against yourself',
+  };
+  return err(e === 'not_found' ? 'not_found' : e === 'too_many' ? 'rate_limited' : 'bad_request', text[e]);
 }
 
 function moveErrorText(e: MoveError): string {
