@@ -11,7 +11,7 @@ import {
   type ServerMessage,
 } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
-import { createServer, type Server as HttpServer } from 'node:http';
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
@@ -24,6 +24,8 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** Extra HTTP handlers (e.g. the puzzle API); each returns true when it handled the request. */
+  httpHandlers?: ((req: IncomingMessage, res: ServerResponse) => boolean)[];
 }
 
 interface Connection {
@@ -52,6 +54,7 @@ export class ChessServer {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
     this.http = createServer((req, res) => {
+      for (const h of opts.httpHandlers ?? []) if (h(req, res)) return;
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
