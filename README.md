@@ -43,7 +43,9 @@ pnpm dev:server          # terminal 1: game server on port 8787
 pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 ```
 
-Checks: `pnpm test` and `pnpm typecheck`.
+Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+
+CI, Docker, hosting and every environment variable are documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Trying it on your own devices
 
@@ -81,7 +83,11 @@ Cloud builds count against the Expo account's build quota, so they only run when
 
 ### Web
 
-`pnpm --filter @chessmate/app export:web` produces a static site in `apps/app/dist`.
+`pnpm build:web` produces a static site in `apps/app/dist`. Set `EXPO_PUBLIC_SERVER_URL=wss://.../ws` when building for a public host.
+
+### Production-like server (Docker)
+
+`docker compose --profile server up -d --build` runs Postgres plus the server image (with Stockfish) on port 8787. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Roadmap
 

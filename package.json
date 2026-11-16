@@ -6,9 +6,15 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "dev:server": "pnpm --filter @chessmate/server dev",
     "dev:app": "pnpm --filter @chessmate/app start",
-    "web": "pnpm --filter @chessmate/app web"
+    "web": "pnpm --filter @chessmate/app web",
+    "lint": "eslint .",
+    "build:server": "pnpm --filter @chessmate/server build",
+    "build:web": "pnpm --filter @chessmate/app export:web",
+    "start:server": "pnpm --filter @chessmate/server start"
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~5.9.3"
   },
   "engines": {

@@ -1,0 +1,41 @@
+# Fly.io config for the ChessMate game server (see docs/DEPLOYMENT.md).
+# Create once with:  fly launch --no-deploy --copy-config --name <your-app-name>
+app = "chessmate-server"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8787"
+  STOCKFISH_PATH = "/usr/games/stockfish"
+  ENGINE_WORKERS = "1"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  # Games and matchmaking live in memory on one machine: keep exactly one
+  # running and never auto-stop it (that would drop live WebSocket games).
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 2000
+    hard_limit = 5000
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+[deploy]
+  strategy = "immediate"
