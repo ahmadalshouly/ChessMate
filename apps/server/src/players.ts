@@ -11,6 +11,8 @@ export interface Player {
 export interface PlayerStore {
   get(id: string): Player | undefined;
   save(p: Player): void;
+  /** Every stored player; optional, used by the development leaderboard. */
+  all?(): Iterable<Player>;
 }
 
 export class MemoryPlayerStore implements PlayerStore {
@@ -21,6 +23,15 @@ export class MemoryPlayerStore implements PlayerStore {
   save(p: Player) {
     this.players.set(p.id, p);
   }
+  all() {
+    return this.players.values();
+  }
+}
+
+/** Development viewer lookup for HTTP requests: "dev:<id>:<name>" tokens name a user. */
+export function devViewerId(token: string | null): string | null {
+  if (!token || process.env.NODE_ENV === 'production') return null;
+  return /^dev:([\w-]{1,64}):/.exec(token)?.[1] ?? null;
 }
 
 export function ratingFor(p: Player, tc: TimeControl): Rating {

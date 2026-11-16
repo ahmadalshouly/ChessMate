@@ -2,6 +2,7 @@ import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory } from '@chessmat
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { LiveStats } from '@/components/LiveStats';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 
@@ -14,6 +15,8 @@ export default function Home() {
           Play. Learn. Improve.
         </Label>
         <Label muted>Real-time games against players worldwide, with a coach that shows you why a move works.</Label>
+
+        <LiveStats />
 
         <Card>
           <Label size={18} bold>
@@ -41,6 +44,14 @@ export default function Home() {
           </Label>
           <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
           <Button title="Open practice board" onPress={() => router.push('/play/local')} />
+        </Card>
+
+        <Card>
+          <Label size={18} bold>
+            Leaderboards
+          </Label>
+          <Label muted>Top players in bullet, blitz, rapid and classical, worldwide, in your country, and among your friends.</Label>
+          <Button variant="secondary" title="View leaderboards" onPress={() => router.push('/leaderboard')} />
         </Card>
       </View>
     </ScrollView>

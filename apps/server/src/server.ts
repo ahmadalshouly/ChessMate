@@ -15,8 +15,10 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
+import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
-import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
+import { MemoryPlayerStore, authenticate, devViewerId, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
+import { handlePublicApi, type PublicApiDeps, type ServerStats } from './publicApi';
 
 export interface ServerOptions {
   port: number;
@@ -27,6 +29,10 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** Leaderboard data; defaults to ranking players in the in-memory store. */
+  leaderboards?: Leaderboards;
+  /** Maps an HTTP bearer token to a user id (accounts plug in here). */
+  viewerFor?: PublicApiDeps['viewerFor'];
 }
 
 interface Connection {
@@ -54,12 +60,19 @@ export class ChessServer {
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
+    const store = this.store;
+    const api: PublicApiDeps = {
+      leaderboards: opts.leaderboards ?? new Leaderboards(new MemoryLeaderboardSource(() => store.all?.() ?? [])),
+      stats: () => this.stats(),
+      viewerFor: opts.viewerFor ?? devViewerId,
+    };
     this.http = createServer((req, res) => {
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
         return;
       }
+      if (handlePublicApi(req, res, api)) return;
       res.writeHead(404).end();
     });
     this.wss = new WebSocketServer({ server: this.http, path: '/ws', maxPayload: 16 * 1024 });
@@ -294,6 +307,13 @@ export class ChessServer {
   private activeRoomOf(playerId: string): GameRoom | undefined {
     for (const r of this.rooms.values()) if (!r.outcome && r.colorOf(playerId)) return r;
     return undefined;
+  }
+
+  /** Live counts for the home screen. */
+  stats(): ServerStats {
+    let gamesInProgress = 0;
+    for (const r of this.rooms.values()) if (!r.outcome) gamesInProgress++;
+    return { playersOnline: this.sockets.size, gamesInProgress, playersSeeking: this.matchmaker.size, serverNow: this.now() };
   }
 
   getRoom(id: string) {
