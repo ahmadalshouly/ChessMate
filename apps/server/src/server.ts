@@ -14,12 +14,18 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
+import type { HttpRoute } from './auth/http';
+import type { AuthService } from './auth/service';
 import { Matchmaker } from './matchmaker';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
 
 export interface ServerOptions {
   port: number;
   store?: PlayerStore;
+  /** Account auth; when set, WebSocket hello accepts its access tokens. */
+  auth?: AuthService;
+  /** Extra HTTP handlers (e.g. /api/auth), tried in order before the 404. */
+  http?: HttpRoute[];
   /** How long a disconnected player may be away before forfeiting. */
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
@@ -51,11 +57,22 @@ export class ChessServer {
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
-    this.http = createServer((req, res) => {
+    this.http = createServer(async (req, res) => {
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
         return;
+      }
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      for (const route of opts.http ?? []) {
+        try {
+          if (await route(req, res, url)) return;
+        } catch (e) {
+          console.error('[http]', e);
+          if (!res.headersSent) res.writeHead(500);
+          res.end();
+          return;
+        }
       }
       res.writeHead(404).end();
     });
@@ -105,7 +122,7 @@ export class ChessServer {
     const { ws } = conn;
     if (msg.t === 'hello') {
       if (msg.v !== PROTOCOL_VERSION) return this.send(ws, err('bad_request', 'Unsupported protocol version'));
-      const player = authenticate(msg.token, this.store);
+      const player = authenticate(msg.token, this.store, this.opts.auth && ((t) => this.opts.auth!.verifyAccessToken(t)));
       if (!player) return ws.close(4003, 'unauthorized');
       conn.player = player;
       const set = this.sockets.get(player.id) ?? new Set();

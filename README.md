@@ -45,6 +45,30 @@ pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 
 Checks: `pnpm test` and `pnpm typecheck`.
 
+## Accounts and sign-in (server)
+
+The game server also serves the account API at `http://<host>:8787/api/auth` (code in `apps/server/src/auth/`):
+
+| Endpoint | Body | Result |
+| --- | --- | --- |
+| `POST /signup` | `{username, email, password}` | `201 {user, tokens}` |
+| `POST /login` | `{login, password}` (login is username or email) | `200 {user, tokens}` |
+| `POST /refresh` | `{refreshToken}` | `200 {user, tokens}`, rotates the refresh token |
+| `POST /logout` | `{refreshToken, all?}` | `204` (`all: true` signs out every device) |
+| `GET /me` | `Authorization: Bearer <accessToken>` | `200 {user}` |
+| `POST /forgot-password` | `{email}` | `202` always |
+| `POST /reset-password` | `{token, password}` | `204`, signs out every device |
+| `POST /change-password` | `{currentPassword, newPassword}` + Bearer | `204` |
+
+Errors are `{error: {code, message, field?}}`. Passwords are hashed with scrypt; access tokens are 15-minute JWTs and refresh tokens last 30 days. The WebSocket `hello` accepts an access token, and `guest:<name>` still works for guest play.
+
+Local development needs no setup: accounts are kept in memory (they reset when the server restarts until the database package is wired in), and password reset links are printed in the server terminal instead of emailed. Settings, all optional in development:
+
+- `AUTH_SECRET`: token signing secret, at least 32 characters. Required in production; without it in development, a random one is used per run, so sign in again after a restart.
+- `CORS_ORIGINS`: comma-separated web origins allowed in production (development allows any).
+- `APP_WEB_URL`: base URL used in printed reset links (default `http://localhost:8081`).
+- `TRUST_PROXY=1`: use `X-Forwarded-For` for rate limiting when behind a reverse proxy.
+
 ## Trying it on your own devices
 
 ### Phone on the same Wi-Fi (Expo Go)
