@@ -50,21 +50,24 @@ export function handlePublicApi(req: IncomingMessage, res: ServerResponse, deps:
     const auth = req.headers.authorization;
     const token = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : null;
     const p = url.searchParams;
-    try {
-      const page = deps.leaderboards.get({
+    deps.leaderboards
+      .get({
         category: (p.get('category') ?? 'blitz') as TimeCategory,
         scope: (p.get('scope') ?? 'global') as LeaderboardScope,
         country: p.get('country'),
         viewerId: deps.viewerFor(token),
         limit: p.has('limit') ? Number(p.get('limit')) : undefined,
         offset: p.has('offset') ? Number(p.get('offset')) : undefined,
+      })
+      .then((page) => {
+        res.setHeader('cache-control', 'private, max-age=15');
+        json(res, 200, page);
+      })
+      .catch((e) => {
+        if (e instanceof LeaderboardError) return json(res, e.status, { error: e.message });
+        console.error('leaderboard query failed', e);
+        json(res, 500, { error: 'Leaderboard unavailable' });
       });
-      res.setHeader('cache-control', 'private, max-age=15');
-      json(res, 200, page);
-    } catch (e) {
-      if (e instanceof LeaderboardError) json(res, e.status, { error: e.message });
-      else throw e;
-    }
     return true;
   }
 

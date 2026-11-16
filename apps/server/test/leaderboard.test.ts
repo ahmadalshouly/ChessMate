@@ -1,44 +1,43 @@
-import { DatabaseSync } from 'node:sqlite';
+import { friendships, openDb, ratings, users, type DbHandle } from '@chessmate/db';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LeaderboardError, Leaderboards, MemoryLeaderboardSource, SqlLeaderboardSource } from '../src/leaderboard';
+import { DbLeaderboardSource, LeaderboardError, Leaderboards, MemoryLeaderboardSource } from '../src/leaderboard';
 import { MemoryPlayerStore } from '../src/players';
 import { ChessServer } from '../src/server';
 
-// Same users/ratings columns as the accounts schema.
-const SCHEMA = `
-CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, display_name TEXT NOT NULL, country TEXT, deleted_at INTEGER);
-CREATE TABLE ratings (
-  user_id TEXT NOT NULL REFERENCES users(id), category TEXT NOT NULL, rating REAL NOT NULL, rd REAL NOT NULL,
-  volatility REAL NOT NULL, games INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
-  losses INTEGER NOT NULL DEFAULT 0, draws INTEGER NOT NULL DEFAULT 0, peak REAL NOT NULL,
-  PRIMARY KEY (user_id, category));
-`;
+let h: DbHandle;
+let boards: Leaderboards;
 
-function seed() {
-  const sql = new DatabaseSync(':memory:');
-  sql.exec(SCHEMA);
-  const add = (id: string, country: string | null, rating: number, rd = 60, games = 30, category = 'blitz') => {
-    sql.prepare('INSERT OR IGNORE INTO users (id, username, display_name, country) VALUES (?, ?, ?, ?)').run(id, id, id.toUpperCase(), country);
-    sql.prepare('INSERT INTO ratings VALUES (?, ?, ?, ?, 0.06, ?, 10, 10, 10, ?)').run(id, category, rating, rd, games, rating + 50);
+beforeAll(async () => {
+  h = openDb({ url: '', path: 'memory://' });
+  await h.migrate();
+  const db = h.db;
+  const add = async (id: string, country: string | null, rating: number, rd = 60, games = 30, category: 'blitz' | 'bullet' = 'blitz') => {
+    await db.insert(users).values({ id, username: id, displayName: id.toUpperCase(), country }).onConflictDoNothing();
+    await db.insert(ratings).values({ userId: id, category, rating, rd, volatility: 0.06, games, wins: 10, losses: 10, draws: 10, peak: rating + 50 });
   };
-  add('ana', 'US', 2100);
-  add('ben', 'US', 1900.4);
-  add('cai', 'DE', 1899.6); // rounds to 1900: ties with ben
-  add('dee', 'DE', 1700);
-  add('eve', 'US', 2400, 300); // provisional: hidden from global/country
-  add('fox', null, 1600, 60, 0); // no games: never ranked
-  add('ana', 'US', 1500, 60, 5, 'bullet');
-  add('gon', 'US', 2600);
-  sql.prepare('UPDATE users SET deleted_at = 1 WHERE id = ?').run('gon'); // deleted account: never ranked
-  const friends: Record<string, string[]> = { dee: ['ana', 'eve'] };
-  return { sql, boards: new Leaderboards(new SqlLeaderboardSource(sql, (id) => friends[id] ?? [])) };
-}
+  await add('ana', 'US', 2100);
+  await add('ben', 'US', 1900.4);
+  await add('cai', 'DE', 1899.6); // rounds to 1900: ties with ben
+  await add('dee', 'DE', 1700);
+  await add('eve', 'US', 2400, 300); // provisional: hidden from global/country
+  await add('fox', null, 1600, 60, 0); // no games: never ranked
+  await add('ana', 'US', 1500, 60, 5, 'bullet');
+  await add('gon', 'US', 2600);
+  await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, 'gon')); // deleted account: never ranked
+  await db.insert(friendships).values([
+    { requesterId: 'dee', addresseeId: 'ana', status: 'accepted' },
+    { requesterId: 'eve', addresseeId: 'dee', status: 'accepted' },
+    { requesterId: 'dee', addresseeId: 'ben', status: 'pending' }, // not a friend yet
+  ]);
+  boards = new Leaderboards(new DbLeaderboardSource(db));
+});
+afterAll(() => h.close());
 
-describe('Leaderboards (SQLite)', () => {
-  const { boards } = seed();
+describe('Leaderboards (Postgres)', () => {
 
-  it('ranks the global board with shared ranks for ties and hides provisional players', () => {
-    const p = boards.get({ category: 'blitz', scope: 'global' });
+  it('ranks the global board with shared ranks for ties and hides provisional players', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'global' });
     expect(p.total).toBe(4);
     expect(p.entries.map((e) => [e.rank, e.userId, e.rating])).toEqual([
       [1, 'ana', 2100],
@@ -49,55 +48,55 @@ describe('Leaderboards (SQLite)', () => {
     expect(p.entries[0]).toMatchObject({ displayName: 'ANA', country: 'US', games: 30, peak: 2150, provisional: false });
   });
 
-  it('separates categories', () => {
-    expect(boards.get({ category: 'bullet', scope: 'global' }).entries.map((e) => e.userId)).toEqual(['ana']);
+  it('separates categories', async () => {
+    expect((await boards.get({ category: 'bullet', scope: 'global' })).entries.map((e) => e.userId)).toEqual(['ana']);
   });
 
-  it('pages and still reports the viewer row when it is off the page', () => {
-    const p = boards.get({ category: 'blitz', scope: 'global', limit: 2, offset: 0, viewerId: 'dee' });
+  it('pages and still reports the viewer row when it is off the page', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'global', limit: 2, offset: 0, viewerId: 'dee' });
     expect(p.entries).toHaveLength(2);
     expect(p.you).toMatchObject({ userId: 'dee', rank: 4 });
-    const p2 = boards.get({ category: 'blitz', scope: 'global', limit: 2, offset: 2 });
+    const p2 = await boards.get({ category: 'blitz', scope: 'global', limit: 2, offset: 2 });
     expect(p2.entries.map((e) => e.userId)).toEqual(['cai', 'dee']);
   });
 
-  it('filters by country, defaulting to the viewer country', () => {
-    expect(boards.get({ category: 'blitz', scope: 'country', country: 'de' }).entries.map((e) => [e.rank, e.userId])).toEqual([
+  it('filters by country, defaulting to the viewer country', async () => {
+    expect((await boards.get({ category: 'blitz', scope: 'country', country: 'de' })).entries.map((e) => [e.rank, e.userId])).toEqual([
       [1, 'cai'],
       [2, 'dee'],
     ]);
-    const mine = boards.get({ category: 'blitz', scope: 'country', viewerId: 'ben' });
+    const mine = await boards.get({ category: 'blitz', scope: 'country', viewerId: 'ben' });
     expect(mine.country).toBe('US');
     expect(mine.entries.map((e) => e.userId)).toEqual(['ana', 'ben']);
-    expect(() => boards.get({ category: 'blitz', scope: 'country' })).toThrow(LeaderboardError);
+    await expect(boards.get({ category: 'blitz', scope: 'country' })).rejects.toThrow(LeaderboardError);
   });
 
-  it('shows friends plus the viewer, provisional players included', () => {
-    const p = boards.get({ category: 'blitz', scope: 'friends', viewerId: 'dee' });
+  it('shows friends plus the viewer, provisional players included', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'friends', viewerId: 'dee' });
     expect(p.entries.map((e) => [e.rank, e.userId, e.provisional])).toEqual([
       [1, 'eve', true],
       [2, 'ana', false],
       [3, 'dee', false],
     ]);
     expect(p.you?.rank).toBe(3);
-    expect(() => boards.get({ category: 'blitz', scope: 'friends' })).toThrow(/Sign in/);
+    await expect(boards.get({ category: 'blitz', scope: 'friends' })).rejects.toThrow(/Sign in/);
   });
 
-  it('rejects unknown categories and clamps limits', () => {
-    expect(() => boards.get({ category: 'nope' as never, scope: 'global' })).toThrow(/category/);
-    expect(boards.get({ category: 'blitz', scope: 'global', limit: 10_000 }).entries).toHaveLength(4);
+  it('rejects unknown categories and clamps limits', async () => {
+    await expect(boards.get({ category: 'nope' as never, scope: 'global' })).rejects.toThrow(/category/);
+    expect((await boards.get({ category: 'blitz', scope: 'global', limit: 10_000 })).entries).toHaveLength(4);
   });
 });
 
 describe('Leaderboards (memory store)', () => {
-  it('ranks non-guest players with a settled rating', () => {
+  it('ranks non-guest players with a settled rating', async () => {
     const store = new MemoryPlayerStore();
     store.save({ id: 'p1', name: 'One', ratings: { rapid: { rating: 1800, rd: 80, volatility: 0.06 } } });
     store.save({ id: 'p2', name: 'Two', ratings: { rapid: { rating: 1600, rd: 340, volatility: 0.06 } } });
     store.save({ id: 'g_x', name: 'Guest', ratings: { rapid: { rating: 2500, rd: 50, volatility: 0.06 } } });
     const boards = new Leaderboards(new MemoryLeaderboardSource(() => store.all(), () => ['p2']));
-    expect(boards.get({ category: 'rapid', scope: 'global' }).entries.map((e) => e.userId)).toEqual(['p1']);
-    expect(boards.get({ category: 'rapid', scope: 'friends', viewerId: 'p1' }).entries.map((e) => e.userId)).toEqual(['p1', 'p2']);
+    expect((await boards.get({ category: 'rapid', scope: 'global' })).entries.map((e) => e.userId)).toEqual(['p1']);
+    expect((await boards.get({ category: 'rapid', scope: 'friends', viewerId: 'p1' })).entries.map((e) => e.userId)).toEqual(['p1', 'p2']);
   });
 });
 
@@ -105,7 +104,6 @@ describe('HTTP API', () => {
   let server: ChessServer;
   let base: string;
   beforeAll(async () => {
-    const { boards } = seed();
     server = new ChessServer({ port: 0, leaderboards: boards, viewerFor: (t) => (t === 'tok-dee' ? 'dee' : null) });
     base = `http://localhost:${await server.listen()}`;
   });

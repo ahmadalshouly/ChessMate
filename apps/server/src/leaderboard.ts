@@ -1,5 +1,6 @@
 import { isProvisional, type TimeCategory } from '@chessmate/core';
-import type { DatabaseSync } from 'node:sqlite';
+import { friendships, ratings, users, type Database } from '@chessmate/db';
+import { and, count, eq, inArray, isNull, lte, gt, or, sql, type SQL } from 'drizzle-orm';
 import type { Player } from './players';
 
 /** Rating categories shown on leaderboards (correspondence is not played live yet). */
@@ -80,11 +81,12 @@ export interface BoardFilter {
  */
 export interface LeaderboardSource {
   /** One page of the board, ranked, plus how many players are on it. */
-  page(f: BoardFilter, limit: number, offset: number): { total: number; entries: LeaderboardEntry[] };
+  page(f: BoardFilter, limit: number, offset: number): Promise<{ total: number; entries: LeaderboardEntry[] }>;
   /** One player's ranked row on the board, or null when they are not on it. */
-  standing(f: BoardFilter, userId: string): LeaderboardEntry | null;
-  countryOf(userId: string): string | null;
-  friendIdsOf(userId: string): string[];
+  standing(f: BoardFilter, userId: string): Promise<LeaderboardEntry | null>;
+  countryOf(userId: string): Promise<string | null>;
+  /** Accepted friends, in either direction. */
+  friendIdsOf(userId: string): Promise<string[]>;
 }
 
 export class LeaderboardError extends Error {
@@ -101,7 +103,7 @@ const MAX_LIMIT = 100;
 export class Leaderboards {
   constructor(private readonly source: LeaderboardSource) {}
 
-  get(q: LeaderboardQuery): LeaderboardPage {
+  async get(q: LeaderboardQuery): Promise<LeaderboardPage> {
     if (!LEADERBOARD_CATEGORIES.includes(q.category)) throw new LeaderboardError(400, 'Unknown rating category');
     if (!LEADERBOARD_SCOPES.includes(q.scope)) throw new LeaderboardError(400, 'Unknown leaderboard scope');
     const limit = clampInt(q.limit ?? 50, 1, MAX_LIMIT);
@@ -112,18 +114,18 @@ export class Leaderboards {
     let filter: BoardFilter;
     if (q.scope === 'friends') {
       if (!viewerId) throw new LeaderboardError(401, 'Sign in to see your friends leaderboard');
-      const ids = [viewerId, ...this.source.friendIdsOf(viewerId)];
+      const ids = [viewerId, ...(await this.source.friendIdsOf(viewerId))];
       filter = { category: q.category, userIds: [...new Set(ids)], includeProvisional: true };
     } else if (q.scope === 'country') {
-      country = normalizeCountry(q.country) ?? (viewerId ? normalizeCountry(this.source.countryOf(viewerId)) : null);
+      country = normalizeCountry(q.country) ?? (viewerId ? normalizeCountry(await this.source.countryOf(viewerId)) : null);
       if (!country) throw new LeaderboardError(400, 'Pick a country, or set one on your profile');
       filter = { category: q.category, country, includeProvisional: false };
     } else {
       filter = { category: q.category, includeProvisional: false };
     }
 
-    const { total, entries } = this.source.page(filter, limit, offset);
-    const you = viewerId ? (entries.find((e) => e.userId === viewerId) ?? this.source.standing(filter, viewerId)) : null;
+    const { total, entries } = await this.source.page(filter, limit, offset);
+    const you = viewerId ? (entries.find((e) => e.userId === viewerId) ?? (await this.source.standing(filter, viewerId))) : null;
     return { category: q.category, scope: q.scope, country, total, offset, entries, you };
   }
 }
@@ -162,76 +164,80 @@ export function pageRows(rows: RankedRow[], limit: number, offset: number) {
 }
 
 /**
- * SQLite source over the accounts schema (`users` and `ratings` tables).
- * Ranks with a window function over ROUND(rating), so ties match
- * `rankRows`. Friends come from a callback so this does not depend on how
- * the social module stores friendships.
+ * Postgres source (Drizzle, works on PGlite too) over `users`, `ratings`
+ * and `friendships` from @chessmate/db. Ranks with window functions over
+ * round(rating), so ties match `rankRows`; the (category, rating) index
+ * covers the scan. Soft-deleted users never appear.
  */
-export class SqlLeaderboardSource implements LeaderboardSource {
-  constructor(
-    private readonly sql: DatabaseSync,
-    private readonly friends: (userId: string) => string[] = () => [],
-  ) {
-    // Deleted accounts never appear, when the schema soft-deletes users.
-    const cols = sql.prepare('PRAGMA table_info(users)').all() as { name: string }[];
-    this.softDelete = cols.some((c) => c.name === 'deleted_at');
-  }
+export class DbLeaderboardSource implements LeaderboardSource {
+  constructor(private readonly db: Database) {}
 
-  private readonly softDelete: boolean;
-
-  private ranked(f: BoardFilter): { cte: string; args: (string | number)[] } | null {
-    const where = ['r.category = ?', 'r.games > 0'];
-    if (this.softDelete) where.push('u.deleted_at IS NULL');
-    const args: (string | number)[] = [f.category];
-    if (!f.includeProvisional) {
-      where.push('r.rd <= ?');
-      args.push(MAX_RANKED_RD);
-    }
-    if (f.country) {
-      where.push('u.country = ? COLLATE NOCASE');
-      args.push(f.country);
-    }
+  private where(f: BoardFilter): SQL | null {
+    const conds: SQL[] = [eq(ratings.category, f.category as never), gt(ratings.games, 0), isNull(users.deletedAt)];
+    if (!f.includeProvisional) conds.push(lte(ratings.rd, MAX_RANKED_RD));
+    if (f.country) conds.push(sql`upper(${users.country}) = ${f.country}`);
     if (f.userIds) {
       if (f.userIds.length === 0) return null;
-      where.push(`r.user_id IN (${f.userIds.map(() => '?').join(', ')})`);
-      args.push(...f.userIds);
+      conds.push(inArray(ratings.userId, f.userIds));
     }
-    const cte = `WITH board AS (
-      SELECT RANK() OVER (ORDER BY ROUND(r.rating) DESC) AS rank,
-             ROW_NUMBER() OVER (ORDER BY r.rating DESC, r.games DESC, u.username) AS pos,
-             r.user_id AS userId, u.username, u.display_name AS displayName, u.country, r.rating, r.rd,
-             r.games, r.wins, r.losses, r.draws, r.peak
-      FROM ratings r JOIN users u ON u.id = r.user_id
-      WHERE ${where.join(' AND ')})`;
-    return { cte, args };
+    return and(...conds)!;
   }
 
-  page(f: BoardFilter, limit: number, offset: number) {
-    const q = this.ranked(f);
-    if (!q) return { total: 0, entries: [] };
-    const total = (this.sql.prepare(`${q.cte} SELECT COUNT(*) AS n FROM board`).get(...q.args) as { n: number }).n;
-    const rows = this.sql.prepare(`${q.cte} SELECT * FROM board ORDER BY pos LIMIT ? OFFSET ?`).all(...q.args, limit, offset);
-    return { total, entries: (rows as unknown as (RankedRow & { rank: number })[]).map(toEntry) };
+  private board(where: SQL) {
+    return this.db
+      .select({
+        rank: sql<number>`rank() over (order by round(${ratings.rating}) desc)`.as('rank'),
+        pos: sql<number>`row_number() over (order by ${ratings.rating} desc, ${ratings.games} desc, ${users.username})`.as('pos'),
+        userId: sql<string>`${ratings.userId}`.as('user_id'),
+        username: users.username,
+        displayName: sql<string>`coalesce(${users.displayName}, ${users.username})`.as('display_name'),
+        country: users.country,
+        rating: ratings.rating,
+        rd: ratings.rd,
+        games: ratings.games,
+        wins: ratings.wins,
+        losses: ratings.losses,
+        draws: ratings.draws,
+        peak: sql<number>`coalesce(${ratings.peak}, ${ratings.rating})`.as('peak'),
+      })
+      .from(ratings)
+      .innerJoin(users, eq(users.id, ratings.userId))
+      .where(where)
+      .as('board');
   }
 
-  standing(f: BoardFilter, userId: string) {
-    const q = this.ranked(f);
-    if (!q) return null;
-    const row = this.sql.prepare(`${q.cte} SELECT * FROM board WHERE userId = ?`).get(...q.args, userId);
-    return row ? toEntry(row as unknown as RankedRow & { rank: number }) : null;
+  async page(f: BoardFilter, limit: number, offset: number) {
+    const where = this.where(f);
+    if (!where) return { total: 0, entries: [] };
+    const [{ n }] = (await this.db.select({ n: count() }).from(ratings).innerJoin(users, eq(users.id, ratings.userId)).where(where)) as [{ n: number }];
+    const b = this.board(where);
+    const rows = await this.db.select().from(b).orderBy(b.pos).limit(limit).offset(offset);
+    return { total: Number(n), entries: rows.map(toEntry) };
   }
 
-  countryOf(userId: string): string | null {
-    const row = this.sql.prepare('SELECT country FROM users WHERE id = ?').get(userId) as { country: string | null } | undefined;
+  async standing(f: BoardFilter, userId: string) {
+    const where = this.where(f);
+    if (!where) return null;
+    const b = this.board(where);
+    const [row] = await this.db.select().from(b).where(eq(b.userId, userId));
+    return row ? toEntry(row) : null;
+  }
+
+  async countryOf(userId: string) {
+    const [row] = await this.db.select({ country: users.country }).from(users).where(eq(users.id, userId));
     return row?.country ?? null;
   }
 
-  friendIdsOf(userId: string): string[] {
-    return this.friends(userId);
+  async friendIdsOf(userId: string) {
+    const rows = await this.db
+      .select({ requesterId: friendships.requesterId, addresseeId: friendships.addresseeId })
+      .from(friendships)
+      .where(and(eq(friendships.status, 'accepted'), or(eq(friendships.requesterId, userId), eq(friendships.addresseeId, userId))));
+    return rows.map((r) => (r.requesterId === userId ? r.addresseeId : r.requesterId));
   }
 }
 
-function toEntry(r: RankedRow & { rank: number }): LeaderboardEntry {
+function toEntry(r: RankedRow & { rank: number | string }): LeaderboardEntry {
   return {
     rank: Number(r.rank),
     userId: r.userId,
@@ -240,11 +246,11 @@ function toEntry(r: RankedRow & { rank: number }): LeaderboardEntry {
     country: r.country,
     rating: Math.round(r.rating),
     provisional: isProvisional({ rating: r.rating, rd: r.rd, volatility: 0 }),
-    games: r.games,
-    wins: r.wins,
-    losses: r.losses,
-    draws: r.draws,
-    peak: Math.round(r.peak),
+    games: Number(r.games),
+    wins: Number(r.wins),
+    losses: Number(r.losses),
+    draws: Number(r.draws),
+    peak: Math.round(Number(r.peak)),
   };
 }
 
@@ -273,20 +279,20 @@ export class MemoryLeaderboardSource implements LeaderboardSource {
     return out;
   }
 
-  page(f: BoardFilter, limit: number, offset: number) {
+  async page(f: BoardFilter, limit: number, offset: number) {
     return pageRows(this.rows(f), limit, offset);
   }
 
-  standing(f: BoardFilter, userId: string) {
+  async standing(f: BoardFilter, userId: string) {
     return rankRows(this.rows(f)).find((e) => e.userId === userId) ?? null;
   }
 
-  countryOf(userId: string): string | null {
+  async countryOf(userId: string) {
     for (const p of this.players()) if (p.id === userId) return p.country ?? null;
     return null;
   }
 
-  friendIdsOf(userId: string): string[] {
+  async friendIdsOf(userId: string) {
     return this.friends(userId);
   }
 }

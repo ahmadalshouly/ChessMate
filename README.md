@@ -117,7 +117,7 @@ The game server also serves read-only JSON on the same port (8787), with CORS op
 | `GET /api/stats` | Players online, games in progress, players looking for a game (shown live on the home screen, refreshed every 15 s) |
 | `GET /api/leaderboard?category=blitz&scope=global` | Ranked players for `bullet`, `blitz`, `rapid` or `classical`. `scope` is `global`, `country` (add `country=US`, or it uses the viewer's profile country) or `friends` (needs `Authorization: Bearer <session token>`). Paged with `limit` (max 100) and `offset`; `you` holds the viewer's own rank. |
 
-Global and country boards list players with at least one rated game and a settled rating (RD 150 or less), so a lucky first game cannot top the list; friends boards include provisional players. Equal rounded ratings share a rank. To try the leaderboard locally, play a few rated games with `dev:<id>:<name>` tokens; guests are never ranked.
+Global and country boards list players with at least one rated game and a settled rating (RD 150 or less), so a lucky first game cannot top the list; friends boards include provisional players. Equal rounded ratings share a rank. Boards are read from the database (`DbLeaderboardSource` over `users`, `ratings` and accepted `friendships`); with `CHESSMATE_DB=off` they rank the in-memory players instead. To try the leaderboard locally, play a few rated games with `dev:<id>:<name>` tokens; guests are never ranked.
 
 ## Roadmap
 
