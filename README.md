@@ -24,6 +24,7 @@ packages/
 | `rating.ts` | Glicko-2 ratings per time category |
 | `protocol.ts` | Typed client/server WebSocket messages |
 | `coach.ts` | Structured prompt for the AI coach plus deterministic quick feedback |
+| `review.ts` | Engine analysis interface for the coach, game review facts, offline review ([docs/coach.md](docs/coach.md)) |
 
 ### Design decisions
 
@@ -44,6 +45,23 @@ pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 ```
 
 Checks: `pnpm test` and `pnpm typecheck`.
+
+### AI coach
+
+The coach works without setup using rule-based reviews. To turn on the AI coach, give the server a Claude API key before starting it:
+
+```powershell
+# Windows PowerShell
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+pnpm dev:server
+```
+
+```bash
+# macOS / Linux
+ANTHROPIC_API_KEY=sk-ant-... pnpm dev:server
+```
+
+Then open the app and tap **Try a sample review** on the home screen. Details: [docs/coach.md](docs/coach.md).
 
 ## Trying it on your own devices
 
@@ -87,7 +105,7 @@ Cloud builds count against the Expo account's build quota, so they only run when
 
 1. Accounts and persistence (Postgres for players, games and ratings; signed session tokens in place of guest tokens).
 2. Engine service: Stockfish workers behind a queue for post-game review and evaluation bar.
-3. AI coach: game review that explains each mistake, using the structured context from `coach.ts`.
+3. AI coach: game review and position chat are in (see docs/coach.md); next, open reviews from finished games once the engine service lands.
 4. Promotion picker, drag-to-move, premoves, sounds, original piece set.
 5. Puzzles and openings from the CC0 Lichess databases.
 6. Horizontal scaling of the game server (route by game id, Redis pub/sub), anti-cheat signals.

@@ -7,12 +7,15 @@ import {
   type ClientMessage,
   type Color,
   type ErrorCode,
+  type GameAnalyzer,
   type Rating,
   type ServerMessage,
 } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { CoachService } from './coach/coachService';
+import { createCoachHttpHandler } from './coach/http';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
@@ -24,6 +27,10 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** AI coach. Defaults to the rule-based (offline) coach. */
+  coach?: CoachService;
+  /** Engine analysis service, when available, for coach reviews from raw moves. */
+  analyzer?: GameAnalyzer;
 }
 
 interface Connection {
@@ -51,7 +58,17 @@ export class ChessServer {
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
+    const coachHttp = createCoachHttpHandler({
+      service: opts.coach ?? new CoachService(),
+      analyzer: opts.analyzer,
+      authorize: (token) => authenticate(token, this.store)?.id ?? null,
+      now: this.now,
+    });
     this.http = createServer((req, res) => {
+      if (req.url?.startsWith('/coach/')) {
+        void coachHttp(req, res);
+        return;
+      }
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
