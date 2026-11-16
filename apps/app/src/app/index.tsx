@@ -37,6 +37,14 @@ export default function Home() {
 
         <Card>
           <Label size={18} bold>
+            Puzzles
+          </Label>
+          <Label muted>Daily puzzle, rated training by theme, streak and rush.</Label>
+          <Button title="Solve puzzles" onPress={() => router.push('/puzzles')} />
+        </Card>
+
+        <Card>
+          <Label size={18} bold>
             Practice board
           </Label>
           <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
