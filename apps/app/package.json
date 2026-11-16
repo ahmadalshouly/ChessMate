@@ -5,6 +5,7 @@
   "dependencies": {
     "@chessmate/core": "workspace:*",
     "expo": "~58.0.25",
+    "expo-audio": "~58.0.12",
     "expo-blur": "~58.0.6",
     "expo-constants": "~58.0.16",
     "expo-font": "~58.0.12",
