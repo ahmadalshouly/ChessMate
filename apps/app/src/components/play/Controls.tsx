@@ -15,7 +15,7 @@ export function Segmented<T extends string | number>({
 }) {
   const t = useTheme();
   return (
-    <View style={[styles.segment, { borderColor: t.glassBorder, backgroundColor: t.surface }]} accessibilityRole="radiogroup">
+    <View style={[styles.segment, { borderColor: t.scheme === 'light' ? t.border : t.glassBorder, backgroundColor: t.surface }]} accessibilityRole="radiogroup">
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -45,7 +45,7 @@ export function Tile({ title, caption, selected, onPress }: { title: string; cap
       style={({ pressed }) => [
         styles.tile,
         {
-          borderColor: selected ? t.accent : t.glassBorder,
+          borderColor: selected ? t.accent : t.scheme === 'light' ? t.border : t.glassBorder,
           backgroundColor: selected ? t.accent : t.surface,
           opacity: pressed ? 0.8 : 1,
         },
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   segmentText: { fontSize: 14, fontWeight: '600' },
   tile: { borderWidth: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', minHeight: 64 },
   tileTitle: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  tileCaption: { fontSize: 12, marginTop: 2, textTransform: 'capitalize' },
+  tileCaption: { fontSize: 12, marginTop: 2 },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepLabel: { fontSize: 14, width: 92 },
   stepBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

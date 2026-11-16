@@ -104,8 +104,8 @@ export default function Lobby() {
                   {g.controls.map((key) => {
                     const n = poolCount(key);
                     return (
-                      <View key={key} style={styles.cell}>
-                        <Tile title={key} caption={n > 0 ? `${n} waiting` : timeCategory(parseTimeControl(key))} selected={tcKey === key} onPress={() => setTcKey(key)} />
+                      <View key={key} style={[styles.cell, { width: `${100 / g.controls.length}%` }]}>
+                        <Tile title={key} caption={n > 0 ? `${n} waiting` : g.name} selected={tcKey === key} onPress={() => setTcKey(key)} />
                       </View>
                     );
                   })}

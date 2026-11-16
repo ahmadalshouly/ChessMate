@@ -45,6 +45,20 @@ pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 
 Checks: `pnpm test` and `pnpm typecheck`.
 
+## Playing online
+
+Open **Play** (`/play`, or "Open the lobby" on the home screen):
+
+- **Quick pairing.** Pick a time control (bullet to classical, or a custom minutes + increment), casual or rated, and an opponent rating window. *Auto* starts at ±100 and widens about 20 points a second, then opens to anyone after 45 seconds; ±100/±200/±400 keep it fixed. The search card shows the live window and how many others are searching.
+- **Custom games.** Post a game to the lobby with your side (white, black or random). Everyone in the lobby sees it under *Open games* and can join.
+- **Rated vs casual.** Rated needs an account; guests always play casual.
+- **Premoves.** While your opponent is thinking, tap a piece and a square to queue a move (tinted blue). It plays instantly if it is legal after their reply; tap anywhere else to cancel.
+- **Sounds** for moves, captures, checks, game start and end (original synthesised set in `apps/app/assets/sounds`).
+- **Reconnect and resume.** One connection serves the whole app and reconnects on its own. Guests get a resume token, so a dropped connection or a page reload puts you back in your game. If your opponent drops, you see a countdown: they forfeit after 60 seconds (or the game is aborted if fewer than two moves were played).
+- **Game over** shows the result, the rating change for rated games, and Rematch (colours swap), New game, and Lobby.
+
+To try two players on one computer, open the lobby in two browser windows (one normal, one private), create a game in one and join it from the other.
+
 ## Trying it on your own devices
 
 ### Phone on the same Wi-Fi (Expo Go)

@@ -52,6 +52,7 @@ export function GameOverCard({
   const opponent = view.you === 'w' ? view.black : view.white;
 
   return (
+    <View style={[styles.solid, { backgroundColor: t.surfaceSolid }]}>
     <Card style={styles.card}>
       <Text style={[styles.title, { color: t.text }]}>{title}</Text>
       <Label muted>
@@ -86,10 +87,12 @@ export function GameOverCard({
         <Button variant="secondary" title="Lobby" onPress={onLobby} />
       </View>
     </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  solid: { width: '100%', borderRadius: 20 },
   card: { width: '100%' },
   title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
