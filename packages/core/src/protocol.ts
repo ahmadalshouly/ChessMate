@@ -1,3 +1,4 @@
+import type { ChatLine, QuickMessageId, ReportReason } from './chat';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { Rating } from './rating';
@@ -40,7 +41,10 @@ export type ClientMessage =
   | { t: 'offerDraw'; gameId: string }
   | { t: 'acceptDraw'; gameId: string }
   | { t: 'declineDraw'; gameId: string }
-  | { t: 'abort'; gameId: string };
+  | { t: 'abort'; gameId: string }
+  // chat and moderation
+  | { t: 'chat'; gameId: string; text?: string; quick?: QuickMessageId }
+  | { t: 'report'; playerId: string; gameId?: string; reason: ReportReason; note?: string };
 
 export type ServerMessage =
   | { t: 'welcome'; v: number; player: PlayerInfo }
@@ -54,6 +58,10 @@ export type ServerMessage =
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
+  | { t: 'chat'; line: ChatLine }
+  /** Full chat log of a game, sent on (re)join. */
+  | { t: 'chatHistory'; gameId: string; lines: ChatLine[] }
+  | { t: 'reported'; reportId: string }
   | { t: 'error'; code: ErrorCode; message: string };
 
 export type ErrorCode =
@@ -64,7 +72,8 @@ export type ErrorCode =
   | 'illegal_move'
   | 'stale_ply'
   | 'game_over'
-  | 'rate_limited';
+  | 'rate_limited'
+  | 'chat_restricted';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

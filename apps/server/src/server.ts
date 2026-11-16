@@ -13,8 +13,10 @@ import {
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
+import { handleAdmin } from './admin';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
+import { Moderation } from './moderation';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
 
 export interface ServerOptions {
@@ -24,6 +26,9 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  moderation?: Moderation;
+  /** Bearer token for the /admin moderation API; disabled when unset. */
+  adminToken?: string;
 }
 
 interface Connection {
@@ -47,11 +52,14 @@ export class ChessServer {
   private readonly graceTimers = new Map<string, NodeJS.Timeout>();
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
+  readonly moderation: Moderation;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.now = opts.now ?? Date.now;
+    this.moderation = opts.moderation ?? new Moderation(undefined, this.now);
     this.http = createServer((req, res) => {
+      if (handleAdmin(req, res, this.moderation, opts.adminToken)) return;
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
@@ -118,6 +126,7 @@ export class ChessServer {
         const color = room.colorOf(player.id);
         if (color && !room.outcome) {
           this.send(ws, { t: 'gameStart', game: room.snapshot(this.now()), you: color });
+          this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
           this.broadcast(room, { t: 'opponentConnection', gameId: room.id, connected: true }, player.id);
         }
       }
@@ -151,7 +160,10 @@ export class ChessServer {
         const room = this.rooms.get(msg.gameId);
         if (!room) return this.send(ws, err('not_found', 'No such game'));
         const color = room.colorOf(player.id);
-        if (color) return this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+        if (color) {
+          this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+          return this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
+        }
         return this.send(ws, { t: 'gameState', game: room.snapshot(now) });
       }
       case 'move': {
@@ -179,6 +191,27 @@ export class ChessServer {
           if (ok) this.broadcast(r, { t: 'drawDeclined', gameId: r.id });
           return ok;
         });
+      case 'chat': {
+        const room = this.rooms.get(msg.gameId);
+        if (!room || !room.colorOf(player.id)) return this.send(ws, err('not_found', 'No such game'));
+        const res = this.moderation.chat(player, room.id, msg);
+        if (!res.ok) return this.send(ws, err(res.code, res.message));
+        return this.broadcast(room, { t: 'chat', line: res.line });
+      }
+      case 'report': {
+        const target = typeof msg.playerId === 'string' ? this.store.get(msg.playerId) : undefined;
+        if (!target) return this.send(ws, err('not_found', 'No such player'));
+        const room = msg.gameId ? this.rooms.get(msg.gameId) : undefined;
+        const inGame = room && room.colorOf(player.id) ? room : undefined;
+        const res = this.moderation.report(player, target, {
+          gameId: inGame?.id ?? null,
+          reason: msg.reason,
+          note: msg.note,
+          moves: inGame ? inGame.snapshot(now).moves : [],
+        });
+        if (!res.ok) return this.send(ws, err(res.code, res.message));
+        return this.send(ws, { t: 'reported', reportId: res.report.id });
+      }
       default:
         return this.send(ws, err('bad_request', 'Unknown message'));
     }
@@ -243,7 +276,10 @@ export class ChessServer {
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
         // Keep finished games briefly so late joiners can read the result.
-        setTimeout(() => this.rooms.delete(r.id), 5 * 60_000).unref();
+        setTimeout(() => {
+          this.rooms.delete(r.id);
+          this.moderation.forgetGame(r.id);
+        }, 5 * 60_000).unref();
       },
     });
     this.rooms.set(id, room);
