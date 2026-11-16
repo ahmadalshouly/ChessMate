@@ -1,10 +1,13 @@
 import { Game, analyzePosition, pieceName, type PlayedMove, type Square } from '@chessmate/core';
-import { useMemo, useRef, useState } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
+import { saveGame } from '@/lib/archive';
+import { practiceGame } from '@/lib/recordGame';
 import { useBoardSize } from '@/lib/useBoardSize';
 
 /**
@@ -30,6 +33,17 @@ export default function LocalPlay() {
   const interaction = useBoardInteraction(view.fen, () => !outcome, play);
   const { history } = view;
   const last = history[history.length - 1];
+
+  // Practice games are saved to the archive when they end, or on request.
+  const session = useRef({ id: `pr_${Date.now().toString(36)}`, startedAt: Date.now() });
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const save = () => {
+    void saveGame(practiceGame(session.current.id, history, outcome, session.current.startedAt));
+    setSavedId(session.current.id);
+  };
+  useEffect(() => {
+    if (outcome) save();
+  }, [outcome]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const insight = useMemo(() => analyzePosition(view.fen, snapshot.turn), [view.fen, snapshot]);
   const threatened: Square[] = showThreats ? insight.hanging.map((h) => h.square) : [];
@@ -102,6 +116,12 @@ export default function LocalPlay() {
                   <Label muted>No immediate tactics.</Label>
                 )}
               </>
+            )}
+            {history.length > 0 && (
+              <View style={styles.row}>
+                {!outcome && <Button variant="secondary" title={savedId ? 'Update saved game' : 'Save to history'} onPress={save} />}
+                {savedId && <Button variant="secondary" title="Review" onPress={() => router.push({ pathname: '/games/[id]', params: { id: savedId } })} />}
+              </View>
             )}
             {history.length > 0 && <Label muted>{history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>}
           </Card>

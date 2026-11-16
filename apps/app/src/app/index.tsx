@@ -42,6 +42,14 @@ export default function Home() {
           <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
           <Button title="Open practice board" onPress={() => router.push('/play/local')} />
         </Card>
+
+        <Card>
+          <Label size={18} bold>
+            Game history
+          </Label>
+          <Label muted>Replay past games move by move, see the opening, and share or import PGN.</Label>
+          <Button variant="secondary" title="Open game history" onPress={() => router.push('/games')} />
+        </Card>
       </View>
     </ScrollView>
     </Screen>

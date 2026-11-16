@@ -47,7 +47,7 @@ export function openingFamily(name: string): string {
  */
 export function openingTimeline(moves: string[], initialFen: string = START_FEN): (Opening | null)[] {
   const out: (Opening | null)[] = [null];
-  if (openingKey(initialFen) !== openingKey(START_FEN)) return moves.map(() => null).concat(out);
+  if (openingKey(initialFen) !== openingKey(START_FEN)) return [null, ...moves.map(() => null)];
   const g = new Game(initialFen);
   let current: Opening | null = null;
   for (const m of moves) {

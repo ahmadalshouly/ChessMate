@@ -24,6 +24,9 @@ packages/
 | `rating.ts` | Glicko-2 ratings per time category |
 | `protocol.ts` | Typed client/server WebSocket messages |
 | `coach.ts` | Structured prompt for the AI coach plus deterministic quick feedback |
+| `openings.ts` | Opening name and ECO detection by position (handles transpositions), from the CC0 Lichess opening tables |
+| `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
+| `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
 
 ### Design decisions
 
@@ -44,6 +47,12 @@ pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 ```
 
 Checks: `pnpm test` and `pnpm typecheck`.
+
+### Game history
+
+Home → **Game history** lists finished online games, practice games (saved when they end, or with "Save to history") and imported PGNs. They are stored on the device, so history works offline and for guests. Open a game to replay it: tap any move, use the arrow buttons (or ←/→, Home/End, F to flip on web), or press ▶▶ to play it through. Each game can be shared as PGN (share sheet on phones, download or copy on web), and **Import PGN** accepts pasted text or a `.pgn` file on web.
+
+Opening names come from `packages/core/data/*.tsv` (lichess-org/chess-openings, CC0). After changing those files, run `node packages/core/scripts/build-openings.mjs` to regenerate `src/openings-data.ts`.
 
 ## Trying it on your own devices
 

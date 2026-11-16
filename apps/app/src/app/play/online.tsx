@@ -1,5 +1,5 @@
 import { parseTimeControl, type Color } from '@chessmate/core';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
@@ -7,6 +7,7 @@ import { Board } from '@/components/Board';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
+import { useRecordOnlineGame } from '@/lib/recordGame';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { clockRemaining, useOnlineGame } from '@/lib/useOnlineGame';
 
@@ -30,6 +31,7 @@ export default function OnlinePlay() {
   // Guest identity until accounts land.
   const [token] = useState(() => `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`);
   const { state, actions } = useOnlineGame(token);
+  useRecordOnlineGame(state, timeControl);
   const size = useBoardSize(300);
   const playing = state.status === 'playing';
   useTicker(playing && !!state.clock?.running);
@@ -92,6 +94,9 @@ export default function OnlinePlay() {
                 {state.outcome.winner === null ? 'Draw' : state.outcome.winner === state.you ? 'You won' : 'You lost'} · {REASONS[state.outcome.reason] ?? state.outcome.reason}
               </Label>
               <Button title="New game" onPress={actions.newGame} />
+              {state.gameId && state.outcome.reason !== 'aborted' && (
+                <Button variant="secondary" title="Review in game history" onPress={() => router.push({ pathname: '/games/[id]', params: { id: `on_${state.gameId}` } })} />
+              )}
             </>
           )}
           {state.error && <Label muted>{state.error}</Label>}
