@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useTheme } from '@/constants/theme';
 import { useCurrentUser } from '@/lib/currentUser';
 
@@ -27,6 +28,7 @@ export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
           <Text style={[styles.signInText, { color: t.text }]}>Sign in</Text>
         </Pressable>
       )}
+      <NotificationBell />
       <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => router.navigate('/profile')} hitSlop={6}>
         <Avatar name={user.displayName} url={user.avatarUrl} size={34} />
       </Pressable>

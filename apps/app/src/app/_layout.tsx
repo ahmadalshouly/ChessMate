@@ -3,10 +3,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { InAppBanner } from '@/components/notifications/InAppBanner';
 import { RootStackHeader } from '@/components/shell/StackHeader';
 import { Screen } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { UIProvider, useAppTheme } from '@/ui';
+import { NotificationsProvider } from '@/lib/notifications';
 
 export default function RootLayout() {
   return (
@@ -23,7 +25,10 @@ function Navigator() {
     <ThemeProvider value={{ ...base, colors: { ...base.colors, background: p.bg, card: p.surfaceSolid, text: p.text, primary: p.accent, border: p.border } }}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <AuthProvider>
-        <RootStack />
+        <NotificationsProvider>
+          <RootStack />
+          <InAppBanner />
+        </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

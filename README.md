@@ -189,6 +189,15 @@ Then open `/admin`, enter the same token, and review reports (with the game's ch
 - First launch opens the welcome screen: create an account, sign in, or continue as a guest (casual games and the practice board).
 - Sessions are kept in the iOS Keychain / Android Keystore (`expo-secure-store`); on web they are kept in the browser's local storage.
 - Password reset: there is no email provider in development, so the reset link is printed in the server's terminal. Open it on the device (`chessmate://reset-password?token=...`) or in the browser (`http://localhost:8081/reset-password?token=...`).
+### Notifications
+
+The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.
+
+- **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running. Until sign-in lands, each device uses a development identity.
+- **Send a test** on the settings screen sends yourself a sample notification (development servers only).
+- **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
+- **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
+- Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
 
 ### Builds (uses EAS build quota)
 

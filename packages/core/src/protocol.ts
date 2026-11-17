@@ -2,6 +2,7 @@ import type { Challenge, ChallengeColor, ChallengeEndReason } from './challenge'
 import type { ChatLine, QuickMessageId, ReportReason } from './chat';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
+import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
 import type { TimeControl } from './timeControl';
 import type { Color } from './types';
@@ -72,6 +73,7 @@ export type ServerMessage =
   /** Full chat log of a game, sent on (re)join. */
   | { t: 'chatHistory'; gameId: string; lines: ChatLine[] }
   | { t: 'reported'; reportId: string }
+  | { t: 'notification'; notification: AppNotification; unread: number }
   | { t: 'error'; code: ErrorCode; message: string };
 
 export type ErrorCode =

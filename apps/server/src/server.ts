@@ -45,6 +45,7 @@ import {
   type LimitKind,
   type RateLimitConfig,
 } from './fairplay';
+import { ExpoPushSender, MemoryNotificationStore, NotificationService, handleNotificationsHttp, yourTurn, type HttpAuth } from './notifications';
 
 export interface ServerOptions {
   port: number;
@@ -75,6 +76,10 @@ export interface ServerOptions {
   coach?: CoachService;
   /** Engine analysis service, when available, for coach reviews from raw moves. */
   analyzer?: GameAnalyzer;
+  /** Notification service; defaults to in-memory storage with Expo push. */
+  notifications?: NotificationService;
+  /** Maps an HTTP bearer token to a user id. Defaults to dev tokens ("dev:<id>:<name>") outside production. */
+  httpAuth?: HttpAuth;
 }
 
 interface Connection {
@@ -112,6 +117,7 @@ export class ChessServer {
   readonly fairPlay: FairPlayService;
   private readonly limits: RateLimitConfig;
   private readonly ipLimiter: IpLimiter;
+  readonly notifications: NotificationService;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
@@ -141,6 +147,21 @@ export class ChessServer {
       authorize: (token) => authenticate(token, this.store, this.opts.auth && ((t) => this.opts.auth!.verifyAccessToken(t)))?.id ?? null,
       now: this.now,
     });
+    this.notifications =
+      opts.notifications ??
+      new NotificationService({
+        store: new MemoryNotificationStore(),
+        push: new ExpoPushSender({ accessToken: process.env.EXPO_ACCESS_TOKEN, log: console.warn }),
+        log: console.warn,
+      });
+    this.notifications.attach({
+      deliver: (userId, notification, unread) => {
+        for (const ws of this.sockets.get(userId) ?? []) this.send(ws, { t: 'notification', notification, unread });
+      },
+      isOnline: (userId) => (this.sockets.get(userId)?.size ?? 0) > 0,
+    });
+    const accountAuth: HttpAuth | null = opts.auth ? (t) => opts.auth!.verifyAccessToken(t)?.userId ?? null : null;
+    const httpAuth: HttpAuth = opts.httpAuth ?? ((t) => accountAuth?.(t) ?? devHttpAuth(t));
     this.http = createServer(async (req, res) => {
       if (req.url?.startsWith('/coach/')) {
         await coachHttp(req, res);
@@ -164,6 +185,12 @@ export class ChessServer {
           res.end();
           return;
         }
+      }
+      try {
+        if (await handleNotificationsHttp(req, res, { service: this.notifications, auth: httpAuth, now: this.now, dev: process.env.NODE_ENV !== 'production' })) return;
+      } catch {
+        if (!res.headersSent) res.writeHead(500).end();
+        return;
       }
       res.writeHead(404).end();
     });
@@ -493,6 +520,7 @@ export class ChessServer {
         this.opts.persistence?.moveMade(r, m);
         this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
         this.schedule(r);
+        this.notifyTurnIfAway(r, m.san);
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
@@ -573,6 +601,15 @@ export class ChessServer {
     );
   }
 
+  /** Pushes "your turn" to the player to move when they have no open connection (app closed or backgrounded). */
+  private notifyTurnIfAway(room: GameRoom, san: string) {
+    if (room.outcome) return;
+    const toMove = room.game.turn === 'w' ? room.white : room.black;
+    const mover = room.game.turn === 'w' ? room.black : room.white;
+    if (toMove.id.startsWith('g_') || this.sockets.has(toMove.id)) return;
+    this.notifications.notify(toMove.id, yourTurn({ gameId: room.id, opponentName: mover.name, san }));
+  }
+
   private activeRoomOf(playerId: string): GameRoom | undefined {
     for (const r of this.rooms.values()) if (!r.outcome && r.colorOf(playerId)) return r;
     return undefined;
@@ -607,6 +644,11 @@ function clientIp(req: { socket: { remoteAddress?: string }; headers: Record<str
   const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim();
   return first || req.socket.remoteAddress || 'unknown';
 }
+/** Development bearer tokens mirror the WebSocket dev tokens: "dev:<id>:<name>". */
+const devHttpAuth: HttpAuth = (token) => {
+  if (process.env.NODE_ENV === 'production') return null;
+  return /^dev:([\w-]{1,64}):[\w .-]{1,24}$/.exec(token)?.[1] ?? null;
+};
 
 function err(code: ErrorCode, message: string): ServerMessage {
   return { t: 'error', code, message };

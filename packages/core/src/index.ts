@@ -14,3 +14,4 @@ export * from './chat';
 export * from './bot';
 export * from './review';
 export * from './sampleAnalysis';
+export * from './notifications';
