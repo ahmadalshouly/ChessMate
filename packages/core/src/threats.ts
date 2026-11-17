@@ -179,3 +179,20 @@ export function analyzePosition(fen: string, perspective: Color): PositionInsigh
   }
   return { perspective, inCheck: chess.inCheck() && chess.turn() === perspective, hanging, threats, opportunities };
 }
+
+/**
+ * Material (in pawns) that `mover` leaves en prise after a move, minus what the move
+ * captured. 2 or more means the move offers a real sacrifice.
+ */
+export function sacrificedMaterial(fenAfter: string, mover: Color, captured?: PieceType): number {
+  let chess: Chess;
+  try {
+    chess = new Chess(fenAfter);
+  } catch {
+    return 0;
+  }
+  if (chess.isCheckmate()) return 0;
+  const hanging = findHangingPieces(chess, mover);
+  const atRisk = hanging[0]?.risk ?? 0;
+  return Math.max(0, atRisk - (captured ? PIECE_VALUES[captured] : 0));
+}

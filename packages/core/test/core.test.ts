@@ -7,6 +7,8 @@ import {
   formatClock,
   gameAccuracy,
   judgeMove,
+  sacrificedMaterial,
+  START_FEN,
   parseInfoLine,
   parseTimeControl,
   pressClock,
@@ -119,6 +121,24 @@ describe('evaluation', () => {
     const inacc = judgeMove({ mover: 'w', bestScore: { cp: 30 }, playedScore: { cp: -30 }, playedIsBest: false });
     expect(['inaccuracy', 'good']).toContain(inacc.classification);
     expect(gameAccuracy([100, 100, 20])).toBeLessThan(80);
+  });
+
+  it('marks sound sacrifices as brilliant or masterpiece, and unpunished errors as missed chances', () => {
+    const sac = { mover: 'w' as const, bestScore: { cp: 150 }, playedScore: { cp: 150 }, playedIsBest: true };
+    expect(judgeMove({ ...sac, sacrifice: 3 }).classification).toBe('brilliant');
+    expect(judgeMove({ ...sac, bestScore: { mate: 4 }, playedScore: { mate: 4 }, sacrifice: 9 }).classification).toBe('masterpiece');
+    expect(judgeMove({ ...sac, sacrifice: 1 }).classification).toBe('best');
+    // A losing "sacrifice" is not brilliant, even when it is the engine's choice.
+    expect(judgeMove({ ...sac, bestScore: { cp: -300 }, playedScore: { cp: -300 }, sacrifice: 3 }).classification).toBe('best');
+    const missed = judgeMove({ mover: 'w', bestScore: { cp: 400 }, playedScore: { cp: 250 }, playedIsBest: false, opponentErred: true });
+    expect(missed.classification).toBe('missed');
+    expect(judgeMove({ mover: 'w', bestScore: { cp: 400 }, playedScore: { cp: 250 }, playedIsBest: false }).classification).not.toBe('missed');
+  });
+
+  it('measures material left en prise by a move', () => {
+    // White queen on h5 attacked by the g6 pawn, nothing captured.
+    expect(sacrificedMaterial('rnbqkbnr/pppppp1p/6p1/7Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 0 3', 'w')).toBeGreaterThanOrEqual(8);
+    expect(sacrificedMaterial(START_FEN, 'w')).toBe(0);
   });
 
   it('parses UCI info lines', () => {

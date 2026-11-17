@@ -1,10 +1,10 @@
 import { Chess } from 'chess.js';
 import type { CoachContext } from './coach';
 import { quickFeedback } from './coach';
-import { gameAccuracy, judgeMove, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
+import { gameAccuracy, isError, judgeMove, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { Game, START_FEN, parseUci, toUci } from './game';
-import { analyzePosition } from './threats';
-import type { Color } from './types';
+import { analyzePosition, sacrificedMaterial } from './threats';
+import type { Color, PieceType } from './types';
 import type { UciInfo } from './uci';
 
 /**
@@ -175,7 +175,7 @@ export interface GameReview {
   depth: number;
 }
 
-const ALL_CLASSES: MoveClass[] = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'book', 'forced'];
+const ALL_CLASSES: MoveClass[] = ['masterpiece', 'brilliant', 'best', 'excellent', 'good', 'book', 'inaccuracy', 'mistake', 'missed', 'blunder', 'forced'];
 
 
 /**
@@ -213,6 +213,8 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
       playedScore: playedScoreForJudge,
       playedIsBest: bestMove === played.uci,
       legalMoveCount,
+      sacrifice: sacrificedMaterial(fenAfter, mover, played.captured as PieceType | undefined),
+      opponentErred: isError(reviewed[reviewed.length - 1]?.judgement.classification),
     });
     const bestLine = pvToSan(fenBefore, before.pv.length ? before.pv : [bestMove]);
     const bestSan = bestLine[0] ?? played.san;

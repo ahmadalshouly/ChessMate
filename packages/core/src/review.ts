@@ -1,8 +1,8 @@
 import { Chess } from 'chess.js';
 import { buildCoachPrompt, quickFeedback, type CoachContext } from './coach';
-import { formatScore, gameAccuracy, judgeMove, type MoveClass, type MoveJudgement, type Score } from './evaluation';
-import { analyzePosition, pieceName, type PositionInsight } from './threats';
-import { opposite, type Color } from './types';
+import { formatScore, gameAccuracy, isError, judgeMove, type MoveClass, type MoveJudgement, type Score } from './evaluation';
+import { analyzePosition, pieceName, sacrificedMaterial, type PositionInsight } from './threats';
+import { opposite, type Color, type PieceType } from './types';
 
 /* ------------------------------------------------------------------------ */
 /* Engine analysis interface                                                 */
@@ -175,6 +175,7 @@ export function judgeGame(analysis: GameAnalysis): JudgedMove[] {
   if (analysis.version !== GAME_ANALYSIS_VERSION) throw new AnalysisError('Unsupported analysis version');
   if (!Array.isArray(analysis.moves) || analysis.moves.length === 0) throw new AnalysisError('Analysis has no moves');
   if (analysis.moves.length > 600) throw new AnalysisError('Game too long');
+  let prev: MoveClass | undefined;
   return analysis.moves.map((m, i) => {
     let chess: Chess;
     try {
@@ -198,12 +199,15 @@ export function judgeGame(analysis: GameAnalysis): JudgedMove[] {
           playedScore: m.scoreAfter,
           playedIsBest: m.best.uci === m.uci,
           legalMoveCount: m.legalMoveCount,
+          sacrifice: sacrificedMaterial(chess.fen(), mover, played.captured as PieceType | undefined),
+          opponentErred: isError(prev),
         });
+    prev = judgement.classification;
     return { move: m, mover, fenAfter: chess.fen(), judgement };
   });
 }
 
-const SEVERITY: Partial<Record<MoveClass, number>> = { blunder: 3, mistake: 2, inaccuracy: 1 };
+const SEVERITY: Partial<Record<MoveClass, number>> = { blunder: 3, mistake: 2, missed: 2, inaccuracy: 1 };
 
 /**
  * Picks the moments worth explaining: the player's own errors first, then the
@@ -289,7 +293,8 @@ export function buildReviewPrompt(analysis: GameAnalysis, facts: ReviewFacts): s
 }
 
 function tag(c: MoveClass): string {
-  return c === 'blunder' ? ' ??' : c === 'mistake' ? ' ?' : c === 'inaccuracy' ? ' ?!' : '';
+  const tags: Partial<Record<MoveClass, string>> = { masterpiece: ' !!!', brilliant: ' !!', blunder: ' ??', mistake: ' ?', missed: ' ?! (missed chance)', inaccuracy: ' ?!' };
+  return tags[c] ?? '';
 }
 
 function countText(c: Partial<Record<MoveClass, number>>): string {
