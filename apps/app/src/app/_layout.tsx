@@ -9,9 +9,13 @@ import { Screen } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { UIProvider, useAppTheme } from '@/ui';
+import { useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider } from '@/lib/notifications';
 
 export default function RootLayout() {
+  // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
+  const fontsReady = useAppFonts();
+  if (!fontsReady) return null;
   return (
     <UIProvider>
       <Navigator />

@@ -31,8 +31,23 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 }
 
 export function Label({ children, muted, size = 15, bold }: { children: ReactNode; muted?: boolean; size?: number; bold?: boolean }) {
+  // Big bold labels are screen titles: they take the display face.
+  if (bold && size >= 24) {
+    return (
+      <Text variant="title" tone={muted ? 'muted' : 'default'} style={{ fontSize: size, lineHeight: size + 6 }}>
+        {children}
+      </Text>
+    );
+  }
+  if (bold && size >= 17) {
+    return (
+      <Text variant="heading" tone={muted ? 'muted' : 'default'} style={{ fontSize: size, lineHeight: size + 6 }}>
+        {children}
+      </Text>
+    );
+  }
   return (
-    <Text tone={muted ? 'muted' : 'default'} style={{ fontSize: size, lineHeight: Math.round(size * 1.35), fontWeight: bold ? '700' : '400', letterSpacing: bold && size > 20 ? -0.5 : 0 }}>
+    <Text tone={muted ? 'muted' : 'default'} style={{ fontSize: size, lineHeight: Math.round(size * 1.35), fontWeight: bold ? '600' : '400', letterSpacing: -0.1 }}>
       {children}
     </Text>
   );

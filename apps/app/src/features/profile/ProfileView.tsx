@@ -1,7 +1,8 @@
 import { countryFlag, countryName, type PublicProfile, type RatingPoint, type RecentGame, type TimeCategory } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';

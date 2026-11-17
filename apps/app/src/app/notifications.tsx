@@ -1,5 +1,6 @@
 import { router, Stack } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { NotificationRow } from '@/components/notifications/NotificationRow';
 import { Button, Card, Label, Screen } from '@/components/ui';

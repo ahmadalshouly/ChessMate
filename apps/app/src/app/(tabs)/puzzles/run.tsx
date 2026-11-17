@@ -1,7 +1,8 @@
 import { RUSH_DURATION_MS, RUSH_LIVES, type PuzzleDto, type PuzzleRunMode } from '@chessmate/core';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { PuzzleBoard } from '@/components/PuzzleBoard';
 import { Button, Card, Label, Screen } from '@/components/ui';

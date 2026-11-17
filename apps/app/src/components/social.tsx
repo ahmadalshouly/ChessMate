@@ -1,6 +1,7 @@
 import type { Presence, SocialUser } from '@chessmate/core';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
 

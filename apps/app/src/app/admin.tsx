@@ -1,7 +1,8 @@
 import { REPORT_REASONS } from '@chessmate/core';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { Chip } from '@/components/ChatPanel';
 import { Button, Card, Label, Screen } from '@/components/ui';

@@ -1,5 +1,6 @@
 import type { Avatar as AvatarValue, AvatarTone } from '@chessmate/core';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 const GLYPH: Record<string, string> = { king: '♚︎', queen: '♛︎', rook: '♜︎', bishop: '♝︎', knight: '♞︎', pawn: '♟︎' };
 export const TONES: Record<AvatarTone, { bg: string; fg: string; ring: string }> = {
