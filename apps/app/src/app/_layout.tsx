@@ -1,20 +1,27 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { StyleSheet, View, useColorScheme } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RootStackHeader } from '@/components/shell/StackHeader';
 import { Screen } from '@/components/ui';
-import { palette } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { UIProvider, useAppTheme } from '@/ui';
 
 export default function RootLayout() {
-  const scheme = useColorScheme();
-  const p = scheme === 'dark' ? palette.dark : palette.light;
+  return (
+    <UIProvider>
+      <Navigator />
+    </UIProvider>
+  );
+}
+
+function Navigator() {
+  const { scheme, colors: p } = useAppTheme();
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   return (
     <ThemeProvider value={{ ...base, colors: { ...base.colors, background: p.bg, card: p.surfaceSolid, text: p.text, primary: p.accent, border: p.border } }}>
-      <StatusBar style="auto" />
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <AuthProvider>
         <RootStack />
       </AuthProvider>
@@ -52,6 +59,7 @@ function RootStack() {
         <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false, title: 'Create account' }} />
         <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false, title: 'Reset password' }} />
         <Stack.Screen name="reset-password" options={{ headerShown: false, title: 'New password' }} />
+        <Stack.Screen name="design" options={{ title: 'Design system' }} />
       </Stack>
       {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}
       {status === 'loading' || mustWelcome ? (

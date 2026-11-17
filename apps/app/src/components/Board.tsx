@@ -2,7 +2,7 @@ import { ALL_SQUARES, FILES, Game, type Color, type Piece, type Square } from '@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { board as colors } from '@/constants/theme';
+import { useBoardTheme, type BoardTheme } from '@/ui';
 
 // Text presentation selector (U+FE0E) stops platforms rendering pieces as emoji.
 const GLYPH: Record<string, string> = {
@@ -26,6 +26,8 @@ export interface BoardProps {
   /** Squares to tint as under threat (feedback mode only). */
   threatened?: Square[];
   onSquarePress?: (square: Square) => void;
+  /** Override the user's board theme (previews). Defaults to the theme chosen in settings. */
+  theme?: BoardTheme;
 }
 
 function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
@@ -36,6 +38,8 @@ function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
 
 export const Board = memo(function Board(props: BoardProps) {
   const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], onSquarePress } = props;
+  const { boardTheme } = useBoardTheme();
+  const colors = props.theme ?? boardTheme;
   const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
   const cell = size / 8;
   const squares = useMemo(() => {
@@ -81,10 +85,10 @@ export const Board = memo(function Board(props: BoardProps) {
               <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
             ))}
             {col === 0 && (
-              <Text style={[styles.coord, { color: isLight ? colors.dark : colors.light, top: 2, left: 3, fontSize: cell * 0.18 }]}>{rank}</Text>
+              <Text style={[styles.coord, { color: isLight ? colors.coordOnLight : colors.coordOnDark, top: 2, left: 3, fontSize: cell * 0.18 }]}>{rank}</Text>
             )}
             {row === 7 && (
-              <Text style={[styles.coord, { color: isLight ? colors.dark : colors.light, bottom: 1, right: 3, fontSize: cell * 0.18 }]}>
+              <Text style={[styles.coord, { color: isLight ? colors.coordOnLight : colors.coordOnDark, bottom: 1, right: 3, fontSize: cell * 0.18 }]}>
                 {FILES[fileIdx]}
               </Text>
             )}
@@ -95,8 +99,8 @@ export const Board = memo(function Board(props: BoardProps) {
                   {
                     fontSize: cell * 0.78,
                     lineHeight: cell,
-                    color: piece.color === 'w' ? '#FFFFFF' : '#15171B',
-                    textShadowColor: piece.color === 'w' ? '#15171B' : 'rgba(255,255,255,0.35)',
+                    color: piece.color === 'w' ? colors.whitePiece : colors.blackPiece,
+                    textShadowColor: piece.color === 'w' ? colors.whitePieceOutline : colors.blackPieceOutline,
                   },
                 ]}>
                 {GLYPH[piece.type]}
