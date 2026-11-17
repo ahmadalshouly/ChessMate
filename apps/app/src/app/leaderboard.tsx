@@ -1,7 +1,9 @@
 import type { TimeCategory } from '@chessmate/core';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
+import { Segmented as SegmentedControl } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import {
@@ -146,24 +148,7 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
 }
 
 function Segmented<K extends string>({ options, value, onChange }: { options: { key: K; label: string }[]; value: K; onChange: (k: K) => void }) {
-  const t = useTheme();
-  return (
-    <View style={[styles.segment, { borderColor: t.glassBorder, backgroundColor: t.surface }]} accessibilityRole="tablist">
-      {options.map((o) => {
-        const on = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            onPress={() => onChange(o.key)}
-            style={[styles.segmentItem, on && { backgroundColor: t.accent }]}>
-            <Text style={[styles.segmentText, { color: on ? t.onAccent : t.text }]}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  return <SegmentedControl value={value} onChange={onChange} options={options.map((o) => ({ value: o.key, label: o.label }))} />;
 }
 
 const styles = StyleSheet.create({

@@ -1,40 +1,22 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { StyleSheet, Switch, View, type TextInputProps } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
+import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 /** Pill-style segmented control for small option sets. */
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
-  accessibilityLabel,
 }: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
   accessibilityLabel?: string;
 }) {
-  const t = useTheme();
-  return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={[styles.segmented, { borderColor: t.border, backgroundColor: t.surface }]}>
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: on }}
-            onPress={() => onChange(o.value)}
-            style={[styles.segment, on && { backgroundColor: t.accent }]}>
-            <Text numberOfLines={1} style={{ color: on ? t.onAccent : t.text, fontWeight: on ? '600' : '400', fontSize: 14 }}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  return <SegmentedControl value={value} onChange={onChange} options={options} />;
 }
 
 export function Row({ title, detail, children }: { title: string; detail?: string; children?: ReactNode }) {

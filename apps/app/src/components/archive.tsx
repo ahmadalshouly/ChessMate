@@ -1,7 +1,8 @@
 import { formatTimeControl, opponentOf, viewerOutcome, type ArchivedGame } from '@chessmate/core';
 import { BlurView } from 'expo-blur';
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
 

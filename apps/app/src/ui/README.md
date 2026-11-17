@@ -1,6 +1,6 @@
 # ChessMate UI kit
 
-Black and white, casual but professional, frosted glass. Everything a screen needs comes from one import:
+Black and white, casual but professional, frosted glass. Three type voices: Montserrat (from the logo) for titles, Geist for reading, Geist Mono for anything that counts. Everything a screen needs comes from one import:
 
 ```tsx
 import { Screen, Card, Button, Text, useAppTheme } from '@/ui';
@@ -32,8 +32,9 @@ Appearance (`system` / `light` / `dark`) and board theme are stored in `localSto
 | Token | Values |
 | --- | --- |
 | `space` | `none 0, xxs 2, xs 4, sm 8, md 12, lg 16, xl 20, xxl 24, xxxl 32, huge 48, giant 64` |
-| `radii` | `xs 6, sm 10, md 14, lg 20, xl 28, pill 999` |
-| `typography` | `display, title, heading, subheading, body, bodyStrong, label, caption, overline, numeric, clock, mono` |
+| `radii` | `xs 6, sm 10, md 14, lg 22, xl 30, pill 999` |
+| `typography` | `display, title, heading` (Montserrat), `subheading, body, bodyStrong, label, caption` (Geist), `overline, numeric, figure, clock, mono` (Geist Mono) |
+| `fonts` | Family names for hand-styled text. Screens that use React Native's `Text`/`TextInput` should import them from `@/ui/primitives` instead, which maps `fontWeight` to the bundled families. |
 | `blur` | `subtle 20, regular 40, strong 70` (BlurView intensity) |
 | `shadows` | `none, sm, md, lg` |
 | `layout` | `maxContentWidth 720, maxWideWidth 1200, hitSize 44` |
@@ -57,7 +58,7 @@ Older code that uses `useTheme()` from `@/constants/theme` and `Screen/Card/Butt
 ### Layout
 ```tsx
 <Screen scroll width="content" gap="lg">        {/* gradient page, readable column, bottom safe area */}
-  <SectionHeader title="Recent games" action={<Button title="See all" variant="ghost" size="sm" />} />
+  <SectionHeader index={1} title="Recent games" action={<Button title="See all" variant="ghost" size="sm" />} />
   <Stack gap="md">…</Stack>                       {/* vertical */}
   <Row gap="sm" justify="space-between">…</Row>   {/* horizontal */}
   <Divider />  <Spacer />  <Spacer size="lg" />

@@ -1,7 +1,9 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useMemo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+
+import { Text } from '@/ui/primitives';
 
 import { useBoardAppearance } from '@/features/account/boardThemes';
 import { pieceImage } from '@/features/board/pieceSets';
