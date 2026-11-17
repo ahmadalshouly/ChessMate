@@ -1,28 +1,27 @@
+import { useMemo } from 'react';
+
+import { useAuth } from '@/lib/auth';
+
 import { request } from './api';
 
-/**
- * Bridge to the signed-in session. Sign-in is built in a separate change
- * (useAuth in src/lib/auth); until it lands, development builds act as the
- * seeded "demo" player using the server's dev token so these screens work.
- *
- * After sign-in merges, replace the body of useAccountSession with:
- *   const { status, apiFetch, signOut } = useAuth();
- *   return { signedIn: status === 'signedIn', apiFetch, signOut };
- */
-const DEV_TOKEN = __DEV__ ? 'dev:demo:demo' : null;
-
+/** The signed-in session as the profile and settings screens use it. */
 export interface AccountSession {
   signedIn: boolean;
   apiFetch<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T>;
-  /** Present once real sign-in is wired; the settings screen shows Sign out when it is. */
+  /** The settings screen shows Sign out when present. */
   signOut?: (opts?: { everywhere?: boolean }) => Promise<void> | void;
 }
 
-const devSession: AccountSession = {
-  signedIn: DEV_TOKEN !== null,
-  apiFetch: (path, init) => request(path, DEV_TOKEN, init),
-};
-
+/** Profile and settings calls go out with the signed-in player's access token (refreshed as needed). */
 export function useAccountSession(): AccountSession {
-  return devSession;
+  const { status, getAccessToken, signOut } = useAuth();
+  const signedIn = status === 'signedIn';
+  return useMemo(
+    () => ({
+      signedIn,
+      apiFetch: async <T,>(path: string, init?: { method?: string; body?: unknown }) => request<T>(path, signedIn ? await getAccessToken() : null, init),
+      signOut: signedIn ? signOut : undefined,
+    }),
+    [signedIn, getAccessToken, signOut],
+  );
 }

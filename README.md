@@ -60,10 +60,13 @@ UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). G
 Requirements: Node 22+ and pnpm 12 (`npm i -g pnpm@12`). Works on Windows, macOS and Linux.
 
 ```bash
-pnpm install
+git pull                 # get the latest main
+pnpm install             # after every pull, in case dependencies changed
 pnpm dev:server          # terminal 1: game server on port 8787
-pnpm dev:app             # terminal 2: Expo dev server (press w for web)
+pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or press w for web)
 ```
+
+The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen after pulling, stop it and run `pnpm dev:app --clear`.
 
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
 
@@ -110,9 +113,9 @@ The game server also serves the account API at `http://<host>:8787/api/auth` (co
 
 Errors are `{error: {code, message, field?}}`. Passwords are hashed with scrypt; access tokens are 15-minute JWTs and refresh tokens last 30 days. The WebSocket `hello` accepts an access token, and `guest:<name>` still works for guest play.
 
-Local development needs no setup: accounts are kept in memory for now (they reset when the server restarts), and password reset links are printed in the server terminal instead of emailed. Settings, all optional in development:
+Local development needs no setup: accounts are saved in the same database as games (embedded PGlite in `.data/pglite`, or Postgres when `DATABASE_URL` is set; in memory only with `CHESSMATE_DB=off`), and password reset links are printed in the server terminal instead of emailed. Settings, all optional in development:
 
-- `AUTH_SECRET`: token signing secret, at least 32 characters. Required in production; without it in development, a random one is used per run, so sign in again after a restart.
+- `AUTH_SECRET`: token signing secret, at least 32 characters. Required in production; without it in development, one is generated once and kept in `.data/auth-secret`, so you stay signed in across restarts.
 - `CORS_ORIGINS`: comma-separated web origins allowed in production (development allows any).
 - `APP_WEB_URL`: base URL used in printed reset links (default `http://localhost:8081`).
 - `TRUST_PROXY=1`: use `X-Forwarded-For` for rate limiting when behind a reverse proxy.
@@ -239,7 +242,7 @@ Then open `/admin`, enter the same token, and review reports (with the game's ch
 
 The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.
 
-- **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running. Until sign-in lands, each device uses a development identity.
+- **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running.
 - **Send a test** on the settings screen sends yourself a sample notification (development servers only).
 - **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
@@ -316,7 +319,7 @@ REST API on the game server (port 8787), bearer token auth:
 
 Shared types and validation live in `packages/core/src/profile.ts`; server code in `apps/server/src/profiles/`.
 
-**Trying it before sign-in is merged:** in development the server runs profiles on a stand-in backend with a seeded `demo` player (120 sample games), and the app acts as that player. Start `pnpm dev:server` and `pnpm dev:app`, then open Profile or Settings from the home screen. Board theme, piece set, coordinates and move confirmation apply to the boards straight away. Once accounts are merged, the app uses the signed-in player instead (see `apps/app/src/features/account/session.ts`).
+**Trying it:** sign in (or create an account), then open the Profile tab. Board theme, piece set, coordinates and move confirmation apply to the boards straight away. In development the seeded `demo` player (120 sample games) is still available at `/profile/demo` for trying public profiles.
 
 ## Roadmap
 
