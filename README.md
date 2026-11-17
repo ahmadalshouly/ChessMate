@@ -40,6 +40,7 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `openings.ts` | Opening name and ECO detection by position (handles transpositions), from the CC0 Lichess opening tables |
 | `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
 | `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
+| `puzzle.ts` | Puzzle CSV parsing, solving and hints, server-side grading, puzzle rating, streak/rush ladders, theme labels |
 
 ### Design decisions
 
@@ -237,6 +238,20 @@ Cloud builds count against the Expo account's build quota, so they only run when
 - Simulator builds: run the "EAS simulator build" GitHub workflow, or add the `simulator-build` label to a PR.
 - Installable preview builds: `npx eas-cli@latest build --profile preview --platform all`.
 
+### Puzzles
+
+A fresh checkout has 14 original starter puzzles, loaded automatically into `apps/server/data/puzzles.db` the first time the server starts. For the real collection, import the Lichess puzzle database (CC0, about 5 million puzzles):
+
+```bash
+pnpm puzzles:import                                  # downloads lichess_db_puzzle.csv.zst (~250 MB) and imports it
+pnpm puzzles:import C:\Downloads\lichess_db_puzzle.csv.zst   # or a file you downloaded yourself (.zst, .gz or .csv)
+pnpm puzzles:import --limit 100000                   # quicker partial import for development
+```
+
+By default it keeps well-tested puzzles (popularity 50+, 100+ plays, rating deviation 100 or less); change with `--min-popularity`, `--min-plays`, `--max-rd`. Re-running is safe (puzzles are updated by id). Restart `pnpm dev:server` afterwards. Set `PUZZLE_DB` to store the database elsewhere.
+
+In the app, open **Puzzles** on the home screen: daily puzzle, rated training with a theme filter and hints, streak (one mistake ends it) and rush (3 minutes, 3 lives).
+
 ### Web
 
 `pnpm build:web` produces a static site in `apps/app/dist`. Set `EXPO_PUBLIC_SERVER_URL=wss://.../ws` when building for a public host.
@@ -285,7 +300,7 @@ Shared types and validation live in `packages/core/src/profile.ts`; server code 
 2. Engine service: Stockfish workers behind a queue for post-game review and evaluation bar.
 3. AI coach: game review and position chat are in (see docs/coach.md); next, open reviews from finished games once the engine service lands.
 4. Promotion picker, drag-to-move, premoves, sounds, original piece set.
-5. Puzzles and openings from the CC0 Lichess databases.
+5. Openings from the CC0 Lichess databases (puzzles are in).
 6. Horizontal scaling of the game server (route by game id, Redis pub/sub), anti-cheat signals.
 2. AI coach: game review that explains each mistake, using the structured context from `coach.ts`.
 3. Promotion picker, drag-to-move, premoves, sounds, original piece set.

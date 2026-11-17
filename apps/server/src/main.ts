@@ -5,6 +5,8 @@ import { createAnalysisService } from './engine';
 import { AuthService, ConsoleMailer, MemoryAuthStore, authRoutes, authSecretFromEnv } from './auth';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles';
+import { PuzzleApi } from './puzzles/api';
+import { openPuzzleStore } from './puzzles/setup';
 import { DbGamePersistence, DbPlayerStore } from './persistence';
 import { ChessServer, type ServerOptions } from './server';
 
@@ -19,7 +21,9 @@ console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set
 const { service: analysis, engine } = createAnalysisService();
 // Profiles run on the dev backend until the accounts and persistence services are wired in.
 const profiles = profileRoutes(new DevProfileBackend(), new MemoryProfileStore());
-const base: ServerOptions = { port, auth, coach, analysis, http: [authRoutes(auth), profiles], adminToken: process.env.ADMIN_TOKEN || undefined };
+const puzzleStore = await openPuzzleStore();
+const puzzles = new PuzzleApi({ store: puzzleStore });
+const base: ServerOptions = { port, auth, coach, analysis, http: [authRoutes(auth), profiles, (req, res) => puzzles.handle(req, res)], adminToken: process.env.ADMIN_TOKEN || undefined };
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
 // CHESSMATE_DB=off runs fully in memory (nothing saved).
@@ -42,7 +46,7 @@ async function start() {
 
 const { server, close } = await start();
 server.listen().then((p) => {
-  console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth)`);
+  console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth, ${puzzleStore.count()} puzzles)`);
   console.log(`Engine analysis: ${engine} (starts on first request)`);
 });
 
@@ -51,6 +55,7 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
     void server
       .close()
       .then(close)
+      .then(() => puzzleStore.close())
       .then(() => process.exit(0)),
   );
 }
