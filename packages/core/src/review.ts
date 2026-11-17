@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { buildCoachPrompt, quickFeedback, type CoachContext } from './coach';
-import { formatScore, gameAccuracy, judgeMove, type MoveClass, type MoveJudgement, type Score } from './evaluation';
+import { classifyMove } from './classify';
+import { formatScore, gameAccuracy, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { analyzePosition, pieceName, type PositionInsight } from './threats';
 import { opposite, type Color } from './types';
 
@@ -33,6 +34,8 @@ export interface AnalyzedMove {
   };
   /** Engine score after the played move (with best play from there). */
   scoreAfter: Score;
+  /** Optional: score of the engine's second choice in fenBefore (multipv 2). Enables "great" (!) only moves. */
+  secondBestScore?: Score;
   /** Optional: the line the engine expects after the played move, in SAN. */
   refutation?: string[];
   /** Number of legal moves in fenBefore. 1 means the move was forced. */
@@ -175,6 +178,7 @@ export function judgeGame(analysis: GameAnalysis): JudgedMove[] {
   if (analysis.version !== GAME_ANALYSIS_VERSION) throw new AnalysisError('Unsupported analysis version');
   if (!Array.isArray(analysis.moves) || analysis.moves.length === 0) throw new AnalysisError('Analysis has no moves');
   if (analysis.moves.length > 600) throw new AnalysisError('Game too long');
+  let previousLoss: number | undefined;
   return analysis.moves.map((m, i) => {
     let chess: Chess;
     try {
@@ -192,18 +196,23 @@ export function judgeGame(analysis: GameAnalysis): JudgedMove[] {
     if (played.san !== m.san) throw new AnalysisError(`Move ${m.san} does not match ${m.uci} at ply ${i + 1}`);
     const judgement: MoveJudgement = m.book
       ? { classification: 'book', loss: 0, accuracy: 100 }
-      : judgeMove({
-          mover,
+      : classifyMove({
+          fenBefore: m.fenBefore,
+          uci: m.uci,
           bestScore: m.best.score,
+          bestMove: m.best.uci,
+          secondBestScore: m.secondBestScore,
           playedScore: m.scoreAfter,
-          playedIsBest: m.best.uci === m.uci,
           legalMoveCount: m.legalMoveCount,
+          previousUci: analysis.moves[i - 1]?.uci,
+          previousLoss,
         });
+    previousLoss = judgement.loss;
     return { move: m, mover, fenAfter: chess.fen(), judgement };
   });
 }
 
-const SEVERITY: Partial<Record<MoveClass, number>> = { blunder: 3, mistake: 2, inaccuracy: 1 };
+const SEVERITY: Partial<Record<MoveClass, number>> = { blunder: 3, mistake: 2, miss: 2, inaccuracy: 1 };
 
 /**
  * Picks the moments worth explaining: the player's own errors first, then the
@@ -288,12 +297,24 @@ export function buildReviewPrompt(analysis: GameAnalysis, facts: ReviewFacts): s
   return lines.join('\n');
 }
 
+const TAGS: Partial<Record<MoveClass, string>> = {
+  masterpiece: ' !!! (Masterpiece, queen sacrifice)',
+  brilliant: ' !!',
+  great: ' !',
+  inaccuracy: ' ?!',
+  mistake: ' ?',
+  miss: ' (missed chance)',
+  blunder: ' ??',
+};
+
 function tag(c: MoveClass): string {
-  return c === 'blunder' ? ' ??' : c === 'mistake' ? ' ?' : c === 'inaccuracy' ? ' ?!' : '';
+  return TAGS[c] ?? '';
 }
 
 function countText(c: Partial<Record<MoveClass, number>>): string {
-  return `${c.blunder ?? 0} blunders, ${c.mistake ?? 0} mistakes, ${c.inaccuracy ?? 0} inaccuracies`;
+  const strong = (c.masterpiece ?? 0) + (c.brilliant ?? 0);
+  const base = `${c.blunder ?? 0} blunders, ${c.mistake ?? 0} mistakes, ${c.miss ?? 0} missed chances, ${c.inaccuracy ?? 0} inaccuracies`;
+  return strong ? `${base}, ${strong} brilliant` : base;
 }
 
 /** Rule-based review used when no language model is configured or it fails. */
@@ -308,13 +329,13 @@ export function offlineReview(facts: ReviewFacts): CoachReview {
     explanation:
       judged.mover === me
         ? quickFeedback(context)
-        : `Your opponent's ${judged.move.san} was ${judged.judgement.classification === 'inaccuracy' ? 'an' : 'a'} ${judged.judgement.classification}. ${judged.move.best.san} was stronger, so look for a way to punish it.`,
+        : `Your opponent's ${judged.move.san} was ${judged.judgement.classification === 'inaccuracy' ? 'an inaccuracy' : judged.judgement.classification === 'miss' ? 'a missed chance' : `a ${judged.judgement.classification}`}. ${judged.move.best.san} was stronger, so look for a way to punish it.`,
     betterMove: judged.move.best.uci !== judged.move.uci ? judged.move.best.san : undefined,
     theme: offlineTheme(context.insightAfter),
     fenBefore: judged.move.fenBefore,
   }));
   const mine = facts.counts[me];
-  const errors = (mine.blunder ?? 0) + (mine.mistake ?? 0);
+  const errors = (mine.blunder ?? 0) + (mine.mistake ?? 0) + (mine.miss ?? 0);
   const summary =
     errors === 0
       ? `Clean game: ${facts.accuracy[me]}% accuracy with no serious mistakes.`

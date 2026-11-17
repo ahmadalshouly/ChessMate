@@ -1,9 +1,36 @@
-import type { Color } from './types';
+import type { Color, PieceType } from './types';
 
 /** Engine score. Always from White's point of view. */
 export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: undefined };
 
-export type MoveClass = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'book' | 'forced';
+/**
+ * Move classes, strongest first:
+ * - masterpiece (!!!): a queen sacrifice that leads to a forced mate.
+ *   ChessMate's own top tier, above brilliant.
+ * - brilliant (!!): a sound sacrifice; the best (or near best) move gives
+ *   material away and the position stays good.
+ * - great (!): the only good move; every alternative is clearly worse.
+ * - best, excellent, good: close to the engine's choice.
+ * - book: a known opening move. forced: the only legal move.
+ * - inaccuracy (?!), mistake (?), blunder (??): increasing loss.
+ * - miss: the opponent just erred and the move let the chance slip.
+ */
+export type MoveClass =
+  | 'masterpiece'
+  | 'brilliant'
+  | 'great'
+  | 'best'
+  | 'excellent'
+  | 'good'
+  | 'inaccuracy'
+  | 'mistake'
+  | 'miss'
+  | 'blunder'
+  | 'book'
+  | 'forced';
+
+/** Every class, in display order (strongest first). */
+export const MOVE_CLASSES: MoveClass[] = ['masterpiece', 'brilliant', 'great', 'best', 'excellent', 'good', 'book', 'forced', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 
 /** Logistic slope converting centipawns to expected score. */
 const K = 0.004;
@@ -51,9 +78,26 @@ const THRESHOLDS: [MoveClass, number][] = [
   ['mistake', 0.2],
 ];
 
+/** Loss below which a move counts as "as good as the best". */
+const BEST_LOSS = 0.005;
+/** Loss a sacrifice or only move may have and still earn !!, !!! or !. */
+const TOP_LOSS = 0.02;
+/** How much worse the engine's second choice must be for an only move (!). */
+const ONLY_MOVE_GAP = 0.15;
+/** Expected score a sacrifice must keep for the mover to be sound. */
+const SOUND_AFTER = 0.45;
+/** Above this (by centipawns, not mate) the mover is already winning easily, so no !! or !. */
+const ALREADY_WINNING = 0.95;
+/** Opponent's previous move loss that opens a chance worth noticing. */
+const CHANCE = 0.15;
+/** Loss at which letting such a chance go counts as a miss. */
+const MISS_LOSS = 0.1;
+
 /**
  * Judges a move by how much expected score the mover gave up compared with
- * the engine's best line.
+ * the engine's best line, then upgrades strong moves (sacrifices, only moves)
+ * and marks missed chances. The board facts (`sacrifice`, `movedPiece`,
+ * `isRecapture`) come from `classifyMove`.
  */
 export function judgeMove(params: {
   mover: Color;
@@ -61,14 +105,41 @@ export function judgeMove(params: {
   playedScore: Score;
   playedIsBest: boolean;
   legalMoveCount?: number;
+  book?: boolean;
+  /** Engine's second choice before the move (White's view), when analysed with multipv 2+. */
+  secondBestScore?: Score;
+  /** Material the move offers, if any. */
+  sacrifice?: { piece: PieceType; amount: number } | null;
+  movedPiece?: PieceType;
+  isRecapture?: boolean;
+  /** Loss of the opponent's previous move. */
+  previousLoss?: number;
 }): MoveJudgement {
   const before = expectedScoreFor(params.bestScore, params.mover);
   const after = expectedScoreFor(params.playedScore, params.mover);
   const loss = Math.max(0, before - after);
   const accuracy = moveAccuracy(loss);
   if (params.legalMoveCount === 1) return { classification: 'forced', loss, accuracy };
-  if (params.playedIsBest || loss < 0.005) return { classification: 'best', loss, accuracy: 100 };
-  // Missing a forced mate while still winning comfortably is not a blunder.
+  if (params.book && loss < 0.05) return { classification: 'book', loss, accuracy: 100 };
+
+  const top = params.playedIsBest || loss < TOP_LOSS;
+  const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING;
+  if (top && !easilyWinning) {
+    const sac = params.sacrifice;
+    if (sac && after >= SOUND_AFTER) {
+      // !!! (Masterpiece) is reserved for a queen sacrifice that leads to a forced mate.
+      // Any other sound sacrifice, queen or not, is !!.
+      const mateFor = params.playedScore.mate !== undefined && (params.mover === 'w' ? params.playedScore.mate > 0 : params.playedScore.mate < 0);
+      const masterpiece = params.movedPiece === 'q' && sac.piece === 'q' && mateFor;
+      return { classification: masterpiece ? 'masterpiece' : 'brilliant', loss, accuracy: 100 };
+    }
+    if (params.secondBestScore && !params.isRecapture && after >= SOUND_AFTER) {
+      const second = expectedScoreFor(params.secondBestScore, params.mover);
+      if (before - second >= ONLY_MOVE_GAP) return { classification: 'great', loss, accuracy: 100 };
+    }
+  }
+  if (params.playedIsBest || loss < BEST_LOSS) return { classification: 'best', loss, accuracy: 100 };
+
   let classification: MoveClass = 'blunder';
   for (const [cls, max] of THRESHOLDS) {
     if (loss < max) {
@@ -76,6 +147,8 @@ export function judgeMove(params: {
       break;
     }
   }
+  // The opponent just erred and this move let most of the chance go, without throwing the game.
+  if (loss >= MISS_LOSS && (params.previousLoss ?? 0) >= CHANCE && after >= SOUND_AFTER) classification = 'miss';
   return { classification, loss, accuracy };
 }
 
