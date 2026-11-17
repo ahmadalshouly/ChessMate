@@ -49,6 +49,8 @@ export function validateClientMessage(m: ClientMessage): string | null {
       if (!isInt(msg.ply, 0, MAX_PLY)) return 'Invalid ply';
       return null;
     case 'join':
+    case 'watch':
+    case 'unwatch':
     case 'rematch':
     case 'declineRematch':
     case 'resign':

@@ -1,4 +1,4 @@
-import { abortStaleGames, openDb } from '@chessmate/db';
+import { abortStaleGames, ensureUser, openDb } from '@chessmate/db';
 import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
@@ -8,7 +8,8 @@ import { DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles
 import { PuzzleApi } from './puzzles/api';
 import { openPuzzleStore } from './puzzles/setup';
 import { DbGamePersistence, DbPlayerStore } from './persistence';
-import { ChessServer, type ServerOptions } from './server';
+import { ChessServer, devResolveUser, type ServerOptions } from './server';
+import { SocialService } from './social/service';
 
 const port = Number(process.env.PORT ?? 8787);
 const auth = new AuthService({ store: new MemoryAuthStore(), mailer: new ConsoleMailer(), secret: authSecretFromEnv() });
@@ -26,10 +27,10 @@ const puzzles = new PuzzleApi({ store: puzzleStore });
 const base: ServerOptions = { port, auth, coach, analysis, http: [authRoutes(auth), profiles, (req, res) => puzzles.handle(req, res)], adminToken: process.env.ADMIN_TOKEN || undefined };
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
-// CHESSMATE_DB=off runs fully in memory (nothing saved).
+// CHESSMATE_DB=off runs fully in memory (nothing saved, no friends).
 async function start() {
   if (process.env.CHESSMATE_DB === 'off') {
-    console.log('Database disabled (CHESSMATE_DB=off): games are not saved');
+    console.log('Database disabled (CHESSMATE_DB=off): games are not saved and friends are off');
     return { server: new ChessServer(base), close: async () => {} };
   }
   const db = openDb();
@@ -39,14 +40,29 @@ async function start() {
   const persistence = new DbGamePersistence(db.db);
   const store = await DbPlayerStore.load(db.db, persistence);
   return {
-    server: new ChessServer({ ...base, store, persistence, leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)) }),
+    server: new ChessServer({
+      ...base,
+      store,
+      persistence,
+      leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)),
+      social: new SocialService(db.db),
+      // Development: "dev:<id>:<name>" tokens get an account row on first use so
+      // friends and search work before sign-up is wired in.
+      resolveUser: async (token) => {
+        const id = devResolveUser(token);
+        if (!id) return null;
+        const name = token.split(':').slice(2).join(':');
+        await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
+        return id;
+      },
+    }),
     close: () => db.close(),
   };
 }
 
 const { server, close } = await start();
 server.listen().then((p) => {
-  console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth, ${puzzleStore.count()} puzzles)`);
+  console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth, social API /api/social, ${puzzleStore.count()} puzzles)`);
   console.log(`Engine analysis: ${engine} (starts on first request)`);
 });
 

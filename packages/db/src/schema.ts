@@ -301,6 +301,45 @@ export const friendships = pgTable(
   ],
 );
 
+/** One-way follows: see someone's games in your feed and their presence, without a friendship. */
+export const follows = pgTable(
+  'follows',
+  {
+    followerId: text('follower_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    followeeId: text('followee_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.followerId, t.followeeId] }),
+    index('follows_followee_idx').on(t.followeeId),
+    check('follows_not_self', sql`${t.followerId} <> ${t.followeeId}`),
+  ],
+);
+
+/**
+ * Activity feed events. `actor` did something involving `subject`:
+ * "game" (white vs black, payload has result), "friendship" (accepter, requester),
+ * "follow" (follower, followee).
+ */
+export const activity = pgTable(
+  'activity',
+  {
+    id: id(),
+    kind: text('kind').notNull(),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    subjectId: text('subject_id').references(() => users.id, { onDelete: 'cascade' }),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [index('activity_actor_idx').on(t.actorId, t.createdAt), index('activity_subject_idx').on(t.subjectId, t.createdAt)],
+);
+
 export const notifications = pgTable(
   'notifications',
   {
@@ -378,5 +417,7 @@ export type NewGame = typeof games.$inferInsert;
 export type MoveRow = typeof moves.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type Follow = typeof follows.$inferSelect;
+export type ActivityRow = typeof activity.$inferSelect;
 export type Puzzle = typeof puzzles.$inferSelect;
 export type PuzzleAttempt = typeof puzzleAttempts.$inferSelect;

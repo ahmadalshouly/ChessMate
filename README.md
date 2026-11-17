@@ -244,6 +244,16 @@ The bell in the header opens the inbox; **Settings** there picks which alerts ar
 - **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
+### Trying friends and spectating
+
+The server keeps friends, follows, blocks and the activity feed in the database (embedded Postgres by default, nothing to install), and the app's Friends screen is on the home page.
+
+1. `pnpm dev:server` and `pnpm dev:app` as above.
+2. Open the app on two devices (or two browser windows, one in a private window). On each, open **Friends** and pick a different test username. Until sign-in lands, development builds use these test accounts.
+3. On one, tap **Find players**, search the other name and tap **Add friend**. Accept it under **Requests** on the other.
+4. Start an online game on one device: the other shows the friend as "Playing now" with a **Watch** button that opens the live board.
+
+The social API lives under `/api/social/*` on the game server (see `apps/server/src/social/http.ts` for the routes).
 
 ### Builds (uses EAS build quota)
 

@@ -5,6 +5,7 @@ import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
+import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
 import type { Color } from './types';
 
@@ -100,7 +101,10 @@ export type ClientMessage =
   // Engine analysis (refused while the player has a live game).
   | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number }
   | { t: 'analyzeStop'; id: number }
-  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string };
+  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string }
+  /** Spectate a live game: the server then sends gameState and every later game event. */
+  | { t: 'watch'; gameId: string }
+  | { t: 'unwatch'; gameId: string };
 
 export type ServerMessage =
   | {
@@ -144,6 +148,10 @@ export type ServerMessage =
   | { t: 'analysis'; id: number; analysis: PositionAnalysis; done: boolean }
   | { t: 'reviewProgress'; id: number; done: number; total: number }
   | { t: 'reviewResult'; id: number; review: GameReview }
+  | { t: 'watching'; gameId: string; spectators: number }
+  /** A friend or followed player came online, went offline, or started/finished a game. */
+  | { t: 'presence'; userId: string; presence: Presence }
+  | { t: 'social'; event: SocialEvent }
   | { t: 'error'; code: ErrorCode; message: string; id?: number };
 
 export type ErrorCode =
@@ -159,7 +167,8 @@ export type ErrorCode =
   | 'offline'
   | 'chat_restricted'
   | 'engine_locked'
-  | 'engine_unavailable';
+  | 'engine_unavailable'
+  | 'forbidden';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

@@ -15,6 +15,8 @@ import {
   type ErrorCode,
   type GameAnalyzer,
   type LobbyState,
+  type LiveGameEntry,
+  type Presence,
   type Rating,
   type ServerMessage,
   canSeekRated,
@@ -53,6 +55,8 @@ import {
   type RateLimitConfig,
 } from './fairplay';
 import { ExpoPushSender, MemoryNotificationStore, NotificationService, handleNotificationsHttp, yourTurn, type HttpAuth } from './notifications';
+import { socialRoutes, type ResolveUser } from './social/http';
+import { isAccountId, type SocialService } from './social/service';
 
 export interface ServerOptions {
   port: number;
@@ -90,6 +94,10 @@ export interface ServerOptions {
   httpAuth?: HttpAuth;
   /** Engine analysis. Without it, analysis requests get `engine_unavailable`. */
   analysis?: AnalysisService | null;
+  /** Friends, follows, blocks, presence and the activity feed. Off when absent. */
+  social?: SocialService;
+  /** Bearer token to account id for the social API. Defaults to dev tokens outside production. */
+  resolveUser?: ResolveUser;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -99,6 +107,8 @@ interface Connection {
   ws: WebSocket;
   player: Player | null;
   limiter: ConnectionLimiter;
+  /** Games this socket is spectating. */
+  watching: Set<string>;
 }
 
 /** Close code sent to an account closed for fair-play violations. */
@@ -107,6 +117,12 @@ export const CLOSE_FAIR_PLAY_BAN = 4010;
 export const CLOSE_RATE_LIMITED = 4008;
 
 const LIMIT_KIND: Partial<Record<ClientMessage['t'], LimitKind>> = { move: 'moves', seek: 'seeks', cancelSeek: 'seeks' };
+
+/** Accepts "dev:<id>:<name>" bearer tokens outside production. */
+export const devResolveUser = (token: string): string | null => {
+  if (process.env.NODE_ENV === 'production') return null;
+  return /^dev:([\w-]{1,64}):[\w .-]{1,24}$/.exec(token)?.[1] ?? null;
+};
 
 /**
  * Realtime game server: authentication handshake, matchmaking, and
@@ -133,6 +149,8 @@ export class ChessServer {
   private readonly sockets = new Map<string, Set<WebSocket>>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly graceTimers = new Map<string, NodeJS.Timeout>();
+  private readonly spectators = new Map<string, Set<WebSocket>>();
+  private readonly social: SocialService | undefined;
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
   readonly moderation: Moderation;
@@ -185,6 +203,17 @@ export class ChessServer {
     });
     const accountAuth: HttpAuth | null = opts.auth ? (t) => opts.auth!.verifyAccessToken(t)?.userId ?? null : null;
     const httpAuth: HttpAuth = opts.httpAuth ?? ((t) => accountAuth?.(t) ?? devHttpAuth(t));
+    this.social = opts.social;
+    const routes = [...(opts.http ?? [])];
+    if (this.social) {
+      routes.push(socialRoutes(this.social, opts.resolveUser ?? devResolveUser));
+      this.social.attach(
+        { presence: (id) => this.presenceOf(id), liveGames: (ids) => this.liveGamesOf(ids) },
+        (ids, event) => {
+          for (const id of ids) for (const ws of this.sockets.get(id) ?? []) this.send(ws, { t: 'social', event });
+        },
+      );
+    }
     this.http = createServer(async (req, res) => {
       if (req.url?.startsWith('/coach/')) {
         await coachHttp(req, res);
@@ -199,7 +228,7 @@ export class ChessServer {
       }
       if (handlePublicApi(req, res, api)) return;
       const url = new URL(req.url ?? '/', 'http://localhost');
-      for (const route of opts.http ?? []) {
+      for (const route of routes) {
         try {
           if (await route(req, res, url)) return;
         } catch (e) {
@@ -248,7 +277,7 @@ export class ChessServer {
   // ---- connection handling ----
 
   private onConnection(ws: WebSocket) {
-    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()) };
+    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()), watching: new Set() };
     const helloTimeout = setTimeout(() => !conn.player && ws.close(4001, 'hello timeout'), 10_000);
     ws.on('message', (data) => {
       const msg = decodeClient(String(data));
@@ -266,6 +295,7 @@ export class ChessServer {
     });
     ws.on('close', () => {
       clearTimeout(helloTimeout);
+      for (const id of conn.watching) this.unwatch(ws, id);
       if (conn.player) this.onDisconnect(conn.player.id, ws);
     });
   }
@@ -288,8 +318,10 @@ export class ChessServer {
       conn.player = player;
       const set = this.sockets.get(player.id) ?? new Set();
       const wasOnline = set.size > 0;
+      const cameOnline = !wasOnline;
       set.add(ws);
       this.sockets.set(player.id, set);
+      if (cameOnline) this.pushPresence(player.id);
       this.cancelGrace(player.id);
       if (!wasOnline) this.markLobbyDirty();
       this.send(ws, {
@@ -402,6 +434,26 @@ export class ChessServer {
         }
         return;
       }
+      case 'watch': {
+        const room = this.rooms.get(String(msg.gameId));
+        if (!room) return this.send(ws, err('not_found', 'No such game'));
+        const color = room.colorOf(player.id);
+        if (color) return this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+        const allowed = this.social ? this.social.canWatch(player.id, room.white.id, room.black.id) : Promise.resolve(true);
+        return void allowed.then((ok) => {
+          if (!ok) return this.send(ws, err('forbidden', 'You cannot watch this game'));
+          if (ws.readyState !== ws.OPEN) return;
+          const set = this.spectators.get(room.id) ?? new Set();
+          set.add(ws);
+          this.spectators.set(room.id, set);
+          conn.watching.add(room.id);
+          this.send(ws, { t: 'gameState', game: room.snapshot(this.now()) });
+          this.broadcast(room, { t: 'watching', gameId: room.id, spectators: set.size });
+        });
+      }
+      case 'unwatch':
+        conn.watching.delete(String(msg.gameId));
+        return this.unwatch(ws, String(msg.gameId));
       case 'resign':
         return void this.withRoom(ws, msg.gameId, (r) => r.resign(player.id, now));
       case 'abort':
@@ -510,6 +562,7 @@ export class ChessServer {
     set?.delete(ws);
     if (set && set.size > 0) return;
     this.sockets.delete(playerId);
+    this.pushPresence(playerId);
     this.matchmaker.remove(playerId);
     this.opts.analysis?.cancel(playerId);
     this.openGames.removeBy(playerId);
@@ -782,10 +835,12 @@ export class ChessServer {
         this.timers.delete(r.id);
         for (const id of [r.white.id, r.black.id]) this.cancelGrace(id);
         this.markLobbyDirty();
+        this.onGameEnded(r);
         // Keep finished games briefly so late joiners can read the result and players can rematch.
         setTimeout(() => {
           this.rooms.delete(r.id);
           this.rematchOffers.delete(r.id);
+          this.spectators.delete(r.id);
           this.moderation.forgetGame(r.id);
         }, 5 * 60_000).unref();
       },
@@ -802,7 +857,66 @@ export class ChessServer {
       for (const ws of this.sockets.get(p.id) ?? []) this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
     }
     this.schedule(room);
+    this.pushPresence(white.id);
+    this.pushPresence(black.id);
     return room;
+  }
+
+  // ---- social: presence, spectators, activity ----
+
+  private presenceOf(userId: string): Presence {
+    if (!this.sockets.has(userId)) return { status: 'offline' };
+    const room = this.activeRoomOf(userId);
+    return room ? { status: 'playing', gameId: room.id } : { status: 'online' };
+  }
+
+  private liveGamesOf(userIds: Set<string>): LiveGameEntry[] {
+    const out: LiveGameEntry[] = [];
+    const who = (p: GameRoom['white']) => ({ id: p.id, username: p.name, displayName: p.name, country: null, rating: p.rating });
+    for (const r of this.rooms.values()) {
+      if (r.outcome || !(userIds.has(r.white.id) || userIds.has(r.black.id))) continue;
+      out.push({ gameId: r.id, white: who(r.white), black: who(r.black), timeControl: r.timeControl, rated: r.rated, startedAt: r.createdAt });
+    }
+    return out.sort((a, b) => b.startedAt - a.startedAt);
+  }
+
+  /** Tells friends and followers that this user's presence changed. */
+  private pushPresence(userId: string) {
+    if (!this.social || !isAccountId(userId)) return;
+    const presence = this.presenceOf(userId);
+    this.social
+      .audience(userId)
+      .then((ids) => {
+        for (const id of ids) for (const ws of this.sockets.get(id) ?? []) this.send(ws, { t: 'presence', userId, presence });
+      })
+      .catch((e) => console.error('presence push failed', e));
+  }
+
+  private onGameEnded(r: GameRoom) {
+    this.pushPresence(r.white.id);
+    this.pushPresence(r.black.id);
+    // Spectators get gameOver via broadcast; drop them once the room is gone.
+    const o = r.outcome;
+    if (!this.social || !o || o.reason === 'aborted') return;
+    this.social
+      .recordGame({
+        gameId: r.id,
+        whiteId: r.white.id,
+        blackId: r.black.id,
+        result: o.result,
+        reason: o.reason,
+        category: timeCategory(r.timeControl),
+        rated: r.rated,
+      })
+      .catch((e) => console.error('activity record failed', e));
+  }
+
+  private unwatch(ws: WebSocket, gameId: string) {
+    const set = this.spectators.get(gameId);
+    if (!set?.delete(ws)) return;
+    if (set.size === 0) this.spectators.delete(gameId);
+    const room = this.rooms.get(gameId);
+    if (room) this.broadcast(room, { t: 'watching', gameId, spectators: set.size });
   }
 
   private applyRatings(room: GameRoom): Record<Color, { before: Rating; after: Rating; delta: number }> | undefined {
@@ -871,6 +985,7 @@ export class ChessServer {
       if (id === exceptPlayer) continue;
       for (const ws of this.sockets.get(id) ?? []) this.send(ws, msg);
     }
+    for (const ws of this.spectators.get(room.id) ?? []) this.send(ws, msg);
   }
 
   /** Sends to every open socket of a player (app open on two devices or tabs). */
