@@ -3,7 +3,23 @@ import type { Color } from './types';
 /** Engine score. Always from White's point of view. */
 export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: undefined };
 
-export type MoveClass = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'book' | 'forced';
+/**
+ * Move classes. `brilliant` (a sound sacrifice), `great` (shown as "Masterpiece": a sacrifice
+ * that wins outright) and `miss` (failing to punish the opponent's mistake) are refinements
+ * that game review adds on top of `judgeMove` (see `refineClass` in analysis.ts).
+ */
+export type MoveClass =
+  | 'great'
+  | 'brilliant'
+  | 'best'
+  | 'excellent'
+  | 'good'
+  | 'book'
+  | 'forced'
+  | 'inaccuracy'
+  | 'miss'
+  | 'mistake'
+  | 'blunder';
 
 /** Logistic slope converting centipawns to expected score. */
 const K = 0.004;

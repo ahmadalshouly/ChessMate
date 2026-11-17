@@ -1,7 +1,10 @@
-import { START_FEN } from '@chessmate/core';
+import { START_FEN, type MoveClass } from '@chessmate/core';
 import { useState } from 'react';
+import { View } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { MoveBadge } from '@/components/MoveBadge';
+import { MOVE_CLASS } from '@/constants/analysis';
 import {
   Avatar,
   Badge,
@@ -211,6 +214,17 @@ export default function DesignSystem() {
       <Card>
         <BoardThemePicker />
         <Board fen={SAMPLE_FEN} orientation="w" size={280} />
+      </Card>
+
+      <SectionHeader title="Move badges" />
+      <Card>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+          {(Object.keys(MOVE_CLASS) as MoveClass[]).map((cls) => (
+            <View key={cls} style={{ width: 92, alignItems: 'center' }}>
+              <MoveBadge cls={cls} size={64} label />
+            </View>
+          ))}
+        </View>
       </Card>
 
       <Modal

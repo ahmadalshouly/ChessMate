@@ -1,10 +1,11 @@
-import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
+import { ALL_SQUARES, FILES, Game, type Color, type MoveClass, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useMemo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/ui/primitives';
 
+import { MoveBadge } from '@/components/MoveBadge';
 import { useBoardAppearance } from '@/features/account/boardThemes';
 import { pieceImage } from '@/features/board/pieceSets';
 import { useBoardTheme, type BoardTheme } from '@/ui';
@@ -31,6 +32,8 @@ export interface BoardProps {
   pieces?: PieceSet;
   /** Hide coordinates regardless of settings (thumbnails). */
   hideCoordinates?: boolean;
+  /** Classification coin pinned to a square's corner (game review, analysis). */
+  moveBadge?: { square: Square; cls: MoveClass } | null;
 }
 
 function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
@@ -145,11 +148,25 @@ export const Board = memo(function Board(props: BoardProps) {
           </Pressable>
         );
       })}
+      {props.moveBadge && <BadgeOnSquare {...props.moveBadge} orientation={orientation} size={size} />}
       {/* Glass edge: a hairline highlight that sits on top of everything. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.edge, { borderColor: colors.frame, borderRadius: Math.max(4, size * 0.012) }]} />
     </View>
   );
 });
+
+function BadgeOnSquare({ square, cls, orientation, size }: { square: Square; cls: MoveClass; orientation: Color; size: number }) {
+  const cell = size / 8;
+  const i = ORDER[orientation].indexOf(square);
+  const d = Math.max(16, cell * 0.44);
+  const left = Math.min(size - d, (i % 8) * cell + cell - d * 0.7);
+  const top = Math.max(0, Math.floor(i / 8) * cell - d * 0.3);
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', left, top }}>
+      <MoveBadge cls={cls} size={d} rim />
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   board: { overflow: 'hidden' },
