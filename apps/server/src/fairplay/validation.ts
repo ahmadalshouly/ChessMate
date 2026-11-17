@@ -60,6 +60,14 @@ export function validateClientMessage(m: ClientMessage): string | null {
       if (!isGameId(msg.gameId)) return 'Invalid game id';
       if (msg.text !== undefined && (typeof msg.text !== 'string' || msg.text.length > 1000)) return 'Invalid chat message';
       return msg.quick === undefined || typeof msg.quick === 'string' ? null : 'Invalid quick message';
+    case 'analyze':
+      if (!isInt(msg.id, 0, Number.MAX_SAFE_INTEGER)) return 'Invalid request id';
+      return typeof msg.fen === 'string' && msg.fen.length <= 128 ? null : 'Invalid position';
+    case 'analyzeStop':
+      return isInt(msg.id, 0, Number.MAX_SAFE_INTEGER) ? null : 'Invalid request id';
+    case 'review':
+      if (!isInt(msg.id, 0, Number.MAX_SAFE_INTEGER)) return 'Invalid request id';
+      return Array.isArray(msg.moves) && msg.moves.length <= MAX_PLY && msg.moves.every(isValidUci) ? null : 'Invalid moves';
     case 'report':
       if (typeof msg.playerId !== 'string' || msg.playerId.length > 128) return 'Invalid player id';
       if (msg.gameId !== undefined && !isGameId(msg.gameId)) return 'Invalid game id';

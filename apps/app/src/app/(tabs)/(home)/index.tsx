@@ -71,6 +71,14 @@ export default function Home() {
 
       <Card>
         <Label size={18} bold>
+          Analysis board
+        </Label>
+        <Label muted>Explore any position or PGN with Stockfish: evaluation bar, best lines and arrows, full game reviews.</Label>
+        <Button title="Open analysis board" onPress={() => router.push('/analysis')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
           Practice board
         </Label>
         <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>

@@ -16,6 +16,7 @@
     "@chessmate/core": "workspace:*",
     "@chessmate/db": "workspace:*",
     "drizzle-orm": "^0.45.4",
+    "stockfish": "19.0.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {

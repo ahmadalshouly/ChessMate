@@ -64,6 +64,8 @@ function RootStack() {
         <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false, title: 'Create account' }} />
         <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false, title: 'Reset password' }} />
         <Stack.Screen name="reset-password" options={{ headerShown: false, title: 'New password' }} />
+        <Stack.Screen name="analysis" options={{ title: 'Analysis board' }} />
+        <Stack.Screen name="review" options={{ title: 'Game review' }} />
         <Stack.Screen name="design" options={{ title: 'Design system' }} />
       </Stack>
       {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}

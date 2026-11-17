@@ -1,5 +1,6 @@
 import type { Challenge, ChallengeColor, ChallengeEndReason } from './challenge';
 import type { ChatLine, QuickMessageId, ReportReason } from './chat';
+import type { GameReview, PositionAnalysis } from './analysis';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { AppNotification } from './notifications';
@@ -52,7 +53,11 @@ export type ClientMessage =
   | { t: 'challengeCancel'; id: string }
   // chat and moderation
   | { t: 'chat'; gameId: string; text?: string; quick?: QuickMessageId }
-  | { t: 'report'; playerId: string; gameId?: string; reason: ReportReason; note?: string };
+  | { t: 'report'; playerId: string; gameId?: string; reason: ReportReason; note?: string }
+  // Engine analysis (refused while the player has a live game).
+  | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number }
+  | { t: 'analyzeStop'; id: number }
+  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string };
 
 export type ServerMessage =
   | { t: 'welcome'; v: number; player: PlayerInfo }
@@ -74,7 +79,10 @@ export type ServerMessage =
   | { t: 'chatHistory'; gameId: string; lines: ChatLine[] }
   | { t: 'reported'; reportId: string }
   | { t: 'notification'; notification: AppNotification; unread: number }
-  | { t: 'error'; code: ErrorCode; message: string };
+  | { t: 'analysis'; id: number; analysis: PositionAnalysis; done: boolean }
+  | { t: 'reviewProgress'; id: number; done: number; total: number }
+  | { t: 'reviewResult'; id: number; review: GameReview }
+  | { t: 'error'; code: ErrorCode; message: string; id?: number };
 
 export type ErrorCode =
   | 'bad_request'
@@ -87,7 +95,9 @@ export type ErrorCode =
   | 'rate_limited'
   | 'busy'
   | 'offline'
-  | 'chat_restricted';
+  | 'chat_restricted'
+  | 'engine_locked'
+  | 'engine_unavailable';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);
