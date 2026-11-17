@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
@@ -25,7 +26,9 @@ const REASONS: Record<string, string> = {
 };
 
 export default function OnlinePlay() {
-  const { tc: tcParam } = useLocalSearchParams<{ tc?: string }>();
+  // tc: quick-pair time control. mode=friend: set up a challenge (to=<player id> prefills a direct one).
+  // challenge=<id>: an invite link was opened.
+  const { tc: tcParam, mode, to, challenge: inviteId } = useLocalSearchParams<{ tc?: string; mode?: string; to?: string; challenge?: string }>();
   const timeControl = useMemo(() => parseTimeControl(tcParam ?? '5+0'), [tcParam]);
   // Guest identity until accounts land.
   const [token] = useState(() => `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`);
@@ -40,6 +43,12 @@ export default function OnlinePlay() {
   const last = history[history.length - 1];
   const opp: Color = state.you === 'w' ? 'b' : 'w';
   const players = { w: state.white, b: state.black };
+  const me = state.me;
+  const challenges = Object.values(state.challenges).filter((c) => c.status === 'pending');
+  const incoming = challenges.filter((c) => me && c.to?.id === me.id && c.id !== inviteId);
+  const outgoing = challenges.filter((c) => me && c.from.id === me.id);
+  const declined = Object.entries(state.challengeEnded).find(([, r]) => r !== 'accepted' && r !== 'cancelled');
+  const connected = !!me && state.status !== 'offline' && state.status !== 'connecting';
   const ms = (c: Color) => (state.clock ? clockRemaining(state.clock, c, state.clockOffset) : null);
 
   return (
@@ -62,7 +71,31 @@ export default function OnlinePlay() {
         <Card style={{ marginTop: 12 }}>
           {state.status === 'connecting' && <Label muted>Connecting to the game server...</Label>}
           {state.status === 'offline' && <Label muted>Server unreachable. Retrying...</Label>}
-          {state.status === 'idle' && <Button title={`Find a ${tcParam ?? '5+0'} game`} onPress={() => actions.seek(timeControl)} />}
+          {state.status === 'idle' &&
+            (inviteId ? (
+              <InviteDetails
+                id={inviteId}
+                me={me}
+                challenge={state.challenges[inviteId]}
+                ended={state.challengeEnded[inviteId]}
+                error={state.error}
+                connected={connected}
+                actions={actions}
+              />
+            ) : mode === 'friend' ? (
+              outgoing.length > 0 ? (
+                outgoing.map((c) => <OutgoingChallenge key={c.id} challenge={c} actions={actions} />)
+              ) : (
+                <>
+                  {declined && <Label muted>{challengeEndedText(declined[1])}.</Label>}
+                  <CreateChallenge me={me} actions={actions} initialTo={to} initialTc={tcParam ? timeControl : undefined} />
+                </>
+              )
+            ) : (
+              <Button title={`Find a ${tcParam ?? '5+0'} game`} onPress={() => actions.seek(timeControl)} />
+            ))}
+          {(state.status === 'idle' || state.status === 'seeking' || state.status === 'finished') &&
+            incoming.map((c) => <IncomingChallenge key={c.id} challenge={c} actions={actions} />)}
           {state.status === 'seeking' && (
             <>
               <Label>Looking for an opponent...</Label>

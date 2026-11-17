@@ -40,6 +40,21 @@ export default function Home() {
 
       <Card>
         <Label size={18} bold>
+          Play a friend
+        </Label>
+        <Label muted>Send an invite link or challenge a player, or play face to face on one device.</Label>
+        <View style={styles.grid}>
+          <View style={styles.cell}>
+            <Button title="Challenge a friend" onPress={() => router.push({ pathname: '/play/online', params: { mode: 'friend' } })} />
+          </View>
+          <View style={styles.cell}>
+            <Button variant="secondary" title="Over the board" onPress={() => router.push('/play/otb')} />
+          </View>
+        </View>
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
           Practice board
         </Label>
         <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>

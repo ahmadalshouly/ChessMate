@@ -1,3 +1,4 @@
+import type { Challenge, ChallengeColor, ChallengeEndReason } from './challenge';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { Rating } from './rating';
@@ -40,7 +41,13 @@ export type ClientMessage =
   | { t: 'offerDraw'; gameId: string }
   | { t: 'acceptDraw'; gameId: string }
   | { t: 'declineDraw'; gameId: string }
-  | { t: 'abort'; gameId: string };
+  | { t: 'abort'; gameId: string }
+  // Challenges: `to` is a player id for a direct challenge; omit it for an open invite link.
+  | { t: 'challengeCreate'; to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }
+  | { t: 'challengeGet'; id: string }
+  | { t: 'challengeAccept'; id: string }
+  | { t: 'challengeDecline'; id: string }
+  | { t: 'challengeCancel'; id: string };
 
 export type ServerMessage =
   | { t: 'welcome'; v: number; player: PlayerInfo }
@@ -54,7 +61,10 @@ export type ServerMessage =
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
-  | { t: 'error'; code: ErrorCode; message: string };
+  | { t: 'error'; code: ErrorCode; message: string }
+  /** A challenge you sent, received, or looked up (sent again whenever it changes). */
+  | { t: 'challenge'; challenge: Challenge }
+  | { t: 'challengeGone'; id: string; reason: ChallengeEndReason };
 
 export type ErrorCode =
   | 'bad_request'
@@ -64,7 +74,9 @@ export type ErrorCode =
   | 'illegal_move'
   | 'stale_ply'
   | 'game_over'
-  | 'rate_limited';
+  | 'rate_limited'
+  | 'busy'
+  | 'offline';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

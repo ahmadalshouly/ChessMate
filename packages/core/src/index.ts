@@ -9,3 +9,4 @@ export * from './rating';
 export * from './ratingSystem';
 export * from './protocol';
 export * from './coach';
+export * from './challenge';

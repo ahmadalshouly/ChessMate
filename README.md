@@ -132,6 +132,14 @@ EXPO_PUBLIC_SERVER_URL=ws://192.168.1.20:8787/ws pnpm dev:app --tunnel
 
 A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
 
+### Playing a friend and invite links
+
+- **Challenge a friend** (home screen) creates an invite link, or sends a direct challenge to a player ID. Pick the time control, your colour (white, black or random) and rated (accounts only).
+- Invite links look like `<web address>/challenge/<id>`. The same path works as a deep link: `chessmate://challenge/<id>` in installed builds, and `exp://<your-computer-ip>:8081/--/challenge/<id>` in Expo Go. Pasting any of these into a browser or tapping them on a phone opens the invite.
+- Try it locally: open `http://localhost:8081` (press `w` in Expo), choose Challenge a friend, create a link, then open that link in a second browser window or a private window and accept.
+- Set `EXPO_PUBLIC_WEB_URL=https://your-web-host` so shared links point at the public web app instead of the local address. Opening those https links straight in the installed app (iOS universal links, Android app links) also needs the domain added to `app.json` (`ios.associatedDomains`, `android.intentFilters`) and the matching `apple-app-site-association` / `assetlinks.json` files hosted on that domain.
+- **Over the board** (home screen) is two players on one device, offline, with an optional chess clock and a face-to-face layout for a phone or tablet lying between the players.
+
 ### Builds (uses EAS build quota)
 
 Cloud builds count against the Expo account's build quota, so they only run when started on purpose:
