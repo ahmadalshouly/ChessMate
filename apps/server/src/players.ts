@@ -1,5 +1,6 @@
 import { isProvisionalRating, type PlayerInfo, type Rating, type TimeCategory } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
+import { looksLikeJwt } from './auth/jwt';
 
 export interface Player {
   id: string;
@@ -32,12 +33,27 @@ export function playerInfo(p: Player, r: Rating): PlayerInfo {
   return { id: p.id, name: p.name, rating: Math.round(r.rating), provisional: isProvisionalRating(r) };
 }
 
+/** Verifies an account access token; see AuthService.verifyAccessToken. */
+export type AccessVerifier = (token: string) => { userId: string; username: string } | null;
+
 /**
- * Resolves a connection token to a player. Development mode accepts
- * "guest:<name>" and "dev:<id>:<name>"; production should verify a signed
- * session token (JWT from the auth service) here.
+ * Resolves a connection token to a player: an account access token (JWT from
+ * /api/auth), "guest:<name>" for guest play, or "dev:<id>:<name>" outside
+ * production.
  */
-export function authenticate(token: string, store: PlayerStore): Player | null {
+export function authenticate(token: string, store: PlayerStore, verifyAccess?: AccessVerifier): Player | null {
+  if (typeof token !== 'string') return null;
+  const account = verifyAccess && looksLikeJwt(token) ? verifyAccess(token) : null;
+  if (account) {
+    const existing = store.get(account.userId);
+    if (existing) {
+      if (existing.name !== account.username) store.save({ ...existing, name: account.username });
+      return store.get(account.userId)!;
+    }
+    const p: Player = { id: account.userId, name: account.username, ratings: {} };
+    store.save(p);
+    return p;
+  }
   const guest = /^guest:([\w .-]{1,24})$/.exec(token);
   if (guest) {
     const p: Player = { id: `g_${randomUUID()}`, name: guest[1]!, ratings: {} };
