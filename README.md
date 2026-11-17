@@ -139,6 +139,23 @@ A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws
 - Try it locally: open `http://localhost:8081` (press `w` in Expo), choose Challenge a friend, create a link, then open that link in a second browser window or a private window and accept.
 - Set `EXPO_PUBLIC_WEB_URL=https://your-web-host` so shared links point at the public web app instead of the local address. Opening those https links straight in the installed app (iOS universal links, Android app links) also needs the domain added to `app.json` (`ios.associatedDomains`, `android.intentFilters`) and the matching `apple-app-site-association` / `assetlinks.json` files hosted on that domain.
 - **Over the board** (home screen) is two players on one device, offline, with an optional chess clock and a face-to-face layout for a phone or tablet lying between the players.
+### In-game chat and moderation
+
+Chat appears under the board once a game starts: quick messages, free text (profanity is masked by the server), Mute and Report for the opponent, and a Chat on/off switch.
+
+The moderation queue lives at `/admin` in the app (on web: http://localhost:8081/admin). It is protected by a token you choose when starting the server:
+
+```powershell
+# Windows PowerShell
+$env:ADMIN_TOKEN = "pick-a-long-secret"; pnpm dev:server
+```
+
+```bash
+# macOS / Linux
+ADMIN_TOKEN=pick-a-long-secret pnpm dev:server
+```
+
+Then open `/admin`, enter the same token, and review reports (with the game's chat and moves), dismiss, warn, or mute a player's chat for 24 hours or 7 days. Without `ADMIN_TOKEN` the admin API is off. To try it alone, open two browser windows on Play online, start a game, and chat or report between them.
 
 ### Builds (uses EAS build quota)
 

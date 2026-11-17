@@ -1,4 +1,5 @@
 import type { Challenge, ChallengeColor, ChallengeEndReason } from './challenge';
+import type { ChatLine, QuickMessageId, ReportReason } from './chat';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { Rating } from './rating';
@@ -47,7 +48,10 @@ export type ClientMessage =
   | { t: 'challengeGet'; id: string }
   | { t: 'challengeAccept'; id: string }
   | { t: 'challengeDecline'; id: string }
-  | { t: 'challengeCancel'; id: string };
+  | { t: 'challengeCancel'; id: string }
+  // chat and moderation
+  | { t: 'chat'; gameId: string; text?: string; quick?: QuickMessageId }
+  | { t: 'report'; playerId: string; gameId?: string; reason: ReportReason; note?: string };
 
 export type ServerMessage =
   | { t: 'welcome'; v: number; player: PlayerInfo }
@@ -61,10 +65,14 @@ export type ServerMessage =
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
-  | { t: 'error'; code: ErrorCode; message: string }
   /** A challenge you sent, received, or looked up (sent again whenever it changes). */
   | { t: 'challenge'; challenge: Challenge }
-  | { t: 'challengeGone'; id: string; reason: ChallengeEndReason };
+  | { t: 'challengeGone'; id: string; reason: ChallengeEndReason }
+  | { t: 'chat'; line: ChatLine }
+  /** Full chat log of a game, sent on (re)join. */
+  | { t: 'chatHistory'; gameId: string; lines: ChatLine[] }
+  | { t: 'reported'; reportId: string }
+  | { t: 'error'; code: ErrorCode; message: string };
 
 export type ErrorCode =
   | 'bad_request'
@@ -76,7 +84,8 @@ export type ErrorCode =
   | 'game_over'
   | 'rate_limited'
   | 'busy'
-  | 'offline';
+  | 'offline'
+  | 'chat_restricted';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

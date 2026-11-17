@@ -6,7 +6,7 @@ import { ChessServer, type ServerOptions } from './server';
 
 const port = Number(process.env.PORT ?? 8787);
 const auth = new AuthService({ store: new MemoryAuthStore(), mailer: new ConsoleMailer(), secret: authSecretFromEnv() });
-const base: ServerOptions = { port, auth, http: [authRoutes(auth)] };
+const base: ServerOptions = { port, auth, http: [authRoutes(auth)], adminToken: process.env.ADMIN_TOKEN || undefined };
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
 // CHESSMATE_DB=off runs fully in memory (nothing saved).
