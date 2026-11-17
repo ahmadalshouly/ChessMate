@@ -9,6 +9,7 @@ import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { ApiError } from '@/features/account/api';
 import { BOARD_THEME_COLORS, PIECE_SET_LABELS } from '@/features/account/boardThemes';
 import { useAccountSession } from '@/features/account/session';
+import { useAuth } from '@/lib/auth';
 import { useSettingsSync } from '@/features/account/settingsStore';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
 
@@ -176,20 +177,22 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function ChangePassword() {
   const session = useAccountSession();
+  // Google/Apple accounts start without a password and can set one here.
+  const hasPassword = useAuth().user?.hasPassword !== false;
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ field?: string; text: string; ok?: boolean } | null>(null);
 
-  if (!open) return <Button variant="secondary" title="Change password" onPress={() => setOpen(true)} />;
+  if (!open) return <Button variant="secondary" title={hasPassword ? 'Change password' : 'Set a password'} onPress={() => setOpen(true)} />;
   const submit = async () => {
     if (next.length < 8) return setMsg({ field: 'newPassword', text: 'Use at least 8 characters' });
     setBusy(true);
     setMsg(null);
     try {
       await session.apiFetch('/api/me/password', { method: 'POST', body: { currentPassword: current, newPassword: next } });
-      setMsg({ text: 'Password changed.', ok: true });
+      setMsg({ text: hasPassword ? 'Password changed.' : 'Password set. Sign in again to keep going.', ok: true });
       setCurrent('');
       setNext('');
     } catch (e) {
@@ -200,7 +203,9 @@ function ChangePassword() {
   };
   return (
     <View style={{ gap: 10 }}>
-      <Field label="Current password" value={current} onChangeText={setCurrent} secureTextEntry autoComplete="current-password" error={msg?.field === 'currentPassword' ? msg.text : null} />
+      {hasPassword ? (
+        <Field label="Current password" value={current} onChangeText={setCurrent} secureTextEntry autoComplete="current-password" error={msg?.field === 'currentPassword' ? msg.text : null} />
+      ) : null}
       <Field label="New password" value={next} onChangeText={setNext} secureTextEntry autoComplete="new-password" error={msg?.field === 'newPassword' ? msg.text : null} />
       {msg && !msg.field && <Label muted={!msg.ok}>{msg.text}</Label>}
       <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -208,7 +213,7 @@ function ChangePassword() {
           <Button variant="secondary" title="Cancel" onPress={() => setOpen(false)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button title={busy ? 'Saving...' : 'Update password'} onPress={submit} disabled={busy || !current || !next} />
+          <Button title={busy ? 'Saving...' : 'Update password'} onPress={submit} disabled={busy || (hasPassword && !current) || !next} />
         </View>
       </View>
     </View>
@@ -217,6 +222,7 @@ function ChangePassword() {
 
 function DeleteAccount() {
   const session = useAccountSession();
+  const hasPassword = useAuth().user?.hasPassword !== false;
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -244,15 +250,15 @@ function DeleteAccount() {
   };
   return (
     <View style={{ gap: 10 }}>
-      <Label>Enter your password and type DELETE to confirm.</Label>
-      <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" error={error} />
+      <Label>{hasPassword ? 'Enter your password and type DELETE to confirm.' : 'Type DELETE to confirm.'}</Label>
+      {hasPassword ? <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" error={error} /> : error ? <Label muted>{error}</Label> : null}
       <Field label="Type DELETE" value={confirm} onChangeText={setConfirm} autoCapitalize="characters" autoCorrect={false} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
           <Button variant="secondary" title="Keep my account" onPress={() => setOpen(false)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button variant="danger" title={busy ? 'Deleting...' : 'Delete forever'} onPress={submit} disabled={busy || !password || confirm !== 'DELETE'} />
+          <Button variant="danger" title={busy ? 'Deleting...' : 'Delete forever'} onPress={submit} disabled={busy || (hasPassword && !password) || confirm !== 'DELETE'} />
         </View>
       </View>
     </View>

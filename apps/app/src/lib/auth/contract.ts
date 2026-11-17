@@ -9,6 +9,9 @@
  * POST /api/auth/forgot-password {email}                       -> 202 (always, no account enumeration)
  * POST /api/auth/reset-password  {token, password}             -> 204
  * POST /api/auth/change-password {currentPassword, newPassword} Bearer -> 204
+ * GET  /api/auth/providers                                     -> 200 {providers: {google, apple}}
+ * POST /api/auth/google          {idToken}                     -> 200/201 AuthResponse
+ * POST /api/auth/apple           {idToken, fullName?}          -> 200/201 AuthResponse
  *
  * Errors: non-2xx with {error: {code, message, field?}}. 401 means the access
  * token expired or is invalid. Access tokens live ~15 min, refresh tokens ~30
@@ -19,7 +22,10 @@
 export interface AuthUser {
   id: string;
   username: string;
+  /** Empty for Sign in with Apple accounts that did not share an email. */
   email: string;
+  /** False for Google/Apple accounts that have not set a password. Missing on older servers. */
+  hasPassword?: boolean;
   /** ISO timestamp. */
   createdAt: string;
 }
@@ -45,7 +51,8 @@ export type AuthErrorCode =
   | 'invalid_token'
   | 'rate_limited'
   | 'network'
-  | 'server';
+  | 'server'
+  | 'not_configured';
 
 export interface ApiErrorBody {
   error: { code: AuthErrorCode | string; message: string; field?: string };

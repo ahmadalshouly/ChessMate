@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/auth/AuthShell';
+import { SocialSignIn } from '@/components/auth/SocialSignIn';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
@@ -49,6 +50,7 @@ export default function Welcome() {
             <View style={styles.actions}>
               <Button title="Create free account" onPress={() => router.push('/sign-up')} />
               <Button title="Sign in" variant="secondary" onPress={() => router.push('/sign-in')} />
+              <SocialSignIn onSignedIn={() => router.replace('/')} />
               <Text
                 accessibilityRole="button"
                 onPress={async () => {

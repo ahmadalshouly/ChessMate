@@ -109,7 +109,10 @@ The game server also serves the account API at `http://<host>:8787/api/auth` (co
 | `GET /me` | `Authorization: Bearer <accessToken>` | `200 {user}` |
 | `POST /forgot-password` | `{email}` | `202` always |
 | `POST /reset-password` | `{token, password}` | `204`, signs out every device |
-| `POST /change-password` | `{currentPassword, newPassword}` + Bearer | `204` |
+| `POST /change-password` | `{currentPassword, newPassword}` + Bearer | `204` (accounts without a password may leave `currentPassword` empty) |
+| `GET /providers` | | `200 {providers: {google, apple}}`: which social sign-ins the server accepts |
+| `POST /google` | `{idToken}` (Google ID token) | `201` new account / `200` existing, `{user, tokens}` |
+| `POST /apple` | `{idToken, fullName?}` (Apple identity token) | `201` / `200`, `{user, tokens}` |
 
 Errors are `{error: {code, message, field?}}`. Passwords are hashed with scrypt; access tokens are 15-minute JWTs and refresh tokens last 30 days. The WebSocket `hello` accepts an access token, and `guest:<name>` still works for guest play.
 
@@ -119,6 +122,10 @@ Local development needs no setup: accounts are saved in the same database as gam
 - `CORS_ORIGINS`: comma-separated web origins allowed in production (development allows any).
 - `APP_WEB_URL`: base URL used in printed reset links (default `http://localhost:8081`).
 - `TRUST_PROXY=1`: use `X-Forwarded-For` for rate limiting when behind a reverse proxy.
+- `GOOGLE_CLIENT_IDS`: comma-separated Google OAuth client IDs (web, iOS, Android) whose ID tokens are accepted. Unset turns Google sign-in off.
+- `APPLE_CLIENT_IDS`: comma-separated Apple audiences, default `com.chessmate.app`. Outside production Expo Go's `host.exp.Exponent` is accepted too. Set it to an empty string to turn Apple sign-in off.
+
+Google and Apple ID tokens are checked against the providers' published signing keys (fetched and cached), plus issuer, audience and expiry (`apps/server/src/auth/oauth.ts`). Links live in the `oauth_accounts` table.
 
 ### AI coach
 
@@ -182,27 +189,39 @@ To try two players on one computer, open the lobby in two browser windows (one n
 
 ### Phone on the same Wi-Fi (Expo Go)
 
-1. Start the server: `pnpm dev:server`.
-2. Start Expo: `pnpm dev:app`.
+1. Start the server: `pnpm dev:server`. It prints the address phones should use, e.g. `Phones on the same Wi-Fi reach this server at http://192.168.0.240:8787`.
+2. Start Expo: `pnpm dev:app` (plain LAN mode; no `--tunnel` needed on the same Wi-Fi).
 3. Scan the QR code with Expo Go (Android) or the Camera app (iOS).
 
 Play vs computer and the practice board work without the game server.
 
-The app finds the game server automatically: it uses the same computer address that Expo shows in the QR code (for example `192.168.1.20`), port 8787. If Windows asks, allow Node.js through the firewall on private networks.
+The app finds the game server automatically, on port 8787 of the computer running Expo. Even with `--tunnel` it uses your computer's Wi-Fi address (read when Expo starts), so a phone on the same Wi-Fi still reaches the server.
+
+**If sign-in or sign-up says "Can't reach ChessMate"** (in development the message shows the address it tried):
+
+1. Open `http://<your-computer-ip>:8787/api/stats` in the phone's browser (the address `pnpm dev:server` printed). If it doesn't load, the phone can't reach the server.
+2. Windows Firewall is the usual cause. The firewall allows programs by path, and Node installed through nvm-windows (`C:\nvm4w\nodejs\node.exe`) is a different path from the official installer's. In PowerShell **as Administrator**:
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "Node.js (nvm) dev" -Direction Inbound -Program (Get-Command node).Source -Action Allow -Profile Private
+   ```
+
+   Also check the Wi-Fi is a **Private** network (Settings → Network & internet → Wi-Fi → your network → Private), since the rule above only covers private networks.
+3. Some routers isolate Wi-Fi devices from each other (guest networks, "AP isolation"). Use the main network, not a guest one.
 
 ### Phone on another network (tunnel)
 
-`pnpm dev:app --tunnel` makes the bundle reachable from anywhere, but the game server is still only on your network, so tell the app where it is:
+`pnpm dev:app --tunnel` makes the bundle reachable from anywhere, but the game server is still only on your network. On another network, point the app at a server the phone can reach:
 
 ```powershell
 # Windows PowerShell
-$env:EXPO_PUBLIC_SERVER_URL = "ws://192.168.1.20:8787/ws"   # your computer's LAN IP (ipconfig)
+$env:EXPO_PUBLIC_SERVER_URL = "wss://your-host/ws"
 pnpm dev:app --tunnel
 ```
 
 ```bash
 # macOS / Linux
-EXPO_PUBLIC_SERVER_URL=ws://192.168.1.20:8787/ws pnpm dev:app --tunnel
+EXPO_PUBLIC_SERVER_URL=wss://your-host/ws pnpm dev:app --tunnel
 ```
 
 A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
@@ -238,6 +257,20 @@ Then open `/admin`, enter the same token, and review reports (with the game's ch
 - First launch opens the welcome screen: create an account, sign in, or continue as a guest (casual games and the practice board).
 - Sessions are kept in the iOS Keychain / Android Keystore (`expo-secure-store`); on web they are kept in the browser's local storage.
 - Password reset: there is no email provider in development, so the reset link is printed in the server's terminal. Open it on the device (`chessmate://reset-password?token=...`) or in the browser (`http://localhost:8081/reset-password?token=...`).
+
+**Sign in with Apple and Google.** The buttons appear on the welcome, sign-in and sign-up screens wherever they can work. Setup steps, and where to put the IDs: [docs/sign-in-with-google-and-apple.md](docs/sign-in-with-google-and-apple.md).
+
+| Where | Apple | Google |
+| --- | --- | --- |
+| Expo Go on iPhone | Works with no setup | Not possible in Expo Go (shows a note) |
+| Expo Go on Android | Not offered (Apple's button is iOS only) | Not possible in Expo Go (shows a note) |
+| Web (`http://localhost:8081`) | Not offered | Works once the Google client IDs are set |
+| Installed builds (EAS) | Works (needs the Apple Developer account) | Works once the Google client IDs are set |
+
+Accounts made with Apple or Google have no password; **Settings → Set a password** adds one. Signing in with Google or Apple using an email that already has a ChessMate account signs into that account.
+
+**Settings files.** `pnpm dev:server` reads a `.env` file at the repo root, and Expo reads `apps/app/.env` (only `EXPO_PUBLIC_*` values reach the app). Both are git-ignored; restart the server, and Expo with `pnpm dev:app --clear`, after changing them.
+
 ### Notifications
 
 The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.

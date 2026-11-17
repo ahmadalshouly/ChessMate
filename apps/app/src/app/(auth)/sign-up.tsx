@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
 
 import { AuthShell, FormMessage, TextLink } from '@/components/auth/AuthShell';
+import { SocialSignIn } from '@/components/auth/SocialSignIn';
 import { StrengthMeter, TextField } from '@/components/auth/TextField';
 import { Button, Label } from '@/components/ui';
 import { passwordStrength, useAuth, validateEmail, validatePassword, validateUsername } from '@/lib/auth';
@@ -104,6 +105,7 @@ export default function SignUp() {
       />
       <StrengthMeter score={passwordStrength(values.password)} visible={values.password.length > 0} />
       <Button title={busy ? 'Creating account…' : 'Create account'} onPress={submit} disabled={busy} />
+      <SocialSignIn onSignedIn={() => router.replace(safeNext(next))} />
       <Label muted size={12}>
         By creating an account you agree to play fair. Engine assistance in live games is not allowed.
       </Label>

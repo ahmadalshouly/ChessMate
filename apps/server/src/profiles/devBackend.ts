@@ -42,7 +42,8 @@ export class DevProfileBackend implements ProfileDeps {
   async changePassword(): Promise<AccountResult> {
     return { ok: false, status: 501, field: 'currentPassword', message: 'Dev accounts have no password. This works once sign-in is connected.' };
   }
-  async deleteAccount(userId: string): Promise<AccountResult> {
+  async deleteAccount(userId: string, password = ''): Promise<AccountResult> {
+    if (!password) return { ok: false, status: 400, field: 'password', message: 'Enter your password to confirm' };
     this.users.delete(userId);
     this.ratingRows.delete(userId);
     return { ok: true };

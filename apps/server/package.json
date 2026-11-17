@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "build": "node build.mjs",
     "start": "node --enable-source-maps dist/main.js",
-    "start:dev": "tsx src/main.ts",
+    "start:dev": "tsx --env-file-if-exists=../../.env src/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "puzzles:import": "tsx src/puzzles/import.ts"
