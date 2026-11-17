@@ -19,6 +19,7 @@ export default function RootLayout() {
         <Stack.Screen name="play/online" options={{ title: 'Play online' }} />
         <Stack.Screen name="play/local" options={{ title: 'Practice board' }} />
         <Stack.Screen name="leaderboard" options={{ title: 'Leaderboards' }} />
+        <Stack.Screen name="play/computer" options={{ title: 'Play vs computer' }} />
       </Stack>
     </ThemeProvider>
   );

@@ -55,6 +55,14 @@ export default function Home() {
 
       <Card>
         <Label size={18} bold>
+          Play vs computer
+        </Label>
+        <Label muted>Eight opponents from beginner to expert. Unrated, with takebacks and hints. Works offline.</Label>
+        <Button title="Choose an opponent" onPress={() => router.push('/play/computer')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
           Practice board
         </Label>
         <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>

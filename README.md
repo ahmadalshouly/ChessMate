@@ -34,12 +34,14 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `rating.ts` | Glicko-2 ratings per time category |
 | `protocol.ts` | Typed client/server WebSocket messages |
 | `coach.ts` | Structured prompt for the AI coach plus deterministic quick feedback |
+| `bot/` | ChessMate's own small engine (alpha-beta, written for this repo) and the eight computer opponents for unrated play |
 
 ### Design decisions
 
 - **One Expo app for all three platforms** (Expo Router, React Native Web). Shared UI, shared logic.
 - **Server is authoritative.** Clients send moves with the ply they expect; the server validates, runs the clocks and broadcasts. Clients play moves optimistically and resync on rejection.
 - **Engine and coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
+- **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
 - **Original look.** Monochrome, frosted-glass brand; no assets taken from other chess sites.
 
@@ -112,6 +114,8 @@ Local development needs no setup: accounts are kept in memory for now (they rese
 1. Start the server: `pnpm dev:server`.
 2. Start Expo: `pnpm dev:app`.
 3. Scan the QR code with Expo Go (Android) or the Camera app (iOS).
+
+Play vs computer and the practice board work without the game server.
 
 The app finds the game server automatically: it uses the same computer address that Expo shows in the QR code (for example `192.168.1.20`), port 8787. If Windows asks, allow Node.js through the firewall on private networks.
 

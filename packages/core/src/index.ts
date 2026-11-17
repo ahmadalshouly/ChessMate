@@ -11,3 +11,4 @@ export * from './protocol';
 export * from './coach';
 export * from './challenge';
 export * from './chat';
+export * from './bot';
