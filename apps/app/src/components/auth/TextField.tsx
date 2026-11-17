@@ -1,5 +1,6 @@
 import { forwardRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
+import { Pressable, StyleSheet, View, type TextInputInstance, type TextInputProps } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';

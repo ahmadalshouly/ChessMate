@@ -1,5 +1,6 @@
 import type { PuzzleDto } from '@chessmate/core';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label } from '@/components/ui';

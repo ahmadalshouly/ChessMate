@@ -30,9 +30,9 @@ export interface ButtonProps {
 }
 
 const SIZES = {
-  sm: { height: 34, px: 12, radius: 10, text: 'label' as const },
-  md: { height: 44, px: 18, radius: 14, text: 'bodyStrong' as const },
-  lg: { height: 52, px: 22, radius: 16, text: 'subheading' as const },
+  sm: { height: 34, px: 14, radius: 17, text: 'label' as const },
+  md: { height: 46, px: 20, radius: 23, text: 'bodyStrong' as const },
+  lg: { height: 56, px: 26, radius: 28, text: 'subheading' as const },
 };
 
 export function Button({
@@ -73,10 +73,10 @@ export function Button({
       onPress={onPress}
       style={[fullWidth ? { alignSelf: 'stretch' } : { alignSelf: 'flex-start' }, style]}>
       {({ pressed }) => {
-        const pressStyle = { opacity: disabled ? 0.4 : pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] };
+        const pressStyle = { opacity: disabled ? 0.35 : pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.975 : 1 }] };
         if (variant === 'secondary') {
           return (
-            <GlassView radius="md" elevation="sm" style={[{ borderRadius: s.radius }, pressStyle]}>
+            <GlassView radius="pill" elevation="none" style={[{ borderRadius: s.radius }, pressStyle]}>
               {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfacePressed }]} />}
               {content}
             </GlassView>
@@ -84,7 +84,10 @@ export function Button({
         }
         const bg = variant === 'primary' ? c.accent : variant === 'danger' ? c.danger : pressed ? c.surfacePressed : 'transparent';
         return (
-          <View style={[{ borderRadius: s.radius, backgroundColor: bg, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: 'transparent' }, variant === 'primary' && t.shadows.sm, pressStyle]}>{content}</View>
+          <View style={[{ borderRadius: s.radius, backgroundColor: bg, overflow: 'hidden' }, variant === 'primary' && t.shadows.md, pressStyle]}>
+            {variant === 'primary' && c.scheme === 'light' && <View pointerEvents="none" style={styles.shine} />}
+            {content}
+          </View>
         );
       }}
     </Pressable>
@@ -118,7 +121,7 @@ export function IconButton({ icon, accessibilityLabel, onPress, size = 40, varia
         const fx = { opacity: disabled ? 0.4 : pressed ? 0.75 : 1 };
         if (variant === 'glass') {
           return (
-            <GlassView radius="pill" elevation="sm" style={[box, fx]}>
+            <GlassView radius="pill" elevation="none" style={[box, fx]}>
               {icon}
             </GlassView>
           );
@@ -131,4 +134,5 @@ export function IconButton({ icon, accessibilityLabel, onPress, size = 40, varia
 
 const styles = StyleSheet.create({
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: '#FFFFFF', opacity: 0.07 },
 });

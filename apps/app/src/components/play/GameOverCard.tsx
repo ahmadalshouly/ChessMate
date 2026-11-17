@@ -1,5 +1,6 @@
 import { formatTimeControl, type Color } from '@chessmate/core';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';

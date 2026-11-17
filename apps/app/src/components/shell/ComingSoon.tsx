@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
@@ -28,10 +29,10 @@ export function ComingSoon({
     <Page>
       <Card>
         <View style={styles.hero}>
-          <View style={[styles.heroIcon, { backgroundColor: t.accent }]}>
-            <Ionicons name={icon} size={28} color={t.onAccent} />
+          <View style={[styles.heroIcon, { borderColor: t.borderStrong }]}>
+            <Ionicons name={icon} size={24} color={t.text} />
           </View>
-          <View style={[styles.badge, { borderColor: t.border }]}>
+          <View style={[styles.badge, { borderColor: t.border, backgroundColor: t.surfaceSunken }]}>
             <Text style={[styles.badgeText, { color: t.muted }]}>{tr('common.comingSoon')}</Text>
           </View>
         </View>
@@ -44,7 +45,7 @@ export function ComingSoon({
         {features.map((f) => (
           <View key={f.title} style={styles.cell}>
             <Card style={styles.featureCard}>
-              <Ionicons name={f.icon} size={22} color={t.text} />
+              <Ionicons name={f.icon} size={20} color={t.muted} />
               <Label bold>{f.title}</Label>
               <Label muted size={14}>
                 {f.text}
@@ -59,9 +60,9 @@ export function ComingSoon({
 
 const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  heroIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  badge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  heroIcon: { width: 52, height: 52, borderRadius: 26, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  badge: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontFamily: 'GeistMono_500Medium', fontSize: 10, letterSpacing: 1.4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', margin: -6 },
   cell: { width: '50%', minWidth: 260, flexGrow: 1, padding: 6 },
   featureCard: { flex: 1 },

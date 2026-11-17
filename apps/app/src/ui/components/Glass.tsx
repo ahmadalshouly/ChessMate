@@ -1,4 +1,5 @@
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
@@ -21,9 +22,10 @@ export interface GlassViewProps extends ViewProps {
 }
 
 /**
- * The glass primitive every surface is built on: blur + translucent tint + hairline
- * border + bright top edge. On Android, `expo-blur` defaults to a tint-only fallback,
- * which still reads as frosted against the page gradient.
+ * The glass primitive every surface is built on: backdrop blur, a translucent tint, a
+ * hairline edge and a soft sheen across the top third, the way light catches real glass.
+ * On Android, `expo-blur` falls back to tint only, which still reads as frosted against
+ * the page backdrop.
  */
 export function GlassView({
   strength = 'regular',
@@ -38,26 +40,28 @@ export function GlassView({
 }: GlassViewProps) {
   const t = useAppTheme();
   const c = t.colors;
+  const dark = c.scheme === 'dark';
   const fill = strength === 'strong' ? c.surfaceStrong : strength === 'subtle' ? c.surfaceSubtle : c.surface;
   const r = t.radii[radius];
+  const sheen = dark ? (['rgba(255,255,255,0.055)', 'rgba(255,255,255,0)'] as const) : (['rgba(255,255,255,0.7)', 'rgba(255,255,255,0)'] as const);
   return (
     <View
       {...rest}
       style={[
         t.shadows[elevation],
-        { borderRadius: r, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: c.glassBorder, overflow: 'hidden' },
+        { borderRadius: r, borderWidth: StyleSheet.hairlineWidth, borderColor: c.glassBorder, overflow: 'hidden' },
         padding !== undefined && { padding: t.space[padding] },
         style,
       ]}>
       {!flat && Platform.OS !== 'android' && (
-        <BlurView intensity={t.blur[strength]} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        <BlurView intensity={t.blur[strength]} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
       )}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} />
       {highlight && (
-        <View
-          pointerEvents="none"
-          style={{ position: 'absolute', top: 0, left: r / 2, right: r / 2, height: StyleSheet.hairlineWidth * 2, backgroundColor: c.glassHighlight, opacity: 0.8 }}
-        />
+        <>
+          <LinearGradient pointerEvents="none" colors={sheen} locations={[0, 1]} style={[styles.sheen, { borderTopLeftRadius: r, borderTopRightRadius: r }]} />
+          <View pointerEvents="none" style={[styles.edge, { left: r * 0.6, right: r * 0.6, backgroundColor: c.glassHighlight }]} />
+        </>
       )}
       {children}
     </View>
@@ -84,7 +88,7 @@ export function Card({ title, subtitle, headerRight, onPress, gap = 'md', paddin
       {(title || headerRight) && (
         <View style={styles.header}>
           <View style={{ flex: 1, gap: 2 }}>
-            {title && <Text variant="subheading">{title}</Text>}
+            {title && <Text variant="heading">{title}</Text>}
             {subtitle && (
               <Text variant="caption" tone="muted">
                 {subtitle}
@@ -118,4 +122,6 @@ export function Card({ title, subtitle, headerRight, onPress, gap = 'md', paddin
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '45%' },
+  edge: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth, opacity: 0.9 },
 });

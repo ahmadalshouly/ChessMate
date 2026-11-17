@@ -94,3 +94,17 @@ export function formatAgo(ms: number, now = Date.now()): string {
   if (d < 30) return translate('common.time.daysAgo', { count: d });
   return formatDate(ms, { day: 'numeric', month: 'short', year: 'numeric' });
 }
+
+const MIRRORED: Record<string, string> = {
+  'arrow-forward': 'arrow-back',
+  'arrow-back': 'arrow-forward',
+  'chevron-forward': 'chevron-back',
+  'chevron-back': 'chevron-forward',
+  'caret-forward': 'caret-back',
+  'caret-back': 'caret-forward',
+};
+
+/** Direction-aware Ionicons name: "forward" arrows point left in Arabic. Leaves other icons alone. */
+export function dirIcon<T extends string>(name: T): T {
+  return (isRTL(i18nStore.get().lang) ? (MIRRORED[name] ?? name) : name) as T;
+}

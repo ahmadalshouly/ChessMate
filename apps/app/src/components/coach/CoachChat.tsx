@@ -1,6 +1,7 @@
 import type { CoachChatRequest, CoachChatTurn } from '@chessmate/core';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';

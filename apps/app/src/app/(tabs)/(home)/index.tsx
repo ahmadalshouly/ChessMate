@@ -1,123 +1,170 @@
 import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory } from '@chessmate/core';
-import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { router, type Href } from 'expo-router';
+import { useState, type ComponentProps } from 'react';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { LiveStats } from '@/components/LiveStats';
 import { Page } from '@/components/shell/Page';
-import { Button, Card, Label } from '@/components/ui';
-import { useT } from '@/i18n';
+import { useCurrentUser } from '@/lib/currentUser';
+import { Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
+import { translate, useI18n, type TKey } from '@/i18n';
+
+type Glyph = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+interface Mode {
+  title: TKey;
+  body: TKey;
+  href: Href;
+  glyph: Glyph;
+}
+
+const PLAY: Mode[] = [
+  { title: 'home.computer.title', body: 'home.computer.body', href: '/play/computer', glyph: 'chess-rook' },
+  { title: 'home.friend.title', body: 'home.friend.body', href: { pathname: '/play/online', params: { mode: 'friend' } }, glyph: 'chess-knight' },
+  { title: 'home.otb.title', body: 'home.otb.body', href: '/play/otb', glyph: 'chess-pawn' },
+  { title: 'home.practice.title', body: 'home.practice.body', href: '/play/local', glyph: 'chess-bishop' },
+];
+
+const IMPROVE: Mode[] = [
+  { title: 'home.coach.title', body: 'home.coach.body', href: '/review/demo', glyph: 'chess-queen' },
+  { title: 'home.analysis.title', body: 'home.analysis.body', href: '/analysis', glyph: 'chess-king' },
+  { title: 'home.history.title', body: 'home.history.body', href: '/games', glyph: 'history' },
+];
+
+const COMMUNITY: Mode[] = [
+  { title: 'home.friends.title', body: 'home.friends.body', href: '/friends', glyph: 'account-multiple-outline' },
+  { title: 'home.leaderboards.title', body: 'home.leaderboards.body', href: '/leaderboard', glyph: 'podium' },
+];
+
+const QUICK = PRESET_TIME_CONTROLS.slice(0, 8);
+
+function greeting() {
+  const h = new Date().getHours();
+  return translate(h < 5 ? 'home.greeting.night' : h < 12 ? 'home.greeting.morning' : h < 18 ? 'home.greeting.afternoon' : 'home.greeting.evening');
+}
 
 export default function Home() {
-  const tr = useT();
+  const t = useAppTheme();
+  const c = t.colors;
+  const user = useCurrentUser();
+  const { tr, rtl } = useI18n();
+  const { width } = useWindowDimensions();
+  // The shell's sidebar takes ~250px at 960 and up.
+  const content = width >= 960 ? width - 250 : width;
+  const cols = content >= 900 ? 3 : content >= 560 ? 2 : 1;
+
   return (
-    <Page>
-      <View style={styles.hero}>
-        <Label size={28} bold>
-          {tr('home.heroTitle')}
-        </Label>
-        <Label muted>{tr('home.heroBody')}</Label>
+    <Page maxWidth={1080}>
+      <View style={[styles.hero, { gap: t.space.xl }]}>
+        <View style={{ gap: t.space.sm }}>
+          <Text variant="overline" tone="muted">
+            {greeting()}
+            {user.displayName ? `, ${user.displayName}` : ''}
+          </Text>
+          <Text variant="display" style={width < 420 && { fontSize: 32, lineHeight: 38 }}>
+            {tr('home.heroTitle')}
+          </Text>
+          <Text tone="muted" style={{ maxWidth: 520 }}>
+            {tr('home.heroBody')}
+          </Text>
+        </View>
+        <View style={styles.heroActions}>
+          <Button title={tr('home.online.title')} size="lg" onPress={() => router.push('/play')} rightIcon={<Ionicons name={rtl ? 'arrow-back' : 'arrow-forward'} size={18} color={c.onAccent} />} />
+          <Button title={tr('nav.puzzles')} size="lg" variant="secondary" onPress={() => router.navigate('/puzzles')} />
+        </View>
       </View>
 
       <LiveStats />
 
-      <Card>
-        <Label size={18} bold>
-          {tr('home.online.title')}
-        </Label>
-        <Button title={tr('home.online.cta')} onPress={() => router.push('/play')} />
-        <Label muted>{tr('home.online.quick')}</Label>
-        <View style={styles.grid}>
-          {PRESET_TIME_CONTROLS.map((tc) => {
+      <View style={{ gap: t.space.md }}>
+        <SectionHeader index={1} title={tr('home.quick.title')} action={<Text variant="caption" tone="tertiary">{tr('home.quick.hint')}</Text>} />
+        <View style={styles.quick}>
+          {QUICK.map((tc) => {
             const key = formatTimeControl(tc);
             return (
-              <View key={key} style={styles.cell}>
-                <Button
-                  variant="secondary"
-                  title={`${key} · ${tr(`common.category.${timeCategory(tc)}`)}`}
-                  onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
-                />
-              </View>
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityLabel={tr('home.quick.a11y', { tc: key, category: tr(`common.category.${timeCategory(tc)}`) })}
+                onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
+                style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                  styles.quickCell,
+                  { borderColor: hovered ? c.borderStrong : c.border, backgroundColor: hovered ? c.surfacePressed : c.surface, transform: [{ scale: pressed ? 0.97 : 1 }] },
+                ]}>
+                <Text variant="figure" style={{ fontSize: 20, lineHeight: 24 }}>
+                  {key}
+                </Text>
+                <Text variant="overline" tone="tertiary" style={{ fontSize: 9.5 }}>
+                  {tr(`common.category.${timeCategory(tc)}`)}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
-      </Card>
+      </View>
 
-      <Card>
-        <Label size={18} bold>
-          {tr('home.friend.title')}
-        </Label>
-        <Label muted>{tr('home.friend.body')}</Label>
-        <View style={styles.grid}>
-          <View style={styles.cell}>
-            <Button title={tr('home.friend.cta')} onPress={() => router.push({ pathname: '/play/online', params: { mode: 'friend' } })} />
-          </View>
-          <View style={styles.cell}>
-            <Button variant="secondary" title={tr('home.friend.otb')} onPress={() => router.push('/play/otb')} />
-          </View>
-        </View>
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.computer.title')}
-        </Label>
-        <Label muted>{tr('home.computer.body')}</Label>
-        <Button title={tr('home.computer.cta')} onPress={() => router.push('/play/computer')} />
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.coach.title')}
-        </Label>
-        <Label muted>{tr('home.coach.body')}</Label>
-        <Button variant="secondary" title={tr('home.coach.cta')} onPress={() => router.push('/review/demo')} />
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.analysis.title')}
-        </Label>
-        <Label muted>{tr('home.analysis.body')}</Label>
-        <Button title={tr('home.analysis.cta')} onPress={() => router.push('/analysis')} />
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.history.title')}
-        </Label>
-        <Label muted>{tr('home.history.body')}</Label>
-        <Button variant="secondary" title={tr('home.history.cta')} onPress={() => router.push('/games')} />
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.friends.title')}
-        </Label>
-        <Label muted>{tr('home.friends.body')}</Label>
-        <Button variant="secondary" title={tr('home.friends.cta')} onPress={() => router.push('/friends')} />
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.practice.title')}
-        </Label>
-        <Label muted>{tr('home.practice.body')}</Label>
-        <Button title={tr('home.practice.cta')} onPress={() => router.push('/play/local')} />
-      </Card>
-
-      <Card>
-        <Label size={18} bold>
-          {tr('home.leaderboards.title')}
-        </Label>
-        <Label muted>{tr('home.leaderboards.body')}</Label>
-        <Button variant="secondary" title={tr('home.leaderboards.cta')} onPress={() => router.push('/leaderboard')} />
-      </Card>
+      <ModeSection index={2} title={tr('nav.play')} modes={PLAY} cols={cols} />
+      <ModeSection index={3} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
+      <ModeSection index={4} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
     </Page>
   );
 }
 
+function ModeSection({ index, title, modes, cols }: { index: number; title: string; modes: Mode[]; cols: number }) {
+  const t = useAppTheme();
+  const [w, setW] = useState(0);
+  const gap = t.space.md;
+  const cell = w > 0 ? (w - gap * (cols - 1)) / cols : undefined;
+  return (
+    <View style={{ gap: t.space.md }}>
+      <SectionHeader index={index} title={title} />
+      <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={[styles.grid, { gap }]}>
+        {modes.map((m) => (
+          <View key={m.title} style={{ width: cell ?? '100%' }}>
+            <ModeTile mode={m} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** A destination: line-art piece in a hairline circle, title, one line, and an arrow. A large faint piece sits in the corner. */
+function ModeTile({ mode }: { mode: Mode }) {
+  const t = useAppTheme();
+  const c = t.colors;
+  const { tr, rtl } = useI18n();
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={tr(mode.title)} onPress={() => router.push(mode.href)}>
+      {({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => (
+        <GlassView radius="xl" padding="lg" elevation={hovered ? 'lg' : 'md'} style={[styles.tile, { transform: [{ scale: pressed ? 0.985 : 1 }, { translateY: hovered ? -2 : 0 }] }]}>
+          <View style={styles.tileTop}>
+            <View style={[styles.icon, { borderColor: c.borderStrong }]}>
+              <MaterialCommunityIcons name={mode.glyph} size={18} color={c.text} />
+            </View>
+            <Ionicons name={rtl ? 'arrow-back' : 'arrow-forward'} size={16} color={hovered ? c.text : c.textTertiary} style={{ transform: [{ rotate: rtl ? '45deg' : '-45deg' }] }} />
+          </View>
+          <View style={{ gap: 4 }}>
+            <Text variant="subheading">{tr(mode.title)}</Text>
+            <Text variant="caption" tone="muted" numberOfLines={2}>
+              {tr(mode.body)}
+            </Text>
+          </View>
+        </GlassView>
+      )}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  hero: { gap: 6, paddingHorizontal: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
-  cell: { width: '50%', padding: 4 },
+  hero: { paddingTop: 12, paddingBottom: 4, paddingHorizontal: 2 },
+  heroActions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quickCell: { flexGrow: 1, flexBasis: 76, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  tile: { gap: 22, minHeight: 148 },
+  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  icon: { width: 38, height: 38, borderRadius: 19, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
 });

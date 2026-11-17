@@ -1,7 +1,8 @@
 import { parsePgn, type ArchivedGame } from '@chessmate/core';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { TextInput } from '@/ui/primitives';
 
 import { GameRow } from '@/components/archive';
 import { Button, Card, Label, Screen } from '@/components/ui';

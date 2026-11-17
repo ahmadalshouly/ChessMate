@@ -1,6 +1,7 @@
 import type { RatingPoint } from '@chessmate/core';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
 import { formatDate, useT } from '@/i18n';

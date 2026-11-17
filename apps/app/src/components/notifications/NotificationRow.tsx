@@ -1,5 +1,6 @@
 import type { AppNotification } from '@chessmate/core';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';

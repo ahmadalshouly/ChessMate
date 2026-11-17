@@ -1,10 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackHeaderProps } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { fonts } from '@/ui';
 
 import { Glass } from './Glass';
 
@@ -19,7 +21,7 @@ export function StackHeader({ navigation, options, route, back, insetTop }: Nati
   const { tr, rtl } = useI18n();
   const title = typeof options.title === 'string' ? options.title : route.name;
   return (
-    <Glass intensity={60} style={[styles.bar, { paddingTop: (insetTop ? insets.top : 0) + 8 }]}>
+    <Glass intensity={60} sheen={false} style={[styles.bar, { paddingTop: (insetTop ? insets.top : 0) + 8 }]}>
       <View style={styles.row}>
         {back ? (
           <Pressable
@@ -48,7 +50,7 @@ export function RootStackHeader(props: NativeStackHeaderProps) {
 const styles = StyleSheet.create({
   bar: { borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, paddingHorizontal: 12, paddingBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 38 },
-  back: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1, fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  back: { width: 36, height: 36, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, fontFamily: fonts.display, fontSize: 17, lineHeight: 22, letterSpacing: -0.3 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

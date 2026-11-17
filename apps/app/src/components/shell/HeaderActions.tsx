@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useTheme } from '@/constants/theme';
@@ -40,6 +41,6 @@ export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  signIn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1 },
-  signInText: { fontSize: 13, fontWeight: '600' },
+  signIn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
+  signInText: { fontSize: 13, fontWeight: '500' },
 });

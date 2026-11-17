@@ -1,26 +1,17 @@
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Logo } from '@/components/shell/Logo';
 import { Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 
-/** Brand mark: a knight in a frosted disc. */
+/** The ChessMate line-art mark. */
 export function BrandMark({ size = 56 }: { size?: number }) {
-  const t = useTheme();
-  return (
-    <View
-      style={[
-        styles.mark,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent, borderColor: t.glassBorder },
-      ]}>
-      <Text style={{ color: t.onAccent, fontSize: size * 0.58, lineHeight: size * 0.72 }} accessibilityElementsHidden importantForAccessibility="no">
-        ♞
-      </Text>
-    </View>
-  );
+  return <Logo size={size} wordmark={false} />;
 }
 
 /** Centered, keyboard-aware glass card used by every auth screen. */

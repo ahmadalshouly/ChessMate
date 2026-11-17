@@ -1,4 +1,6 @@
-import { Platform, type TextStyle } from 'react-native';
+import type { TextStyle } from 'react-native';
+
+import { families } from './fonts';
 
 /**
  * ChessMate design tokens.
@@ -70,90 +72,90 @@ export interface ColorTokens {
 
 const light: ColorTokens = {
   scheme: 'light',
-  bg: '#F4F4F5',
-  bgGradient: ['#FFFFFF', '#E4E4E7'],
-  bgGlow: ['rgba(10, 10, 11, 0.07)', 'rgba(10, 10, 11, 0.04)'],
+  bg: '#F3F3F1',
+  bgGradient: ['#FAFAF8', '#ECECE9'],
+  bgGlow: ['rgba(255, 255, 255, 0.9)', 'rgba(10, 10, 11, 0.035)'],
 
-  surface: 'rgba(255, 255, 255, 0.62)',
-  surfaceStrong: 'rgba(255, 255, 255, 0.84)',
-  surfaceSubtle: 'rgba(255, 255, 255, 0.38)',
+  surface: 'rgba(255, 255, 255, 0.58)',
+  surfaceStrong: 'rgba(255, 255, 255, 0.82)',
+  surfaceSubtle: 'rgba(255, 255, 255, 0.34)',
   surfaceSolid: '#FFFFFF',
-  surfaceSunken: 'rgba(11, 11, 12, 0.05)',
-  surfacePressed: 'rgba(11, 11, 12, 0.07)',
+  surfaceSunken: 'rgba(12, 12, 13, 0.045)',
+  surfacePressed: 'rgba(12, 12, 13, 0.06)',
 
-  glassBorder: 'rgba(255, 255, 255, 0.9)',
-  glassHighlight: 'rgba(255, 255, 255, 1)',
+  glassBorder: 'rgba(12, 12, 13, 0.08)',
+  glassHighlight: 'rgba(255, 255, 255, 0.95)',
 
-  text: '#0B0B0C',
-  muted: '#5E5E66',
-  textTertiary: '#8E8E96',
+  text: '#0C0C0D',
+  muted: '#62626A',
+  textTertiary: '#9A9AA1',
   textInverse: '#FFFFFF',
 
-  accent: '#0B0B0C',
-  onAccent: '#FFFFFF',
+  accent: '#0C0C0D',
+  onAccent: '#FAFAF8',
 
-  border: 'rgba(11, 11, 12, 0.10)',
-  borderStrong: 'rgba(11, 11, 12, 0.22)',
-  focusRing: 'rgba(11, 11, 12, 0.45)',
+  border: 'rgba(12, 12, 13, 0.08)',
+  borderStrong: 'rgba(12, 12, 13, 0.18)',
+  focusRing: 'rgba(12, 12, 13, 0.45)',
 
-  overlay: 'rgba(10, 10, 11, 0.28)',
+  overlay: 'rgba(12, 12, 13, 0.32)',
 
-  success: '#1E7F4A',
-  successSoft: 'rgba(30, 127, 74, 0.12)',
-  warning: '#A86A12',
-  warningSoft: 'rgba(168, 106, 18, 0.13)',
-  danger: '#C93838',
-  dangerSoft: 'rgba(201, 56, 56, 0.11)',
+  success: '#1D7A47',
+  successSoft: 'rgba(29, 122, 71, 0.10)',
+  warning: '#9A6210',
+  warningSoft: 'rgba(154, 98, 16, 0.11)',
+  danger: '#C2362F',
+  dangerSoft: 'rgba(194, 54, 47, 0.09)',
   onDanger: '#FFFFFF',
-  live: '#22A45D',
+  live: '#1FA35B',
 
-  skeleton: 'rgba(11, 11, 12, 0.07)',
-  skeletonHighlight: 'rgba(11, 11, 12, 0.13)',
+  skeleton: 'rgba(12, 12, 13, 0.06)',
+  skeletonHighlight: 'rgba(12, 12, 13, 0.11)',
 
-  shadow: '#000000',
+  shadow: '#1A1A1C',
 };
 
 const dark: ColorTokens = {
   scheme: 'dark',
-  bg: '#0A0A0B',
-  bgGradient: ['#1A1A1D', '#050506'],
-  bgGlow: ['rgba(255, 255, 255, 0.07)', 'rgba(255, 255, 255, 0.04)'],
+  bg: '#08080A',
+  bgGradient: ['#111114', '#060607'],
+  bgGlow: ['rgba(255, 255, 255, 0.06)', 'rgba(255, 255, 255, 0.025)'],
 
-  surface: 'rgba(255, 255, 255, 0.07)',
-  surfaceStrong: 'rgba(28, 28, 32, 0.86)',
-  surfaceSubtle: 'rgba(255, 255, 255, 0.04)',
-  surfaceSolid: '#17171A',
-  surfaceSunken: 'rgba(0, 0, 0, 0.32)',
-  surfacePressed: 'rgba(255, 255, 255, 0.10)',
+  surface: 'rgba(255, 255, 255, 0.045)',
+  surfaceStrong: 'rgba(22, 22, 25, 0.82)',
+  surfaceSubtle: 'rgba(255, 255, 255, 0.025)',
+  surfaceSolid: '#131316',
+  surfaceSunken: 'rgba(0, 0, 0, 0.35)',
+  surfacePressed: 'rgba(255, 255, 255, 0.07)',
 
-  glassBorder: 'rgba(255, 255, 255, 0.14)',
-  glassHighlight: 'rgba(255, 255, 255, 0.22)',
+  glassBorder: 'rgba(255, 255, 255, 0.085)',
+  glassHighlight: 'rgba(255, 255, 255, 0.16)',
 
-  text: '#F5F5F7',
-  muted: '#9C9CA4',
-  textTertiary: '#6C6C74',
+  text: '#F2F2F0',
+  muted: '#9A9AA0',
+  textTertiary: '#64646B',
   textInverse: '#0A0A0B',
 
-  accent: '#F5F5F7',
+  accent: '#F2F2F0',
   onAccent: '#0A0A0B',
 
-  border: 'rgba(255, 255, 255, 0.12)',
-  borderStrong: 'rgba(255, 255, 255, 0.24)',
-  focusRing: 'rgba(255, 255, 255, 0.55)',
+  border: 'rgba(255, 255, 255, 0.08)',
+  borderStrong: 'rgba(255, 255, 255, 0.18)',
+  focusRing: 'rgba(255, 255, 255, 0.5)',
 
-  overlay: 'rgba(0, 0, 0, 0.55)',
+  overlay: 'rgba(0, 0, 0, 0.6)',
 
-  success: '#3DD68C',
-  successSoft: 'rgba(61, 214, 140, 0.14)',
-  warning: '#F5B544',
-  warningSoft: 'rgba(245, 181, 68, 0.14)',
-  danger: '#FF6464',
-  dangerSoft: 'rgba(255, 100, 100, 0.14)',
+  success: '#4ADE94',
+  successSoft: 'rgba(74, 222, 148, 0.10)',
+  warning: '#F2B74F',
+  warningSoft: 'rgba(242, 183, 79, 0.11)',
+  danger: '#FF6B61',
+  dangerSoft: 'rgba(255, 107, 97, 0.10)',
   onDanger: '#FFFFFF',
-  live: '#3DD68C',
+  live: '#4ADE94',
 
-  skeleton: 'rgba(255, 255, 255, 0.06)',
-  skeletonHighlight: 'rgba(255, 255, 255, 0.12)',
+  skeleton: 'rgba(255, 255, 255, 0.05)',
+  skeletonHighlight: 'rgba(255, 255, 255, 0.10)',
 
   shadow: '#000000',
 };
@@ -180,8 +182,8 @@ export const radii = {
   xs: 6,
   sm: 10,
   md: 14,
-  lg: 20,
-  xl: 28,
+  lg: 22,
+  xl: 30,
   pill: 999,
 } as const;
 export type Radius = keyof typeof radii;
@@ -196,8 +198,10 @@ export type GlassStrength = keyof typeof blur;
 
 export const motion = {
   fast: 120,
-  normal: 200,
-  slow: 320,
+  normal: 220,
+  slow: 360,
+  /** Spring for presses and selection changes (Reanimated `withSpring`). */
+  spring: { damping: 18, stiffness: 260, mass: 0.7 },
 } as const;
 
 export const layout = {
@@ -209,46 +213,60 @@ export const layout = {
   hitSize: 44,
 } as const;
 
-const sans = Platform.select({
-  web: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-  default: undefined, // native system font (SF Pro / Roboto)
-});
-const mono = Platform.select({
-  ios: 'Menlo',
-  android: 'monospace',
-  web: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  default: undefined,
-});
+const S = families.sans;
+const M = families.mono;
 
-export const fonts = { sans, mono } as const;
+/** Family names for places that style text by hand. */
+export const fonts = {
+  sans: S[400],
+  sansMedium: S[500],
+  sansSemiBold: S[600],
+  sansBold: S[700],
+  mono: M[400],
+  monoMedium: M[500],
+  monoBold: M[600],
+  display: families.display[600],
+  displayMedium: families.display[500],
+  displayRegular: families.display[400],
+} as const;
 
-type TypeStyle = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'letterSpacing' | 'fontFamily' | 'textTransform' | 'fontVariant'>;
+type TypeStyle = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'letterSpacing' | 'fontFamily' | 'textTransform' | 'fontVariant' | 'fontStyle'>;
 
-/** Type ramp. Use through `<Text variant="…">`. */
+/**
+ * Type ramp. Use through `<Text variant="…">`.
+ *
+ * Three voices: Montserrat (the wordmark face) for big moments, sans for everything you read,
+ * mono for anything that counts or labels (ratings, clocks, overlines).
+ */
 export const typography = {
-  display: { fontFamily: sans, fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
-  title: { fontFamily: sans, fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.5 },
-  heading: { fontFamily: sans, fontSize: 20, lineHeight: 26, fontWeight: '700', letterSpacing: -0.2 },
-  subheading: { fontFamily: sans, fontSize: 17, lineHeight: 22, fontWeight: '600', letterSpacing: -0.1 },
-  body: { fontFamily: sans, fontSize: 15, lineHeight: 21, fontWeight: '400' },
-  bodyStrong: { fontFamily: sans, fontSize: 15, lineHeight: 21, fontWeight: '600' },
-  label: { fontFamily: sans, fontSize: 13, lineHeight: 18, fontWeight: '600', letterSpacing: 0.1 },
-  caption: { fontFamily: sans, fontSize: 12, lineHeight: 16, fontWeight: '400' },
-  overline: { fontFamily: sans, fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
-  /** Ratings, clocks, evaluations: fixed-width digits. */
-  numeric: { fontFamily: sans, fontSize: 15, lineHeight: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  clock: { fontFamily: sans, fontSize: 24, lineHeight: 28, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.3 },
-  mono: { fontFamily: mono, fontSize: 13, lineHeight: 19, fontWeight: '400' },
+  /** Hero headline. One per screen at most. */
+  display: { fontFamily: families.display[600], fontSize: 38, lineHeight: 44, letterSpacing: -1.4 },
+  /** Screen title. */
+  title: { fontFamily: families.display[600], fontSize: 28, lineHeight: 34, letterSpacing: -0.9 },
+  heading: { fontFamily: families.display[600], fontSize: 18, lineHeight: 24, letterSpacing: -0.4 },
+  subheading: { fontFamily: S[600], fontSize: 16, lineHeight: 21, letterSpacing: -0.2 },
+  body: { fontFamily: S[400], fontSize: 15, lineHeight: 22, letterSpacing: -0.1 },
+  bodyStrong: { fontFamily: S[500], fontSize: 15, lineHeight: 22, letterSpacing: -0.15 },
+  label: { fontFamily: S[500], fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
+  caption: { fontFamily: S[400], fontSize: 12.5, lineHeight: 17 },
+  /** Small uppercase mono label above sections and stats. */
+  overline: { fontFamily: M[500], fontSize: 10.5, lineHeight: 14, letterSpacing: 1.4, textTransform: 'uppercase' },
+  /** Ratings, counts, evaluations: fixed-width digits. */
+  numeric: { fontFamily: M[500], fontSize: 14, lineHeight: 20, fontVariant: ['tabular-nums'], letterSpacing: -0.2 },
+  /** Big figures in stat blocks and time-control tiles. */
+  figure: { fontFamily: M[500], fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'], letterSpacing: -1 },
+  clock: { fontFamily: M[600], fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'], letterSpacing: -0.8 },
+  mono: { fontFamily: M[400], fontSize: 13, lineHeight: 19 },
 } as const satisfies Record<string, TypeStyle>;
 export type TextVariant = keyof typeof typography;
 
 export function shadows(c: ColorTokens) {
-  const k = c.scheme === 'dark' ? 2.2 : 1;
+  const k = c.scheme === 'dark' ? 3 : 1;
   return {
     none: {},
-    sm: { shadowColor: c.shadow, shadowOpacity: 0.05 * k, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-    md: { shadowColor: c.shadow, shadowOpacity: 0.08 * k, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
-    lg: { shadowColor: c.shadow, shadowOpacity: 0.14 * k, shadowRadius: 40, shadowOffset: { width: 0, height: 16 }, elevation: 8 },
+    sm: { shadowColor: c.shadow, shadowOpacity: 0.04 * k, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+    md: { shadowColor: c.shadow, shadowOpacity: 0.06 * k, shadowRadius: 28, shadowOffset: { width: 0, height: 10 }, elevation: 3 },
+    lg: { shadowColor: c.shadow, shadowOpacity: 0.1 * k, shadowRadius: 48, shadowOffset: { width: 0, height: 22 }, elevation: 8 },
   } as const;
 }
 export type Elevation = keyof ReturnType<typeof shadows>;

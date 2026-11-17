@@ -1,6 +1,7 @@
 import { Game, formatScore, type CoachMoveNote, type CoachReview, type Color, type GameAnalysis, type MoveClass, type Square } from '@chessmate/core';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { CoachChat } from '@/components/coach/CoachChat';

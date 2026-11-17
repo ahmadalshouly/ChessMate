@@ -1,7 +1,8 @@
 import { BOARD_THEMES, PIECE_SETS, type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';

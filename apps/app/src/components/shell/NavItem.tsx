@@ -1,16 +1,18 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTabTrigger } from 'expo-router/ui';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
 import type { TabConfig } from '@/navigation/tabs';
+import { fonts } from '@/ui';
+import { Text } from '@/ui/primitives';
 
 /**
  * One destination in the tab bar (`variant="bar"`) or sidebar
  * (`variant="side"`). Wired to the headless tab navigator by route name.
  */
-export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'side' }) {
+export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar' | 'side'; index?: number }) {
   const t = useTheme();
   const tr = useT();
   const { trigger, triggerProps } = useTabTrigger({ name: tab.name });
@@ -29,9 +31,9 @@ export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'si
         onLongPress={triggerProps.onLongPress}
         style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.6 : 1 }]}>
         <View style={[styles.barIcon, focused && { backgroundColor: t.accent }]}>
-          <Ionicons name={focused ? tab.iconActive : tab.icon} size={21} color={focused ? t.onAccent : t.muted} />
+          <Ionicons name={focused ? tab.iconActive : tab.icon} size={19} color={focused ? t.onAccent : t.muted} />
         </View>
-        <Text numberOfLines={1} style={[styles.barLabel, { color: focused ? t.text : t.muted, fontWeight: focused ? '700' : '500' }]}>
+        <Text numberOfLines={1} style={[styles.barLabel, { color: focused ? t.text : t.textTertiary }]}>
           {tr(tab.label)}
         </Text>
       </Pressable>
@@ -47,18 +49,22 @@ export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'si
       onLongPress={triggerProps.onLongPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.side,
-        { backgroundColor: focused ? t.accent : hovered ? t.border : 'transparent', opacity: pressed ? 0.75 : 1 },
+        { backgroundColor: focused ? t.surfacePressed : hovered ? t.surfaceSunken : 'transparent', opacity: pressed ? 0.75 : 1 },
       ]}>
-      <Ionicons name={focused ? tab.iconActive : tab.icon} size={20} color={focused ? t.onAccent : t.text} />
-      <Text style={[styles.sideLabel, { color: focused ? t.onAccent : t.text, fontWeight: focused ? '700' : '500' }]}>{tr(tab.title)}</Text>
+      {focused && <View style={[styles.sideMark, { backgroundColor: t.accent }]} />}
+      <Ionicons name={focused ? tab.iconActive : tab.icon} size={18} color={focused ? t.text : t.muted} />
+      <Text style={[styles.sideLabel, { color: focused ? t.text : t.muted, fontFamily: focused ? fonts.sansSemiBold : fonts.sansMedium }]}>{tr(tab.title)}</Text>
+      {index !== undefined && <Text style={[styles.sideIndex, { color: t.textTertiary }]}>{String(index + 1).padStart(2, '0')}</Text>}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 6 },
-  barIcon: { width: 44, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  barLabel: { fontSize: 11, letterSpacing: 0.1 },
-  side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 44, borderRadius: 12 },
-  sideLabel: { fontSize: 15 },
+  bar: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
+  barIcon: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  barLabel: { fontFamily: fonts.monoMedium, fontSize: 9.5, letterSpacing: 0.9, textTransform: 'uppercase' },
+  side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 42, borderRadius: 12 },
+  sideMark: { position: 'absolute', left: 0, top: 12, bottom: 12, width: 2.5, borderRadius: 2 },
+  sideLabel: { fontSize: 14.5, flex: 1, letterSpacing: -0.15 },
+  sideIndex: { fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: 0.5 },
 });

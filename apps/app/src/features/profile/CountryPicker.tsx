@@ -1,6 +1,7 @@
 import { COUNTRIES, countryFlag } from '@chessmate/core';
 import { useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Button, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';

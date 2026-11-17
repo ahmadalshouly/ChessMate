@@ -49,11 +49,11 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 - **Engine and coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
-- **Original look.** Monochrome, frosted-glass brand; no assets taken from other chess sites.
+- **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
 
 ## Design system
 
-UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open http://localhost:8081/design in the browser to see every component in light and dark.
+UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Type: Montserrat (the logo's wordmark face) for titles, Geist for body text, Geist Mono for clocks, ratings and labels, all bundled with the app. Logo files (SVG, black and white) are in `apps/app/assets/brand/`. Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open http://localhost:8081/design in the browser to see every component in light and dark.
 
 ## Getting started
 
@@ -66,7 +66,7 @@ pnpm dev:server          # terminal 1: game server on port 8787
 pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or press w for web)
 ```
 
-The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen after pulling, stop it and run `pnpm dev:app --clear`.
+The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`.
 
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
 

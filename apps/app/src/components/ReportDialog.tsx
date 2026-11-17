@@ -1,7 +1,8 @@
 import { REPORT_NOTE_MAX, REPORT_REASONS, type PlayerInfo, type ReportReason } from '@chessmate/core';
 import { BlurView } from 'expo-blur';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';

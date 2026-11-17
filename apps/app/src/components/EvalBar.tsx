@@ -1,5 +1,6 @@
 import { evalBarFraction, type Color, type Score } from '@chessmate/core';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { formatEval } from '@/constants/analysis';
 import { useT } from '@/i18n';
