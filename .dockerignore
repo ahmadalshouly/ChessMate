@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.expo
+**/coverage
+**/*.log
+.git
+.github
+.env
+.env.*
+apps/app/*
+!apps/app/package.json

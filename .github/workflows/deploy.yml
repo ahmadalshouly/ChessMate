@@ -1,0 +1,83 @@
+name: Deploy
+# Manual only. Deploys the game server to Fly.io and/or the web app to
+# Cloudflare Pages. Needs the secrets listed in docs/DEPLOYMENT.md; a target
+# whose secrets are missing is skipped. Never starts EAS builds.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to deploy
+        type: choice
+        options: [all, server, web]
+        default: all
+
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    if: inputs.target == 'all' || inputs.target == 'server'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secret
+        id: secret
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::warning::FLY_API_TOKEN is not set, skipping server deploy"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: steps.secret.outputs.ok == 'true'
+      - name: Deploy to Fly.io
+        if: steps.secret.outputs.ok == 'true'
+        run: flyctl deploy --remote-only --config fly.toml
+
+  web:
+    if: inputs.target == 'all' || inputs.target == 'web'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check configuration
+        id: cfg
+        run: |
+          missing=""
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -z "$EXPO_PUBLIC_SERVER_URL" ] && missing="$missing EXPO_PUBLIC_SERVER_URL(variable)"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing:$missing. Skipping web deploy"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.cfg.outputs.ok == 'true'
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.cfg.outputs.ok == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.cfg.outputs.ok == 'true'
+        run: pnpm build:web
+      - name: Deploy to Cloudflare Pages
+        if: steps.cfg.outputs.ok == 'true'
+        run: npx --yes wrangler@4 pages deploy apps/app/dist --project-name "${{ vars.CLOUDFLARE_PAGES_PROJECT || 'chessmate' }}" --branch main

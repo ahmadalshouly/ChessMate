@@ -1,6 +1,14 @@
-# Optional local Postgres. Without it the server uses embedded Postgres (PGlite) in .data/pglite.
+# Local services.
+#
 #   docker compose up -d
-#   DATABASE_URL=postgres://chessmate:chessmate@localhost:5432/chessmate pnpm dev:server
+#     Postgres only. Run the server yourself with
+#     DATABASE_URL=postgres://chessmate:chessmate@localhost:5432/chessmate pnpm dev:server
+#     (Without Postgres the server falls back to embedded PGlite in .data/pglite.)
+#
+#   docker compose --profile server up -d --build
+#     Production-like stack: Postgres + the game server image (with Stockfish)
+#     on http://localhost:8787. Point the app at it with
+#     EXPO_PUBLIC_SERVER_URL=ws://localhost:8787/ws
 services:
   postgres:
     image: postgres:17-alpine
@@ -17,5 +25,27 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  server:
+    profiles: ["server"]
+    build: .
+    image: chessmate-server:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8787:8787"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 8787
+      DATABASE_URL: postgres://chessmate:chessmate@postgres:5432/chessmate
+      STOCKFISH_PATH: /usr/games/stockfish
+    volumes:
+      - serverdata:/data
+
 volumes:
   pgdata:
+  serverdata:

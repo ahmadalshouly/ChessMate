@@ -13,7 +13,7 @@ import { useBoardSize } from '@/lib/useBoardSize';
  */
 export default function LocalPlay() {
   const game = useRef(new Game());
-  const [view, setView] = useState<{ fen: string; history: PlayedMove[] }>(() => ({ fen: game.current.fen, history: [] }));
+  const [view, setView] = useState<{ fen: string; history: PlayedMove[] }>(() => ({ fen: new Game().fen, history: [] }));
   const [flip, setFlip] = useState(false);
   const [showThreats, setShowThreats] = useState(true);
   const size = useBoardSize(320);
