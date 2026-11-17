@@ -10,7 +10,7 @@ import { Pill, Segmented, Stepper, Tile } from '@/components/play/Controls';
 import { Glass } from '@/components/shell/Glass';
 import { isGuest, playClient, usePlay } from '@/lib/playClient';
 import { Avatar, Backdrop, Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
-import { dirIcon, formatNumber, translate, useT, type TKey } from '@/i18n';
+import { dirIcon, formatNumber, useT, type TKey } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 
 const GROUPS: { name: TKey; icon: 'flash' | 'flame' | 'time' | 'hourglass'; controls: string[] }[] = [
@@ -93,7 +93,7 @@ export default function Lobby() {
               <View style={[styles.groupLabel, !wide && width < 560 && { width: 'auto' }]}>
                 <Ionicons name={`${g.icon}-outline`} size={13} color={c.muted} />
                 <Text variant="overline" tone="muted">
-                  {g.name}
+                  {tr(g.name)}
                 </Text>
               </View>
               <View style={styles.tiles}>
@@ -261,7 +261,7 @@ export default function Lobby() {
         <View pointerEvents="box-none" style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <Glass radius={30} intensity={80} style={styles.dockBar}>
             <View style={styles.dockRow}>
-              <View style={{ flex: 1, paddingLeft: 10 }}>
+              <View style={{ flex: 1, paddingStart: 10 }}>
                 <Text variant="figure" style={{ fontSize: 22, lineHeight: 26 }}>
                   {tcLabel}
                 </Text>
@@ -281,7 +281,6 @@ export default function Lobby() {
 
 function OptionRow({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   const t = useAppTheme();
-  const tr = useT();
   return (
     <View style={[styles.optionRow, { gap: t.space.md }]}>
       <View style={{ flex: 1, minWidth: 150, gap: 2 }}>
@@ -391,7 +390,7 @@ function OpenGamesList() {
                   {g.range ? ` · ±${g.range}` : ''}
                 </Text>
               </View>
-              <Text variant="numeric" style={{ minWidth: 48, textAlign: 'right' }}>
+              <Text variant="numeric" style={{ minWidth: 48, textAlign: 'right', writingDirection: 'ltr' }}>
                 {formatTimeControl(g.timeControl)}
               </Text>
               {mine ? (

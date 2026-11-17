@@ -43,13 +43,9 @@ function readWebPreference(): LanguagePreference | null {
   }
 }
 
-// Web reads storage synchronously so the first paint is already in the right language.
-const webInitial = readWebPreference();
-let state: State = {
-  preference: webInitial ?? 'system',
-  lang: resolveLang(webInitial ?? 'system'),
-  ready: Platform.OS === 'web',
-};
+// Not ready until `initI18n` has read the saved choice. The root layout renders nothing until
+// then, which also keeps web hydration consistent with the statically rendered HTML.
+let state: State = { preference: 'system', lang: 'en', ready: false };
 const listeners = new Set<() => void>();
 
 function emit(next: State) {
@@ -75,14 +71,7 @@ function applyWebDocument(lang: Lang) {
   const root = document.documentElement;
   root.lang = lang;
   root.dir = isRTL(lang) ? 'rtl' : 'ltr';
-  if (isRTL(lang) && !document.getElementById('chessmate-arabic-font')) {
-    // Brand sans has no Arabic glyphs; IBM Plex Sans Arabic matches its clean, geometric feel.
-    const link = document.createElement('link');
-    link.id = 'chessmate-arabic-font';
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap';
-    document.head.appendChild(link);
-  }
+  // The Arabic typeface is handled by `ui/theme/fonts.ts` (bundled IBM Plex Sans Arabic).
 }
 
 /**
@@ -111,9 +100,12 @@ async function applyNativeDirection(lang: Lang): Promise<boolean> {
   }
 }
 
-/** Load the saved choice and apply direction. Called once from the root layout. */
-export async function initI18n(): Promise<void> {
-  let preference = state.preference;
+/**
+ * Load the saved choice and apply direction. Called once from the root layout.
+ * `beforeReady` runs before the app renders in that language (e.g. to load its font).
+ */
+export async function initI18n(opts?: { beforeReady?: (lang: Lang) => Promise<void> | void }): Promise<void> {
+  let preference: LanguagePreference = readWebPreference() ?? 'system';
   if (Platform.OS !== 'web') {
     const saved = await AsyncStorage.getItem(KEY).catch(() => null);
     if (isPreference(saved)) preference = saved;
@@ -121,7 +113,9 @@ export async function initI18n(): Promise<void> {
   const lang = resolveLang(preference);
   applyWebDocument(lang);
   const reloading = await applyNativeDirection(lang);
-  if (!reloading) emit({ preference, lang, ready: true });
+  if (reloading) return;
+  await Promise.resolve(opts?.beforeReady?.(lang)).catch(() => undefined);
+  emit({ preference, lang, ready: true });
 }
 
 /** Change language. On native, switching between LTR and RTL restarts the app once. */

@@ -10,6 +10,8 @@ import { EvalBar } from '@/components/EvalBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { ARROW_COLORS, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
+import { translate, useT } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
@@ -33,6 +35,7 @@ export default function Analysis() {
   const [importError, setImportError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const t = useTheme();
+  const tr = useT();
   const size = useBoardSize(300) - EVAL_BAR - 6;
   const engine = useEngine();
 
@@ -92,7 +95,7 @@ export default function Analysis() {
 
   const doImport = () => {
     const imported = importPosition(importText);
-    if (!imported) return setImportError('Could not read that. Paste a FEN or a PGN.');
+    if (!imported) return setImportError(tr('analysis.importError'));
     setImportError(null);
     setStart(imported.initialFen);
     setLine(imported.moves);
@@ -129,7 +132,8 @@ export default function Analysis() {
             </View>
           </View>
 
-          <View style={styles.row}>
+          {/* Move navigation follows the board, which stays left-to-right in every language. */}
+          <View style={[styles.row, { direction: 'ltr' }]}>
             <NavButton label="⏮" onPress={() => setCursor(0)} disabled={cursor === 0} />
             <NavButton label="◀" onPress={() => setCursor(cursor - 1)} disabled={cursor === 0} />
             <NavButton label="▶" onPress={() => setCursor(cursor + 1)} disabled={cursor >= line.length} />
@@ -140,19 +144,19 @@ export default function Analysis() {
           <Card>
             <View style={styles.row}>
               <Label bold size={18}>
-                {analysis?.terminal ? terminalText(analysis.terminal) : top ? formatEval(top.score) : engineOn ? '…' : 'Engine off'}
+                {analysis?.terminal ? terminalText(analysis.terminal) : top ? formatEval(top.score) : engineOn ? '…' : tr('analysis.engineOff')}
               </Label>
-              {!!analysis?.depth && <Label muted>depth {analysis.depth}</Label>}
+              {!!analysis?.depth && <Label muted>{tr('analysis.depth', { n: analysis.depth })}</Label>}
               <View style={styles.toggle}>
                 <Pressable onPress={() => setMultipv((m) => (m === 1 ? 3 : 1))} accessibilityRole="button">
-                  <Label muted>{multipv} {multipv === 1 ? 'line' : 'lines'}</Label>
+                  <Label muted>{tr('analysis.lines', { count: multipv })}</Label>
                 </Pressable>
-                <Switch value={engineOn} onValueChange={setEngineOn} accessibilityLabel="Engine" />
+                <Switch value={engineOn} onValueChange={setEngineOn} accessibilityLabel={tr('analysis.engine')} />
               </View>
             </View>
-            {locked && <Label muted>Engine analysis is off while you have a live game. It comes back when the game ends.</Label>}
-            {unavailable && <Label muted>{engine.state.error?.message}</Label>}
-            {!engine.state.connected && engineOn && <Label muted>Connecting to the engine…</Label>}
+            {locked && <Label muted>{tr('analysis.locked')}</Label>}
+            {unavailable && <Label muted>{serverText(engine.state.error?.message)}</Label>}
+            {!engine.state.connected && engineOn && <Label muted>{tr('analysis.connecting')}</Label>}
             {engineOn &&
               analysis?.lines.map((l) => (
                 <Pressable
@@ -169,9 +173,9 @@ export default function Analysis() {
           </Card>
 
           <Card>
-            <Label bold>Moves</Label>
+            <Label bold>{tr('analysis.moves')}</Label>
             {line.length === 0 ? (
-              <Label muted>Move pieces for either side, or import a game below.</Label>
+              <Label muted>{tr('analysis.empty')}</Label>
             ) : (
               <View style={styles.moves}>
                 {history.map((m, i) => (
@@ -185,18 +189,18 @@ export default function Analysis() {
               </View>
             )}
             <View style={styles.row}>
-              <Button variant="secondary" title={showImport ? 'Close' : 'Import FEN / PGN'} onPress={() => setShowImport((s) => !s)} />
+              <Button variant="secondary" title={showImport ? tr('common.close') : tr('analysis.import')} onPress={() => setShowImport((s) => !s)} />
               {line.length > 0 && (
                 <Button
                   variant="secondary"
-                  title="Review game"
+                  title={tr('analysis.review')}
                   onPress={() => router.push({ pathname: '/review', params: { moves: line.join(','), initialFen: start } })}
                 />
               )}
               {line.length > 0 && (
                 <Button
                   variant="secondary"
-                  title="Clear"
+                  title={tr('analysis.clear')}
                   onPress={() => {
                     setStart(START_FEN);
                     setLine([]);
@@ -211,14 +215,14 @@ export default function Analysis() {
                   value={importText}
                   onChangeText={setImportText}
                   multiline
-                  placeholder={'Paste a FEN or a PGN, e.g. 1. e4 e5 2. Nf3'}
+                  placeholder={tr('analysis.placeholder')}
                   placeholderTextColor={t.muted}
                   autoCapitalize="none"
                   autoCorrect={false}
                   style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
                 />
                 {importError && <Label muted>{importError}</Label>}
-                <Button title="Load" onPress={doImport} disabled={!importText.trim()} />
+                <Button title={tr('analysis.load')} onPress={doImport} disabled={!importText.trim()} />
               </>
             )}
             <Text selectable style={{ color: t.muted, fontSize: 12 }}>
@@ -252,7 +256,7 @@ function formatLine(san: string[], ply: number): string {
 }
 
 function terminalText(t: 'checkmate' | 'stalemate' | 'draw') {
-  return t === 'checkmate' ? 'Checkmate' : t === 'stalemate' ? 'Stalemate' : 'Draw';
+  return translate(t === 'checkmate' ? 'analysis.checkmate' : t === 'stalemate' ? 'analysis.stalemate' : 'play.result.draw');
 }
 
 function validFen(fen?: string): string | null {
@@ -279,9 +283,9 @@ function clampPly(n: number, max: number) {
 
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
-  boardRow: { flexDirection: 'row', gap: 6 },
+  boardRow: { flexDirection: 'row', gap: 6, direction: 'ltr' },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginLeft: 'auto' },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginStart: 'auto' },
   pvRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   pvScore: { fontWeight: '700', minWidth: 54, textAlign: 'center', paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   moves: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },

@@ -1,4 +1,4 @@
-import { countryName, themeLabel as coreThemeLabel, type Color, type PieceType, type PuzzleHint, type Square, type Threat } from '@chessmate/core';
+import { analyzePosition, countryName, themeLabel as coreThemeLabel, type ReviewedMove, type Color, type PieceType, type PuzzleHint, type Square, type Threat } from '@chessmate/core';
 
 import { COUNTRY_NAMES } from './countries';
 import { translate, translateOr } from './index';
@@ -81,4 +81,34 @@ export function countryLabel(code: string | null | undefined): string | null {
   const lang = i18nStore.get().lang;
   const local = lang === 'en' ? undefined : COUNTRY_NAMES[lang][code.toUpperCase()];
   return local ?? countryName(code);
+}
+
+/**
+ * Localised one-line move feedback, mirroring core's English `quickFeedback`
+ * (core/src/coach.ts). Recomputes the tactical facts from the position after the move.
+ */
+export function moveFeedbackText(m: Pick<ReviewedMove, 'san' | 'bestSan' | 'color' | 'fenAfter' | 'judgement'>): string {
+  const cls = m.judgement.classification;
+  switch (cls) {
+    case 'best':
+      return translate('feedback.best', { san: m.san });
+    case 'forced':
+      return translate('feedback.forced', { san: m.san });
+    case 'book':
+      return translate('feedback.book', { san: m.san });
+    case 'excellent':
+    case 'good':
+      return translate('feedback.solid', { san: m.san, best: m.bestSan });
+    default: {
+      const insight = analyzePosition(m.fenAfter, m.color);
+      const top = insight.threats[0];
+      const hang = insight.hanging[0];
+      const reason = top
+        ? translate('feedback.allows', { threat: threatText(top, m.fenAfter) })
+        : hang
+          ? translate('feedback.undefended', { piece: pieceLabel(hang.piece), square: hang.square })
+          : '';
+      return translate('feedback.bad', { san: m.san, cls: translate(`moveClass.${cls}.phrase`), best: m.bestSan, reason: reason ? ` ${reason}` : '' });
+    }
+  }
 }

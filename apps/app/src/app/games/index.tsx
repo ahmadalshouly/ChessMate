@@ -17,37 +17,41 @@ import { TextInput } from '@/ui/primitives';
 import { ChipRow, GameRow, Stat } from '@/components/archive';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
+import { useT, type TKey } from '@/i18n';
 import { useArchive } from '@/lib/archive';
 import { canDownload, downloadPgn, sharePgn } from '@/lib/share';
 
 type Any = 'all';
-const OUTCOMES = [
-  { value: 'all', label: 'All' },
-  { value: 'win', label: 'Won' },
-  { value: 'loss', label: 'Lost' },
-  { value: 'draw', label: 'Drawn' },
-] as const;
-const COLORS = [
-  { value: 'all', label: 'Any' },
-  { value: 'w', label: 'White' },
-  { value: 'b', label: 'Black' },
-] as const;
-const CATEGORIES = [
-  { value: 'all', label: 'All' },
-  { value: 'bullet', label: 'Bullet' },
-  { value: 'blitz', label: 'Blitz' },
-  { value: 'rapid', label: 'Rapid' },
-  { value: 'classical', label: 'Classical' },
-] as const;
-const SOURCES = [
-  { value: 'all', label: 'All' },
-  { value: 'online', label: 'Online' },
-  { value: 'practice', label: 'Practice' },
-  { value: 'import', label: 'Imported' },
-] as const;
+type Option<T extends string> = { value: T; label: TKey };
+const OUTCOMES: Option<ViewerOutcome | Any>[] = [
+  { value: 'all', label: 'games.filter.all' },
+  { value: 'win', label: 'profile.won' },
+  { value: 'loss', label: 'profile.lost' },
+  { value: 'draw', label: 'profile.drawn' },
+];
+const COLORS: Option<Color | Any>[] = [
+  { value: 'all', label: 'games.filter.any' },
+  { value: 'w', label: 'play.white' },
+  { value: 'b', label: 'play.black' },
+];
+const CATEGORIES: Option<TimeCategory | Any>[] = [
+  { value: 'all', label: 'games.filter.all' },
+  { value: 'bullet', label: 'common.category.bullet' },
+  { value: 'blitz', label: 'common.category.blitz' },
+  { value: 'rapid', label: 'common.category.rapid' },
+  { value: 'classical', label: 'common.category.classical' },
+];
+const SOURCES: Option<GameSource | Any>[] = [
+  { value: 'all', label: 'games.filter.all' },
+  { value: 'online', label: 'games.source.online' },
+  { value: 'practice', label: 'games.source.practice' },
+  { value: 'import', label: 'games.source.import' },
+];
 
 export default function GameHistory() {
   const t = useTheme();
+  const tr = useT();
+  const opts = <T extends string>(list: Option<T>[]) => list.map((o) => ({ value: o.value, label: tr(o.label) }));
   const { games, loading } = useArchive();
   const [query, setQuery] = useState('');
   const [outcome, setOutcome] = useState<ViewerOutcome | Any>('all');
@@ -70,8 +74,8 @@ export default function GameHistory() {
   const shown = useMemo(() => filterGames(all, filter), [all, JSON.stringify(filter)]); // eslint-disable-line react-hooks/exhaustive-deps
   const stats = useMemo(() => archiveStats(shown), [shown]);
   const families = useMemo(
-    () => [{ value: 'all', label: 'All' }, ...openingFamilies(all).slice(0, 10).map((f) => ({ value: f.family, label: f.family }))],
-    [all],
+    () => [{ value: 'all', label: tr('games.filter.all') }, ...openingFamilies(all).slice(0, 10).map((f) => ({ value: f.family, label: f.family }))],
+    [all, tr],
   );
   const activeFilters = [outcome, color, category, source, family].filter((v) => v !== 'all').length;
 
@@ -80,9 +84,9 @@ export default function GameHistory() {
     const pgn = gamesToPgn(shown);
     if (canDownload) {
       downloadPgn(pgn, `chessmate-games-${new Date().toISOString().slice(0, 10)}.pgn`);
-      setNotice(`Downloaded ${shown.length} game${shown.length === 1 ? '' : 's'}.`);
+      setNotice(tr('games.downloaded', { count: shown.length }));
     } else {
-      await sharePgn(pgn, 'ChessMate games');
+      await sharePgn(pgn, tr('games.shareTitle'));
     }
   };
 
@@ -90,10 +94,10 @@ export default function GameHistory() {
     <View style={styles.headerWrap}>
       <Card>
         <View style={styles.stats}>
-          <Stat label="Games" value={stats.total} />
-          <Stat label="Won" value={stats.wins} />
-          <Stat label="Lost" value={stats.losses} />
-          <Stat label="Drawn" value={stats.draws} />
+          <Stat label={tr('profile.games')} value={stats.total} />
+          <Stat label={tr('profile.won')} value={stats.wins} />
+          <Stat label={tr('profile.lost')} value={stats.losses} />
+          <Stat label={tr('profile.drawn')} value={stats.draws} />
         </View>
       </Card>
 
@@ -101,7 +105,7 @@ export default function GameHistory() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Search players, openings or ECO"
+          placeholder={tr('games.search')}
           placeholderTextColor={t.muted}
           autoCapitalize="none"
           autoCorrect={false}
@@ -110,26 +114,26 @@ export default function GameHistory() {
         />
         <View style={styles.actions}>
           <View style={styles.flex}>
-            <Button variant="secondary" title={showFilters ? 'Hide filters' : activeFilters ? `Filters (${activeFilters})` : 'Filters'} onPress={() => setShowFilters((s) => !s)} />
+            <Button variant="secondary" title={showFilters ? tr('games.hideFilters') : activeFilters ? tr('games.filtersCount', { n: activeFilters }) : tr('games.filters')} onPress={() => setShowFilters((s) => !s)} />
           </View>
           <View style={styles.flex}>
-            <Button variant="secondary" title="Import PGN" onPress={() => router.push('/games/import')} />
+            <Button variant="secondary" title={tr('games.importPgn')} onPress={() => router.push('/games/import')} />
           </View>
           <View style={styles.flex}>
-            <Button variant="secondary" title={canDownload ? 'Export' : 'Share all'} disabled={!shown.length} onPress={exportShown} />
+            <Button variant="secondary" title={canDownload ? tr('games.export') : tr('games.shareAll')} disabled={!shown.length} onPress={exportShown} />
           </View>
         </View>
         {showFilters && (
           <View style={styles.filters}>
-            <ChipRow label="Result" options={OUTCOMES} value={outcome} onChange={setOutcome} />
-            <ChipRow label="Played as" options={COLORS} value={color} onChange={setColor} />
-            <ChipRow label="Time control" options={CATEGORIES} value={category} onChange={setCategory} />
-            <ChipRow label="Source" options={SOURCES} value={source} onChange={setSource} />
-            {families.length > 1 && <ChipRow label="Opening" options={families} value={family} onChange={setFamily} />}
+            <ChipRow label={tr('games.filter.result')} options={opts(OUTCOMES)} value={outcome} onChange={setOutcome} />
+            <ChipRow label={tr('games.filter.playedAs')} options={opts(COLORS)} value={color} onChange={setColor} />
+            <ChipRow label={tr('games.filter.timeControl')} options={opts(CATEGORIES)} value={category} onChange={setCategory} />
+            <ChipRow label={tr('games.filter.source')} options={opts(SOURCES)} value={source} onChange={setSource} />
+            {families.length > 1 && <ChipRow label={tr('games.filter.opening')} options={families} value={family} onChange={setFamily} />}
             {activeFilters > 0 && (
               <Button
                 variant="secondary"
-                title="Clear filters"
+                title={tr('games.clearFilters')}
                 onPress={() => {
                   setOutcome('all');
                   setColor('all');
@@ -148,7 +152,7 @@ export default function GameHistory() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Game history' }} />
+      <Stack.Screen options={{ title: tr('games.title') }} />
       <FlatList
         data={shown}
         keyExtractor={(g) => g.id}
@@ -164,13 +168,13 @@ export default function GameHistory() {
           loading ? undefined : (
             <View style={styles.item}>
               <Card>
-                <Label bold>{all.length ? 'No games match these filters' : 'No games yet'}</Label>
+                <Label bold>{all.length ? tr('games.noMatch') : tr('games.empty')}</Label>
                 <Label muted>
                   {all.length
-                    ? 'Try clearing a filter or searching for something else.'
-                    : 'Finished online and practice games appear here. You can also import games from a PGN file.'}
+                    ? tr('games.noMatchBody')
+                    : tr('games.emptyBody')}
                 </Label>
-                {!all.length && <Button title="Play a game" onPress={() => router.push('/')} />}
+                {!all.length && <Button title={tr('games.playAGame')} onPress={() => router.push('/')} />}
               </Card>
             </View>
           )

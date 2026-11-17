@@ -23,11 +23,11 @@ export function Sidebar() {
   const user = useCurrentUser();
   const tr = useT();
   return (
-    <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 14 }]}>
+    <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingStart: insets.left + 14 }]}>
       <View style={styles.logo}>
         <Logo size={30} />
       </View>
-      <Text style={[styles.section, { color: t.textTertiary }]}>Navigate</Text>
+      <Text style={[styles.section, { color: t.textTertiary }]}>{tr('nav.section')}</Text>
       <View accessibilityRole="tablist" style={styles.nav}>
         {TABS.map((tab, i) => (
           <NavItem key={tab.name} tab={tab} variant="side" index={i} />
@@ -61,7 +61,7 @@ export function Sidebar() {
 }
 
 const styles = StyleSheet.create({
-  panel: { paddingRight: 14, borderTopWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0 },
+  panel: { paddingEnd: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
   logo: { paddingHorizontal: 8, paddingBottom: 30 },
   section: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 1.4, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 10 },
   nav: { gap: 2, flex: 1 },

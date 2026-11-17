@@ -17,12 +17,13 @@ export type Plural = { other: string } & Partial<Record<Exclude<PluralCategory, 
 
 type Tree = { readonly [key: string]: string | Plural | Tree };
 
+/** A plural is an object with `other` and nothing but plural categories (so a group may still have an `other` key). */
+type IsPlural<T> = T extends { other: string } ? (Exclude<keyof T, PluralCategory> extends never ? true : false) : false;
+
 /** Same shape as the English dictionary, with strings and plurals left free to differ. */
 export type Messages<T> = {
-  [K in keyof T]: T[K] extends string ? string : T[K] extends { other: string } ? Plural : Messages<T[K]>;
+  [K in keyof T]: T[K] extends string ? string : IsPlural<T[K]> extends true ? Plural : Messages<T[K]>;
 };
-
-type IsPlural<T> = T extends { other: string } ? true : false;
 
 /** Every leaf path of a dictionary: `'a.b.c'`. Plural objects count as leaves. */
 export type KeyPath<T> = {
@@ -30,6 +31,8 @@ export type KeyPath<T> = {
 }[keyof T & string];
 
 export type Params = Record<string, string | number>;
+
+const PLURAL_KEYS: ReadonlySet<string> = new Set<PluralCategory>(['zero', 'one', 'two', 'few', 'many', 'other']);
 
 /** CLDR plural rules for the shipped languages (no Intl.PluralRules needed on Hermes). */
 export function pluralCategory(lang: Lang, n: number): PluralCategory {
@@ -59,7 +62,7 @@ function lookup(tree: Tree, key: string): string | Plural | undefined {
     node = (node as Record<string, unknown>)[part];
   }
   if (typeof node === 'string') return node;
-  if (node && typeof node === 'object' && 'other' in node && typeof (node as Plural).other === 'string') return node as Plural;
+  if (node && typeof node === 'object' && Object.keys(node).every((k) => PLURAL_KEYS.has(k)) && typeof (node as Plural).other === 'string') return node as Plural;
   return undefined;
 }
 

@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   barIcon: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   barLabel: { fontFamily: fonts.monoMedium, fontSize: 9.5, letterSpacing: 0.9, textTransform: 'uppercase' },
   side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 42, borderRadius: 12 },
-  sideMark: { position: 'absolute', left: 0, top: 12, bottom: 12, width: 2.5, borderRadius: 2 },
+  sideMark: { position: 'absolute', start: 0, top: 12, bottom: 12, width: 2.5, borderRadius: 2 },
   sideLabel: { fontSize: 14.5, flex: 1, letterSpacing: -0.15 },
   sideIndex: { fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: 0.5 },
 });

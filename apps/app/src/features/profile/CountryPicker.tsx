@@ -32,7 +32,7 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
   };
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ color: t.muted, fontSize: 13, fontWeight: '600' }}>Country</Text>
+      <Text style={{ color: t.muted, fontSize: 13, fontWeight: '600' }}>{tr('profile.country.label')}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={tr('profile.country.label')}

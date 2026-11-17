@@ -8,7 +8,7 @@ import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { puzzleApi } from '@/lib/puzzleApi';
-import { useT } from '@/i18n';
+import { translate, useT } from '@/i18n';
 import { puzzleGroupLabel, puzzleThemeLabel } from '@/i18n/chess';
 
 /** Puzzles home: rating, daily puzzle, themed training, streak and rush. */
@@ -32,7 +32,7 @@ export default function PuzzlesHome() {
           setCounts(th.counts);
           setError(null);
         })
-        .catch((e) => live && setError(e instanceof Error ? e.message : tr('puzzles.home.unreachable')));
+        .catch((e) => live && setError(e instanceof Error ? e.message : translate('puzzles.home.unreachable')));
       return () => {
         live = false;
       };

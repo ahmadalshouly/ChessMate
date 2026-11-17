@@ -9,14 +9,20 @@ import { Screen } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { UIProvider, useAppTheme } from '@/ui';
-import { useAppFonts } from '@/ui/theme/fonts';
+import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
 
 export default function RootLayout() {
   // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
   const fontsReady = useAppFonts();
-  if (!fontsReady) return null;
+  // Load the saved language (or follow the device) and apply text direction before the
+  // first real render, so every screen starts in the right language and direction.
+  const { ready: i18nReady } = useI18n();
+  useEffect(() => {
+    void initI18n({ beforeReady: (lang) => (lang === 'ar' ? loadArabicFonts() : undefined) });
+  }, []);
+  if (!fontsReady || !i18nReady) return null;
   return (
     <UIProvider>
       <Navigator />
@@ -26,10 +32,6 @@ export default function RootLayout() {
 
 function Navigator() {
   const { scheme, colors: p } = useAppTheme();
-  // Load the saved language (or follow the device) and apply text direction once.
-  useEffect(() => {
-    void initI18n();
-  }, []);
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   return (
     <ThemeProvider value={{ ...base, colors: { ...base.colors, background: p.bg, card: p.surfaceSolid, text: p.text, primary: p.accent, border: p.border } }}>
@@ -66,7 +68,7 @@ function RootStack() {
   const segments = useSegments();
   const onPublicRoute = PUBLIC_ROOTS.has(segments[0] ?? '');
   const mustWelcome = status === 'signedOut' && !onPublicRoute;
-  const { tr, ready: i18nReady } = useI18n();
+  const { tr } = useI18n();
 
   // First-time visitors (no account, never chose guest) start on the welcome screen.
   useEffect(() => {
@@ -95,7 +97,7 @@ function RootStack() {
         <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
       </Stack>
       {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}
-      {status === 'loading' || mustWelcome || !i18nReady ? (
+      {status === 'loading' || mustWelcome ? (
         <View style={StyleSheet.absoluteFill}>
           <Screen>{null}</Screen>
         </View>

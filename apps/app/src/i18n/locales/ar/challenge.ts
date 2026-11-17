@@ -1,0 +1,39 @@
+import type { Messages } from '../../core';
+import type { challenge as en } from '../en/challenge';
+
+export const challenge: Messages<typeof en> = {
+  yourColour: 'لونك',
+  createLink: 'أنشئ رابط دعوة',
+  orDirect: 'أو تحدَّ لاعبًا مباشرة بمعرّف اللاعب',
+  playerId: 'معرّف اللاعب',
+  send: 'أرسل التحدي',
+  shareLink: 'مشاركة الرابط',
+  copy: 'نسخ',
+  startsWhen: 'تبدأ المباراة فور أن يفتح صديقك الرابط ويقبل. أبقِ هذه الشاشة مفتوحة.',
+  cancel: 'إلغاء التحدي',
+  ended: {
+    accepted: 'قُبل التحدي',
+    declined: 'رُفض تحديك',
+    cancelled: 'أُلغي هذا التحدي',
+    expired: 'انتهت صلاحية هذا التحدي',
+  },
+  rated: 'مصنّفة',
+  casual: 'ودية',
+  youPlay: {
+    w: 'تلعب بالأبيض',
+    b: 'تلعب بالأسود',
+    random: 'لون عشوائي',
+  },
+  ratedNeedsAccount: 'المباريات المصنّفة تحتاج إلى حساب',
+  ratedGame: 'مباراة مصنّفة',
+  yourId: 'معرّف اللاعب الخاص بك: {id}',
+  waitingFor: 'بانتظار قبول {name}…',
+  linkReady: 'رابط الدعوة جاهز',
+  shareMessage: 'العب الشطرنج معي على ChessMate:',
+  copied: 'نُسخ الرابط',
+  copyAbove: 'انسخ الرابط أعلاه لمشاركته',
+  longPress: 'اضغط مطولًا على الرابط لنسخه',
+  challengesYou: '{name} ({rating}) يتحدّاك',
+  loading: 'جارٍ تحميل الدعوة…',
+  used: 'استُخدمت هذه الدعوة لبدء مباراة من قبل.',
+};

@@ -4,6 +4,7 @@ import { TextInput } from '@/ui/primitives';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import { Text } from './Text';
+import { translate } from '@/i18n';
 
 export interface TextFieldProps extends Omit<TextInputProps, 'style' | 'placeholderTextColor'> {
   label?: string;
@@ -68,7 +69,7 @@ export function TextField({ label, helper, error, left, right, password, disable
         {password && (
           <Pressable accessibilityRole="button" onPress={() => setRevealed((v) => !v)} hitSlop={8}>
             <Text variant="label" tone="muted">
-              {revealed ? 'Hide' : 'Show'}
+              {revealed ? translate('auth.field.hide') : translate('auth.field.show')}
             </Text>
           </Pressable>
         )}

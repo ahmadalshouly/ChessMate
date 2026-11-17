@@ -6,6 +6,7 @@ import { AppState, Platform } from 'react-native';
 
 import { notificationsApi } from './api';
 import { currentPushStatus, disablePush, enablePush, pushSupported, type PushStatus } from './push';
+import { translate } from '@/i18n';
 
 const POLL_MS = 30_000;
 
@@ -107,7 +108,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Push: current status, foreground arrivals, and taps (including the tap that launched the app).
   useEffect(() => {
     if (!pushSupported) {
-      setPush({ state: 'unsupported', reason: 'Push notifications are available in the iOS and Android apps.' });
+      setPush({ state: 'unsupported', reason: translate('notifications.pushNativeOnly') });
       return;
     }
     void currentPushStatus().then(setPush);

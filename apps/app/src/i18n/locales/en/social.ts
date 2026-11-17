@@ -1,0 +1,23 @@
+export const social = {
+  soon: {
+    title: 'Social',
+    blurb: 'Play your friends, join clubs and see how you stack up.',
+    friends: 'Friends',
+    friendsText: 'Add friends and challenge them to a game.',
+    chat: 'Chat',
+    chatText: 'Message friends and talk during casual games.',
+    leaderboards: 'Leaderboards',
+    leaderboardsText: 'Top players by time control, globally and among friends.',
+    watch: 'Watch',
+    watchText: 'Follow live games from friends and top players.',
+  },
+  devSignIn: {
+    title: 'Sign in to add friends',
+    dev: 'Development build: choose a test username. Use a different name on each device to try friends between them.',
+    placeholder: 'Username (3 to 20 letters)',
+    prod: 'Friends, following and activity are available once you sign in.',
+  },
+  presence: {
+    playing: 'Playing now',
+  },
+};

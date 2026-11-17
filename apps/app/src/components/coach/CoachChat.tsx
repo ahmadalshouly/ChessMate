@@ -5,13 +5,16 @@ import { Text, TextInput } from '@/ui/primitives';
 
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { useT, type TKey } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
 import { askCoach } from '@/lib/coachApi';
 
-const STARTERS = ['Why was my move bad?', 'What is the plan here?', 'What is my opponent threatening?'];
+const STARTERS: TKey[] = ['coach.starters.whyBad', 'coach.starters.plan', 'coach.starters.threat'];
 
 /** Chat with the AI coach about one position. Resets when the position changes. */
 export function CoachChat({ context, token }: { context: Omit<CoachChatRequest, 'messages'>; token: string }) {
   const t = useTheme();
+  const tr = useT();
   const [messages, setMessages] = useState<CoachChatTurn[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,7 +41,7 @@ export function CoachChat({ context, token }: { context: Omit<CoachChatRequest, 
       const res = await askCoach({ ...context, messages: next }, token);
       if (mine === seq.current) setMessages([...next, { role: 'coach', text: res.reply }]);
     } catch (e) {
-      if (mine === seq.current) setError(e instanceof Error ? e.message : 'The coach is unavailable');
+      if (mine === seq.current) setError(e instanceof Error ? serverText(e.message) : tr('coach.unavailable'));
     } finally {
       if (mine === seq.current) setBusy(false);
     }
@@ -47,11 +50,11 @@ export function CoachChat({ context, token }: { context: Omit<CoachChatRequest, 
   return (
     <Card>
       <Label size={18} bold>
-        Ask the coach
+        {tr('coach.ask')}
       </Label>
       {messages.length === 0 && (
         <View style={styles.starters}>
-          {STARTERS.map((s) => (
+          {STARTERS.map((k) => tr(k)).map((s) => (
             <Pressable key={s} onPress={() => send(s)} style={[styles.chip, { borderColor: t.border, backgroundColor: t.surface }]}>
               <Text style={{ color: t.text, fontSize: 13 }}>{s}</Text>
             </Pressable>
@@ -77,13 +80,13 @@ export function CoachChat({ context, token }: { context: Omit<CoachChatRequest, 
           value={draft}
           onChangeText={setDraft}
           onSubmitEditing={() => send(draft)}
-          placeholder="Ask about this position"
+          placeholder={tr('coach.askPlaceholder')}
           placeholderTextColor={t.muted}
           maxLength={500}
           returnKeyType="send"
           style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
         />
-        <Button title="Send" onPress={() => send(draft)} disabled={busy || !draft.trim()} />
+        <Button title={tr('common.send')} onPress={() => send(draft)} disabled={busy || !draft.trim()} />
       </View>
     </Card>
   );

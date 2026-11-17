@@ -10,6 +10,9 @@ import { EvalBar } from '@/components/EvalBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { BEST_MOVE_ARROW, MOVE_CLASS, REVIEW_ORDER, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
+import { moveFeedbackText } from '@/i18n/chess';
+import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
@@ -22,6 +25,7 @@ const EVAL_BAR = 20;
  * The per-move results are what the AI coach explains.
  */
 export default function Review() {
+  const tr = useT();
   const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string }>();
   const engine = useEngine();
   const t = useTheme();
@@ -71,8 +75,8 @@ export default function Review() {
       <Screen>
         <View style={styles.page}>
           <Card>
-            <Label>Nothing to review yet. Finish a game or load one on the analysis board.</Label>
-            <Button title="Open analysis board" onPress={() => router.replace('/analysis')} />
+            <Label>{tr('review.nothing')}</Label>
+            <Button title={tr('home.analysis.cta')} onPress={() => router.replace('/analysis')} />
           </Card>
         </View>
       </Screen>
@@ -102,21 +106,21 @@ export default function Review() {
             <Card>
               {engine.state.error ? (
                 <>
-                  <Label bold>Review unavailable</Label>
+                  <Label bold>{tr('review.unavailable')}</Label>
                   <Label muted>
                     {engine.state.error.code === 'engine_locked'
-                      ? 'Engine review is off while you have a live game. Come back when it ends.'
-                      : engine.state.error.message}
+                      ? tr('review.locked')
+                      : serverText(engine.state.error.message)}
                   </Label>
-                  <Button variant="secondary" title="Try again" onPress={() => startReview(request)} />
+                  <Button variant="secondary" title={tr('common.tryAgain')} onPress={() => startReview(request)} />
                 </>
               ) : (
                 <>
-                  <Label bold>Reviewing your game…</Label>
+                  <Label bold>{tr('review.reviewing')}</Label>
                   <View style={[styles.track, { backgroundColor: t.border }]}>
                     <View style={[styles.fill, { backgroundColor: t.accent, width: `${progress ? (100 * progress.done) / Math.max(1, progress.total) : 0}%` }]} />
                   </View>
-                  <Label muted>{progress ? `${progress.done} of ${progress.total} positions` : engine.state.connected ? 'Waiting for the engine' : 'Connecting…'}</Label>
+                  <Label muted>{progress ? tr('review.progress', { done: progress.done, total: progress.total }) : engine.state.connected ? tr('review.waitingEngine') : tr('play.connecting')}</Label>
                 </>
               )}
             </Card>
@@ -124,7 +128,7 @@ export default function Review() {
 
           {review && (
             <>
-              <View style={styles.row}>
+              <View style={[styles.row, { direction: 'ltr' }]}>
                 <NavButton label="⏮" onPress={() => setPly(0)} disabled={ply === 0} />
                 <NavButton label="◀" onPress={() => setPly(ply - 1)} disabled={ply === 0} />
                 <NavButton label="▶" onPress={() => setPly(ply + 1)} disabled={ply >= moves.length} />
@@ -138,21 +142,21 @@ export default function Review() {
                     <View style={styles.row}>
                       <Badge cls={current.judgement.classification} />
                       <Label bold size={17}>
-                        {moveNumber(current)} {current.san} is {MOVE_CLASS[current.judgement.classification].phrase}
+                        {tr('review.moveIs', { move: `${moveNumber(current)} ${current.san}`, cls: MOVE_CLASS[current.judgement.classification].phrase })}
                       </Label>
-                      <View style={{ marginLeft: 'auto' }}>
+                      <View style={{ marginStart: 'auto' }}>
                         <Label muted>{formatEval(current.scoreAfter)}</Label>
                       </View>
                     </View>
-                    <Label>{current.feedback}</Label>
+                    <Label>{moveFeedbackText(current)}</Label>
                     {current.bestMove !== current.uci && (
                       <Label muted>
-                        Engine line: {current.bestLine.slice(0, 6).join(' ')} ({formatEval(current.scoreBefore)})
+                        {tr('review.engineLine', { line: current.bestLine.slice(0, 6).join(' '), eval: formatEval(current.scoreBefore) })}
                       </Label>
                     )}
                   </>
                 ) : (
-                  <Label muted>Step through the game to see how each move was graded.</Label>
+                  <Label muted>{tr('review.stepThrough')}</Label>
                 )}
               </Card>
 
@@ -164,21 +168,21 @@ export default function Review() {
                 <View style={styles.summaryHead}>
                   <View style={{ flex: 1 }} />
                   <View style={styles.summaryCell}>
-                    <Label muted>White</Label>
+                    <Label muted>{tr('play.white')}</Label>
                   </View>
                   <View style={styles.summaryCell}>
-                    <Label muted>Black</Label>
+                    <Label muted>{tr('play.black')}</Label>
                   </View>
                 </View>
-                <SummaryRow label="Accuracy" w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
+                <SummaryRow label={tr('review.accuracy')} w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
                 {REVIEW_ORDER.map((c) => (
                   <SummaryRow key={c} cls={c} label={MOVE_CLASS[c].label} w={String(review.counts.w[c])} b={String(review.counts.b[c])} />
                 ))}
-                <Label muted size={12}>Engine depth {review.depth}</Label>
+                <Label muted size={12}>{tr('review.depth', { n: review.depth })}</Label>
               </Card>
 
               <Card>
-                <Label bold>Moves</Label>
+                <Label bold>{tr('analysis.moves')}</Label>
                 <View style={styles.moveList}>
                   {moves.map((m) => (
                     <Pressable
@@ -196,7 +200,7 @@ export default function Review() {
                 </View>
                 <Button
                   variant="secondary"
-                  title="Explore in analysis board"
+                  title={tr('review.explore')}
                   onPress={() =>
                     router.push({
                       pathname: '/analysis',
@@ -249,7 +253,7 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
   const t = useTheme();
   const height = 72;
   return (
-    <View style={[styles.graph, { height }]}>
+    <View style={[styles.graph, { height, direction: 'ltr' }]}>
       {moves.map((m) => {
         const white = evalBarFraction(m.scoreAfter);
         const cls = m.judgement.classification;

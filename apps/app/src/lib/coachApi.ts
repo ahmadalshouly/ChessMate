@@ -1,5 +1,8 @@
 import type { CoachChatReply, CoachChatRequest, CoachReview, Color, GameAnalysis } from '@chessmate/core';
 
+import { translate } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
+import { i18nStore } from '@/i18n/store';
 import { SERVER_URL } from '@/lib/config';
 
 /** HTTP base of the game server, derived from its WebSocket URL. */
@@ -23,17 +26,17 @@ async function post<T>(path: string, body: unknown, token: string): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
-    throw new CoachApiError(`Can't reach the ChessMate server at ${API_BASE}`, 0);
+    throw new CoachApiError(translate('common.errors.unreachable', { url: API_BASE }), 0);
   }
   const data = (await res.json().catch(() => ({}))) as T & { message?: string };
-  if (!res.ok) throw new CoachApiError(data.message ?? `Coach error (${res.status})`, res.status);
+  if (!res.ok) throw new CoachApiError(serverText(data.message ?? translate('coach.error', { status: res.status })), res.status);
   return data;
 }
 
 export function requestReview(analysis: GameAnalysis, perspective: Color, token: string) {
-  return post<CoachReview>('/coach/review', { analysis, perspective }, token);
+  return post<CoachReview>('/coach/review', { analysis, perspective, language: i18nStore.get().lang }, token);
 }
 
 export function askCoach(req: CoachChatRequest, token: string) {
-  return post<CoachChatReply>('/coach/chat', req, token);
+  return post<CoachChatReply>('/coach/chat', { language: i18nStore.get().lang, ...req }, token);
 }

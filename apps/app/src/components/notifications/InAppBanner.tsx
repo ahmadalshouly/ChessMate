@@ -9,6 +9,7 @@ import { useTheme } from '@/constants/theme';
 import { useNotifications } from '@/lib/notifications';
 
 import { KIND_GLYPH } from './format';
+import { translate } from '@/i18n';
 
 const VISIBLE_MS = 5000;
 
@@ -45,7 +46,7 @@ export function InAppBanner() {
             {incoming.body}
           </Text>
         </View>
-        <Pressable accessibilityLabel="Dismiss" hitSlop={10} onPress={dismissIncoming}>
+        <Pressable accessibilityLabel={translate('common.dismiss')} hitSlop={10} onPress={dismissIncoming}>
           <Text style={{ color: t.muted, fontSize: 18 }}>×</Text>
         </Pressable>
       </Pressable>

@@ -65,14 +65,14 @@ export function createCoachHttpHandler(opts: CoachHttpOptions) {
     }
     try {
       if (isReview) {
-        const b = body as { analysis?: GameAnalysis; game?: Parameters<GameAnalyzer['analyzeGame']>[0]; perspective?: Color };
+        const b = body as { analysis?: GameAnalysis; game?: Parameters<GameAnalyzer['analyzeGame']>[0]; perspective?: Color; language?: unknown };
         let analysis = b.analysis;
         if (!analysis && b.game) {
           if (!opts.analyzer) throw new CoachInputError('Engine analysis is not available on this server; send "analysis"');
           analysis = await opts.analyzer.analyzeGame(b.game);
         }
         if (!analysis) throw new CoachInputError('Send "analysis" (or "game" when the engine is available)');
-        json(res, 200, await opts.service.review(analysis, b.perspective as Color));
+        json(res, 200, await opts.service.review(analysis, b.perspective as Color, typeof b.language === 'string' ? b.language : undefined));
       } else {
         json(res, 200, await opts.service.chat(body as CoachChatRequest));
       }

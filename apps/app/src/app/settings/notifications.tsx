@@ -4,18 +4,23 @@ import { Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
+import { useT, type TKey } from '@/i18n';
 import { useNotifications } from '@/lib/notifications';
 
 const QUIET_PRESETS = [
-  { label: '22:00 to 07:00', startMin: 22 * 60, endMin: 7 * 60 },
-  { label: '23:00 to 08:00', startMin: 23 * 60, endMin: 8 * 60 },
-  { label: '09:00 to 17:00', startMin: 9 * 60, endMin: 17 * 60 },
+  { startMin: 22 * 60, endMin: 7 * 60 },
+  { startMin: 23 * 60, endMin: 8 * 60 },
+  { startMin: 9 * 60, endMin: 17 * 60 },
 ];
 
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 export default function NotificationSettings() {
   const t = useTheme();
+  const tr = useT();
+  const kindLabel = (k: NotificationKind) => tr(`notifications.kinds.${k}.label` as TKey);
+  const kindDescription = (k: NotificationKind) => tr(`notifications.kinds.${k}.description` as TKey);
+  const range = (startMin: number, endMin: number) => tr('notifications.settings.range', { start: hhmm(startMin), end: hhmm(endMin) });
   const { prefs, updatePrefs, push, turnOnPush, turnOffPush, sendTest, offline } = useNotifications();
   const pushOn = push.state === 'enabled';
 
@@ -33,60 +38,60 @@ export default function NotificationSettings() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Notification settings' }} />
+      <Stack.Screen options={{ title: tr('notifications.settings.title') }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           <Card>
             <Label size={18} bold>
-              Push on this device
+              {tr('notifications.settings.pushTitle')}
             </Label>
-            {push.state === 'enabled' && <Label muted>On. You will get alerts when ChessMate is closed.</Label>}
-            {push.state === 'unknown' && <Label muted>Get alerts for challenges and your turn when the app is closed.</Label>}
-            {push.state === 'denied' && <Label muted>Notifications are blocked for ChessMate. Turn them on in your phone settings.</Label>}
+            {push.state === 'enabled' && <Label muted>{tr('notifications.settings.pushOn')}</Label>}
+            {push.state === 'unknown' && <Label muted>{tr('notifications.settings.pushUnknown')}</Label>}
+            {push.state === 'denied' && <Label muted>{tr('notifications.settings.pushDenied')}</Label>}
             {push.state === 'unsupported' && <Label muted>{push.reason}</Label>}
-            {push.state === 'error' && <Label muted>Could not turn on push: {push.reason}</Label>}
+            {push.state === 'error' && <Label muted>{tr('notifications.settings.pushError', { reason: push.reason })}</Label>}
             <View style={styles.actions}>
               {push.state === 'denied' ? (
-                <Button title="Open settings" onPress={() => void Linking.openSettings()} />
+                <Button title={tr('notifications.settings.openSettings')} onPress={() => void Linking.openSettings()} />
               ) : push.state !== 'unsupported' ? (
-                <Button title={pushOn ? 'Turn off push' : 'Turn on push'} variant={pushOn ? 'secondary' : 'primary'} onPress={() => void (pushOn ? turnOffPush() : turnOnPush())} />
+                <Button title={pushOn ? tr('notifications.settings.turnOff') : tr('notifications.settings.turnOn')} variant={pushOn ? 'secondary' : 'primary'} onPress={() => void (pushOn ? turnOffPush() : turnOnPush())} />
               ) : null}
-              <Button title="Send a test" variant="secondary" disabled={offline} onPress={() => void sendTest()} />
+              <Button title={tr('notifications.settings.sendTest')} variant="secondary" disabled={offline} onPress={() => void sendTest()} />
             </View>
           </Card>
 
           <Card>
             <Label size={18} bold>
-              What to notify me about
+              {tr('notifications.settings.whatTitle')}
             </Label>
             <View style={[styles.row, styles.headRow]}>
               <View style={{ flex: 1 }} />
               <View style={styles.col}>
                 <Label muted size={12}>
-                  In app
+                  {tr('notifications.settings.inApp')}
                 </Label>
               </View>
               <View style={styles.col}>
                 <Label muted size={12}>
-                  Push
+                  {tr('notifications.settings.push')}
                 </Label>
               </View>
             </View>
-            {!prefs && <Label muted>{offline ? 'Cannot reach ChessMate to load your settings.' : 'Loading...'}</Label>}
+            {!prefs && <Label muted>{offline ? tr('notifications.settings.offline') : tr('common.loading')}</Label>}
             {prefs &&
               NOTIFICATION_KINDS.filter((k) => NOTIFICATION_KIND_INFO[k].userConfigurable).map((k) => (
                 <View key={k} style={[styles.row, { borderTopColor: t.border }]}>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Label bold>{NOTIFICATION_KIND_INFO[k].label}</Label>
+                    <Label bold>{kindLabel(k)}</Label>
                     <Label muted size={13}>
-                      {NOTIFICATION_KIND_INFO[k].description}
+                      {kindDescription(k)}
                     </Label>
                   </View>
                   <View style={styles.col}>
-                    <Switch accessibilityLabel={`${NOTIFICATION_KIND_INFO[k].label} in app`} value={prefs.kinds[k].inApp} onValueChange={(v) => toggle(k, 'inApp', v)} {...switchColors} />
+                    <Switch accessibilityLabel={tr('notifications.settings.inAppA11y', { kind: kindLabel(k) })} value={prefs.kinds[k].inApp} onValueChange={(v) => toggle(k, 'inApp', v)} {...switchColors} />
                   </View>
                   <View style={styles.col}>
-                    <Switch accessibilityLabel={`${NOTIFICATION_KIND_INFO[k].label} push`} value={prefs.kinds[k].push} onValueChange={(v) => toggle(k, 'push', v)} {...switchColors} />
+                    <Switch accessibilityLabel={tr('notifications.settings.pushA11y', { kind: kindLabel(k) })} value={prefs.kinds[k].push} onValueChange={(v) => toggle(k, 'push', v)} {...switchColors} />
                   </View>
                 </View>
               ))}
@@ -97,27 +102,27 @@ export default function NotificationSettings() {
               <View style={styles.row}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Label size={18} bold>
-                    Quiet hours
+                    {tr('notifications.settings.quiet')}
                   </Label>
                   <Label muted size={13}>
-                    No push alerts during these hours. They still wait for you in the inbox.
+                    {tr('notifications.settings.quietBody')}
                   </Label>
                 </View>
-                <Switch accessibilityLabel="Quiet hours" value={prefs.quietHours.enabled} onValueChange={(v) => setQuiet({ enabled: v })} {...switchColors} />
+                <Switch accessibilityLabel={tr('notifications.settings.quiet')} value={prefs.quietHours.enabled} onValueChange={(v) => setQuiet({ enabled: v })} {...switchColors} />
               </View>
               {prefs.quietHours.enabled && (
                 <View style={styles.presets}>
                   {QUIET_PRESETS.map((p) => {
                     const active = prefs.quietHours.startMin === p.startMin && prefs.quietHours.endMin === p.endMin;
                     return (
-                      <View key={p.label} style={styles.preset}>
-                        <Button title={p.label} variant={active ? 'primary' : 'secondary'} onPress={() => setQuiet({ startMin: p.startMin, endMin: p.endMin })} />
+                      <View key={p.startMin} style={styles.preset}>
+                        <Button title={range(p.startMin, p.endMin)} variant={active ? 'primary' : 'secondary'} onPress={() => setQuiet({ startMin: p.startMin, endMin: p.endMin })} />
                       </View>
                     );
                   })}
                   {!QUIET_PRESETS.some((p) => p.startMin === prefs.quietHours.startMin && p.endMin === prefs.quietHours.endMin) && (
                     <Label muted>
-                      Custom: {hhmm(prefs.quietHours.startMin)} to {hhmm(prefs.quietHours.endMin)}
+                      {tr('notifications.settings.custom', { range: range(prefs.quietHours.startMin, prefs.quietHours.endMin) })}
                     </Label>
                   )}
                 </View>

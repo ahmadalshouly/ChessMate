@@ -39,8 +39,8 @@ export function useI18n() {
  * The translator for components:
  *
  *   const tr = useT();
- *   <Text>{tr('play.title')}</Text>
- *   <Text>{tr('leaderboard.total', { count: 12 })}</Text>
+ *   <Text>{tr('nav.play')}</Text>
+ *   <Text>{tr('leaderboard.games', { count: 12 })}</Text>
  *
  * (Named `tr` because `t` is the theme in most screens.)
  */

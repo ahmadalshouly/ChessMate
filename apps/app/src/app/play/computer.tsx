@@ -23,9 +23,9 @@ import { useBoardSize } from '@/lib/useBoardSize';
 import { translate, useT, type TKey } from '@/i18n';
 import { colorLabel, pieceLabel, threatText } from '@/i18n/chess';
 import { reasonText } from '@/components/play/GameOverCard';
+import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 const botTagline = (b: BotProfile) => translate(`bots.${b.id}` as TKey);
-import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 type ColorChoice = 'w' | 'random' | 'b';
 
