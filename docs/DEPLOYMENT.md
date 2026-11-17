@@ -92,6 +92,7 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | --- | --- | --- | --- |
 | `PORT` | `8787` | `fly.toml` | HTTP + WebSocket port |
 | `NODE_ENV` | unset | `fly.toml` / image (`production`) | `production` disables dev-only `dev:` login tokens |
+| `AUTH_SECRET` | dev: generated into `.data/auth-secret` | `fly secrets set` (secret), `.env` for Docker Compose | **Required in production**: the server refuses to start without it. At least 32 random characters, e.g. `openssl rand -hex 32` |
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
 | `DATABASE_PATH` | `.data/pglite` (image: `/data/pglite`) | rarely needed | PGlite data directory when `DATABASE_URL` is unset |
 | `DATABASE_POOL_MAX` | driver default | `fly.toml` | Max Postgres connections |

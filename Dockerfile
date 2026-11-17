@@ -12,10 +12,12 @@ RUN npm install -g pnpm@12
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY apps/server/package.json apps/server/
 COPY packages/core/package.json packages/core/
+COPY packages/db/package.json packages/db/
 # The app's manifest keeps the lockfile consistent; its deps are not installed.
 COPY apps/app/package.json apps/app/
 RUN pnpm install --frozen-lockfile --filter "@chessmate/server..."
 COPY packages/core packages/core
+COPY packages/db packages/db
 COPY apps/server apps/server
 RUN pnpm --filter @chessmate/server build \
   && pnpm --filter @chessmate/server deploy --prod /out
@@ -28,13 +30,17 @@ RUN apt-get update \
 ENV NODE_ENV=production \
     PORT=8787 \
     DATABASE_PATH=/data/pglite \
+    PUZZLE_DB=/data/puzzles.db \
     STOCKFISH_PATH=/usr/games/stockfish
 WORKDIR /srv
 COPY --from=build /out/package.json ./
 COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /out/dist ./dist
-# Migrations, if the server ships any as files next to its sources.
-COPY --from=build /repo/apps/server/drizzle* ./drizzle/
+# Database migrations: the bundled @chessmate/db looks for them in ../drizzle
+# relative to dist/main.js, i.e. /srv/drizzle.
+COPY --from=build /repo/packages/db/drizzle ./drizzle/
+# Puzzle seed: the bundled server looks in ../data relative to dist/.
+COPY --from=build /repo/apps/server/data/puzzles-seed.csv /data/puzzles-seed.csv
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]
 USER node

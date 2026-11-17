@@ -76,7 +76,7 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Smoke test
         run: |
-          docker run -d --name server -p 8787:8787 chessmate-server:ci
+          docker run -d --name server -p 8787:8787 -e AUTH_SECRET=ci-smoke-test-secret-0123456789abcdef chessmate-server:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8787/health; then echo; break; fi
             sleep 1
