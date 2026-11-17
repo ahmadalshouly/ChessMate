@@ -96,6 +96,14 @@ export function moveFeedbackText(m: Pick<ReviewedMove, 'san' | 'bestSan' | 'colo
       return translate('feedback.forced', { san: m.san });
     case 'book':
       return translate('feedback.book', { san: m.san });
+    case 'masterpiece':
+      return translate('feedback.masterpiece', { san: m.san });
+    case 'brilliant':
+      return translate('feedback.brilliant', { san: m.san });
+    case 'great':
+      return translate('feedback.great', { san: m.san });
+    case 'miss':
+      return translate('feedback.miss', { san: m.san, best: m.bestSan });
     case 'excellent':
     case 'good':
       return translate('feedback.solid', { san: m.san, best: m.bestSan });
@@ -111,4 +119,14 @@ export function moveFeedbackText(m: Pick<ReviewedMove, 'san' | 'bestSan' | 'colo
       return translate('feedback.bad', { san: m.san, cls: translate(`moveClass.${cls}.phrase`), best: m.bestSan, reason: reason ? ` ${reason}` : '' });
     }
   }
+}
+
+/** Board theme name and one-line note (`boardThemes.<id>.name|note`), falling back to the theme's own English. */
+export function boardThemeText(theme: { id: string; name: string; note: string }): { name: string; note: string } {
+  return { name: translateOr(`boardThemes.${theme.id}.name`, theme.name), note: translateOr(`boardThemes.${theme.id}.note`, theme.note) };
+}
+
+/** Piece set name and note (`pieceSets.<id>.name|note`). Credits and licences stay as published. */
+export function pieceSetText(set: { id: string; name: string; note: string }): { name: string; note: string } {
+  return { name: translateOr(`pieceSets.${set.id}.name`, set.name), note: translateOr(`pieceSets.${set.id}.note`, set.note) };
 }

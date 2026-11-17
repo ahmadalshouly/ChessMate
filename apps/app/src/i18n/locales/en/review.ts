@@ -11,4 +11,6 @@ export const review = {
   accuracy: 'Accuracy',
   depth: 'Engine depth {n}',
   explore: 'Explore in analysis board',
+  countA11y: '{label}: White {w}, Black {b}',
+  countsLegend: 'Counts are White · Black.',
 };

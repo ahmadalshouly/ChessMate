@@ -35,7 +35,9 @@ export async function request<T>(path: string, init: RequestInit & { token?: str
       },
     });
   } catch {
-    throw new ApiError(0, 'network', translate('errors.network'));
+    // In development the usual cause is the phone not reaching the laptop, so say which address was tried.
+    const hint = __DEV__ ? ` (tried ${API_URL}. Is pnpm dev:server running, and is this device on the same Wi-Fi?)` : '';
+    throw new ApiError(0, 'network', translate('errors.network') + hint);
   } finally {
     clearTimeout(timer);
   }
@@ -56,7 +58,11 @@ export async function request<T>(path: string, init: RequestInit & { token?: str
 const post = <T>(path: string, body: unknown, token?: string | null) =>
   request<T>(path, { method: 'POST', body: JSON.stringify(body), token });
 
+export type OAuthProvider = 'google' | 'apple';
+
 export const authApi = {
+  providers: () => request<{ providers: Record<OAuthProvider, boolean> }>('/api/auth/providers'),
+  oauth: (provider: OAuthProvider, input: { idToken: string; fullName?: string }) => post<AuthResponse>(`/api/auth/${provider}`, input),
   signUp: (input: { username: string; email: string; password: string }) => post<AuthResponse>('/api/auth/signup', input),
   login: (input: { login: string; password: string }) => post<AuthResponse>('/api/auth/login', input),
   refresh: (refreshToken: string) => post<AuthResponse>('/api/auth/refresh', { refreshToken }),

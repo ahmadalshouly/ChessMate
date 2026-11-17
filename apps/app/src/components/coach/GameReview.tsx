@@ -5,6 +5,7 @@ import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { CoachChat } from '@/components/coach/CoachChat';
+import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label } from '@/components/ui';
 import { MOVE_CLASS } from '@/constants/analysis';
 import { useTheme, type Palette } from '@/constants/theme';
@@ -12,8 +13,6 @@ import { translate, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { requestReview } from '@/lib/coachApi';
 import { useBoardSize } from '@/lib/useBoardSize';
-
-const CLASS_SUFFIX: Partial<Record<MoveClass, string>> = { inaccuracy: ' ?!', mistake: ' ?', blunder: ' ??' };
 
 /**
  * Post-game coach review: summary, accuracy, key moments on the board with
@@ -103,7 +102,10 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
             <ClassChip t={t} cls={moment.classification} />
           </View>
           <View style={{ alignItems: 'center' }}>
-            <Board fen={shown.fen} orientation={me} size={Math.min(size, 520)} lastMove={{ from: shown.from, to: shown.to }} />
+            <View style={{ width: Math.min(size, 520), height: Math.min(size, 520) }}>
+              <Board fen={shown.fen} orientation={me} size={Math.min(size, 520)} lastMove={{ from: shown.from, to: shown.to }} />
+              {!showBest && <BoardMoveBadge square={shown.to} cls={moment.classification} size={Math.min(size, 520)} orientation={me} />}
+            </View>
           </View>
           <View style={styles.toggle}>
             <Segment t={t} active={!showBest} label={tr('coach.played', { move: `${moment.moveLabel} ${moment.san}` })} onPress={() => setShowBest(false)} />
@@ -186,10 +188,11 @@ function MomentText({ t, note, isMine, evalText }: { t: Palette; note: CoachMove
 }
 
 function ClassChip({ t, cls }: { t: Palette; cls: MoveClass }) {
-  const severe = cls === 'blunder' || cls === 'mistake';
+  const severe = cls === 'blunder' || cls === 'mistake' || cls === 'miss';
   return (
-    <View style={[styles.chip, { borderColor: severe ? t.danger : t.border }]}>
-      <Text style={{ color: severe ? t.danger : t.muted, fontSize: 13, fontWeight: '600' }}>{MOVE_CLASS[cls].label + (CLASS_SUFFIX[cls] ?? '')}</Text>
+    <View style={[styles.chip, styles.classChip, { borderColor: severe ? t.danger : t.border }]}>
+      <MoveBadge cls={cls} size={18} />
+      <Text style={{ color: severe ? t.danger : t.muted, fontSize: 13, fontWeight: '600' }}>{MOVE_CLASS[cls].label}</Text>
     </View>
   );
 }
@@ -228,6 +231,7 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   stat: { flexGrow: 1, flexBasis: '22%', minWidth: 72, borderWidth: 1, borderRadius: 12, padding: 10 },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
+  classChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
   toggle: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   segment: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
   nav: { flexDirection: 'row', gap: 8 },

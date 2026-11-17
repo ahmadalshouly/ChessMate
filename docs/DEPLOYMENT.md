@@ -93,6 +93,8 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `PORT` | `8787` | `fly.toml` | HTTP + WebSocket port |
 | `NODE_ENV` | unset | `fly.toml` / image (`production`) | `production` disables dev-only `dev:` login tokens |
 | `AUTH_SECRET` | dev: generated into `.data/auth-secret` | `fly secrets set` (secret), `.env` for Docker Compose | **Required in production**: the server refuses to start without it. At least 32 random characters, e.g. `openssl rand -hex 32` |
+| `GOOGLE_CLIENT_IDS` | unset (Google sign-in off) | `fly.toml` or `fly secrets set` | Comma-separated Google OAuth client IDs (web, iOS, Android). See [sign-in-with-google-and-apple.md](sign-in-with-google-and-apple.md) |
+| `APPLE_CLIENT_IDS` | `com.chessmate.app` (+ `host.exp.Exponent` outside production) | `fly.toml` | Accepted Sign in with Apple audiences. Empty string turns Apple off |
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
 | `DATABASE_PATH` | `.data/pglite` (image: `/data/pglite`) | rarely needed | PGlite data directory when `DATABASE_URL` is unset |
 | `DATABASE_POOL_MAX` | driver default | `fly.toml` | Max Postgres connections |

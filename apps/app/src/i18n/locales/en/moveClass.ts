@@ -1,7 +1,7 @@
 export const moveClass = {
   best: {
-    label: 'Best',
     phrase: 'the best move',
+    label: 'Best Move',
   },
   excellent: {
     label: 'Excellent',
@@ -12,8 +12,9 @@ export const moveClass = {
     phrase: 'good',
   },
   book: {
-    label: 'Book',
     phrase: 'a book move',
+    label: 'Book Move',
+    symbol: 'Book',
   },
   forced: {
     label: 'Forced',
@@ -30,5 +31,21 @@ export const moveClass = {
   blunder: {
     label: 'Blunder',
     phrase: 'a blunder',
+  },
+  masterpiece: {
+    label: 'Masterpiece',
+    phrase: 'a Masterpiece',
+  },
+  brilliant: {
+    label: 'Brilliant',
+    phrase: 'brilliant',
+  },
+  great: {
+    label: 'Great',
+    phrase: 'a great move',
+  },
+  miss: {
+    label: 'Missed Chance',
+    phrase: 'a missed chance',
   },
 };

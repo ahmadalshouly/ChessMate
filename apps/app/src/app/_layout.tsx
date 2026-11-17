@@ -1,17 +1,23 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { InAppBanner } from '@/components/notifications/InAppBanner';
 import { RootStackHeader } from '@/components/shell/StackHeader';
 import { Screen } from '@/components/ui';
+import { useAccountSession } from '@/features/account/session';
+import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { UIProvider, useAppTheme } from '@/ui';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
+
+// Web: when Google's sign-in pop-up returns to the app, hand the result to the opener and close it.
+WebBrowser.maybeCompleteAuthSession();
 
 export default function RootLayout() {
   // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
@@ -39,12 +45,18 @@ function Navigator() {
       <AuthProvider>
         <NotificationsProvider>
           <PlayAuthBridge />
+          <AccountSettingsBridge />
           <RootStack />
           <InAppBanner />
         </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
   );
+}
+
+/** Loads the player's saved settings (board, pieces, sounds) at sign-in so every board uses them. */
+function AccountSettingsBridge() {
+  return <SettingsBridge session={useAccountSession()} />;
 }
 
 /** Signed-in players join games with their account; guests keep their guest identity. */

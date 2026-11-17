@@ -5,8 +5,10 @@
 export interface UserRecord {
   id: string;
   username: string;
-  email: string;
-  passwordHash: string;
+  /** Lowercased. Null for Sign in with Apple accounts that never shared an email. */
+  email: string | null;
+  /** Null for accounts created through Google or Apple that never set a password. */
+  passwordHash: string | null;
   createdAt: number;
   /** Bumped on password change/reset; refresh sessions created before it are invalid. */
   passwordChangedAt: number;
@@ -47,10 +49,16 @@ export interface AuthStore {
   revokeSessionFamily(familyId: string, at: number): Promise<void>;
   revokeUserSessions(userId: string, at: number): Promise<void>;
 
+  /** The user linked to a Google/Apple account, if any. */
+  findUserByOAuth(provider: OAuthProvider, subject: string): Promise<UserRecord | undefined>;
+  linkOAuth(provider: OAuthProvider, subject: string, userId: string): Promise<void>;
+
   createReset(r: ResetRecord): Promise<void>;
   findReset(tokenHash: string): Promise<ResetRecord | undefined>;
   updateReset(r: ResetRecord): Promise<void>;
 }
+
+export type OAuthProvider = 'google' | 'apple';
 
 export class UniqueViolation extends Error {
   constructor(readonly field: 'username' | 'email') {
@@ -65,6 +73,7 @@ export class MemoryAuthStore implements AuthStore {
   private sessions = new Map<string, SessionRecord>();
   private sessionByHash = new Map<string, string>();
   private resets = new Map<string, ResetRecord>();
+  private oauth = new Map<string, string>();
 
   async getUser(id: string) {
     return this.users.get(id);
@@ -79,29 +88,30 @@ export class MemoryAuthStore implements AuthStore {
   }
   async createUser(u: UserRecord) {
     if (this.byUsername.has(u.username.toLowerCase())) throw new UniqueViolation('username');
-    if (this.byEmail.has(u.email.toLowerCase())) throw new UniqueViolation('email');
+    if (u.email && this.byEmail.has(u.email.toLowerCase())) throw new UniqueViolation('email');
     this.users.set(u.id, { ...u });
     this.byUsername.set(u.username.toLowerCase(), u.id);
-    this.byEmail.set(u.email.toLowerCase(), u.id);
+    if (u.email) this.byEmail.set(u.email.toLowerCase(), u.id);
   }
   async updateUser(u: UserRecord) {
     const prev = this.users.get(u.id);
     if (!prev) return;
     const other = (m: Map<string, string>, k: string) => m.has(k) && m.get(k) !== u.id;
     if (other(this.byUsername, u.username.toLowerCase())) throw new UniqueViolation('username');
-    if (other(this.byEmail, u.email.toLowerCase())) throw new UniqueViolation('email');
+    if (u.email && other(this.byEmail, u.email.toLowerCase())) throw new UniqueViolation('email');
     this.byUsername.delete(prev.username.toLowerCase());
-    this.byEmail.delete(prev.email.toLowerCase());
+    if (prev.email) this.byEmail.delete(prev.email.toLowerCase());
     this.users.set(u.id, { ...u });
     this.byUsername.set(u.username.toLowerCase(), u.id);
-    this.byEmail.set(u.email.toLowerCase(), u.id);
+    if (u.email) this.byEmail.set(u.email.toLowerCase(), u.id);
   }
   async deleteUser(id: string) {
     const u = this.users.get(id);
     if (!u) return;
     this.users.delete(id);
     this.byUsername.delete(u.username.toLowerCase());
-    this.byEmail.delete(u.email.toLowerCase());
+    if (u.email) this.byEmail.delete(u.email.toLowerCase());
+    for (const [k, v] of this.oauth) if (v === id) this.oauth.delete(k);
     for (const [sid, s] of this.sessions) if (s.userId === id) (this.sessions.delete(sid), this.sessionByHash.delete(s.tokenHash));
     for (const [h, r] of this.resets) if (r.userId === id) this.resets.delete(h);
   }
@@ -123,6 +133,15 @@ export class MemoryAuthStore implements AuthStore {
   }
   async revokeUserSessions(userId: string, at: number) {
     for (const s of this.sessions.values()) if (s.userId === userId && !s.revokedAt) s.revokedAt = at;
+  }
+
+  async findUserByOAuth(provider: OAuthProvider, subject: string) {
+    const id = this.oauth.get(`${provider}:${subject}`);
+    const u = id ? this.users.get(id) : undefined;
+    return u ? { ...u } : undefined;
+  }
+  async linkOAuth(provider: OAuthProvider, subject: string, userId: string) {
+    this.oauth.set(`${provider}:${subject}`, userId);
   }
 
   async createReset(r: ResetRecord) {

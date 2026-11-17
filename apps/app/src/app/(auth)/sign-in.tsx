@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { TextInputInstance } from 'react-native';
 
 import { AuthShell, Divider, FormMessage, TextLink } from '@/components/auth/AuthShell';
+import { SocialSignIn } from '@/components/auth/SocialSignIn';
 import { TextField } from '@/components/auth/TextField';
 import { Button, Label } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -74,9 +75,11 @@ export default function SignIn() {
         <TextLink title={tr('auth.signInScreen.forgot')} onPress={() => router.push({ pathname: '/forgot-password', params: login.includes('@') ? { email: login } : {} })} />
       </Label>
       <Button title={busy ? tr('auth.signInScreen.busy') : tr('auth.signIn')} onPress={submit} disabled={busy} />
+      {status !== 'guest' ? <Divider label={tr('common.or')} /> : null}
+      {/* Its own "or" divider only when the guest option below isn't shown. */}
+      <SocialSignIn divider={status === 'guest'} onSignedIn={() => router.replace(safeNext(next))} />
       {status !== 'guest' ? (
         <>
-          <Divider label={tr('common.or')} />
           <Button
             title={tr('auth.continueAsGuest')}
             variant="secondary"

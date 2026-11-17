@@ -4,6 +4,7 @@ export * from './clock';
 export * from './game';
 export * from './threats';
 export * from './evaluation';
+export * from './classify';
 export * from './uci';
 export * from './rating';
 export * from './ratingSystem';

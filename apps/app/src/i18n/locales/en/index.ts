@@ -1,6 +1,8 @@
 // English is the source of truth: add new keys here first, then to ar/ and de/.
 import { analysis } from './analysis';
 import { auth } from './auth';
+import { board } from './board';
+import { boardThemes } from './boardThemes';
 import { bots } from './bots';
 import { challenge } from './challenge';
 import { chat } from './chat';
@@ -18,6 +20,7 @@ import { learn } from './learn';
 import { moveClass } from './moveClass';
 import { nav } from './nav';
 import { notifications } from './notifications';
+import { pieceSets } from './pieceSets';
 import { play } from './play';
 import { practice } from './practice';
 import { profile } from './profile';
@@ -31,4 +34,4 @@ import { social } from './social';
 import { titles } from './titles';
 import { watch } from './watch';
 
-export const en = { nav, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, games };
+export const en = { nav, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, games, board, boardThemes, pieceSets };

@@ -1,8 +1,9 @@
 import { DEFAULT_PGLITE_DIR, abortStaleGames, ensureUser, openDb } from '@chessmate/db';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
-import { AuthService, ConsoleMailer, DbAuthStore, MemoryAuthStore, authRoutes, type AuthStore } from './auth';
+import { AuthService, ConsoleMailer, DbAuthStore, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
@@ -46,7 +47,7 @@ const puzzles = new PuzzleApi({ store: puzzleStore });
 const ratings = new RatingService();
 
 function services(authStore: AuthStore) {
-  const auth = new AuthService({ store: authStore, mailer: new ConsoleMailer(), secret: authSecret() });
+  const auth = new AuthService({ store: authStore, mailer: new ConsoleMailer(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
   const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend());
   const profiles = profileRoutes(profileDeps, new MemoryProfileStore());
@@ -104,6 +105,15 @@ const { server, close } = await start();
 server.listen().then((p) => {
   console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth, social API /api/social, ${puzzleStore.count()} puzzles)`);
   console.log(`Engine analysis: ${engine} (starts on first request)`);
+  const p2 = oauthConfigFromEnv();
+  console.log(`Sign in with Google: ${p2.googleClientIds.length ? 'on' : 'off (set GOOGLE_CLIENT_IDS)'}; Sign in with Apple: ${p2.appleClientIds.length ? `on (${p2.appleClientIds.join(', ')})` : 'off'}`);
+  if (!production) {
+    const lan = Object.values(networkInterfaces())
+      .flat()
+      .filter((a) => a && a.family === 'IPv4' && !a.internal)
+      .map((a) => a!.address);
+    for (const ip of lan) console.log(`Phones on the same Wi-Fi reach this server at http://${ip}:${p} (open http://${ip}:${p}/api/stats in the phone's browser to check)`);
+  }
 });
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {

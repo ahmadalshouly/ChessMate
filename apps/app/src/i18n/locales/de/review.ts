@@ -14,4 +14,6 @@ export const review: Messages<typeof en> = {
   accuracy: 'Genauigkeit',
   depth: 'Engine-Tiefe {n}',
   explore: 'Auf dem Analysebrett erkunden',
+  countA11y: '{label}: Weiß {w}, Schwarz {b}',
+  countsLegend: 'Zahlen: Weiß · Schwarz.',
 };

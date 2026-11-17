@@ -90,4 +90,10 @@ export const auth = {
   newPassword: 'New password',
   password: 'Password',
   continueAsGuest: 'Continue as guest',
+  social: {
+    notConfigured: '{provider} sign-in isn\'t set up on the server yet.',
+    failed: '{provider} sign-in didn\'t work. Please try again.',
+    google: 'Continue with Google',
+    expoGo: 'Google sign-in can\'t run inside Expo Go. Try it on the web version (press w in Expo) or in an installed build.',
+  },
 };

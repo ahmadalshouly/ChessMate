@@ -7,17 +7,6 @@ export const settings = {
     highlight: 'Highlight last move',
     legal: 'Show legal moves',
     title: 'Board',
-    themes: {
-      graphite: 'Graphite',
-      marble: 'Marble',
-      slate: 'Slate',
-      contrast: 'High contrast',
-    },
-    pieceSets: {
-      classic: 'Classic',
-      outline: 'Outline',
-      bold: 'Bold',
-    },
   },
   sound: {
     title: 'Sound',
@@ -28,6 +17,9 @@ export const settings = {
     low: 'Low',
     medium: 'Medium',
     high: 'High',
+    titleNative: 'Sound and vibration',
+    vibration: 'Vibration',
+    vibrationDetail: 'A light buzz on moves, captures, checks and game end',
   },
   gameplay: {
     title: 'Gameplay',
@@ -36,6 +28,8 @@ export const settings = {
     daily: 'Daily only',
     always: 'Always',
     confirmResign: 'Confirm before resigning',
+    premoves: 'Premoves',
+    premovesDetail: 'Queue your next move while your opponent is thinking. Tap elsewhere or right-click to cancel.',
   },
   notifications: {
     title: 'Notifications',
@@ -66,6 +60,8 @@ export const settings = {
     changePassword: 'Change password',
     current: 'Current password',
     passwordChanged: 'Password changed.',
+    setPassword: 'Set a password',
+    passwordSet: 'Password set. Sign in again to keep going.',
   },
   danger: {
     title: 'Danger zone',
@@ -76,6 +72,7 @@ export const settings = {
     keep: 'Keep my account',
     deleting: 'Deleting...',
     forever: 'Delete forever',
+    confirmNoPassword: 'Type DELETE to confirm.',
   },
   saveFailed: 'Couldn\'t save: {error}',
   language: {

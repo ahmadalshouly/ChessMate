@@ -81,30 +81,23 @@ export function Backdrop() {
 const SQUARE = 64;
 const FILES = 8;
 
-/** Eight by eight board in the top right corner, faded with a diagonal gradient. */
+/** Eight by eight board in the top right corner, each square fading with its distance from the corner. */
 function BoardPattern() {
   const c = useAppTheme().colors;
-  const dark = c.scheme === 'dark';
-  const ink = dark ? 'rgba(255,255,255,0.028)' : 'rgba(12,12,13,0.03)';
+  const ink = c.scheme === 'dark' ? '255,255,255' : '12,12,13';
+  const peak = c.scheme === 'dark' ? 0.032 : 0.035;
   const size = SQUARE * FILES;
   const squares = [];
   for (let r = 0; r < FILES; r++) {
     for (let f = 0; f < FILES; f++) {
-      if ((r + f) % 2 === 1) squares.push(<View key={`${r}${f}`} style={{ position: 'absolute', top: r * SQUARE, left: f * SQUARE, width: SQUARE, height: SQUARE, backgroundColor: ink }} />);
+      if ((r + f) % 2 === 0) continue;
+      const dist = Math.hypot(FILES - 1 - f, r) / (FILES - 1);
+      const alpha = peak * Math.max(0, 1 - dist) ** 1.3;
+      if (alpha < 0.002) continue;
+      squares.push(<View key={`${r}${f}`} style={{ position: 'absolute', top: r * SQUARE, left: f * SQUARE, width: SQUARE, height: SQUARE, backgroundColor: `rgba(${ink},${alpha.toFixed(4)})` }} />);
     }
   }
-  return (
-    <View style={{ position: 'absolute', top: -SQUARE, right: -SQUARE * 1.5, width: size, height: size }}>
-      {squares}
-      <LinearGradient
-        colors={[c.bgGradient[0] + '00', c.bgGradient[0] + '00', c.bgGradient[0]]}
-        locations={[0, 0.2, 0.62]}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-    </View>
-  );
+  return <View style={{ position: 'absolute', top: -SQUARE, right: -SQUARE * 1.5, width: size, height: size }}>{squares}</View>;
 }
 
 /** Soft round light. Web uses a CSS blur; native fakes the falloff with stacked translucent discs. */

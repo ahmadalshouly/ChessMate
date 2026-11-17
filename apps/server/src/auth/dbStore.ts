@@ -1,15 +1,22 @@
-import { passwordResets, refreshSessions, users, type Database } from '@chessmate/db';
+import { oauthAccounts, passwordResets, refreshSessions, users, type Database } from '@chessmate/db';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { UniqueViolation, type AuthStore, type ResetRecord, type SessionRecord, type UserRecord } from './store';
+import { UniqueViolation, type AuthStore, type OAuthProvider, type ResetRecord, type SessionRecord, type UserRecord } from './store';
 
 type UserRow = typeof users.$inferSelect;
 
 const toDate = (ms: number) => new Date(ms);
 const toMs = (d: Date | null | undefined) => (d ? d.getTime() : null);
 
-function toUser(r: UserRow): UserRecord | undefined {
-  // Accounts without a password (dev tokens, OAuth-only) cannot sign in with a password.
-  if (!r.email || !r.passwordHash || r.deletedAt) return undefined;
+/** Selects a user row plus whether a Google/Apple account is linked to it. */
+const userColumns = {
+  user: users,
+  hasOAuth: sql<boolean>`exists (select 1 from ${oauthAccounts} where ${oauthAccounts.userId} = ${users.id})`,
+};
+
+function toUser({ user: r, hasOAuth }: { user: UserRow; hasOAuth: boolean }): UserRecord | undefined {
+  // Dev-token players have no email, password or linked Google/Apple account and are not accounts.
+  // Google/Apple accounts may have no password (login() rejects those) and, for Apple, no email.
+  if (r.deletedAt || (!r.email && !r.passwordHash && !hasOAuth)) return undefined;
   return {
     id: r.id,
     username: r.username,
@@ -47,13 +54,13 @@ export class DbAuthStore implements AuthStore {
   constructor(private readonly db: Database) {}
 
   async getUser(id: string) {
-    const [r] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [r] = await this.db.select(userColumns).from(users).where(eq(users.id, id)).limit(1);
     return r ? toUser(r) : undefined;
   }
 
   async findUserByUsername(username: string) {
     const [r] = await this.db
-      .select()
+      .select(userColumns)
       .from(users)
       .where(and(sql`lower(${users.username}) = ${username.toLowerCase()}`, isNull(users.deletedAt)))
       .limit(1);
@@ -62,7 +69,7 @@ export class DbAuthStore implements AuthStore {
 
   async findUserByEmail(email: string) {
     const [r] = await this.db
-      .select()
+      .select(userColumns)
       .from(users)
       .where(and(eq(users.email, email.toLowerCase()), isNull(users.deletedAt)))
       .limit(1);
@@ -71,12 +78,12 @@ export class DbAuthStore implements AuthStore {
 
   async createUser(u: UserRecord) {
     if (await this.findUserByUsername(u.username)) throw new UniqueViolation('username');
-    if (await this.findUserByEmail(u.email)) throw new UniqueViolation('email');
+    if (u.email && (await this.findUserByEmail(u.email))) throw new UniqueViolation('email');
     try {
       await this.db.insert(users).values({
         id: u.id,
         username: u.username,
-        email: u.email.toLowerCase(),
+        email: u.email?.toLowerCase() ?? null,
         passwordHash: u.passwordHash,
         passwordChangedAt: toDate(u.passwordChangedAt),
         displayName: u.username,
@@ -95,7 +102,7 @@ export class DbAuthStore implements AuthStore {
         .update(users)
         .set({
           username: u.username,
-          email: u.email.toLowerCase(),
+          email: u.email?.toLowerCase() ?? null,
           passwordHash: u.passwordHash,
           passwordChangedAt: toDate(u.passwordChangedAt),
           updatedAt: new Date(),
@@ -112,6 +119,7 @@ export class DbAuthStore implements AuthStore {
     // Soft delete keeps game history; free the username and email for reuse.
     await this.db.delete(refreshSessions).where(eq(refreshSessions.userId, id));
     await this.db.delete(passwordResets).where(eq(passwordResets.userId, id));
+    await this.db.delete(oauthAccounts).where(eq(oauthAccounts.userId, id));
     await this.db
       .update(users)
       .set({ deletedAt: new Date(), email: null, passwordHash: null, username: `deleted_${id.slice(0, 12)}` })
@@ -155,6 +163,20 @@ export class DbAuthStore implements AuthStore {
       .update(refreshSessions)
       .set({ revokedAt: toDate(at) })
       .where(and(eq(refreshSessions.userId, userId), isNull(refreshSessions.revokedAt)));
+  }
+
+  async findUserByOAuth(provider: OAuthProvider, subject: string) {
+    const [r] = await this.db
+      .select({ user: users })
+      .from(oauthAccounts)
+      .innerJoin(users, eq(users.id, oauthAccounts.userId))
+      .where(and(eq(oauthAccounts.provider, provider), eq(oauthAccounts.providerAccountId, subject)))
+      .limit(1);
+    return r ? toUser({ user: r.user, hasOAuth: true }) : undefined;
+  }
+
+  async linkOAuth(provider: OAuthProvider, subject: string, userId: string) {
+    await this.db.insert(oauthAccounts).values({ provider, providerAccountId: subject, userId }).onConflictDoNothing();
   }
 
   async createReset(r: ResetRecord) {

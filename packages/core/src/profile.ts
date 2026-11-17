@@ -21,10 +21,33 @@ export const DEFAULT_AVATAR: Avatar = { id: 'initials', tone: 'ink' };
 
 // ---------- settings ----------
 
-export const BOARD_THEMES = ['graphite', 'marble', 'slate', 'contrast'] as const;
+/** Board colour themes. The app holds the colours (apps/app/src/ui/theme/boardThemes.ts). */
+export const BOARD_THEMES = [
+  'graphite',
+  'marble',
+  'slate',
+  'contrast',
+  'frost',
+  'onyx',
+  'ivory',
+  'walnut',
+  'maple',
+  'tournament',
+  'ocean',
+  'midnight',
+  'emerald',
+  'amethyst',
+  'rose',
+  'sand',
+] as const;
 export type BoardTheme = (typeof BOARD_THEMES)[number];
-export const PIECE_SETS = ['classic', 'outline', 'bold'] as const;
+/** Piece sets. Artwork and credits live in apps/app/art/pieces. */
+export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes'] as const;
 export type PieceSet = (typeof PIECE_SETS)[number];
+/** Ids from older versions, mapped to their closest current choice when settings are loaded. */
+const LEGACY_VALUES: Record<string, Record<string, string>> = {
+  'board.pieces': { outline: 'spatial' },
+};
 export const VISIBILITY = ['everyone', 'friends', 'nobody'] as const;
 export type Visibility = (typeof VISIBILITY)[number];
 
@@ -42,12 +65,16 @@ export interface UserSettings {
     volume: number;
     moves: boolean;
     lowTime: boolean;
+    /** Vibrate on moves, captures and game end (phones only). */
+    haptics: boolean;
   };
   gameplay: {
     /** Ask before sending a move in online games. */
     confirmMoves: 'never' | 'correspondence' | 'always';
     autoQueen: boolean;
     confirmResign: boolean;
+    /** Queue a move while the opponent is thinking (live games). */
+    premoves: boolean;
   };
   notifications: {
     gameStart: boolean;
@@ -67,8 +94,8 @@ export interface UserSettings {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   board: { theme: 'graphite', pieces: 'classic', coordinates: true, highlightLastMove: true, showLegalMoves: true },
-  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true },
-  gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true },
+  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true },
+  gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true, premoves: true },
   notifications: { gameStart: true, yourTurn: true, challenges: true, friendRequests: true, email: false },
   privacy: { showOnline: true, showRatingHistory: true, showGames: true, challenges: 'everyone', messages: 'friends' },
 };
@@ -120,7 +147,9 @@ export function normalizeSettings(stored: unknown): UserSettings {
     const values = stored[section];
     if (!isObject(values)) continue;
     for (const key of Object.keys(DEFAULT_SETTINGS[section])) {
-      const res = applySettingsPatch(out, { [section]: { [key]: values[key] } });
+      const raw = values[key];
+      const value = typeof raw === 'string' ? (LEGACY_VALUES[`${section}.${key}`]?.[raw] ?? raw) : raw;
+      const res = applySettingsPatch(out, { [section]: { [key]: value } });
       if ('settings' in res && values[key] !== undefined) Object.assign(out, res.settings);
     }
   }

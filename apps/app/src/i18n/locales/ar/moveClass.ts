@@ -3,8 +3,8 @@ import type { moveClass as en } from '../en/moveClass';
 
 export const moveClass: Messages<typeof en> = {
   best: {
-    label: 'الأفضل',
     phrase: 'أفضل نقلة',
+    label: 'أفضل نقلة',
   },
   excellent: {
     label: 'ممتازة',
@@ -15,8 +15,9 @@ export const moveClass: Messages<typeof en> = {
     phrase: 'نقلة جيدة',
   },
   book: {
-    label: 'نظرية',
     phrase: 'نقلة من النظرية',
+    label: 'نقلة نظرية',
+    symbol: 'نظرية',
   },
   forced: {
     label: 'إجبارية',
@@ -33,5 +34,21 @@ export const moveClass: Messages<typeof en> = {
   blunder: {
     label: 'خطأ فادح',
     phrase: 'خطأ فادح',
+  },
+  masterpiece: {
+    label: 'تحفة',
+    phrase: 'تحفة فنية',
+  },
+  brilliant: {
+    label: 'رائعة',
+    phrase: 'نقلة رائعة',
+  },
+  great: {
+    label: 'عظيمة',
+    phrase: 'نقلة عظيمة',
+  },
+  miss: {
+    label: 'فرصة ضائعة',
+    phrase: 'فرصة ضائعة',
   },
 };

@@ -3,8 +3,8 @@ import type { moveClass as en } from '../en/moveClass';
 
 export const moveClass: Messages<typeof en> = {
   best: {
-    label: 'Bester',
     phrase: 'der beste Zug',
+    label: 'Bester Zug',
   },
   excellent: {
     label: 'Ausgezeichnet',
@@ -15,8 +15,9 @@ export const moveClass: Messages<typeof en> = {
     phrase: 'gut',
   },
   book: {
-    label: 'Theorie',
     phrase: 'ein Theoriezug',
+    label: 'Theoriezug',
+    symbol: 'Theorie',
   },
   forced: {
     label: 'Erzwungen',
@@ -33,5 +34,21 @@ export const moveClass: Messages<typeof en> = {
   blunder: {
     label: 'Patzer',
     phrase: 'ein grober Patzer',
+  },
+  masterpiece: {
+    label: 'Meisterwerk',
+    phrase: 'ein Meisterwerk',
+  },
+  brilliant: {
+    label: 'Brillant',
+    phrase: 'brillant',
+  },
+  great: {
+    label: 'Stark',
+    phrase: 'ein starker Zug',
+  },
+  miss: {
+    label: 'Verpasste Chance',
+    phrase: 'eine verpasste Chance',
   },
 };

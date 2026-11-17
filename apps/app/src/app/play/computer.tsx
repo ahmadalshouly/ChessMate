@@ -18,6 +18,7 @@ import { Text } from '@/ui/primitives';
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
+import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { translate, useT, type TKey } from '@/i18n';
@@ -240,6 +241,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     return ok;
   };
   const interaction = useBoardInteraction(view.fen, (c) => c === me && myTurn, play);
+  useMoveFeedback(view.history, !!outcome, { startCue: true });
 
   // Takeback: return to the last position where it was the player's turn.
   const plyCount = view.history.length;
@@ -302,6 +304,11 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
           onSquarePress={(sq) => {
             setHint(null);
             interaction.onSquarePress(sq);
+          }}
+          {...interaction.dragProps}
+          onPieceDrop={(from, to) => {
+            setHint(null);
+            interaction.dragProps.onPieceDrop(from, to);
           }}
         />
         <PlayerRow

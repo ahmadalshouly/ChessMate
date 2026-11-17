@@ -14,4 +14,6 @@ export const review: Messages<typeof en> = {
   accuracy: 'الدقة',
   depth: 'عمق المحرك {n}',
   explore: 'استكشف في رقعة التحليل',
+  countA11y: '{label}: الأبيض {w}، الأسود {b}',
+  countsLegend: 'الأعداد: الأبيض · الأسود.',
 };

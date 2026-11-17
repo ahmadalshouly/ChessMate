@@ -27,6 +27,7 @@ import { Button, Card, Label, Screen } from '@/components/ui';
 import { reasonText } from '@/components/play/GameOverCard';
 import { useTheme } from '@/constants/theme';
 import { translate, useT, type TKey } from '@/i18n';
+import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 
@@ -106,6 +107,7 @@ export default function OverTheBoard() {
   };
 
   const interaction = useBoardInteraction(view.fen, (c) => started && !outcome && c === turn, play);
+  useMoveFeedback(view.history, !!outcome, { startCue: started });
 
   const start = () => {
     game.current = new Game();
@@ -199,6 +201,7 @@ export default function OverTheBoard() {
                 lastMove={last ? { from: last.from, to: last.to } : null}
                 checkSquare={checkSquareOf(view.fen)}
                 onSquarePress={interaction.onSquarePress}
+                {...interaction.dragProps}
               />
               {bar(bottom, false)}
               <Card>

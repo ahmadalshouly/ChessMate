@@ -10,17 +10,6 @@ export const settings: Messages<typeof en> = {
     highlight: 'تمييز آخر نقلة',
     legal: 'إظهار النقلات المسموحة',
     title: 'الرقعة',
-    themes: {
-      graphite: 'جرافيت',
-      marble: 'رخام',
-      slate: 'أردواز',
-      contrast: 'تباين عالٍ',
-    },
-    pieceSets: {
-      classic: 'كلاسيكي',
-      outline: 'مفرّغ',
-      bold: 'عريض',
-    },
   },
   sound: {
     title: 'الصوت',
@@ -31,6 +20,9 @@ export const settings: Messages<typeof en> = {
     low: 'منخفض',
     medium: 'متوسط',
     high: 'مرتفع',
+    titleNative: 'الصوت والاهتزاز',
+    vibration: 'الاهتزاز',
+    vibrationDetail: 'اهتزاز خفيف عند النقل والأخذ والكش ونهاية المباراة',
   },
   gameplay: {
     title: 'اللعب',
@@ -39,6 +31,8 @@ export const settings: Messages<typeof en> = {
     daily: 'في المباريات اليومية فقط',
     always: 'دائمًا',
     confirmResign: 'التأكيد قبل الاستسلام',
+    premoves: 'النقلات المسبقة',
+    premovesDetail: 'جهّز نقلتك التالية بينما يفكر خصمك. اضغط في مكان آخر أو انقر بالزر الأيمن للإلغاء.',
   },
   notifications: {
     title: 'الإشعارات',
@@ -69,6 +63,8 @@ export const settings: Messages<typeof en> = {
     changePassword: 'تغيير كلمة المرور',
     current: 'كلمة المرور الحالية',
     passwordChanged: 'تم تغيير كلمة المرور.',
+    setPassword: 'تعيين كلمة مرور',
+    passwordSet: 'تم تعيين كلمة المرور. سجّل الدخول مجددًا للمتابعة.',
   },
   danger: {
     title: 'منطقة الخطر',
@@ -79,6 +75,7 @@ export const settings: Messages<typeof en> = {
     keep: 'الإبقاء على حسابي',
     deleting: 'جارٍ الحذف…',
     forever: 'حذف نهائي',
+    confirmNoPassword: 'اكتب DELETE للتأكيد.',
   },
   saveFailed: 'تعذّر الحفظ: {error}',
   language: {

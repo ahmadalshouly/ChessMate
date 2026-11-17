@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
@@ -35,6 +36,7 @@ export default function LocalPlay() {
   const snapshot = useMemo(() => new Game(view.fen), [view.fen]);
   const outcome = useMemo(() => (view.history.length ? Game.fromUciMoves(view.history.map((m) => m.uci)).boardOutcome() : null), [view.history]);
   const interaction = useBoardInteraction(view.fen, () => !outcome, play);
+  useMoveFeedback(view.history, !!outcome);
   const { history } = view;
   const last = history[history.length - 1];
 
@@ -67,6 +69,7 @@ export default function LocalPlay() {
             checkSquare={checkSquareOf(view.fen)}
             threatened={threatened}
             onSquarePress={interaction.onSquarePress}
+            {...interaction.dragProps}
           />
           <View style={styles.row}>
             <Button

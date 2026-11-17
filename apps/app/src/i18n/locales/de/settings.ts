@@ -10,17 +10,6 @@ export const settings: Messages<typeof en> = {
     highlight: 'Letzten Zug hervorheben',
     legal: 'Legale Züge anzeigen',
     title: 'Brett',
-    themes: {
-      graphite: 'Graphit',
-      marble: 'Marmor',
-      slate: 'Schiefer',
-      contrast: 'Hoher Kontrast',
-    },
-    pieceSets: {
-      classic: 'Klassisch',
-      outline: 'Umriss',
-      bold: 'Fett',
-    },
   },
   sound: {
     title: 'Ton',
@@ -31,6 +20,9 @@ export const settings: Messages<typeof en> = {
     low: 'Leise',
     medium: 'Mittel',
     high: 'Laut',
+    titleNative: 'Ton und Vibration',
+    vibration: 'Vibration',
+    vibrationDetail: 'Ein leichtes Vibrieren bei Zügen, Schlagen, Schach und Partieende',
   },
   gameplay: {
     title: 'Spiel',
@@ -39,6 +31,8 @@ export const settings: Messages<typeof en> = {
     daily: 'Nur Fernschach',
     always: 'Immer',
     confirmResign: 'Vor dem Aufgeben bestätigen',
+    premoves: 'Vorauszüge',
+    premovesDetail: 'Plane deinen nächsten Zug, während dein Gegner nachdenkt. Tippe woanders hin oder klicke rechts, um abzubrechen.',
   },
   notifications: {
     title: 'Benachrichtigungen',
@@ -69,6 +63,8 @@ export const settings: Messages<typeof en> = {
     changePassword: 'Passwort ändern',
     current: 'Aktuelles Passwort',
     passwordChanged: 'Passwort geändert.',
+    setPassword: 'Passwort festlegen',
+    passwordSet: 'Passwort festgelegt. Melde dich erneut an, um weiterzumachen.',
   },
   danger: {
     title: 'Gefahrenzone',
@@ -79,6 +75,7 @@ export const settings: Messages<typeof en> = {
     keep: 'Konto behalten',
     deleting: 'Wird gelöscht…',
     forever: 'Endgültig löschen',
+    confirmNoPassword: 'Tippe DELETE zur Bestätigung.',
   },
   saveFailed: 'Speichern fehlgeschlagen: {error}',
   language: {

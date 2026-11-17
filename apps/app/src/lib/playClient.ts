@@ -25,7 +25,9 @@ import {
 import { useSyncExternalStore } from 'react';
 
 import { SERVER_URL } from './config';
-import { moveSound, playSound } from './sounds';
+import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
+import { haptic } from './haptics';
+import { playSound } from './sounds';
 import { translate } from '@/i18n';
 
 /**
@@ -274,7 +276,7 @@ class PlayClient {
         const same = this.state.game?.gameId === m.game.gameId;
         this.load(m.game, m.you);
         this.set({ seek: null, seekStatus: null, openGame: null });
-        if (!same) playSound('start');
+        if (!same) gameStartFeedback();
         return;
       }
       case 'gameState':
@@ -290,7 +292,7 @@ class PlayClient {
         return this.patchGame({ opponentConnected: m.connected, opponentAbandonAt: m.connected ? null : (m.abandonAt ?? null) });
       case 'gameOver':
         if (this.state.game?.gameId !== m.gameId) return;
-        playSound('end');
+        gameEndFeedback();
         return this.patchGame({
           outcome: m.outcome,
           ratingChange: m.ratingChange,
@@ -354,7 +356,7 @@ class PlayClient {
     if (g.ply === m.ply - 1) {
       const played = g.move(m.uci);
       mover = played?.color ?? null;
-      if (played) playSound(moveSound(played.san));
+      if (played) moveFeedback(played.san);
     } else if (g.ply !== m.ply) {
       return this.send({ t: 'join', gameId: m.gameId });
     }
@@ -420,14 +422,17 @@ class PlayClient {
     const ply = g.ply;
     const played = g.move(uci);
     if (!played) return false;
-    playSound(moveSound(played.san));
+    moveFeedback(played.san);
     this.patchGame({ fen: g.fen, history: g.history() });
     this.send({ t: 'move', gameId: view.gameId, uci, ply });
     return true;
   }
 
   setPremove(premove: GameView['premove']) {
-    if (premove) playSound('premove');
+    if (premove) {
+      playSound('premove');
+      haptic('premove');
+    }
     this.patchGame({ premove });
   }
 

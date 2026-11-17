@@ -93,4 +93,10 @@ export const auth: Messages<typeof en> = {
   newPassword: 'Neues Passwort',
   password: 'Passwort',
   continueAsGuest: 'Als Gast fortfahren',
+  social: {
+    notConfigured: 'Die Anmeldung mit {provider} ist auf dem Server noch nicht eingerichtet.',
+    failed: 'Die Anmeldung mit {provider} hat nicht geklappt. Bitte versuch es erneut.',
+    google: 'Weiter mit Google',
+    expoGo: 'Die Google-Anmeldung funktioniert nicht in Expo Go. Probier es in der Web-Version (w in Expo drücken) oder in einem installierten Build.',
+  },
 };

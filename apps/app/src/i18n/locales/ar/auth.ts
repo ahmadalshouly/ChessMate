@@ -93,4 +93,10 @@ export const auth: Messages<typeof en> = {
   newPassword: 'كلمة المرور الجديدة',
   password: 'كلمة المرور',
   continueAsGuest: 'المتابعة كضيف',
+  social: {
+    notConfigured: 'تسجيل الدخول عبر {provider} غير مُعدّ على الخادم بعد.',
+    failed: 'لم ينجح تسجيل الدخول عبر {provider}. حاول مرة أخرى.',
+    google: 'المتابعة باستخدام Google',
+    expoGo: 'لا يعمل تسجيل الدخول عبر Google داخل Expo Go. جرّبه في نسخة الويب (اضغط w في Expo) أو في نسخة مثبّتة.',
+  },
 };
