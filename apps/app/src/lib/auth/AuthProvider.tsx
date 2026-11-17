@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { ApiError, authApi, request } from './client';
+import { ApiError, authApi, request, type OAuthProvider } from './client';
 import type { AuthResponse, AuthTokens, AuthUser } from './contract';
 import * as storage from './storage';
 
@@ -12,6 +12,8 @@ export interface AuthContextValue {
   guestName: string | null;
   signIn(login: string, password: string): Promise<void>;
   signUp(input: { username: string; email: string; password: string }): Promise<void>;
+  /** Sign in (or create an account) with a Google or Apple ID token. */
+  signInWithProvider(provider: OAuthProvider, idToken: string, fullName?: string): Promise<void>;
   signOut(opts?: { everywhere?: boolean }): Promise<void>;
   continueAsGuest(): Promise<void>;
   /** A valid access token, refreshed if needed; null for guests or when signed out. */
@@ -146,6 +148,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [acceptSession],
   );
 
+  const signInWithProvider = useCallback(
+    async (provider: OAuthProvider, idToken: string, fullName?: string) => acceptSession(await authApi.oauth(provider, { idToken, fullName })),
+    [acceptSession],
+  );
+
   const signOut = useCallback(
     async (opts?: { everywhere?: boolean }) => {
       const t = tokens.current;
@@ -175,8 +182,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [getAccessToken, guestName]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, guestName, signIn, signUp, signOut, continueAsGuest, getAccessToken, apiFetch, refreshUser, getGameToken }),
-    [status, user, guestName, signIn, signUp, signOut, continueAsGuest, getAccessToken, apiFetch, refreshUser, getGameToken],
+    () => ({ status, user, guestName, signIn, signUp, signInWithProvider, signOut, continueAsGuest, getAccessToken, apiFetch, refreshUser, getGameToken }),
+    [status, user, guestName, signIn, signUp, signInWithProvider, signOut, continueAsGuest, getAccessToken, apiFetch, refreshUser, getGameToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

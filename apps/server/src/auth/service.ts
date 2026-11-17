@@ -1,8 +1,9 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { signJwt, verifyJwt } from './jwt';
 import type { Mailer } from './mailer';
+import { OAuthTokenError, type OAuthVerifier } from './oauth';
 import { hashPassword, needsRehash, verifyPassword } from './passwords';
-import { UniqueViolation, type AuthStore, type SessionRecord, type UserRecord } from './store';
+import { UniqueViolation, type AuthStore, type OAuthProvider, type SessionRecord, type UserRecord } from './store';
 
 export const ACCESS_TTL_MS = 15 * 60_000;
 export const REFRESH_TTL_MS = 30 * 24 * 3600_000;
@@ -17,7 +18,8 @@ export type AuthErrorCode =
   | 'invalid_token'
   | 'rate_limited'
   | 'unauthorized'
-  | 'not_found';
+  | 'not_found'
+  | 'not_configured';
 
 export class AuthError extends Error {
   constructor(
@@ -33,7 +35,10 @@ export class AuthError extends Error {
 export interface PublicUser {
   id: string;
   username: string;
+  /** Empty when the account has no email (Sign in with Apple without sharing one). */
   email: string;
+  /** False for Google/Apple accounts that never set a password. */
+  hasPassword: boolean;
   createdAt: string;
 }
 
@@ -59,6 +64,8 @@ export interface AuthServiceOptions {
   mailer: Mailer;
   /** HMAC secret for access tokens; at least 32 characters. */
   secret: string;
+  /** Verifies Google and Apple ID tokens. Without it, those sign-ins answer not_configured. */
+  oauth?: OAuthVerifier;
   now?: () => number;
 }
 
@@ -71,7 +78,7 @@ const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const opaqueToken = () => randomBytes(32).toString('base64url');
 
 export function toPublicUser(u: UserRecord): PublicUser {
-  return { id: u.id, username: u.username, email: u.email, createdAt: new Date(u.createdAt).toISOString() };
+  return { id: u.id, username: u.username, email: u.email ?? '', hasPassword: !!u.passwordHash, createdAt: new Date(u.createdAt).toISOString() };
 }
 
 export function validateUsername(v: unknown): string {
@@ -108,6 +115,7 @@ export class AuthService {
   private readonly mailer: Mailer;
   private readonly secret: string;
   private readonly now: () => number;
+  private readonly oauth: OAuthVerifier | undefined;
   private dummyHash: Promise<string> | null = null;
 
   constructor(opts: AuthServiceOptions) {
@@ -116,6 +124,55 @@ export class AuthService {
     this.mailer = opts.mailer;
     this.secret = opts.secret;
     this.now = opts.now ?? Date.now;
+    this.oauth = opts.oauth;
+  }
+
+  /** Which social sign-ins this server accepts, so the app can hide the others. */
+  providers(): Record<OAuthProvider, boolean> {
+    return { google: !!this.oauth?.enabled('google'), apple: !!this.oauth?.enabled('apple') };
+  }
+
+  /**
+   * Sign in (or sign up) with a Google or Apple ID token. Finds the linked
+   * account; otherwise links an existing account with the same verified email;
+   * otherwise creates a new account with a username made from the name or email.
+   */
+  async oauthSignIn(provider: OAuthProvider, input: { idToken?: unknown; fullName?: unknown }): Promise<AuthResult & { created: boolean }> {
+    if (!this.oauth?.enabled(provider)) {
+      throw new AuthError('not_configured', `${provider === 'google' ? 'Google' : 'Apple'} sign-in is not set up on this server`);
+    }
+    if (typeof input.idToken !== 'string' || !input.idToken) throw new AuthError('invalid_input', 'Missing idToken');
+    let id;
+    try {
+      id = await this.oauth.verify(provider, input.idToken);
+    } catch (e) {
+      if (e instanceof OAuthTokenError) throw new AuthError('invalid_token', `${provider === 'google' ? 'Google' : 'Apple'} sign-in failed: ${e.message}`);
+      throw e;
+    }
+
+    let user = await this.store.findUserByOAuth(provider, id.subject);
+    let created = false;
+    if (!user && id.email && id.emailVerified) {
+      user = await this.store.findUserByEmail(id.email);
+      if (user) await this.store.linkOAuth(provider, id.subject, user.id);
+    }
+    if (!user) {
+      const hint = typeof input.fullName === 'string' && input.fullName.trim() ? input.fullName : (id.name ?? id.email?.split('@')[0] ?? provider);
+      const email = id.email && id.emailVerified && !(await this.store.findUserByEmail(id.email)) ? id.email : null;
+      const now = this.now();
+      for (let attempt = 0; !user; attempt++) {
+        const candidate: UserRecord = { id: randomUUID(), username: usernameFrom(hint, attempt), email, passwordHash: null, createdAt: now, passwordChangedAt: now };
+        try {
+          await this.store.createUser(candidate);
+          user = candidate;
+        } catch (e) {
+          if (!(e instanceof UniqueViolation) || attempt >= 12) throw e;
+        }
+      }
+      await this.store.linkOAuth(provider, id.subject, user.id);
+      created = true;
+    }
+    return { user: toPublicUser(user), tokens: await this.startSession(user), created };
   }
 
   async signup(input: { username?: unknown; email?: unknown; password?: unknown }): Promise<AuthResult> {
@@ -142,8 +199,8 @@ export class AuthService {
     if (!login || !password) throw new AuthError('invalid_input', 'Enter your username or email and password');
     const user = login.includes('@') ? await this.store.findUserByEmail(login) : await this.store.findUserByUsername(login);
     // Always run one hash so response time does not reveal whether the account exists.
-    const ok = user ? await verifyPassword(password, user.passwordHash) : (await verifyPassword(password, await this.getDummyHash()), false);
-    if (!user || !ok) throw new AuthError('invalid_credentials', 'Wrong username, email or password');
+    const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await verifyPassword(password, await this.getDummyHash()), false);
+    if (!user || !user.passwordHash || !ok) throw new AuthError('invalid_credentials', 'Wrong username, email or password');
     if (needsRehash(user.passwordHash)) {
       user.passwordHash = await hashPassword(password);
       await this.store.updateUser(user);
@@ -190,7 +247,7 @@ export class AuthService {
     if (!user) return;
     const token = opaqueToken();
     await this.store.createReset({ tokenHash: sha256(token), userId: user.id, expiresAt: this.now() + RESET_TTL_MS, usedAt: null });
-    await this.mailer.sendPasswordReset({ email: user.email, username: user.username }, token);
+    await this.mailer.sendPasswordReset({ email, username: user.username }, token);
   }
 
   /** Sets a new password from a reset token and signs the user out everywhere. */
@@ -200,7 +257,7 @@ export class AuthService {
     if (!reset || reset.usedAt || reset.expiresAt <= now) throw new AuthError('invalid_token', 'This reset link is invalid or has expired', 'token');
     const user = await this.store.getUser(reset.userId);
     if (!user) throw new AuthError('invalid_token', 'This reset link is invalid or has expired', 'token');
-    const password = validatePassword(input.password, [user.username, user.email]);
+    const password = validatePassword(input.password, [user.username, user.email ?? '']);
     await this.store.updateReset({ ...reset, usedAt: now });
     await this.setPassword(user, password);
   }
@@ -208,20 +265,22 @@ export class AuthService {
   async changePassword(userId: string, currentPassword: unknown, newPassword: unknown): Promise<void> {
     const user = await this.store.getUser(userId);
     if (!user) throw new AuthError('unauthorized', 'Sign in again');
-    if (typeof currentPassword !== 'string' || !(await verifyPassword(currentPassword, user.passwordHash))) {
+    // Google/Apple accounts without a password can set their first one while signed in.
+    if (user.passwordHash && (typeof currentPassword !== 'string' || !(await verifyPassword(currentPassword, user.passwordHash)))) {
       throw new AuthError('invalid_credentials', 'Current password is wrong', 'currentPassword');
     }
-    await this.setPassword(user, validatePassword(newPassword, [user.username, user.email], 'newPassword'));
+    await this.setPassword(user, validatePassword(newPassword, [user.username, user.email ?? ''], 'newPassword'));
   }
 
   async checkPassword(userId: string, password: unknown): Promise<boolean> {
     const user = await this.store.getUser(userId);
-    return !!user && typeof password === 'string' && verifyPassword(password, user.passwordHash);
+    return !!user?.passwordHash && typeof password === 'string' && verifyPassword(password, user.passwordHash);
   }
 
-  /** Deletes an account after re-checking its password. */
+  /** Deletes an account after re-checking its password (accounts without one only need to be signed in). */
   async deleteAccount(userId: string, password: unknown): Promise<void> {
-    if (!(await this.checkPassword(userId, password))) throw new AuthError('invalid_credentials', 'Password is wrong', 'password');
+    const user = await this.store.getUser(userId);
+    if (user?.passwordHash && !(await this.checkPassword(userId, password))) throw new AuthError('invalid_credentials', 'Password is wrong', 'password');
     await this.store.revokeUserSessions(userId, this.now());
     await this.store.deleteUser(userId);
   }
@@ -285,6 +344,20 @@ const taken = (field: 'username' | 'email') =>
   field === 'username'
     ? new AuthError('username_taken', 'That username is taken', 'username')
     : new AuthError('email_taken', 'An account with this email already exists', 'email');
+
+/** A free-looking username from a name or email: letters, digits and _, 3 to 20 characters. */
+export function usernameFrom(hint: string, attempt = 0): string {
+  let base = hint
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 15);
+  if (base.length < 3 || RESERVED.has(base.toLowerCase())) base = `player${base ? `_${base}` : ''}`.slice(0, 15);
+  if (attempt === 0) return base;
+  const digits = attempt < 4 ? 2 : 4;
+  return `${base}${Math.floor(10 ** (digits - 1) + Math.random() * 9 * 10 ** (digits - 1))}`;
+}
 
 const invalidToken = () => new AuthError('invalid_token', 'Session expired, sign in again');
 

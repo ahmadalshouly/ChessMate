@@ -91,18 +91,20 @@ export function profileRoutes(deps: ProfileDeps, store: ProfileStore, now: () =>
       case 'POST /api/me/password': {
         const user = await me(req);
         const b = (await body(req)) as { currentPassword?: unknown; newPassword?: unknown };
-        if (typeof b.currentPassword !== 'string' || typeof b.newPassword !== 'string') {
+        // currentPassword may be empty for Google/Apple accounts setting their first password; the account check decides.
+        if ((b.currentPassword !== undefined && typeof b.currentPassword !== 'string') || typeof b.newPassword !== 'string') {
           throw new HttpError(400, 'invalid', 'Enter your current and new password');
         }
-        const r = await deps.changePassword(user.id, b.currentPassword, b.newPassword);
+        const r = await deps.changePassword(user.id, b.currentPassword ?? '', b.newPassword);
         if (!r.ok) throw new HttpError(r.status, 'invalid', r.message, r.field);
         return json(res, 200, { ok: true });
       }
       case 'POST /api/me/delete': {
         const user = await me(req);
         const b = (await body(req)) as { password?: unknown };
-        if (typeof b.password !== 'string' || !b.password) throw new HttpError(400, 'invalid', 'Enter your password to confirm', 'password');
-        const r = await deps.deleteAccount(user.id, b.password);
+        // Accounts with a password must send it; Google/Apple accounts without one send nothing.
+        if (b.password !== undefined && typeof b.password !== 'string') throw new HttpError(400, 'invalid', 'Enter your password to confirm', 'password');
+        const r = await deps.deleteAccount(user.id, (b.password as string | undefined) ?? '');
         if (!r.ok) throw new HttpError(r.status, 'invalid', r.message, r.field ?? 'password');
         await service.forget(user.id);
         return json(res, 200, { ok: true });

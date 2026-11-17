@@ -7,12 +7,16 @@ const PORT = 8787;
  * In development, a phone or emulator reaches the game server on the same
  * machine that serves the JS bundle. Expo reports that machine as `hostUri`
  * (e.g. "192.168.1.20:8081"), so we reuse its host when it is a LAN address.
+ * With `expo start --tunnel` the host is a tunnel name instead, so we fall back
+ * to the computer's Wi-Fi address that app.config.ts read when Expo started.
  */
 function devServerUrl(): string | null {
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
-  if (!host) return null;
-  const isLan = /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host === 'localhost';
-  return isLan ? `ws://${host}:${PORT}/ws` : null;
+  const isLan = !!host && (/^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host === 'localhost');
+  if (isLan) return `ws://${host}:${PORT}/ws`;
+  const lan = (Constants.expoConfig?.extra as { devServerHost?: unknown } | undefined)?.devServerHost;
+  if (__DEV__ && typeof lan === 'string' && lan) return `ws://${lan}:${PORT}/ws`;
+  return null;
 }
 
 function fallback(): string {

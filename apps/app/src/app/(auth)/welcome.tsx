@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SocialSignIn } from '@/components/auth/SocialSignIn';
 import { Logo } from '@/components/shell/Logo';
 import { useAuth } from '@/lib/auth';
 import { Backdrop, Button, GlassView, Text, useAppTheme } from '@/ui';
@@ -52,6 +53,7 @@ export default function Welcome() {
             <View style={styles.actions}>
               <Button title="Create free account" size="lg" fullWidth onPress={() => router.push('/sign-up')} />
               <Button title="Sign in" size="lg" variant="secondary" fullWidth onPress={() => router.push('/sign-in')} />
+              <SocialSignIn onSignedIn={() => router.replace('/')} />
               <Pressable
                 accessibilityRole="button"
                 onPress={async () => {

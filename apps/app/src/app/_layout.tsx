@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -13,6 +14,9 @@ import { playClient } from '@/lib/playClient';
 import { UIProvider, useAppTheme } from '@/ui';
 import { useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider } from '@/lib/notifications';
+
+// Web: when Google's sign-in pop-up returns to the app, hand the result to the opener and close it.
+WebBrowser.maybeCompleteAuthSession();
 
 export default function RootLayout() {
   // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
