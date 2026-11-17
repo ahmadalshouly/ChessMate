@@ -39,6 +39,11 @@ export class GameRoom {
   outcome: GameOutcome | null = null;
   drawOfferBy: Color | null = null;
   readonly createdAt: number;
+  /** Server-measured think time per ply (ms), for fair-play timing analysis. */
+  readonly thinkMs: number[] = [];
+  private lastMoveAt: number;
+  /** Rejected move attempts per color (illegal, wrong turn, stale). */
+  readonly rejectedMoves: Record<Color, number> = { w: 0, b: 0 };
 
   constructor(
     readonly id: string,
@@ -53,6 +58,7 @@ export class GameRoom {
     this.game = new Game(initialFen);
     this.clock = createClock(timeControl);
     this.createdAt = now;
+    this.lastMoveAt = now;
   }
 
   colorOf(playerId: string): Color | null {
@@ -67,14 +73,27 @@ export class GameRoom {
   }
 
   move(playerId: string, uci: string, ply: number, now: number): PlayedMove | MoveError {
+    const res = this.tryMove(playerId, uci, ply, now);
+    const color = this.colorOf(playerId);
+    if (typeof res === 'string' && color && res !== 'game_over') this.rejectedMoves[color]++;
+    return res;
+  }
+
+  private tryMove(playerId: string, uci: string, ply: number, now: number): PlayedMove | MoveError {
     if (this.outcome) return 'game_over';
     const color = this.colorOf(playerId);
     if (!color || color !== this.game.turn) return 'not_your_turn';
-    if (ply !== this.game.ply) return 'stale_ply';
+    if (!Number.isInteger(ply) || ply !== this.game.ply) return 'stale_ply';
+    if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) return 'illegal_move';
     if (this.checkTime(now)) return 'game_over';
 
     const played = this.game.move(uci);
     if (!played) return 'illegal_move';
+    // A promotion suffix on a non-promotion move, or a missing one on a promotion, is not the move the client meant.
+    if ((uci.length === 5) !== !!played.promotion) {
+      this.game.undo();
+      return 'illegal_move';
+    }
 
     if (this.game.ply <= 1) {
       // White's first move: black's clock is still not running.
@@ -90,6 +109,8 @@ export class GameRoom {
         return 'game_over';
       }
     }
+    this.thinkMs.push(Math.max(0, now - this.lastMoveAt));
+    this.lastMoveAt = now;
     this.drawOfferBy = this.drawOfferBy === color ? this.drawOfferBy : null;
     this.events.onMove(this, played);
 

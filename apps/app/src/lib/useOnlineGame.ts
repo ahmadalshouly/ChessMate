@@ -163,8 +163,12 @@ export function useOnlineGame(token: string) {
             return;
         }
       };
-      sock.onclose = () => {
+      sock.onclose = (ev) => {
         if (closed) return;
+        // 4010: account closed for fair-play violation. Reconnecting would only be refused again.
+        if (ev.code === 4010) {
+          return setState((p) => ({ ...p, status: 'offline', error: 'This account has been closed for a fair play violation.' }));
+        }
         setState((p) => ({ ...p, status: p.status === 'playing' ? 'playing' : 'offline' }));
         const delay = Math.min(10_000, 500 * 2 ** retry.current++);
         timer = setTimeout(connect, delay);

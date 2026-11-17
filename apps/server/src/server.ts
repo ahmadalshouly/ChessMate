@@ -30,6 +30,18 @@ import { MemoryPlayerStore, authenticate, devViewerId, isGuest, playerInfo, type
 import { handlePublicApi, type PublicApiDeps, type ServerStats } from './publicApi';
 import { RatingService } from './ratingService';
 import { Moderation } from './moderation';
+import {
+  ConnectionLimiter,
+  DEFAULT_RATE_LIMITS,
+  FairPlayService,
+  IpLimiter,
+  analyzerFromEnv,
+  createAdminHandler,
+  validateClientMessage,
+  type FairPlayOptions,
+  type LimitKind,
+  type RateLimitConfig,
+} from './fairplay';
 
 export interface ServerOptions {
   port: number;
@@ -53,12 +65,23 @@ export interface ServerOptions {
   moderation?: Moderation;
   /** Bearer token for the /admin moderation API; disabled when unset. */
   adminToken?: string;
+  /** Fair-play settings. Defaults read STOCKFISH_PATH and FAIRPLAY_ADMIN_TOKEN from the environment. */
+  fairPlay?: FairPlayOptions & { adminToken?: string };
+  rateLimits?: Partial<RateLimitConfig>;
 }
 
 interface Connection {
   ws: WebSocket;
   player: Player | null;
+  limiter: ConnectionLimiter;
 }
+
+/** Close code sent to an account closed for fair-play violations. */
+export const CLOSE_FAIR_PLAY_BAN = 4010;
+/** Close code for clients that keep ignoring rate limits. */
+export const CLOSE_RATE_LIMITED = 4008;
+
+const LIMIT_KIND: Partial<Record<ClientMessage['t'], LimitKind>> = { move: 'moves', seek: 'seeks', cancelSeek: 'seeks' };
 
 /**
  * Realtime game server: authentication handshake, matchmaking, and
@@ -79,6 +102,9 @@ export class ChessServer {
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
   readonly moderation: Moderation;
+  readonly fairPlay: FairPlayService;
+  private readonly limits: RateLimitConfig;
+  private readonly ipLimiter: IpLimiter;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
@@ -92,7 +118,18 @@ export class ChessServer {
       viewerFor: opts.viewerFor ?? devViewerId,
     };
     this.moderation = opts.moderation ?? new Moderation(undefined, this.now);
+    this.limits = { ...DEFAULT_RATE_LIMITS, ...opts.rateLimits };
+    this.ipLimiter = new IpLimiter(this.limits.connectionsPerIp);
+    const fp = opts.fairPlay ?? {};
+    this.fairPlay = new FairPlayService(this.store, {
+      ...fp,
+      analyzer: fp.analyzer === undefined ? analyzerFromEnv() : fp.analyzer,
+      now: fp.now ?? this.now,
+    });
+    this.fairPlay.onBan = (id) => this.kickBanned(id);
+    const admin = createAdminHandler(this.fairPlay, fp.adminToken ?? process.env.FAIRPLAY_ADMIN_TOKEN);
     this.http = createServer(async (req, res) => {
+      if (await admin(req, res)) return;
       if (handleAdmin(req, res, this.moderation, opts.adminToken)) return;
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -114,7 +151,10 @@ export class ChessServer {
       res.writeHead(404).end();
     });
     this.wss = new WebSocketServer({ server: this.http, path: '/ws', maxPayload: 16 * 1024 });
-    this.wss.on('connection', (ws) => this.onConnection(ws));
+    this.wss.on('connection', (ws, req) => {
+      if (!this.ipLimiter.allow(clientIp(req), this.now())) return ws.close(CLOSE_RATE_LIMITED, 'too many connections');
+      this.onConnection(ws);
+    });
     this.matchTimer = setInterval(() => this.runMatching(), opts.matchIntervalMs ?? 500);
   }
 
@@ -129,6 +169,7 @@ export class ChessServer {
 
   async close(): Promise<void> {
     clearInterval(this.matchTimer);
+    await this.fairPlay.close();
     for (const t of [...this.timers.values(), ...this.graceTimers.values()]) clearTimeout(t);
     for (const c of this.wss.clients) c.terminate();
     await new Promise<void>((r) => this.wss.close(() => r()));
@@ -139,11 +180,16 @@ export class ChessServer {
   // ---- connection handling ----
 
   private onConnection(ws: WebSocket) {
-    const conn: Connection = { ws, player: null };
+    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()) };
     const helloTimeout = setTimeout(() => !conn.player && ws.close(4001, 'hello timeout'), 10_000);
     ws.on('message', (data) => {
       const msg = decodeClient(String(data));
+      const limit = conn.limiter.check(msg ? (LIMIT_KIND[msg.t] ?? null) : null, this.now());
+      if (limit === 'disconnect') return ws.close(CLOSE_RATE_LIMITED, 'rate limited');
+      if (limit === 'limited') return this.send(ws, err('rate_limited', 'Slow down'));
       if (!msg) return this.send(ws, err('bad_request', 'Malformed message'));
+      const invalid = validateClientMessage(msg);
+      if (invalid) return this.send(ws, err('bad_request', invalid));
       try {
         this.onMessage(conn, msg);
       } catch (e) {
@@ -162,6 +208,7 @@ export class ChessServer {
       if (msg.v !== PROTOCOL_VERSION) return this.send(ws, err('bad_request', 'Unsupported protocol version'));
       const player = authenticate(msg.token, this.store, this.opts.auth && ((t) => this.opts.auth!.verifyAccessToken(t)));
       if (!player) return ws.close(4003, 'unauthorized');
+      if (this.fairPlay.isBanned(player.id)) return ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
       conn.player = player;
       const set = this.sockets.get(player.id) ?? new Set();
       set.add(ws);
@@ -222,7 +269,7 @@ export class ChessServer {
       case 'move': {
         const room = this.rooms.get(msg.gameId);
         if (!room) return this.send(ws, err('not_found', 'No such game'));
-        const res = room.move(player.id, String(msg.uci), Number(msg.ply), now);
+        const res = room.move(player.id, msg.uci, msg.ply, now);
         if (typeof res === 'string') {
           // Re-sync the client so its board matches the server.
           this.send(ws, err(res as MoveError, moveErrorText(res)));
@@ -299,6 +346,13 @@ export class ChessServer {
         if (!this.sockets.has(playerId)) room.abandon(playerId, this.now());
       }, grace),
     );
+  }
+
+  /** Disconnects a banned account and forfeits its live game. */
+  private kickBanned(playerId: string) {
+    this.matchmaker.remove(playerId);
+    this.activeRoomOf(playerId)?.resign(playerId, this.now());
+    for (const ws of this.sockets.get(playerId) ?? []) ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
   }
 
   private cancelGrace(playerId: string) {
@@ -427,6 +481,23 @@ export class ChessServer {
       onEnd: (r, outcome) => {
         const ratingChange = this.applyRatings(r);
         this.opts.persistence?.gameEnded(r, outcome, ratingChange);
+        if (outcome.reason !== 'aborted') {
+          this.fairPlay.gameFinished({
+            gameId: r.id,
+            initialFen: r.initialFen,
+            moves: r.game.uciHistory(),
+            thinkMs: [...r.thinkMs],
+            white: { id: r.white.id, rating: ratingChange?.w.before.rating ?? r.white.rating },
+            black: { id: r.black.id, rating: ratingChange?.b.before.rating ?? r.black.rating },
+            endedAt: this.now(),
+            rated: r.rated,
+            timeControl: r.timeControl,
+            ratingDelta: ratingChange && {
+              w: ratingChange.w.after.rating - ratingChange.w.before.rating,
+              b: ratingChange.b.after.rating - ratingChange.b.before.rating,
+            },
+          });
+        }
         this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
@@ -511,6 +582,13 @@ export class ChessServer {
   private send(ws: WebSocket, msg: ServerMessage) {
     if (ws.readyState === ws.OPEN) ws.send(encode(msg));
   }
+}
+
+function clientIp(req: { socket: { remoteAddress?: string }; headers: Record<string, string | string[] | undefined> }): string {
+  // Behind a proxy, trust X-Forwarded-For only when TRUST_PROXY is set.
+  const fwd = process.env.TRUST_PROXY ? req.headers['x-forwarded-for'] : undefined;
+  const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim();
+  return first || req.socket.remoteAddress || 'unknown';
 }
 
 function err(code: ErrorCode, message: string): ServerMessage {
