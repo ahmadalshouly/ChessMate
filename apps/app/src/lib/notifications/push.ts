@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { notificationsApi } from './api';
+import { translate } from '@/i18n';
 
 export type PushStatus =
   | { state: 'unknown' }
@@ -18,9 +19,9 @@ export const pushSupported = Platform.OS === 'ios' || Platform.OS === 'android';
 const isExpoGoAndroid = Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 function unsupportedReason(): string | null {
-  if (!pushSupported) return 'Push notifications are available in the iOS and Android apps.';
-  if (!Device.isDevice) return 'Push notifications need a real phone, not a simulator.';
-  if (isExpoGoAndroid) return 'Expo Go on Android cannot receive push. Use a development build to test push on Android.';
+  if (!pushSupported) return translate('notifications.push.webOnly');
+  if (!Device.isDevice) return translate('notifications.push.simulator');
+  if (isExpoGoAndroid) return translate('notifications.push.expoGo');
   return null;
 }
 
@@ -62,7 +63,7 @@ async function register(): Promise<PushStatus> {
     await notificationsApi.registerPushToken(token, Platform.OS);
     return { state: 'enabled', token };
   } catch (e) {
-    return { state: 'error', reason: e instanceof Error ? e.message : 'Could not register for push' };
+    return { state: 'error', reason: e instanceof Error ? e.message : translate('notifications.push.failed') };
   }
 }
 

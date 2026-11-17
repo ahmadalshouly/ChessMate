@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { SearchField } from '@/components/social';
 import { Button, Card, Label } from '@/components/ui';
 import { devIdentity, setSocialIdentity } from '@/lib/social/session';
+import { useT } from '@/i18n';
 
 /**
  * Shown on social screens until sign-in is wired in. In development it lets
@@ -12,20 +13,21 @@ import { devIdentity, setSocialIdentity } from '@/lib/social/session';
  */
 export function DevSignIn() {
   const [name, setName] = useState('');
+  const tr = useT();
   const valid = /^[A-Za-z0-9_-]{3,20}$/.test(name.trim());
   return (
     <Card>
       <Label size={18} bold>
-        Sign in to add friends
+        {tr('social.devSignIn.title')}
       </Label>
       {__DEV__ ? (
         <View style={{ gap: 10 }}>
-          <Label muted>Development build: choose a test username. Use a different name on each device to try friends between them.</Label>
-          <SearchField placeholder="Username (3 to 20 letters)" value={name} onChangeText={setName} maxLength={20} />
-          <Button title="Continue" disabled={!valid} onPress={() => setSocialIdentity(devIdentity(name))} />
+          <Label muted>{tr('social.devSignIn.dev')}</Label>
+          <SearchField placeholder={tr('social.devSignIn.placeholder')} value={name} onChangeText={setName} maxLength={20} />
+          <Button title={tr('common.continue')} disabled={!valid} onPress={() => setSocialIdentity(devIdentity(name))} />
         </View>
       ) : (
-        <Label muted>Friends, following and activity are available once you sign in.</Label>
+        <Label muted>{tr('social.devSignIn.prod')}</Label>
       )}
     </Card>
   );

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/lib/currentUser';
 
 import { Avatar } from './Avatar';
@@ -16,6 +17,7 @@ export const SIGN_IN_HREF = '/sign-in' as Href;
 export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
   const t = useTheme();
   const user = useCurrentUser();
+  const tr = useT();
   return (
     <View style={styles.row}>
       {user.rating != null && <RatingChip rating={user.rating} provisional={user.provisional} />}
@@ -25,11 +27,11 @@ export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
           onPress={() => router.push(SIGN_IN_HREF)}
           style={({ pressed }) => [styles.signIn, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
           <Ionicons name="log-in-outline" size={16} color={t.text} />
-          <Text style={[styles.signInText, { color: t.text }]}>Sign in</Text>
+          <Text style={[styles.signInText, { color: t.text }]}>{tr('auth.signIn')}</Text>
         </Pressable>
       )}
       <NotificationBell />
-      <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => router.navigate('/profile')} hitSlop={6}>
+      <Pressable accessibilityRole="button" accessibilityLabel={tr('nav.openProfile')} onPress={() => router.navigate('/profile')} hitSlop={6}>
         <Avatar name={user.displayName} url={user.avatarUrl} size={34} />
       </Pressable>
     </View>

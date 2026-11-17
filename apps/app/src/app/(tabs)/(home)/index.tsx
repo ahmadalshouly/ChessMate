@@ -5,25 +5,27 @@ import { StyleSheet, View } from 'react-native';
 import { LiveStats } from '@/components/LiveStats';
 import { Page } from '@/components/shell/Page';
 import { Button, Card, Label } from '@/components/ui';
+import { useT } from '@/i18n';
 
 export default function Home() {
+  const tr = useT();
   return (
     <Page>
       <View style={styles.hero}>
         <Label size={28} bold>
-          Play. Learn. Improve.
+          {tr('home.heroTitle')}
         </Label>
-        <Label muted>Real-time games against players worldwide, with a coach that shows you why a move works.</Label>
+        <Label muted>{tr('home.heroBody')}</Label>
       </View>
 
       <LiveStats />
 
       <Card>
         <Label size={18} bold>
-          Play online
+          {tr('home.online.title')}
         </Label>
-        <Button title="Open the lobby" onPress={() => router.push('/play')} />
-        <Label muted>Or quick-pair at a time control:</Label>
+        <Button title={tr('home.online.cta')} onPress={() => router.push('/play')} />
+        <Label muted>{tr('home.online.quick')}</Label>
         <View style={styles.grid}>
           {PRESET_TIME_CONTROLS.map((tc) => {
             const key = formatTimeControl(tc);
@@ -31,7 +33,7 @@ export default function Home() {
               <View key={key} style={styles.cell}>
                 <Button
                   variant="secondary"
-                  title={`${key} · ${timeCategory(tc)}`}
+                  title={`${key} · ${tr(`common.category.${timeCategory(tc)}`)}`}
                   onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
                 />
               </View>
@@ -42,73 +44,73 @@ export default function Home() {
 
       <Card>
         <Label size={18} bold>
-          Play a friend
+          {tr('home.friend.title')}
         </Label>
-        <Label muted>Send an invite link or challenge a player, or play face to face on one device.</Label>
+        <Label muted>{tr('home.friend.body')}</Label>
         <View style={styles.grid}>
           <View style={styles.cell}>
-            <Button title="Challenge a friend" onPress={() => router.push({ pathname: '/play/online', params: { mode: 'friend' } })} />
+            <Button title={tr('home.friend.cta')} onPress={() => router.push({ pathname: '/play/online', params: { mode: 'friend' } })} />
           </View>
           <View style={styles.cell}>
-            <Button variant="secondary" title="Over the board" onPress={() => router.push('/play/otb')} />
+            <Button variant="secondary" title={tr('home.friend.otb')} onPress={() => router.push('/play/otb')} />
           </View>
         </View>
       </Card>
 
       <Card>
         <Label size={18} bold>
-          Play vs computer
+          {tr('home.computer.title')}
         </Label>
-        <Label muted>Eight opponents from beginner to expert. Unrated, with takebacks and hints. Works offline.</Label>
-        <Button title="Choose an opponent" onPress={() => router.push('/play/computer')} />
+        <Label muted>{tr('home.computer.body')}</Label>
+        <Button title={tr('home.computer.cta')} onPress={() => router.push('/play/computer')} />
       </Card>
 
       <Card>
         <Label size={18} bold>
-          AI coach review
+          {tr('home.coach.title')}
         </Label>
-        <Label muted>See how the coach explains the key moments of a game, then ask it about any position.</Label>
-        <Button variant="secondary" title="Try a sample review" onPress={() => router.push('/review/demo')} />
+        <Label muted>{tr('home.coach.body')}</Label>
+        <Button variant="secondary" title={tr('home.coach.cta')} onPress={() => router.push('/review/demo')} />
       </Card>
 
       <Card>
         <Label size={18} bold>
-          Analysis board
+          {tr('home.analysis.title')}
         </Label>
-        <Label muted>Explore any position or PGN with Stockfish: evaluation bar, best lines and arrows, full game reviews.</Label>
-        <Button title="Open analysis board" onPress={() => router.push('/analysis')} />
+        <Label muted>{tr('home.analysis.body')}</Label>
+        <Button title={tr('home.analysis.cta')} onPress={() => router.push('/analysis')} />
       </Card>
 
       <Card>
         <Label size={18} bold>
-          Game history
+          {tr('home.history.title')}
         </Label>
-        <Label muted>Replay past games move by move, see the opening, and share or import PGN.</Label>
-        <Button variant="secondary" title="Open game history" onPress={() => router.push('/games')} />
+        <Label muted>{tr('home.history.body')}</Label>
+        <Button variant="secondary" title={tr('home.history.cta')} onPress={() => router.push('/games')} />
       </Card>
 
       <Card>
         <Label size={18} bold>
-          Friends
+          {tr('home.friends.title')}
         </Label>
-        <Label muted>See who is online, watch friends' live games, and follow their results.</Label>
-        <Button variant="secondary" title="Open friends" onPress={() => router.push('/friends')} />
+        <Label muted>{tr('home.friends.body')}</Label>
+        <Button variant="secondary" title={tr('home.friends.cta')} onPress={() => router.push('/friends')} />
       </Card>
 
       <Card>
         <Label size={18} bold>
-          Practice board
+          {tr('home.practice.title')}
         </Label>
-        <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
-        <Button title="Open practice board" onPress={() => router.push('/play/local')} />
+        <Label muted>{tr('home.practice.body')}</Label>
+        <Button title={tr('home.practice.cta')} onPress={() => router.push('/play/local')} />
       </Card>
 
       <Card>
         <Label size={18} bold>
-          Leaderboards
+          {tr('home.leaderboards.title')}
         </Label>
-        <Label muted>Top players in bullet, blitz, rapid and classical, worldwide, in your country, and among your friends.</Label>
-        <Button variant="secondary" title="View leaderboards" onPress={() => router.push('/leaderboard')} />
+        <Label muted>{tr('home.leaderboards.body')}</Label>
+        <Button variant="secondary" title={tr('home.leaderboards.cta')} onPress={() => router.push('/leaderboard')} />
       </Card>
     </Page>
   );

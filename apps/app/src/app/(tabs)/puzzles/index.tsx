@@ -7,10 +7,13 @@ import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { puzzleApi } from '@/lib/puzzleApi';
+import { useT } from '@/i18n';
+import { puzzleGroupLabel, puzzleThemeLabel } from '@/i18n/chess';
 
 /** Puzzles home: rating, daily puzzle, themed training, streak and rush. */
 export default function PuzzlesHome() {
   const t = useTheme();
+  const tr = useT();
   const [profile, setProfile] = useState<PuzzleProfileDto | null>(null);
   const [daily, setDaily] = useState<{ puzzle: PuzzleDto; attempted: boolean } | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -28,7 +31,7 @@ export default function PuzzlesHome() {
           setCounts(th.counts);
           setError(null);
         })
-        .catch((e) => live && setError(e instanceof Error ? e.message : 'Could not reach the server'));
+        .catch((e) => live && setError(e instanceof Error ? e.message : tr('puzzles.home.unreachable')));
       return () => {
         live = false;
       };
@@ -42,21 +45,21 @@ export default function PuzzlesHome() {
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           <Label size={28} bold>
-            Puzzles
+            {tr('nav.puzzles')}
           </Label>
           {error && (
             <Card>
-              <Label bold>Offline</Label>
+              <Label bold>{tr('play.offline')}</Label>
               <Label muted>{error}</Label>
             </Card>
           )}
 
           <Card>
             <View style={styles.stats}>
-              <Stat label="Puzzle rating" value={profile ? `${profile.rating}${profile.provisional ? '?' : ''}` : '–'} />
-              <Stat label="Solved" value={profile ? `${profile.solved}/${profile.attempts}` : '–'} />
-              <Stat label="Best streak" value={profile ? String(profile.bestStreak) : '–'} />
-              <Stat label="Best rush" value={profile ? String(profile.bestRush) : '–'} />
+              <Stat label={tr('puzzles.home.rating')} value={profile ? `${profile.rating}${profile.provisional ? '?' : ''}` : '–'} />
+              <Stat label={tr('puzzles.home.solved')} value={profile ? `${profile.solved}/${profile.attempts}` : '–'} />
+              <Stat label={tr('puzzles.home.bestStreak')} value={profile ? String(profile.bestStreak) : '–'} />
+              <Stat label={tr('puzzles.home.bestRush')} value={profile ? String(profile.bestRush) : '–'} />
             </View>
           </Card>
 
@@ -66,10 +69,10 @@ export default function PuzzlesHome() {
                 <Board fen={daily.puzzle.fen} orientation={daily.puzzle.fen.split(' ')[1] === 'w' ? 'b' : 'w'} size={112} />
                 <View style={{ flex: 1, gap: 8 }}>
                   <Label size={18} bold>
-                    Daily puzzle
+                    {tr('puzzles.daily')}
                   </Label>
-                  <Label muted>{daily.attempted ? 'Done for today. Try it again any time.' : 'Same puzzle for everyone, new each day.'}</Label>
-                  <Button title={daily.attempted ? 'Replay' : 'Solve'} onPress={() => router.push({ pathname: '/puzzles/train', params: { daily: '1' } })} />
+                  <Label muted>{daily.attempted ? tr('puzzles.home.dailyDone') : tr('puzzles.home.dailyNew')}</Label>
+                  <Button title={daily.attempted ? tr('puzzles.home.replay') : tr('puzzles.home.solve')} onPress={() => router.push({ pathname: '/puzzles/train', params: { daily: '1' } })} />
                 </View>
               </View>
             </Card>
@@ -77,16 +80,16 @@ export default function PuzzlesHome() {
 
           <Card>
             <Label size={18} bold>
-              Train
+              {tr('puzzles.home.train')}
             </Label>
-            <Label muted>Rated puzzles matched to your level. Pick a theme or play a mix.</Label>
+            <Label muted>{tr('puzzles.home.trainBody')}</Label>
             {groups.map((g) => (
               <View key={g.title} style={{ gap: 6 }}>
                 <Label muted size={13} bold>
-                  {g.title.toUpperCase()}
+                  {puzzleGroupLabel(g.title).toLocaleUpperCase()}
                 </Label>
                 <View style={styles.chips}>
-                  {g.themes.map(([key, label]) => {
+                  {g.themes.map(([key]) => {
                     const on = theme === key;
                     return (
                       <Pressable
@@ -95,35 +98,35 @@ export default function PuzzlesHome() {
                         accessibilityState={{ selected: on }}
                         onPress={() => setTheme(on ? null : key)}
                         style={[styles.chip, { borderColor: on ? t.accent : t.glassBorder, backgroundColor: on ? t.accent : t.surface }]}>
-                        <Text style={{ color: on ? t.onAccent : t.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+                        <Text style={{ color: on ? t.onAccent : t.text, fontSize: 14, fontWeight: '600' }}>{puzzleThemeLabel(key)}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
               </View>
             ))}
-            <Button title={theme ? 'Start themed training' : 'Start training'} onPress={() => router.push({ pathname: '/puzzles/train', params: theme ? { theme } : {} })} />
+            <Button title={theme ? tr('puzzles.home.startThemed') : tr('puzzles.home.start')} onPress={() => router.push({ pathname: '/puzzles/train', params: theme ? { theme } : {} })} />
           </Card>
 
           <View style={styles.modes}>
             <Card style={styles.mode}>
               <Label size={18} bold>
-                Streak
+                {tr('puzzles.home.streak')}
               </Label>
-              <Label muted>Climbing difficulty. One mistake ends it.</Label>
-              <Button variant="secondary" title="Play streak" onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'streak' } })} />
+              <Label muted>{tr('puzzles.home.streakBody')}</Label>
+              <Button variant="secondary" title={tr('puzzles.home.playStreak')} onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'streak' } })} />
             </Card>
             <Card style={styles.mode}>
               <Label size={18} bold>
-                Rush
+                {tr('puzzles.home.rush')}
               </Label>
-              <Label muted>Three minutes, three lives.</Label>
-              <Button variant="secondary" title="Play rush" onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'rush' } })} />
+              <Label muted>{tr('puzzles.home.rushBody')}</Label>
+              <Button variant="secondary" title={tr('puzzles.home.playRush')} onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'rush' } })} />
             </Card>
           </View>
 
           <Label muted size={12}>
-            Puzzles from the Lichess open database (CC0).
+            {tr('puzzles.home.credit')}
           </Label>
         </View>
       </ScrollView>

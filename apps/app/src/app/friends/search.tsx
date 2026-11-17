@@ -9,9 +9,11 @@ import { Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
+import { useT } from '@/i18n';
 
 export default function SearchScreen() {
   const me = useSocialIdentity();
+  const tr = useT();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<UserWithRelationship[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,14 +40,14 @@ export default function SearchScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Find players' }} />
+      <Stack.Screen options={{ title: tr('friends.find') }} />
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.inner}>
           {!me ? (
             <DevSignIn />
           ) : (
             <>
-              <SearchField placeholder="Search by username" value={q} onChangeText={setQ} autoFocus returnKeyType="search" />
+              <SearchField placeholder={tr('friends.searchPlaceholder')} value={q} onChangeText={setQ} autoFocus returnKeyType="search" />
               {error && <Label muted>{error}</Label>}
               {results.length > 0 && (
                 <Card>
@@ -55,17 +57,17 @@ export default function SearchScreen() {
                       <UserRow
                         key={u.id}
                         user={u}
-                        subtitle={r.friend ? 'Friend' : r.followsYou ? 'Follows you' : undefined}
+                        subtitle={r.friend ? tr('friends.friend') : r.followsYou ? tr('friends.followsYou') : undefined}
                         onPress={() => router.push(`/friends/user/${u.id}`)}
                         right={
                           r.blocked ? (
-                            <Pill title="Unblock" onPress={act(() => socialApi.unblock(u.id))} />
+                            <Pill title={tr('friends.unblock')} onPress={act(() => socialApi.unblock(u.id))} />
                           ) : r.friend ? null : r.request === 'incoming' ? (
-                            <Pill variant="primary" title="Accept" onPress={act(() => socialApi.accept(u.id))} />
+                            <Pill variant="primary" title={tr('common.accept')} onPress={act(() => socialApi.accept(u.id))} />
                           ) : r.request === 'outgoing' ? (
-                            <Pill title="Requested" onPress={act(() => socialApi.cancel(u.id))} />
+                            <Pill title={tr('friends.requested')} onPress={act(() => socialApi.cancel(u.id))} />
                           ) : (
-                            <Pill variant="primary" title="Add friend" onPress={act(() => socialApi.sendRequest(u.id))} />
+                            <Pill variant="primary" title={tr('friends.addFriend')} onPress={act(() => socialApi.sendRequest(u.id))} />
                           )
                         }
                       />
@@ -73,7 +75,7 @@ export default function SearchScreen() {
                   })}
                 </Card>
               )}
-              {q.trim() && results.length === 0 && !error && <Label muted>No players found.</Label>}
+              {q.trim() && results.length === 0 && !error && <Label muted>{tr('friends.noResults')}</Label>}
             </>
           )}
         </View>

@@ -23,28 +23,18 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-nat
 import { Board } from '@/components/Board';
 import { useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { reasonText } from '@/components/play/GameOverCard';
 import { useTheme } from '@/constants/theme';
+import { translate, useT, type TKey } from '@/i18n';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 
-const NAMES: Record<Color, string> = { w: 'White', b: 'Black' };
+const NAMES: Record<Color, TKey> = { w: 'play.white', b: 'play.black' };
 const other = (c: Color): Color => (c === 'w' ? 'b' : 'w');
 
-const REASONS: Record<string, string> = {
-  checkmate: 'checkmate',
-  resignation: 'resignation',
-  timeout: 'time',
-  timeout_vs_insufficient: 'timeout vs insufficient material',
-  stalemate: 'stalemate',
-  insufficient_material: 'insufficient material',
-  threefold_repetition: 'threefold repetition',
-  fifty_move_rule: 'fifty-move rule',
-  draw_agreement: 'agreement',
-};
-
 function describe(o: GameOutcome): string {
-  const why = REASONS[o.reason] ?? o.reason.replace(/_/g, ' ');
-  return o.winner ? `${NAMES[o.winner]} wins by ${why}` : `Draw by ${why}`;
+  const why = reasonText(o.reason);
+  return o.winner ? translate('play.otb.wins', { color: translate(NAMES[o.winner]), reason: why }) : translate('play.otb.draw', { reason: why });
 }
 
 /** Flagging loses, unless the opponent cannot possibly mate. */
@@ -71,6 +61,7 @@ export default function OverTheBoard() {
   const [drawOffer, setDrawOffer] = useState<Color | null>(null);
   const size = useBoardSize(340);
   const t = useTheme();
+  const tr = useT();
 
   const running = !!clock?.running && !outcome;
   useTicker(running);
@@ -140,19 +131,19 @@ export default function OverTheBoard() {
     <View style={[styles.bar, rotated && styles.rotated]}>
       <View style={{ flexShrink: 1, gap: 6 }}>
         <Text style={[styles.name, { color: t.text }]}>
-          {NAMES[c]}
-          {started && !outcome && turn === c ? ' · to move' : ''}
+          {tr(NAMES[c])}
+          {started && !outcome && turn === c ? ` · ${tr('play.otb.toMoveShort')}` : ''}
         </Text>
         {started && !outcome && (
           <View style={styles.row}>
-            <SmallButton label="Resign" onPress={() => finish(outcomeFor('resignation', other(c)))} />
+            <SmallButton label={tr('play.resign')} onPress={() => finish(outcomeFor('resignation', other(c)))} />
             {drawOffer === other(c) ? (
               <>
-                <SmallButton label="Accept draw" strong onPress={() => finish(outcomeFor('draw_agreement', null))} />
-                <SmallButton label="Decline" onPress={() => setDrawOffer(null)} />
+                <SmallButton label={tr('play.otb.acceptDraw')} strong onPress={() => finish(outcomeFor('draw_agreement', null))} />
+                <SmallButton label={tr('common.decline')} onPress={() => setDrawOffer(null)} />
               </>
             ) : (
-              <SmallButton label={drawOffer === c ? 'Draw offered' : 'Offer draw'} onPress={() => setDrawOffer(c)} disabled={drawOffer === c || view.history.length < 2} />
+              <SmallButton label={drawOffer === c ? tr('play.otb.drawOffered') : tr('play.offerDraw')} onPress={() => setDrawOffer(c)} disabled={drawOffer === c || view.history.length < 2} />
             )}
           </View>
         )}
@@ -174,26 +165,26 @@ export default function OverTheBoard() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Over the board' }} />
+      <Stack.Screen options={{ title: tr('play.otb.title') }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={{ width: size, gap: 8 }}>
           {!started ? (
             <Card>
               <Label size={18} bold>
-                Play over the board
+                {tr('play.otb.heading')}
               </Label>
-              <Label muted>Two players, one device. Works offline.</Label>
-              <Label muted>Clock</Label>
+              <Label muted>{tr('play.otb.intro')}</Label>
+              <Label muted>{tr('play.otb.clock')}</Label>
               <View style={styles.wrap}>
-                <SmallButton label="No clock" strong={tc === null} onPress={() => setTc(null)} />
+                <SmallButton label={tr('play.otb.noClock')} strong={tc === null} onPress={() => setTc(null)} />
                 {PRESET_TIME_CONTROLS.map((p) => {
                   const key = formatTimeControl(p);
                   return <SmallButton key={key} label={key} strong={!!tc && formatTimeControl(tc) === key} onPress={() => setTc(p)} />;
                 })}
               </View>
-              <Toggle label="Face-to-face (device flat between players)" value={faceToFace} onChange={setFaceToFace} />
-              <Toggle label="Rotate board after each move" value={autoFlip && !faceToFace} onChange={setAutoFlip} disabled={faceToFace} />
-              <Button title="Start game" onPress={start} />
+              <Toggle label={tr('play.otb.faceToFace')} value={faceToFace} onChange={setFaceToFace} />
+              <Toggle label={tr('play.otb.rotate')} value={autoFlip && !faceToFace} onChange={setAutoFlip} disabled={faceToFace} />
+              <Button title={tr('play.startGame')} onPress={start} />
             </Card>
           ) : (
             <>
@@ -215,14 +206,14 @@ export default function OverTheBoard() {
                     {describe(outcome)}
                   </Label>
                 ) : (
-                  <Label muted>{view.history.length === 0 && clock ? 'Clocks start after White’s first move.' : `${NAMES[turn]} to move`}</Label>
+                  <Label muted>{view.history.length === 0 && clock ? tr('play.otb.clocksStart') : tr('play.toMove', { color: tr(NAMES[turn]) })}</Label>
                 )}
                 {view.history.length > 0 && (
                   <Label muted>{view.history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>
                 )}
                 <View style={styles.row}>
-                  {outcome && <Button title="Rematch" onPress={start} />}
-                  <Button variant="secondary" title={outcome ? 'Change settings' : 'Quit game'} onPress={() => setStarted(false)} />
+                  {outcome && <Button title={tr('play.over.rematch')} onPress={start} />}
+                  <Button variant="secondary" title={outcome ? tr('play.otb.changeSettings') : tr('play.otb.quit')} onPress={() => setStarted(false)} />
                 </View>
               </Card>
             </>

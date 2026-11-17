@@ -4,6 +4,7 @@ import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
 
 import { AppHeader } from './AppHeader';
@@ -27,6 +28,7 @@ export function AppShell() {
   const wide = width >= SIDEBAR_BREAKPOINT;
   const tab = useActiveTab();
   const tabBarSpace = useTabBarSpace();
+  const tr = useT();
 
   return (
     <Tabs style={styles.fill}>
@@ -42,7 +44,7 @@ export function AppShell() {
         <View style={[styles.fill, wide && styles.row]}>
           {wide && <Sidebar />}
           <View style={styles.fill}>
-            <AppHeader title={tab.title} withSidebar={wide} />
+            <AppHeader title={tr(tab.title)} withSidebar={wide} />
             <ShellInsetsContext value={{ bottom: wide ? 0 : tabBarSpace }}>
               <TabSlot style={styles.fill} />
             </ShellInsetsContext>

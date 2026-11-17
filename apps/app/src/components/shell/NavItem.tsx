@@ -3,6 +3,7 @@ import { useTabTrigger } from 'expo-router/ui';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import type { TabConfig } from '@/navigation/tabs';
 
 /**
@@ -11,6 +12,7 @@ import type { TabConfig } from '@/navigation/tabs';
  */
 export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'side' }) {
   const t = useTheme();
+  const tr = useT();
   const { trigger, triggerProps } = useTabTrigger({ name: tab.name });
   const focused = triggerProps.isFocused;
   // On web, give the item a real link so middle-click / open-in-new-tab work.
@@ -22,7 +24,7 @@ export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'si
         {...webProps}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
-        accessibilityLabel={tab.label}
+        accessibilityLabel={tr(tab.label)}
         onPress={triggerProps.onPress}
         onLongPress={triggerProps.onLongPress}
         style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.6 : 1 }]}>
@@ -30,7 +32,7 @@ export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'si
           <Ionicons name={focused ? tab.iconActive : tab.icon} size={21} color={focused ? t.onAccent : t.muted} />
         </View>
         <Text numberOfLines={1} style={[styles.barLabel, { color: focused ? t.text : t.muted, fontWeight: focused ? '700' : '500' }]}>
-          {tab.label}
+          {tr(tab.label)}
         </Text>
       </Pressable>
     );
@@ -48,7 +50,7 @@ export function NavItem({ tab, variant }: { tab: TabConfig; variant: 'bar' | 'si
         { backgroundColor: focused ? t.accent : hovered ? t.border : 'transparent', opacity: pressed ? 0.75 : 1 },
       ]}>
       <Ionicons name={focused ? tab.iconActive : tab.icon} size={20} color={focused ? t.onAccent : t.text} />
-      <Text style={[styles.sideLabel, { color: focused ? t.onAccent : t.text, fontWeight: focused ? '700' : '500' }]}>{tab.title}</Text>
+      <Text style={[styles.sideLabel, { color: focused ? t.onAccent : t.text, fontWeight: focused ? '700' : '500' }]}>{tr(tab.title)}</Text>
     </Pressable>
   );
 }

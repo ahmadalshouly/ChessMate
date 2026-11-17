@@ -10,11 +10,15 @@ import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { useSocialLive } from '@/lib/social/useSocialLive';
+import { reasonText } from '@/components/play/GameOverCard';
+import { translate, translateOr, useT, type TKey } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
 
 type Tab = 'friends' | 'requests' | 'feed';
 
 export default function FriendsScreen() {
   const me = useSocialIdentity();
+  const tr = useT();
   const [tab, setTab] = useState<Tab>('friends');
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [live, setLive] = useState<LiveGameEntry[]>([]);
@@ -36,7 +40,7 @@ export default function FriendsScreen() {
       setFeedNext(fd.next);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load friends');
+      setError(e instanceof Error ? e.message : translate('friends.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -71,7 +75,7 @@ export default function FriendsScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Friends' }} />
+      <Stack.Screen options={{ title: tr('home.friends.title') }} />
       <ScrollView contentContainerStyle={styles.page} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         <View style={styles.inner}>
           {!me ? (
@@ -82,39 +86,39 @@ export default function FriendsScreen() {
                 value={tab}
                 onChange={setTab}
                 tabs={[
-                  { key: 'friends', label: 'Friends' },
-                  { key: 'requests', label: 'Requests', badge: requests.incoming.length || undefined },
-                  { key: 'feed', label: 'Activity' },
+                  { key: 'friends', label: tr('home.friends.title') },
+                  { key: 'requests', label: tr('friends.tabs.requests'), badge: requests.incoming.length || undefined },
+                  { key: 'feed', label: tr('friends.tabs.activity') },
                 ]}
               />
-              {error && <Label muted>{error}</Label>}
+              {error && <Label muted>{serverText(error)}</Label>}
 
               {tab === 'friends' && (
                 <>
-                  <Button variant="secondary" title="Find players" onPress={() => router.push('/friends/search')} />
+                  <Button variant="secondary" title={tr('friends.find')} onPress={() => router.push('/friends/search')} />
                   {live.length > 0 && (
                     <Card>
                       <Label size={18} bold>
-                        Live now
+                        {tr('home.stats.live')}
                       </Label>
                       {live.map((g) => (
                         <View key={g.gameId} style={styles.liveRow}>
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Label bold>
-                              {g.white.displayName} ({g.white.rating}) vs {g.black.displayName} ({g.black.rating})
+                              {tr('friends.liveGame', { white: `${g.white.displayName} (${g.white.rating})`, black: `${g.black.displayName} (${g.black.rating})` })}
                             </Label>
                             <Label muted size={13}>
-                              {formatTimeControl(g.timeControl)} · {g.rated ? 'Rated' : 'Casual'}
+                              {formatTimeControl(g.timeControl)} · {g.rated ? tr('play.rated') : tr('play.casual')}
                             </Label>
                           </View>
-                          <Pill variant="primary" title="Watch" onPress={() => router.push(`/watch/${g.gameId}`)} />
+                          <Pill variant="primary" title={tr('friends.watch')} onPress={() => router.push(`/watch/${g.gameId}`)} />
                         </View>
                       ))}
                     </Card>
                   )}
                   <Card>
                     {friends.length === 0 ? (
-                      <Label muted>No friends yet. Find players by username and send a request.</Label>
+                      <Label muted>{tr('friends.none')}</Label>
                     ) : (
                       friends.map((f) => (
                         <UserRow
@@ -124,7 +128,7 @@ export default function FriendsScreen() {
                           onPress={() => router.push(`/friends/user/${f.user.id}`)}
                           right={
                             f.presence.status === 'playing' && f.presence.gameId ? (
-                              <Pill title="Watch" onPress={() => router.push(`/watch/${f.presence.gameId}`)} />
+                              <Pill title={tr('friends.watch')} onPress={() => router.push(`/watch/${f.presence.gameId}`)} />
                             ) : undefined
                           }
                         />
@@ -132,7 +136,7 @@ export default function FriendsScreen() {
                     )}
                   </Card>
                   <View style={{ alignItems: 'flex-start' }}>
-                    <Pill title="Blocked players" onPress={() => router.push('/friends/blocked')} />
+                    <Pill title={tr('friends.blocked')} onPress={() => router.push('/friends/blocked')} />
                   </View>
                 </>
               )}
@@ -141,19 +145,19 @@ export default function FriendsScreen() {
                 <>
                   <Card>
                     <Label size={18} bold>
-                      Received
+                      {tr('friends.received')}
                     </Label>
-                    {requests.incoming.length === 0 && <Label muted>No pending requests.</Label>}
+                    {requests.incoming.length === 0 && <Label muted>{tr('friends.noPending')}</Label>}
                     {requests.incoming.map((r) => (
                       <UserRow
                         key={r.user.id}
                         user={r.user}
-                        subtitle={`Sent ${timeAgo(r.createdAt)}`}
+                        subtitle={tr('friends.sentAgo', { ago: timeAgo(r.createdAt) })}
                         onPress={() => router.push(`/friends/user/${r.user.id}`)}
                         right={
                           <>
-                            <Pill variant="primary" title="Accept" onPress={act(() => socialApi.accept(r.user.id))} />
-                            <Pill title="Decline" onPress={act(() => socialApi.decline(r.user.id))} />
+                            <Pill variant="primary" title={tr('common.accept')} onPress={act(() => socialApi.accept(r.user.id))} />
+                            <Pill title={tr('common.decline')} onPress={act(() => socialApi.decline(r.user.id))} />
                           </>
                         }
                       />
@@ -161,15 +165,15 @@ export default function FriendsScreen() {
                   </Card>
                   <Card>
                     <Label size={18} bold>
-                      Sent
+                      {tr('friends.sent')}
                     </Label>
-                    {requests.outgoing.length === 0 && <Label muted>You have no requests waiting.</Label>}
+                    {requests.outgoing.length === 0 && <Label muted>{tr('friends.noneWaiting')}</Label>}
                     {requests.outgoing.map((r) => (
                       <UserRow
                         key={r.user.id}
                         user={r.user}
-                        subtitle={`Sent ${timeAgo(r.createdAt)}`}
-                        right={<Pill title="Cancel" onPress={act(() => socialApi.cancel(r.user.id))} />}
+                        subtitle={tr('friends.sentAgo', { ago: timeAgo(r.createdAt) })}
+                        right={<Pill title={tr('common.cancel')} onPress={act(() => socialApi.cancel(r.user.id))} />}
                       />
                     ))}
                   </Card>
@@ -178,11 +182,11 @@ export default function FriendsScreen() {
 
               {tab === 'feed' && (
                 <Card>
-                  {feed.length === 0 && <Label muted>Games and new friendships from your network show up here.</Label>}
+                  {feed.length === 0 && <Label muted>{tr('friends.feedEmpty')}</Label>}
                   {feed.map((item) => (
                     <FeedRow key={item.id} item={item} meId={me.userId} />
                   ))}
-                  {feedNext && <Pill title="Load more" onPress={() => void loadMore()} />}
+                  {feedNext && <Pill title={tr('friends.loadMore')} onPress={() => void loadMore()} />}
                 </Card>
               )}
             </>
@@ -193,39 +197,41 @@ export default function FriendsScreen() {
   );
 }
 
-const REASON: Record<string, string> = {
-  checkmate: 'by checkmate',
-  resignation: 'by resignation',
-  timeout: 'on time',
-  abandoned: 'by abandonment',
-  stalemate: 'by stalemate',
-  draw_agreement: 'by agreement',
-  threefold_repetition: 'by repetition',
-  fifty_move_rule: 'by the 50-move rule',
-  insufficient_material: 'by insufficient material',
-};
+type Person = { id: string; displayName: string };
+
+/**
+ * "{a} beat {b}" with the viewer's own name swapped for "You"/"you". Languages conjugate
+ * differently for "you", so each verb has `you…` (viewer is the subject) and `…You`
+ * (viewer is the object) variants.
+ */
+function feedSentence(verb: 'beat' | 'drew' | 'friends' | 'followed', a: Person, b: Person, meId: string | null): string {
+  const key = (suffix: string) => `friends.feed.${verb}${suffix}` as TKey;
+  if (a.id === meId) return translate(key('Subject'), { b: b.displayName });
+  if (b.id === meId) return translate(key('Object'), { a: a.displayName });
+  return translate(key(''), { a: a.displayName, b: b.displayName });
+}
 
 function FeedRow({ item, meId }: { item: FeedItem; meId: string | null }) {
-  const name = (u: { id: string; displayName: string }, first = true) => (u.id === meId ? (first ? 'You' : 'you') : u.displayName);
   let text: string;
   let who = item.kind === 'game' ? item.white : item.kind === 'friendship' ? item.a : item.follower;
   switch (item.kind) {
     case 'game': {
       const verdict =
         item.result === '1/2-1/2'
-          ? `${name(item.white)} drew with ${name(item.black, false)}`
+          ? feedSentence('drew', item.white, item.black, meId)
           : item.result === '1-0'
-            ? `${name(item.white)} beat ${name(item.black, false)}`
-            : `${name(item.black)} beat ${name(item.white, false)}`;
+            ? feedSentence('beat', item.white, item.black, meId)
+            : feedSentence('beat', item.black, item.white, meId);
       if (item.result === '0-1') who = item.black;
-      text = `${verdict} ${REASON[item.reason] ?? ''} · ${item.category}${item.rated ? ', rated' : ''}`;
+      const category = translateOr(`common.category.${item.category}`, item.category);
+      text = `${verdict} ${reasonText(item.reason)} · ${item.rated ? translate('friends.feed.categoryRated', { category }) : category}`;
       break;
     }
     case 'friendship':
-      text = `${name(item.a)} and ${name(item.b, false)} are now friends`;
+      text = feedSentence('friends', item.a, item.b, meId);
       break;
     case 'follow':
-      text = `${name(item.follower)} followed ${name(item.followee, false)}`;
+      text = feedSentence('followed', item.follower, item.followee, meId);
       break;
   }
   return (

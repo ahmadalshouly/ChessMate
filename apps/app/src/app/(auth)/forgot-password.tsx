@@ -6,6 +6,7 @@ import { TextField } from '@/components/auth/TextField';
 import { Button, Label } from '@/components/ui';
 import { authApi, validateEmail } from '@/lib/auth';
 import { toFormError } from '@/lib/auth/errors';
+import { useT } from '@/i18n';
 
 export default function ForgotPassword() {
   const { email: prefill } = useLocalSearchParams<{ email?: string }>();
@@ -14,6 +15,7 @@ export default function ForgotPassword() {
   const [formError, setFormError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const tr = useT();
 
   async function submit() {
     const v = email.trim();
@@ -35,35 +37,35 @@ export default function ForgotPassword() {
   if (sentTo) {
     return (
       <AuthShell
-        title="Check your email"
+        title={tr('auth.forgot.checkEmail')}
         footer={
           <Label muted>
-            <TextLink title="Back to sign in" onPress={() => router.replace('/sign-in')} />
+            <TextLink title={tr('auth.backToSignIn')} onPress={() => router.replace('/sign-in')} />
           </Label>
         }>
         <FormMessage kind="info">
-          If an account exists for {sentTo}, we've sent a link to reset your password. It expires in an hour.
+          {tr('auth.forgot.sent', { email: sentTo })}
         </FormMessage>
         <Label muted size={14}>
-          Nothing arrived? Check spam, or try again in a minute.
+          {tr('auth.forgot.nothing')}
         </Label>
-        <Button title="Send again" variant="secondary" onPress={() => setSentTo(null)} />
+        <Button title={tr('auth.forgot.sendAgain')} variant="secondary" onPress={() => setSentTo(null)} />
       </AuthShell>
     );
   }
 
   return (
     <AuthShell
-      title="Reset your password"
-      subtitle="Enter the email on your account and we'll send you a reset link."
+      title={tr('auth.forgot.title')}
+      subtitle={tr('auth.forgot.subtitle')}
       footer={
         <Label muted>
-          Remembered it? <TextLink title="Sign in" onPress={() => router.replace('/sign-in')} />
+          {tr('auth.forgot.remembered')} <TextLink title={tr('auth.signIn')} onPress={() => router.replace('/sign-in')} />
         </Label>
       }>
       {formError ? <FormMessage kind="error">{formError}</FormMessage> : null}
       <TextField
-        label="Email"
+        label={tr('auth.email')}
         value={email}
         onChangeText={setEmail}
         error={error}
@@ -74,7 +76,7 @@ export default function ForgotPassword() {
         returnKeyType="send"
         onSubmitEditing={submit}
       />
-      <Button title={busy ? 'Sending…' : 'Send reset link'} onPress={submit} disabled={busy} />
+      <Button title={busy ? tr('auth.forgot.busy') : tr('auth.forgot.submit')} onPress={submit} disabled={busy} />
     </AuthShell>
   );
 }

@@ -2,16 +2,20 @@ import type { AppNotification } from '@chessmate/core';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
+import { notificationText } from '@/i18n/notifications';
 
 import { KIND_GLYPH, timeAgo } from './format';
 
 export function NotificationRow({ n, onPress, onRemove }: { n: AppNotification; onPress: () => void; onRemove: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const unread = n.readAt === null;
+  const { title, body } = notificationText(n);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${unread ? 'Unread. ' : ''}${n.title}. ${n.body}`}
+      accessibilityLabel={`${unread ? `${tr('notifications.unread')} ` : ''}${title}. ${body}`}
       onPress={onPress}
       style={({ pressed }) => [styles.row, { borderColor: t.border, backgroundColor: pressed ? t.border : 'transparent' }]}>
       <View style={[styles.avatar, { backgroundColor: unread ? t.accent : t.surface, borderColor: t.glassBorder }]}>
@@ -20,16 +24,16 @@ export function NotificationRow({ n, onPress, onRemove }: { n: AppNotification; 
       <View style={styles.text}>
         <View style={styles.titleLine}>
           <Text numberOfLines={1} style={[styles.title, { color: t.text, fontWeight: unread ? '700' : '500' }]}>
-            {n.title}
+            {title}
           </Text>
           <Text style={[styles.time, { color: t.muted }]}>{timeAgo(n.createdAt)}</Text>
         </View>
         <Text numberOfLines={2} style={{ color: unread ? t.text : t.muted, fontSize: 14, lineHeight: 19 }}>
-          {n.body}
+          {body}
         </Text>
       </View>
       {unread && <View style={[styles.dot, { backgroundColor: t.accent }]} />}
-      <Pressable accessibilityRole="button" accessibilityLabel="Remove notification" hitSlop={8} onPress={onRemove} style={styles.remove}>
+      <Pressable accessibilityRole="button" accessibilityLabel={tr('notifications.remove')} hitSlop={8} onPress={onRemove} style={styles.remove}>
         <Text style={{ color: t.muted, fontSize: 18 }}>×</Text>
       </Pressable>
     </Pressable>

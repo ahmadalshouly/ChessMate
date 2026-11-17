@@ -11,11 +11,13 @@ import {
   type LeaderboardEntry,
   type LeaderboardScope,
 } from '@/lib/leaderboardApi';
+import { formatNumber, translate, useT, type TKey } from '@/i18n';
+import { countryLabel } from '@/i18n/chess';
 
-const SCOPES: { key: LeaderboardScope; label: string }[] = [
-  { key: 'global', label: 'Global' },
-  { key: 'country', label: 'Country' },
-  { key: 'friends', label: 'Friends' },
+const SCOPES: { key: LeaderboardScope; label: TKey }[] = [
+  { key: 'global', label: 'leaderboard.global' },
+  { key: 'country', label: 'profile.country.label' },
+  { key: 'friends', label: 'home.friends.title' },
 ];
 
 /**
@@ -26,6 +28,7 @@ const useSessionToken = (): string | null => null;
 
 export default function LeaderboardScreen() {
   const t = useTheme();
+  const tr = useT();
   const token = useSessionToken();
   const [category, setCategory] = useState<TimeCategory>('blitz');
   const [scope, setScope] = useState<LeaderboardScope>('global');
@@ -36,16 +39,16 @@ export default function LeaderboardScreen() {
   const header = (
     <View style={styles.headerWrap}>
       <Segmented
-        options={LEADERBOARD_CATEGORIES.map((c) => ({ key: c, label: c[0]!.toUpperCase() + c.slice(1) }))}
+        options={LEADERBOARD_CATEGORIES.map((c) => ({ key: c, label: tr(`common.category.${c}`) }))}
         value={category}
         onChange={setCategory}
       />
-      <Segmented options={SCOPES} value={scope} onChange={setScope} />
+      <Segmented options={SCOPES.map((o) => ({ ...o, label: tr(o.label) }))} value={scope} onChange={setScope} />
       {scope === 'country' && (
         <TextInput
           value={countryInput}
           onChangeText={(v) => setCountryInput(v.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase())}
-          placeholder={page?.country ? `Country code (yours: ${page.country})` : 'Country code, e.g. US'}
+          placeholder={page?.country ? tr('leaderboard.codeYours', { code: page.country }) : tr('leaderboard.codeExample')}
           placeholderTextColor={t.muted}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -54,14 +57,15 @@ export default function LeaderboardScreen() {
       )}
       {page?.you && (
         <Card>
-          <Text style={[styles.caption, { color: t.muted }]}>Your standing</Text>
+          <Text style={[styles.caption, { color: t.muted }]}>{tr('leaderboard.standing')}</Text>
           <Row entry={page.you} highlight />
         </Card>
       )}
       {page && (
         <Text style={[styles.caption, { color: t.muted }]}>
-          {page.total.toLocaleString()} ranked {page.total === 1 ? 'player' : 'players'}
-          {page.country ? ` in ${countryFlag(page.country)} ${page.country}` : ''}
+          {page.country
+            ? tr('leaderboard.rankedIn', { count: page.total, n: formatNumber(page.total), country: `${countryFlag(page.country)} ${countryLabel(page.country) ?? page.country}` })
+            : tr('leaderboard.ranked', { count: page.total, n: formatNumber(page.total) })}
         </Text>
       )}
     </View>
@@ -88,15 +92,15 @@ export default function LeaderboardScreen() {
               <ActivityIndicator color={t.text} style={{ marginTop: 32 }} />
             ) : (
               <Card>
-                <Label bold>{error ? emptyTitle(error.status, scope) : 'No ranked players yet'}</Label>
+                <Label bold>{error ? emptyTitle(error.status, scope) : tr('leaderboard.empty')}</Label>
                 <Label muted>
                   {error
                     ? error.message
                     : scope === 'friends'
-                      ? 'Add friends and play rated games to see how you compare.'
-                      : 'Players appear here once their rating settles after a few rated games.'}
+                      ? tr('leaderboard.emptyFriends')
+                      : tr('leaderboard.emptyBody')}
                 </Label>
-                {error?.status === 0 && <Button variant="secondary" title="Try again" onPress={refresh} />}
+                {error?.status === 0 && <Button variant="secondary" title={tr('common.tryAgain')} onPress={refresh} />}
               </Card>
             )}
           </View>
@@ -108,19 +112,20 @@ export default function LeaderboardScreen() {
 }
 
 function emptyTitle(status: number, scope: LeaderboardScope) {
-  if (status === 401) return 'Sign in to see friends';
-  if (status === 400 && scope === 'country') return 'Choose a country';
-  return 'Leaderboard unavailable';
+  if (status === 401) return translate('leaderboard.signInFriends');
+  if (status === 400 && scope === 'country') return translate('leaderboard.chooseCountry');
+  return translate('leaderboard.unavailable');
 }
 
 function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const podium = entry.rank <= 3;
   return (
     <View
       style={[styles.row, { borderColor: highlight ? t.text : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface }]}
       accessible
-      accessibilityLabel={`Rank ${entry.rank}, ${entry.displayName}, rating ${entry.rating}`}>
+      accessibilityLabel={tr('leaderboard.rowA11y', { rank: entry.rank, name: entry.displayName, rating: entry.rating })}>
       <View style={[styles.rank, podium && { backgroundColor: t.accent }]}>
         <Text style={[styles.rankText, { color: podium ? t.onAccent : t.muted }]}>{entry.rank}</Text>
       </View>
@@ -131,7 +136,7 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
         </Text>
         <Text style={[styles.sub, { color: t.muted }]} numberOfLines={1}>
           @{entry.username}
-          {entry.games > 0 ? ` · ${entry.games} games · ${entry.wins}W ${entry.draws}D ${entry.losses}L` : ''}
+          {entry.games > 0 ? ` · ${tr('leaderboard.games', { count: entry.games })} · ${entry.wins}${tr('profile.w')} ${entry.draws}${tr('profile.d')} ${entry.losses}${tr('profile.l')}` : ''}
         </Text>
       </View>
       <View style={styles.score}>
@@ -139,7 +144,7 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
           {entry.rating}
           {entry.provisional ? '?' : ''}
         </Text>
-        <Text style={[styles.sub, { color: t.muted }]}>peak {entry.peak}</Text>
+        <Text style={[styles.sub, { color: t.muted }]}>{tr('leaderboard.peak', { n: entry.peak })}</Text>
       </View>
     </View>
   );

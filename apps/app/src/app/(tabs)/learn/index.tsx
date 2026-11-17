@@ -1,16 +1,18 @@
 import { ComingSoon } from '@/components/shell/ComingSoon';
+import { useT } from '@/i18n';
 
 export default function Learn() {
+  const tr = useT();
   return (
     <ComingSoon
       icon="school"
-      title="Learn & Coach"
-      blurb="An AI coach that explains the why behind every move, plus lessons that build on each other."
+      title={tr('learn.soon.title')}
+      blurb={tr('learn.soon.blurb')}
       features={[
-        { icon: 'sparkles-outline', title: 'AI coach', text: 'Ask about any position and get a plain-language answer.' },
-        { icon: 'analytics-outline', title: 'Game review', text: 'Engine evaluation, best moves and your key mistakes.' },
-        { icon: 'book-outline', title: 'Lessons', text: 'Openings, middlegame plans and endgame technique.' },
-        { icon: 'warning-outline', title: 'Threat trainer', text: 'Learn to spot what your opponent is threatening.' },
+        { icon: 'sparkles-outline', title: tr('learn.soon.coach'), text: tr('learn.soon.coachText') },
+        { icon: 'analytics-outline', title: tr('learn.soon.review'), text: tr('learn.soon.reviewText') },
+        { icon: 'book-outline', title: tr('learn.soon.lessons'), text: tr('learn.soon.lessonsText') },
+        { icon: 'warning-outline', title: tr('learn.soon.threats'), text: tr('learn.soon.threatsText') },
       ]}
     />
   );

@@ -1,4 +1,4 @@
-import { countryFlag, countryName, type PublicProfile, type RatingPoint, type RecentGame, type TimeCategory } from '@chessmate/core';
+import { countryFlag, type PublicProfile, type RatingPoint, type RecentGame, type TimeCategory } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,16 +6,20 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useAccountSession } from '@/features/account/session';
+import { formatDate, translate, useT } from '@/i18n';
+import { countryLabel } from '@/i18n/chess';
+import { reasonText } from '@/components/play/GameOverCard';
 
 import { Avatar } from './Avatar';
 import { Divider, Segmented, SectionTitle } from './controls';
 import { RatingGraph } from './RatingGraph';
 
-const CATEGORY_LABEL: Record<TimeCategory, string> = { bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid', classical: 'Classical', correspondence: 'Daily' };
+const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
 
 /** Loads and shows a profile. `username` null means the signed-in player. */
 export function ProfileView({ username }: { username: string | null }) {
   const session = useAccountSession();
+  const tr = useT();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -40,15 +44,23 @@ export function ProfileView({ username }: { username: string | null }) {
           {!username && !session.signedIn ? (
             <Card>
               <Label size={18} bold>
-                Sign in to see your profile
+                {tr('profile.signInTitle')}
               </Label>
-              <Label muted>Your ratings, stats and game history live on your account.</Label>
+              <Label muted>{tr('profile.signInBody')}</Label>
+              <View style={styles.actions}>
+                <View style={{ flex: 1 }}>
+                  <Button title={tr('auth.signIn')} onPress={() => router.push('/sign-in')} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button variant="secondary" title={tr('settings.title')} onPress={() => router.push('/settings')} />
+                </View>
+              </View>
             </Card>
           ) : error ? (
             <Card>
-              <Label bold>Couldn't load this profile</Label>
+              <Label bold>{tr('profile.loadFailed')}</Label>
               <Label muted>{error}</Label>
-              <Button variant="secondary" title="Try again" onPress={() => setReload((n) => n + 1)} />
+              <Button variant="secondary" title={tr('common.tryAgain')} onPress={() => setReload((n) => n + 1)} />
             </Card>
           ) : !profile ? (
             <ActivityIndicator style={{ marginTop: 48 }} />
@@ -63,10 +75,11 @@ export function ProfileView({ username }: { username: string | null }) {
 
 function ProfileBody({ profile }: { profile: PublicProfile }) {
   const t = useTheme();
+  const tr = useT();
   const played = profile.ratings.filter((r) => r.games > 0);
   const [category, setCategory] = useState<TimeCategory>((played.sort((a, b) => b.games - a.games)[0]?.category as TimeCategory) ?? 'blitz');
-  const country = countryName(profile.country);
-  const joined = new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const country = countryLabel(profile.country);
+  const joined = formatDate(profile.createdAt, { month: 'long', year: 'numeric' });
   const { totals } = profile;
 
   return (
@@ -83,23 +96,23 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
               {profile.online !== null && (
                 <View style={styles.meta}>
                   <View style={[styles.onlineDot, { backgroundColor: profile.online ? '#2FBF71' : t.muted }]} />
-                  <Text style={{ color: t.muted }}>{profile.online ? 'Online' : 'Offline'}</Text>
+                  <Text style={{ color: t.muted }}>{profile.online ? tr('profile.online') : tr('play.offline')}</Text>
                 </View>
               )}
             </View>
             <Text style={{ color: t.muted }}>
-              {country ? `${countryFlag(profile.country)} ${country} · ` : ''}Joined {joined}
+              {country ? `${countryFlag(profile.country)} ${country} · ` : ''}{tr('profile.joined', { date: joined })}
             </Text>
           </View>
         </View>
-        {profile.bio ? <Label>{profile.bio}</Label> : profile.isMe ? <Label muted>Add a short bio so opponents know who they're playing.</Label> : null}
+        {profile.bio ? <Label>{profile.bio}</Label> : profile.isMe ? <Label muted>{tr('profile.addBio')}</Label> : null}
         {profile.isMe && (
           <View style={styles.actions}>
             <View style={{ flex: 1 }}>
-              <Button variant="secondary" title="Edit profile" onPress={() => router.push('/profile/edit')} />
+              <Button variant="secondary" title={tr('profile.edit')} onPress={() => router.push('/profile/edit')} />
             </View>
             <View style={{ flex: 1 }}>
-              <Button variant="secondary" title="Settings" onPress={() => router.push('/settings')} />
+              <Button variant="secondary" title={tr('settings.title')} onPress={() => router.push('/settings')} />
             </View>
           </View>
         )}
@@ -115,34 +128,34 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
               accessibilityState={{ selected: on }}
               onPress={() => setCategory(r.category)}
               style={[styles.tile, { borderColor: on ? t.text : t.glassBorder, backgroundColor: t.surface }]}>
-              <Text style={[styles.tileLabel, { color: t.muted }]}>{CATEGORY_LABEL[r.category]}</Text>
+              <Text style={[styles.tileLabel, { color: t.muted }]}>{categoryLabel(r.category)}</Text>
               <Text style={[styles.tileValue, { color: t.text }]}>
                 {r.rating}
                 {r.provisional ? '?' : ''}
               </Text>
-              <Text style={{ color: t.muted, fontSize: 12 }}>{r.games === 0 ? 'Unrated' : `${r.games} games · peak ${r.peak}`}</Text>
+              <Text style={{ color: t.muted, fontSize: 12 }}>{r.games === 0 ? tr('nav.unrated') : tr('profile.gamesPeak', { count: r.games, peak: r.peak })}</Text>
             </Pressable>
           );
         })}
       </View>
 
       <Card>
-        <SectionTitle>{`${CATEGORY_LABEL[category]} rating`}</SectionTitle>
+        <SectionTitle>{tr('profile.categoryRating', { category: categoryLabel(category) })}</SectionTitle>
         <RatingHistory username={profile.username} category={category} />
       </Card>
 
       <Card>
-        <SectionTitle>All games</SectionTitle>
+        <SectionTitle>{tr('profile.allGames')}</SectionTitle>
         <ResultBar wins={totals.wins} draws={totals.draws} losses={totals.losses} />
         <StatsByCategory profile={profile} />
       </Card>
 
       <Card>
-        <SectionTitle>Recent games</SectionTitle>
+        <SectionTitle>{tr('profile.recentGames')}</SectionTitle>
         {profile.recentGames === null ? (
-          <Label muted>{profile.displayName} keeps their games private.</Label>
+          <Label muted>{tr('profile.gamesPrivate', { name: profile.displayName })}</Label>
         ) : profile.recentGames.length === 0 ? (
-          <Label muted>No finished games yet.</Label>
+          <Label muted>{tr('profile.noGames')}</Label>
         ) : (
           profile.recentGames.map((g, i) => (
             <View key={g.id} style={{ gap: 10 }}>
@@ -177,12 +190,13 @@ function RatingHistory({ username, category }: { username: string; category: Tim
 
 function ResultBar({ wins, draws, losses }: { wins: number; draws: number; losses: number }) {
   const t = useTheme();
+  const tr = useT();
   const total = wins + draws + losses;
   const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100));
   const parts = [
-    { label: 'Won', n: wins, color: t.text },
-    { label: 'Drawn', n: draws, color: t.muted },
-    { label: 'Lost', n: losses, color: t.border },
+    { label: tr('profile.won'), n: wins, color: t.text },
+    { label: tr('profile.drawn'), n: draws, color: t.muted },
+    { label: tr('profile.lost'), n: losses, color: t.border },
   ];
   return (
     <View style={{ gap: 10 }}>
@@ -208,20 +222,21 @@ function ResultBar({ wins, draws, losses }: { wins: number; draws: number; losse
 
 function StatsByCategory({ profile }: { profile: PublicProfile }) {
   const t = useTheme();
+  const tr = useT();
   const rows = profile.ratings.filter((r) => r.games > 0);
   if (rows.length === 0) return null;
   return (
     <View style={{ gap: 6, marginTop: 4 }}>
       <View style={styles.statRow}>
-        {['', 'Games', 'W', 'D', 'L'].map((h) => (
-          <Text key={h} style={[styles.statCell, h === '' && styles.statFirst, { color: t.muted, fontSize: 12, fontWeight: '600' }]}>
+        {['', tr('profile.games'), tr('profile.w'), tr('profile.d'), tr('profile.l')].map((h, i) => (
+          <Text key={i} style={[styles.statCell, h === '' && styles.statFirst, { color: t.muted, fontSize: 12, fontWeight: '600' }]}>
             {h}
           </Text>
         ))}
       </View>
       {rows.map((r) => (
         <View key={r.category} style={styles.statRow}>
-          {[CATEGORY_LABEL[r.category], r.games, r.wins, r.draws, r.losses].map((v, i) => (
+          {[categoryLabel(r.category), r.games, r.wins, r.draws, r.losses].map((v, i) => (
             <Text key={i} style={[styles.statCell, i === 0 && styles.statFirst, { color: t.text }]}>
               {v}
             </Text>
@@ -232,24 +247,11 @@ function StatsByCategory({ profile }: { profile: PublicProfile }) {
   );
 }
 
-const REASON: Record<string, string> = {
-  checkmate: 'checkmate',
-  resignation: 'resignation',
-  timeout: 'time',
-  timeout_vs_insufficient: 'time vs insufficient material',
-  stalemate: 'stalemate',
-  insufficient_material: 'insufficient material',
-  threefold_repetition: 'repetition',
-  fifty_move_rule: '50-move rule',
-  draw_agreement: 'agreement',
-  abandoned: 'abandonment',
-  aborted: 'aborted',
-};
-
 function GameRow({ game }: { game: RecentGame }) {
   const t = useTheme();
-  const mark = game.outcome === 'win' ? 'W' : game.outcome === 'loss' ? 'L' : 'D';
-  const when = new Date(game.endedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const tr = useT();
+  const mark = game.outcome === 'win' ? tr('profile.w') : game.outcome === 'loss' ? tr('profile.l') : tr('profile.d');
+  const when = formatDate(game.endedAt, { day: 'numeric', month: 'short' });
   return (
     <View style={styles.game}>
       <View
@@ -262,10 +264,11 @@ function GameRow({ game }: { game: RecentGame }) {
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: t.text, fontSize: 15 }} numberOfLines={1}>
           <Text style={{ color: t.muted }}>{game.color === 'w' ? '○ ' : '● '}</Text>
-          vs {game.opponent.username} <Text style={{ color: t.muted }}>({game.opponent.rating})</Text>
+          {tr('profile.vs', { name: game.opponent.username })} <Text style={{ color: t.muted }}>({game.opponent.rating})</Text>
         </Text>
         <Text style={{ color: t.muted, fontSize: 13 }}>
-          {game.timeControl} {CATEGORY_LABEL[game.category].toLowerCase()} · {game.outcome === 'draw' ? 'draw' : `${game.outcome === 'win' ? 'won' : 'lost'}`} by {REASON[game.reason] ?? game.reason} · {game.moves} moves · {when}
+          {game.timeControl} {categoryLabel(game.category)} · {tr(game.outcome === 'draw' ? 'profile.resultDraw' : game.outcome === 'win' ? 'profile.resultWon' : 'profile.resultLost')}{' '}
+          {reasonText(game.reason)} · {tr('profile.moves', { count: game.moves })} · {when}
         </Text>
       </View>
       {game.rated && game.ratingDelta !== null && (

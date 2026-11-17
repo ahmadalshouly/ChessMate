@@ -3,17 +3,19 @@ import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { serverText } from '@/i18n/serverMessages';
 import { useTicker } from '@/components/PlayerBar';
 import { Pill, Row, Segmented, Stepper, Tile } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { isGuest, playClient, usePlay } from '@/lib/playClient';
+import { useT, type TKey } from '@/i18n';
 
-const GROUPS: { name: string; controls: string[] }[] = [
-  { name: 'Bullet', controls: ['1+0', '1+1', '2+1'] },
-  { name: 'Blitz', controls: ['3+0', '3+2', '5+0', '5+3'] },
-  { name: 'Rapid', controls: ['10+0', '10+5', '15+10'] },
-  { name: 'Classical', controls: ['30+0', '30+20'] },
+const GROUPS: { name: TKey; controls: string[] }[] = [
+  { name: 'common.category.bullet', controls: ['1+0', '1+1', '2+1'] },
+  { name: 'common.category.blitz', controls: ['3+0', '3+2', '5+0', '5+3'] },
+  { name: 'common.category.rapid', controls: ['10+0', '10+5', '15+10'] },
+  { name: 'common.category.classical', controls: ['30+0', '30+20'] },
 ];
 
 const MINUTES = [0.5, 1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 30, 45, 60, 90, 120, 180];
@@ -23,6 +25,7 @@ type Window = 0 | 100 | 200 | 400;
 
 export default function Lobby() {
   const s = usePlay();
+  const tr = useT();
   const guest = isGuest(s.me);
   const [tcKey, setTcKey] = useState('5+0');
   const [custom, setCustom] = useState({ min: 7, inc: 2 });
@@ -61,23 +64,23 @@ export default function Lobby() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Play' }} />
+      <Stack.Screen options={{ title: tr('nav.play') }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           <View style={styles.header}>
             <Label size={28} bold>
-              Play
+              {tr('nav.play')}
             </Label>
             <Row>
-              <Pill text={s.connection === 'online' ? `${s.lobby?.online ?? 0} online` : s.connection === 'connecting' ? 'Connecting…' : 'Offline'} />
-              {s.lobby ? <Pill text={`${s.lobby.playing} playing`} /> : null}
+              <Pill text={s.connection === 'online' ? tr('play.lobby.online', { count: s.lobby?.online ?? 0 }) : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline')} />
+              {s.lobby ? <Pill text={tr('play.lobby.playing', { count: s.lobby.playing })} /> : null}
             </Row>
           </View>
 
           {liveGameId && (
             <Card>
-              <Label bold>You have a game in progress.</Label>
-              <Button title="Resume game" onPress={() => router.push('/play/online')} />
+              <Label bold>{tr('play.lobby.inProgress')}</Label>
+              <Button title={tr('play.lobby.resume')} onPress={() => router.push('/play/online')} />
             </Card>
           )}
 
@@ -86,26 +89,26 @@ export default function Lobby() {
           {s.openGame && (
             <Card>
               <Label bold>
-                Waiting for someone to join your {formatTimeControl(s.openGame.timeControl)} {s.openGame.rated ? 'rated' : 'casual'} game…
+                {tr(s.openGame.rated ? 'play.lobby.waitingRated' : 'play.lobby.waitingCasual', { tc: formatTimeControl(s.openGame.timeControl) })}
               </Label>
-              <Label muted>It is listed under Open games below. Keep this screen open.</Label>
-              <Button variant="secondary" title="Cancel" onPress={() => playClient.cancelOpenGame()} />
+              <Label muted>{tr('play.lobby.listedBelow')}</Label>
+              <Button variant="secondary" title={tr('common.cancel')} onPress={() => playClient.cancelOpenGame()} />
             </Card>
           )}
 
           <Card>
             <Label size={18} bold>
-              Time control
+              {tr('play.lobby.timeControl')}
             </Label>
             {GROUPS.map((g) => (
               <View key={g.name} style={{ gap: 6 }}>
-                <Label muted>{g.name}</Label>
+                <Label muted>{tr(g.name)}</Label>
                 <View style={styles.grid}>
                   {g.controls.map((key) => {
                     const n = poolCount(key);
                     return (
                       <View key={key} style={[styles.cell, { width: `${100 / g.controls.length}%` }]}>
-                        <Tile title={key} caption={n > 0 ? `${n} waiting` : g.name} selected={tcKey === key} onPress={() => setTcKey(key)} />
+                        <Tile title={key} caption={n > 0 ? tr('play.lobby.waiting', { count: n }) : tr(g.name)} selected={tcKey === key} onPress={() => setTcKey(key)} />
                       </View>
                     );
                   })}
@@ -114,20 +117,20 @@ export default function Lobby() {
             ))}
             <View style={styles.grid}>
               <View style={[styles.cell, { width: '100%' }]}>
-                <Tile title="Custom" caption={tcKey === 'custom' ? `${tcLabel} · ${timeCategory(timeControl)}` : 'Pick your own'} selected={tcKey === 'custom'} onPress={() => setTcKey('custom')} />
+                <Tile title={tr('play.lobby.custom')} caption={tcKey === 'custom' ? `${tcLabel} · ${tr(`common.category.${timeCategory(timeControl)}`)}` : tr('play.lobby.pickOwn')} selected={tcKey === 'custom'} onPress={() => setTcKey('custom')} />
               </View>
             </View>
             {tcKey === 'custom' && (
               <View style={{ gap: 8 }}>
                 <Stepper
-                  label="Minutes"
+                  label={tr('play.lobby.minutes')}
                   value={custom.min < 1 ? '½' : String(custom.min)}
                   onDec={() => setCustom((c) => ({ ...c, min: step(MINUTES, c.min, -1) }))}
                   onInc={() => setCustom((c) => ({ ...c, min: step(MINUTES, c.min, 1) }))}
                 />
                 <Stepper
-                  label="Increment"
-                  value={`${custom.inc}s`}
+                  label={tr('play.lobby.increment')}
+                  value={tr('play.lobby.seconds', { n: custom.inc })}
                   onDec={() => setCustom((c) => ({ ...c, inc: step(INCREMENTS, c.inc, -1) }))}
                   onInc={() => setCustom((c) => ({ ...c, inc: step(INCREMENTS, c.inc, 1) }))}
                 />
@@ -137,60 +140,58 @@ export default function Lobby() {
 
           <Card>
             <Label size={18} bold>
-              Game options
+              {tr('play.lobby.gameOptions')}
             </Label>
             <Segmented
               value={rated ? 'rated' : 'casual'}
               onChange={(v) => setRated(v === 'rated')}
               options={[
-                { value: 'casual', label: 'Casual' },
-                { value: 'rated', label: 'Rated', disabled: guest },
+                { value: 'casual', label: tr('play.casual') },
+                { value: 'rated', label: tr('play.rated'), disabled: guest },
               ]}
             />
-            {guest && <Label muted>Sign in to play rated games. Guest games are always casual.</Label>}
-            <Label muted>Opponent rating</Label>
+            {guest && <Label muted>{tr('play.lobby.guestRated')}</Label>}
+            <Label muted>{tr('play.lobby.opponentRating')}</Label>
             <Segmented<Window>
               value={window}
               onChange={setWindow}
               options={[
-                { value: 0, label: 'Auto' },
+                { value: 0, label: tr('play.lobby.auto') },
                 { value: 100, label: '±100' },
                 { value: 200, label: '±200' },
                 { value: 400, label: '±400' },
               ]}
             />
             <Label muted>
-              {window === 0
-                ? 'Auto starts close to your rating and widens the longer you wait.'
-                : `Only opponents within ${window} points of your rating.`}
+              {window === 0 ? tr('play.lobby.autoHint') : tr('play.lobby.windowHint', { n: window })}
             </Label>
             <View style={{ gap: 8, marginTop: 4 }}>
-              <Button title={`Play ${tcLabel} ${rated ? 'rated' : 'casual'}`} disabled={busy || !!liveGameId || s.connection !== 'online'} onPress={() => playClient.seek({ timeControl, rated, range })} />
+              <Button title={tr(rated ? 'play.lobby.playRated' : 'play.lobby.playCasual', { tc: tcLabel })} disabled={busy || !!liveGameId || s.connection !== 'online'} onPress={() => playClient.seek({ timeControl, rated, range })} />
             </View>
           </Card>
 
           <Card>
             <Label size={18} bold>
-              Create a custom game
+              {tr('play.lobby.createTitle')}
             </Label>
-            <Label muted>Post a {tcLabel} game to the lobby and choose your side. Anyone{range ? ` within ±${range} of your rating` : ''} can join.</Label>
+            <Label muted>{range ? tr('play.lobby.postHintRange', { tc: tcLabel, n: range }) : tr('play.lobby.postHint', { tc: tcLabel })}</Label>
             <Segmented<ColorChoice>
               value={color}
               onChange={setColor}
               options={[
-                { value: 'w', label: 'White' },
-                { value: 'random', label: 'Random' },
-                { value: 'b', label: 'Black' },
+                { value: 'w', label: tr('play.white') },
+                { value: 'random', label: tr('play.random') },
+                { value: 'b', label: tr('play.black') },
               ]}
             />
-            <Button variant="secondary" title="Create game" disabled={busy || !!liveGameId || s.connection !== 'online'} onPress={() => playClient.createOpenGame(timeControl, rated, color, range)} />
+            <Button variant="secondary" title={tr('play.lobby.create')} disabled={busy || !!liveGameId || s.connection !== 'online'} onPress={() => playClient.createOpenGame(timeControl, rated, color, range)} />
           </Card>
 
           <OpenGamesList />
           {s.error && (
             <Card>
-              <Label>{s.error}</Label>
-              <Button variant="secondary" title="Dismiss" onPress={() => playClient.clearError()} />
+              <Label>{serverText(s.error)}</Label>
+              <Button variant="secondary" title={tr('common.dismiss')} onPress={() => playClient.clearError()} />
             </Card>
           )}
         </View>
@@ -201,6 +202,7 @@ export default function Lobby() {
 
 function SeekingCard() {
   const s = usePlay();
+  const tr = useT();
   useTicker(true);
   if (!s.seek) return null;
   const st = s.seekStatus;
@@ -209,29 +211,30 @@ function SeekingCard() {
   return (
     <Card>
       <Label size={18} bold>
-        Finding a {formatTimeControl(s.seek.timeControl)} {s.seek.rated ? 'rated' : 'casual'} opponent…
+        {tr(s.seek.rated ? 'play.lobby.findingRated' : 'play.lobby.findingCasual', { tc: formatTimeControl(s.seek.timeControl) })}
       </Label>
       <Row>
         <Pill text={`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`} tone="strong" />
-        {st && <Pill text={st.window === null ? 'Any rating' : `Rating ±${st.window}`} />}
-        {st && <Pill text={st.poolSize === 1 ? '1 other player searching' : `${st.poolSize} others searching`} />}
+        {st && <Pill text={st.window === null ? tr('play.lobby.anyRating') : tr('play.lobby.ratingWindow', { n: st.window })} />}
+        {st && <Pill text={tr('play.lobby.othersSearching', { count: st.poolSize })} />}
       </Row>
-      <Button variant="secondary" title="Cancel" onPress={() => playClient.cancelSeek()} />
+      <Button variant="secondary" title={tr('common.cancel')} onPress={() => playClient.cancelSeek()} />
     </Card>
   );
 }
 
 function OpenGamesList() {
   const s = usePlay();
+  const tr = useT();
   const games = s.lobby?.openGames ?? [];
   const myRating = s.me?.rating ?? 1500;
-  const colorText = (g: OpenGame) => (g.color === 'random' ? 'Random side' : g.color === 'w' ? 'You play black' : 'You play white');
+  const colorText = (g: OpenGame) => (g.color === 'random' ? tr('play.lobby.randomSide') : g.color === 'w' ? tr('play.lobby.youPlayBlack') : tr('play.lobby.youPlayWhite'));
   return (
     <Card>
       <Label size={18} bold>
-        Open games
+        {tr('play.lobby.openGames')}
       </Label>
-      {games.length === 0 && <Label muted>No open games right now. Create one above and it will show up here for everyone.</Label>}
+      {games.length === 0 && <Label muted>{tr('play.lobby.noOpen')}</Label>}
       {games.map((g) => {
         const mine = g.by.id === s.me?.id;
         const outOfRange = g.range !== undefined && Math.abs(g.by.rating - myRating) > g.range;
@@ -244,15 +247,15 @@ function OpenGamesList() {
                 {g.by.provisional ? '?' : ''})
               </Label>
               <Label muted>
-                {formatTimeControl(g.timeControl)} · {g.rated ? 'Rated' : 'Casual'} · {mine ? 'Your game' : colorText(g)}
+                {formatTimeControl(g.timeControl)} · {g.rated ? tr('play.rated') : tr('play.casual')} · {mine ? tr('play.lobby.yourGame') : colorText(g)}
                 {g.range ? ` · ±${g.range}` : ''}
               </Label>
             </View>
             {mine ? (
-              <Button variant="secondary" title="Cancel" onPress={() => playClient.cancelOpenGame()} />
+              <Button variant="secondary" title={tr('common.cancel')} onPress={() => playClient.cancelOpenGame()} />
             ) : (
               <Button
-                title={needsAccount ? 'Sign in' : outOfRange ? 'Out of range' : 'Join'}
+                title={needsAccount ? tr('auth.signIn') : outOfRange ? tr('play.lobby.outOfRange') : tr('play.lobby.join')}
                 disabled={needsAccount || outOfRange || !!(s.game && !s.game.outcome)}
                 onPress={() => playClient.joinOpenGame(g.id)}
               />

@@ -10,6 +10,7 @@ import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { GameOverCard } from '@/components/play/GameOverCard';
 import { Pill, Row } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { serverText } from '@/i18n/serverMessages';
 import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
 import { clockRemaining, playClient, usePlay } from '@/lib/playClient';
@@ -18,6 +19,7 @@ import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
+import { useT } from '@/i18n';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
@@ -30,6 +32,7 @@ const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
  */
 export default function OnlinePlay() {
   const t = useTheme();
+  const tr = useT();
   const { tc: tcParam, mode, to, challenge: inviteId } = useLocalSearchParams<{ tc?: string; mode?: string; to?: string; challenge?: string }>();
   const quickTc = useMemo(() => {
     try {
@@ -82,21 +85,21 @@ export default function OnlinePlay() {
   return (
     <Screen>
       <Stack.Screen
-        options={{ title: view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? 'Rated' : 'Casual'}` : mode === 'friend' ? 'Play a friend' : 'Play online' }}
+        options={{ title: view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline') }}
       />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={{ width: size, gap: 8 }}>
           {s.closedReason ? (
             <Card>
-              <Label bold>{s.closedReason}</Label>
+              <Label bold>{serverText(s.closedReason)}</Label>
             </Card>
           ) : (
             s.connection !== 'online' && (
               <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
                 <Text style={{ color: t.text, fontWeight: '600' }}>
-                  {s.connection === 'connecting' ? 'Connecting to the game server…' : 'Connection lost. Reconnecting…'}
+                  {s.connection === 'connecting' ? tr('play.online.connectingServer') : tr('play.online.reconnecting')}
                 </Text>
-                {live && <Text style={{ color: t.muted }}>Your game is kept for you while you reconnect.</Text>}
+                {live && <Text style={{ color: t.muted }}>{tr('play.online.keptForYou')}</Text>}
               </View>
             )
           )}
@@ -126,23 +129,23 @@ export default function OnlinePlay() {
                 )
               ) : s.seek ? (
                 <>
-                  <Label bold>Finding a {formatTimeControl(s.seek.timeControl)} opponent…</Label>
+                  <Label bold>{tr('play.online.finding', { tc: formatTimeControl(s.seek.timeControl) })}</Label>
                   <Row>
-                    {s.seekStatus && <Pill text={s.seekStatus.window === null ? 'Any rating' : `Rating ±${s.seekStatus.window}`} />}
-                    {s.seekStatus && <Pill text={`${s.seekStatus.poolSize} others searching`} />}
+                    {s.seekStatus && <Pill text={s.seekStatus.window === null ? tr('play.lobby.anyRating') : tr('play.lobby.ratingWindow', { n: s.seekStatus.window })} />}
+                    {s.seekStatus && <Pill text={tr('play.lobby.othersSearching', { count: s.seekStatus.poolSize })} />}
                   </Row>
-                  <Button variant="secondary" title="Cancel" onPress={() => playClient.cancelSeek()} />
+                  <Button variant="secondary" title={tr('common.cancel')} onPress={() => playClient.cancelSeek()} />
                 </>
               ) : quickTc ? (
                 <Button
-                  title={`Find a ${formatTimeControl(quickTc)} game`}
+                  title={tr('play.online.findGame', { tc: formatTimeControl(quickTc) })}
                   disabled={s.connection !== 'online'}
                   onPress={() => playClient.seek({ timeControl: quickTc, rated: false })}
                 />
               ) : (
-                <Label muted>No game in progress.</Label>
+                <Label muted>{tr('play.online.noGame')}</Label>
               )}
-              {!inviteId && mode !== 'friend' && <Button variant="secondary" title="Open the lobby" onPress={() => router.replace('/play')} />}
+              {!inviteId && mode !== 'friend' && <Button variant="secondary" title={tr('home.online.cta')} onPress={() => router.replace('/play')} />}
             </Card>
           )}
 
@@ -153,8 +156,10 @@ export default function OnlinePlay() {
                 <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
                   <Text style={{ color: t.text, fontWeight: '600' }}>
                     {history.length < 2
-                      ? 'Opponent disconnected. The game is aborted if they do not return.'
-                      : `Opponent disconnected. ${abandonIn !== null ? `You win in ${abandonIn}s if they do not return.` : 'Waiting for them to return.'}`}
+                      ? tr('play.online.oppGoneEarly')
+                      : abandonIn !== null
+                        ? tr('play.online.oppGoneWin', { n: abandonIn })
+                        : tr('play.online.oppGoneWait')}
                   </Text>
                 </View>
               )}
@@ -180,7 +185,7 @@ export default function OnlinePlay() {
                       onLobby={toLobby}
                     />
                     <Pressable accessibilityRole="button" onPress={() => setHideResult(true)} style={styles.viewBoard}>
-                      <Text style={{ color: t.text, fontWeight: '600' }}>View board</Text>
+                      <Text style={{ color: t.text, fontWeight: '600' }}>{tr('play.online.viewBoard')}</Text>
                     </Pressable>
                   </View>
                 )}
@@ -191,42 +196,42 @@ export default function OnlinePlay() {
                 {live && (
                   <View style={styles.actions}>
                     {history.length < 2 ? (
-                      <Button variant="secondary" title="Abort" onPress={playClient.abort} />
+                      <Button variant="secondary" title={tr('play.abort')} onPress={playClient.abort} />
                     ) : (
-                      <Button variant="secondary" title="Offer draw" onPress={playClient.offerDraw} disabled={view.drawOfferBy === you} />
+                      <Button variant="secondary" title={tr('play.offerDraw')} onPress={playClient.offerDraw} disabled={view.drawOfferBy === you} />
                     )}
-                    <Button variant="danger" title={prefs.resignAsked ? 'Confirm resign' : 'Resign'} onPress={() => prefs.requestResign() && playClient.resign()} />
-                    {prefs.resignAsked && <Button variant="secondary" title="Keep playing" onPress={prefs.cancelResign} />}
-                    {view.premove && <Button variant="secondary" title="Cancel premove" onPress={() => playClient.setPremove(null)} />}
+                    <Button variant="danger" title={prefs.resignAsked ? tr('play.confirmResign') : tr('play.resign')} onPress={() => prefs.requestResign() && playClient.resign()} />
+                    {prefs.resignAsked && <Button variant="secondary" title={tr('play.keepPlaying')} onPress={prefs.cancelResign} />}
+                    {view.premove && <Button variant="secondary" title={tr('play.cancelPremove')} onPress={() => playClient.setPremove(null)} />}
                   </View>
                 )}
                 {live && prefs.pending && (
                   <View style={styles.actions}>
-                    <Label>Play {prefs.pending.san}?</Label>
-                    <Button title="Confirm move" onPress={prefs.confirm} />
-                    <Button variant="secondary" title="Cancel" onPress={prefs.cancel} />
+                    <Label>{tr('play.confirmMoveQ', { san: prefs.pending.san })}</Label>
+                    <Button title={tr('play.confirmMove')} onPress={prefs.confirm} />
+                    <Button variant="secondary" title={tr('common.cancel')} onPress={prefs.cancel} />
                   </View>
                 )}
                 {live && view.drawOfferBy === opp && (
                   <View style={styles.actions}>
-                    <Label>Your opponent offers a draw.</Label>
-                    <Button title="Accept" onPress={playClient.acceptDraw} />
-                    <Button variant="secondary" title="Decline" onPress={playClient.declineDraw} />
+                    <Label>{tr('play.online.drawOffered')}</Label>
+                    <Button title={tr('common.accept')} onPress={playClient.acceptDraw} />
+                    <Button variant="secondary" title={tr('common.decline')} onPress={playClient.declineDraw} />
                   </View>
                 )}
-                {live && !board.myTurn && <Label muted>Opponent to move. Tap a piece to queue a premove.</Label>}
-                {view.outcome && hideResult && <Button title="Show result" onPress={() => setHideResult(false)} />}
+                {live && !board.myTurn && <Label muted>{tr('play.online.premoveHint')}</Label>}
+                {view.outcome && hideResult && <Button title={tr('play.online.showResult')} onPress={() => setHideResult(false)} />}
                 {view.outcome && view.outcome.reason !== 'aborted' && (
                   <View style={styles.actions}>
                     <Button
                       variant="secondary"
-                      title="Review in game history"
+                      title={tr('play.online.reviewHistory')}
                       onPress={() => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } })}
                     />
                     {history.length > 0 && (
                       <Button
                         variant="secondary"
-                        title="Engine review"
+                        title={tr('play.engineReview')}
                         onPress={() =>
                           router.push({
                             pathname: '/review',
@@ -237,11 +242,11 @@ export default function OnlinePlay() {
                     )}
                   </View>
                 )}
-                {s.error && <Label muted>{s.error}</Label>}
+                {s.error && <Label muted>{serverText(s.error)}</Label>}
                 {history.length > 0 ? (
                   <Label muted>{history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>
                 ) : (
-                  live && <Label muted>{you === 'w' ? 'You play white. Make your first move.' : 'You play black. Waiting for white’s first move.'}</Label>
+                  live && <Label muted>{you === 'w' ? tr('play.online.firstMoveWhite') : tr('play.online.firstMoveBlack')}</Label>
                 )}
               </Card>
               <ChatPanel chat={chat} me={me} opponent={players[opp]} canChat />

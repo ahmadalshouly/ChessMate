@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { UIProvider, useAppTheme } from '@/ui';
 import { NotificationsProvider } from '@/lib/notifications';
+import { initI18n, useI18n } from '@/i18n';
 
 export default function RootLayout() {
   return (
@@ -21,6 +22,10 @@ export default function RootLayout() {
 
 function Navigator() {
   const { scheme, colors: p } = useAppTheme();
+  // Load the saved language (or follow the device) and apply text direction once.
+  useEffect(() => {
+    void initI18n();
+  }, []);
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   return (
     <ThemeProvider value={{ ...base, colors: { ...base.colors, background: p.bg, card: p.surfaceSolid, text: p.text, primary: p.accent, border: p.border } }}>
@@ -57,6 +62,7 @@ function RootStack() {
   const segments = useSegments();
   const onPublicRoute = PUBLIC_ROOTS.has(segments[0] ?? '');
   const mustWelcome = status === 'signedOut' && !onPublicRoute;
+  const { tr, ready: i18nReady } = useI18n();
 
   // First-time visitors (no account, never chose guest) start on the welcome screen.
   useEffect(() => {
@@ -69,23 +75,23 @@ function RootStack() {
         {/* The app shell: header + tab bar / sidebar around the main sections. */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'ChessMate' }} />
         {/* Full-screen flows shown above the shell. */}
-        <Stack.Screen name="play/index" options={{ title: 'Play' }} />
-        <Stack.Screen name="play/online" options={{ title: 'Play online' }} />
-        <Stack.Screen name="play/local" options={{ title: 'Practice board' }} />
-        <Stack.Screen name="leaderboard" options={{ title: 'Leaderboards' }} />
-        <Stack.Screen name="play/computer" options={{ title: 'Play vs computer' }} />
+        <Stack.Screen name="play/index" options={{ title: tr('nav.play') }} />
+        <Stack.Screen name="play/online" options={{ title: tr('titles.playOnline') }} />
+        <Stack.Screen name="play/local" options={{ title: tr('titles.practice') }} />
+        <Stack.Screen name="leaderboard" options={{ title: tr('titles.leaderboards') }} />
+        <Stack.Screen name="play/computer" options={{ title: tr('titles.computer') }} />
         {/* Account flow: own full-screen glass layout, no stack header. */}
-        <Stack.Screen name="(auth)/welcome" options={{ headerShown: false, title: 'Welcome' }} />
-        <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false, title: 'Sign in' }} />
-        <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false, title: 'Create account' }} />
-        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false, title: 'Reset password' }} />
-        <Stack.Screen name="reset-password" options={{ headerShown: false, title: 'New password' }} />
-        <Stack.Screen name="analysis" options={{ title: 'Analysis board' }} />
-        <Stack.Screen name="review" options={{ title: 'Game review' }} />
-        <Stack.Screen name="design" options={{ title: 'Design system' }} />
+        <Stack.Screen name="(auth)/welcome" options={{ headerShown: false, title: tr('titles.welcome') }} />
+        <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false, title: tr('auth.signIn') }} />
+        <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false, title: tr('auth.signUp.submit') }} />
+        <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false, title: tr('titles.resetPassword') }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false, title: tr('auth.newPassword') }} />
+        <Stack.Screen name="analysis" options={{ title: tr('titles.analysis') }} />
+        <Stack.Screen name="review" options={{ title: tr('titles.review') }} />
+        <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
       </Stack>
       {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}
-      {status === 'loading' || mustWelcome ? (
+      {status === 'loading' || mustWelcome || !i18nReady ? (
         <View style={StyleSheet.absoluteFill}>
           <Screen>{null}</Screen>
         </View>

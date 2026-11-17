@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { useCurrentUser } from '@/lib/currentUser';
 import { SIDEBAR_WIDTH, TABS } from '@/navigation/tabs';
 
@@ -17,6 +18,7 @@ export function Sidebar() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
+  const tr = useT();
   return (
     <Glass
       radius={22}
@@ -38,7 +40,7 @@ export function Sidebar() {
               {user.displayName}
             </Text>
             <Text style={[styles.userMeta, { color: t.muted }]}>
-              {user.rating != null ? `Rating ${Math.round(user.rating)}${user.provisional ? '?' : ''}` : 'Unrated'}
+              {user.rating != null ? tr('nav.ratingValue', { rating: `${Math.round(user.rating)}${user.provisional ? '?' : ''}` }) : tr('nav.unrated')}
             </Text>
           </View>
         </Pressable>
@@ -47,7 +49,7 @@ export function Sidebar() {
             accessibilityRole="button"
             onPress={() => router.push(SIGN_IN_HREF)}
             style={({ pressed }) => [styles.signIn, { backgroundColor: t.accent, opacity: pressed ? 0.75 : 1 }]}>
-            <Text style={[styles.signInText, { color: t.onAccent }]}>Sign in to save your games</Text>
+            <Text style={[styles.signInText, { color: t.onAccent }]}>{tr('nav.signInToSave')}</Text>
           </Pressable>
         )}
       </View>

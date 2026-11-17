@@ -6,6 +6,7 @@ import { StrengthMeter, TextField } from '@/components/auth/TextField';
 import { Button, Label } from '@/components/ui';
 import { authApi, passwordStrength, validatePassword } from '@/lib/auth';
 import { toFormError } from '@/lib/auth/errors';
+import { useT } from '@/i18n';
 
 /** Opened from the emailed link: chessmate://reset-password?token=… or https://<site>/reset-password?token=… */
 export default function ResetPassword() {
@@ -15,11 +16,12 @@ export default function ResetPassword() {
   const [errors, setErrors] = useState<{ password?: string | null; confirm?: string | null; form?: string }>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const tr = useT();
 
   async function submit() {
     const e = {
       password: validatePassword(password),
-      confirm: confirm === password ? null : "Passwords don't match.",
+      confirm: confirm === password ? null : tr('auth.reset.mismatch'),
     };
     setErrors(e);
     if (e.password || e.confirm || !token) return;
@@ -37,34 +39,34 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <AuthShell title="Link not valid" back={false}>
-        <FormMessage kind="error">This reset link is missing its code. Open the link from your email again, or request a new one.</FormMessage>
-        <Button title="Request a new link" onPress={() => router.replace('/forgot-password')} />
+      <AuthShell title={tr('auth.reset.invalidTitle')} back={false}>
+        <FormMessage kind="error">{tr('auth.reset.invalidBody')}</FormMessage>
+        <Button title={tr('auth.reset.requestNew')} onPress={() => router.replace('/forgot-password')} />
       </AuthShell>
     );
   }
 
   if (done) {
     return (
-      <AuthShell title="Password updated" back={false}>
-        <FormMessage kind="info">Your password has been changed. Sign in with your new password.</FormMessage>
-        <Button title="Sign in" onPress={() => router.replace('/sign-in')} />
+      <AuthShell title={tr('auth.reset.doneTitle')} back={false}>
+        <FormMessage kind="info">{tr('auth.reset.doneBody')}</FormMessage>
+        <Button title={tr('auth.signIn')} onPress={() => router.replace('/sign-in')} />
       </AuthShell>
     );
   }
 
   return (
     <AuthShell
-      title="Choose a new password"
+      title={tr('auth.reset.title')}
       back={false}
       footer={
         <Label muted>
-          <TextLink title="Back to sign in" onPress={() => router.replace('/sign-in')} />
+          <TextLink title={tr('auth.backToSignIn')} onPress={() => router.replace('/sign-in')} />
         </Label>
       }>
       {errors.form ? <FormMessage kind="error">{errors.form}</FormMessage> : null}
       <TextField
-        label="New password"
+        label={tr('auth.newPassword')}
         password
         value={password}
         onChangeText={setPassword}
@@ -75,7 +77,7 @@ export default function ResetPassword() {
       />
       <StrengthMeter score={passwordStrength(password)} visible={password.length > 0} />
       <TextField
-        label="Confirm new password"
+        label={tr('auth.reset.confirm')}
         password
         value={confirm}
         onChangeText={setConfirm}
@@ -85,7 +87,7 @@ export default function ResetPassword() {
         returnKeyType="go"
         onSubmitEditing={submit}
       />
-      <Button title={busy ? 'Saving…' : 'Update password'} onPress={submit} disabled={busy} />
+      <Button title={busy ? tr('common.saving') : tr('auth.reset.submit')} onPress={submit} disabled={busy} />
     </AuthShell>
   );
 }

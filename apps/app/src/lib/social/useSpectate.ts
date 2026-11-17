@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { SERVER_URL } from '@/lib/config';
 import { getSocialIdentity } from './session';
+import { translate } from '@/i18n';
 
 export interface SpectateState {
   status: 'connecting' | 'live' | 'finished' | 'error';
@@ -82,7 +83,7 @@ export function useSpectate(gameId: string) {
           return setState((p) => ({ ...p, status: p.white ? p.status : 'error', error: m.message }));
       }
     };
-    ws.onerror = () => setState((p) => ({ ...p, status: p.white ? p.status : 'error', error: 'Server unreachable' }));
+    ws.onerror = () => setState((p) => ({ ...p, status: p.white ? p.status : 'error', error: translate('puzzles.home.unreachable') }));
     return () => {
       if (ws.readyState === WebSocket.OPEN) ws.send(encode({ t: 'unwatch', gameId }));
       ws.close();

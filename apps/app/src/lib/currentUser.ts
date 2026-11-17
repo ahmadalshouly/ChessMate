@@ -1,6 +1,7 @@
 import { DEFAULT_RATING } from '@chessmate/core';
 
 import { useAuth } from '@/lib/auth';
+import { translate } from '@/i18n';
 
 /**
  * What the app shell needs to know about whoever is using the app.
@@ -27,7 +28,7 @@ export function useCurrentUser(): CurrentUser {
   if (status === 'signedIn' && user) {
     return { status: 'signedIn', displayName: user.username, rating: Math.round(DEFAULT_RATING.rating), provisional: true, avatarUrl: null };
   }
-  return { status: 'guest', displayName: guestName ?? 'Guest', rating: null, provisional: true, avatarUrl: null };
+  return { status: 'guest', displayName: guestName ?? translate('common.guest'), rating: null, provisional: true, avatarUrl: null };
 }
 
 export function initialsOf(name: string): string {

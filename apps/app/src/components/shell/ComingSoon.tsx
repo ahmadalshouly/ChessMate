@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 
 import { Page } from './Page';
 
@@ -22,6 +23,7 @@ export function ComingSoon({
   features: { icon: IconName; title: string; text: string }[];
 }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <Page>
       <Card>
@@ -30,7 +32,7 @@ export function ComingSoon({
             <Ionicons name={icon} size={28} color={t.onAccent} />
           </View>
           <View style={[styles.badge, { borderColor: t.border }]}>
-            <Text style={[styles.badgeText, { color: t.muted }]}>COMING SOON</Text>
+            <Text style={[styles.badgeText, { color: t.muted }]}>{tr('common.comingSoon')}</Text>
           </View>
         </View>
         <Label size={24} bold>

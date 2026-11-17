@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { formatDate, useT } from '@/i18n';
 
 const HEIGHT = 160;
 const PAD = { top: 12, bottom: 18, left: 40, right: 8 };
@@ -13,6 +14,7 @@ const PAD = { top: 12, bottom: 18, left: 40, right: 8 };
  */
 export function RatingGraph({ points }: { points: RatingPoint[] }) {
   const t = useTheme();
+  const tr = useT();
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
@@ -20,7 +22,7 @@ export function RatingGraph({ points }: { points: RatingPoint[] }) {
   if (points.length < 2) {
     return (
       <View style={[styles.empty, { borderColor: t.border }]}>
-        <Text style={{ color: t.muted }}>{points.length === 0 ? 'No rated games in this time control yet.' : 'Play one more rated game to see your graph.'}</Text>
+        <Text style={{ color: t.muted }}>{points.length === 0 ? tr('profile.graph.empty') : tr('profile.graph.oneMore')}</Text>
       </View>
     );
   }
@@ -49,14 +51,15 @@ export function RatingGraph({ points }: { points: RatingPoint[] }) {
     <View>
       <View style={styles.readout}>
         <Text style={[styles.readoutValue, { color: t.text }]}>{Math.round(selPoint.rating)}</Text>
-        <Text style={{ color: t.muted }}>{new Date(selPoint.t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+        <Text style={{ color: t.muted }}>{formatDate(selPoint.t, { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
       </View>
       <Pressable
         onLayout={onLayout}
         onPressIn={(e) => pickAt(e.nativeEvent.locationX)}
         onPressOut={() => setActive(null)}
-        accessibilityLabel={`Rating graph from ${Math.round(points[0]!.rating)} to ${Math.round(points[points.length - 1]!.rating)}`}
-        style={{ height: HEIGHT }}>
+        accessibilityLabel={tr('profile.graph.a11y', { from: Math.round(points[0]!.rating), to: Math.round(points[points.length - 1]!.rating) })}
+        // Time runs left to right in every language, like the board.
+        style={{ height: HEIGHT, direction: 'ltr' }}>
         {ticks.map((r) => (
           <View key={r} pointerEvents="none" style={[styles.grid, { top: y(r), left: PAD.left, right: PAD.right, backgroundColor: t.border }]}>
             <Text style={[styles.tick, { color: t.muted }]}>{r}</Text>
@@ -100,7 +103,7 @@ export function RatingGraph({ points }: { points: RatingPoint[] }) {
   );
 }
 
-const shortDate = (t: number) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+const shortDate = (t: number) => formatDate(t, { day: 'numeric', month: 'short' });
 
 const styles = StyleSheet.create({
   empty: { height: 100, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', padding: 12 },

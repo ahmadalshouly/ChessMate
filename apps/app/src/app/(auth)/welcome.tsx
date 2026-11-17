@@ -3,19 +3,22 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandMark } from '@/components/auth/AuthShell';
+import { LanguageChips } from '@/components/i18n/LanguageChips';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
+import { useT } from '@/i18n';
 
 const FEATURES = [
-  { icon: '♟', title: 'Rated games, any time', body: 'Bullet to classical against players at your level.' },
-  { icon: '◎', title: 'Engine insight', body: 'Evaluation, accuracy and the best line after every game.' },
-  { icon: '✦', title: 'A coach that explains', body: 'Threats and move feedback in plain language, as you play.' },
-];
+  { icon: '♟', title: 'auth.welcome.rated', body: 'auth.welcome.ratedBody' },
+  { icon: '◎', title: 'auth.welcome.engine', body: 'auth.welcome.engineBody' },
+  { icon: '✦', title: 'auth.welcome.coach', body: 'auth.welcome.coachBody' },
+] as const;
 
 export default function Welcome() {
   const t = useTheme();
   const { continueAsGuest } = useAuth();
+  const tr = useT();
 
   return (
     <Screen>
@@ -26,7 +29,7 @@ export default function Welcome() {
               <BrandMark size={72} />
               <Text style={[styles.brand, { color: t.text }]}>ChessMate</Text>
               <Label muted size={17}>
-                Play. Learn. Improve.
+                {tr('home.heroTitle')}
               </Label>
             </View>
 
@@ -37,9 +40,9 @@ export default function Welcome() {
                     <Text style={{ color: t.text, fontSize: 18 }}>{f.icon}</Text>
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Label bold>{f.title}</Label>
+                    <Label bold>{tr(f.title)}</Label>
                     <Label muted size={14}>
-                      {f.body}
+                      {tr(f.body)}
                     </Label>
                   </View>
                 </View>
@@ -47,8 +50,8 @@ export default function Welcome() {
             </Card>
 
             <View style={styles.actions}>
-              <Button title="Create free account" onPress={() => router.push('/sign-up')} />
-              <Button title="Sign in" variant="secondary" onPress={() => router.push('/sign-in')} />
+              <Button title={tr('auth.welcome.createAccount')} onPress={() => router.push('/sign-up')} />
+              <Button title={tr('auth.signIn')} variant="secondary" onPress={() => router.push('/sign-in')} />
               <Text
                 accessibilityRole="button"
                 onPress={async () => {
@@ -56,12 +59,13 @@ export default function Welcome() {
                   router.replace('/');
                 }}
                 style={[styles.guest, { color: t.muted }]}>
-                Continue as guest
+                {tr('auth.continueAsGuest')}
               </Text>
               <Label muted size={12}>
-                Guests can play casual games and use the practice board. Ratings and history need an account.
+                {tr('auth.welcome.guestNote')}
               </Label>
             </View>
+            <LanguageChips />
           </View>
         </ScrollView>
       </SafeAreaView>

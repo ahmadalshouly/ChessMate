@@ -1,3 +1,5 @@
+import { translate } from '@/i18n';
+
 /**
  * HTTP contract for /api/auth/*, agreed with the server's accounts module.
  *
@@ -58,20 +60,20 @@ export const PASSWORD_MIN = 8;
 const EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateUsername(v: string): string | null {
-  if (!v) return 'Choose a username.';
-  if (v.length < 3 || v.length > 20) return 'Use 3 to 20 characters.';
-  if (!USERNAME_RULE.test(v)) return 'Letters, numbers and underscores only.';
+  if (!v) return translate('auth.validate.usernameEmpty');
+  if (v.length < 3 || v.length > 20) return translate('auth.validate.usernameLength');
+  if (!USERNAME_RULE.test(v)) return translate('auth.validate.usernameChars');
   return null;
 }
 
 export function validateEmail(v: string): string | null {
-  if (!v) return 'Enter your email.';
-  return EMAIL_RULE.test(v) ? null : 'Enter a valid email address.';
+  if (!v) return translate('auth.validate.emailEmpty');
+  return EMAIL_RULE.test(v) ? null : translate('auth.validate.emailInvalid');
 }
 
 export function validatePassword(v: string): string | null {
-  if (!v) return 'Enter a password.';
-  return v.length >= PASSWORD_MIN ? null : `Use at least ${PASSWORD_MIN} characters.`;
+  if (!v) return translate('auth.validate.passwordEmpty');
+  return v.length >= PASSWORD_MIN ? null : translate('auth.validate.passwordShort', { min: PASSWORD_MIN });
 }
 
 /** 0 (weak) to 3 (strong). A hint only; the server decides what is accepted. */
