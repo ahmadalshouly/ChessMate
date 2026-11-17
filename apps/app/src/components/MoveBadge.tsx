@@ -3,9 +3,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { MOVE_CLASS } from '@/constants/analysis';
+import { Text } from '@/ui/primitives';
 
 /**
  * A move classification badge: a small glass disc in the class colour with a
