@@ -145,8 +145,12 @@ export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
     };
     cache.set(key, patch);
   }
-  return [style, patch];
+  // Web gives every text dir="auto", which left-aligns Latin-only text (names, "1+0") in an
+  // Arabic layout. A base direction keeps it on the right; an explicit style still wins.
+  return arabic && Platform.OS === 'web' ? [WEB_RTL, style, patch] : [style, patch];
 }
+
+const WEB_RTL: TextStyle = { writingDirection: 'rtl' };
 
 const BASE_FONTS = Platform.OS === 'web' ? FONT_FILES : { ...FONT_FILES, ...ARABIC_FONT_FILES };
 
