@@ -12,3 +12,5 @@ export * from './coach';
 export * from './challenge';
 export * from './chat';
 export * from './bot';
+export * from './review';
+export * from './sampleAnalysis';

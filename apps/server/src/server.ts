@@ -10,6 +10,7 @@ import {
   type ClientMessage,
   type Color,
   type ErrorCode,
+  type GameAnalyzer,
   type Rating,
   type ServerMessage,
   canSeekRated,
@@ -20,6 +21,8 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './challenges';
 import { handleAdmin } from './admin';
+import { CoachService } from './coach/coachService';
+import { createCoachHttpHandler } from './coach/http';
 import { GameRoom, type MoveError } from './gameRoom';
 import type { HttpRoute } from './auth/http';
 import type { AuthService } from './auth/service';
@@ -68,6 +71,10 @@ export interface ServerOptions {
   /** Fair-play settings. Defaults read STOCKFISH_PATH and FAIRPLAY_ADMIN_TOKEN from the environment. */
   fairPlay?: FairPlayOptions & { adminToken?: string };
   rateLimits?: Partial<RateLimitConfig>;
+  /** AI coach. Defaults to the rule-based (offline) coach. */
+  coach?: CoachService;
+  /** Engine analysis service, when available, for coach reviews from raw moves. */
+  analyzer?: GameAnalyzer;
 }
 
 interface Connection {
@@ -128,7 +135,17 @@ export class ChessServer {
     });
     this.fairPlay.onBan = (id) => this.kickBanned(id);
     const admin = createAdminHandler(this.fairPlay, fp.adminToken ?? process.env.FAIRPLAY_ADMIN_TOKEN);
+    const coachHttp = createCoachHttpHandler({
+      service: opts.coach ?? new CoachService(),
+      analyzer: opts.analyzer,
+      authorize: (token) => authenticate(token, this.store, this.opts.auth && ((t) => this.opts.auth!.verifyAccessToken(t)))?.id ?? null,
+      now: this.now,
+    });
     this.http = createServer(async (req, res) => {
+      if (req.url?.startsWith('/coach/')) {
+        await coachHttp(req, res);
+        return;
+      }
       if (await admin(req, res)) return;
       if (handleAdmin(req, res, this.moderation, opts.adminToken)) return;
       if (req.url === '/health') {

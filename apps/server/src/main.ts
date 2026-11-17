@@ -1,4 +1,6 @@
 import { abortStaleGames, openDb } from '@chessmate/db';
+import { CoachService } from './coach/coachService';
+import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { AuthService, ConsoleMailer, MemoryAuthStore, authRoutes, authSecretFromEnv } from './auth';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbGamePersistence, DbPlayerStore } from './persistence';
@@ -6,7 +8,13 @@ import { ChessServer, type ServerOptions } from './server';
 
 const port = Number(process.env.PORT ?? 8787);
 const auth = new AuthService({ store: new MemoryAuthStore(), mailer: new ConsoleMailer(), secret: authSecretFromEnv() });
-const base: ServerOptions = { port, auth, http: [authRoutes(auth)], adminToken: process.env.ADMIN_TOKEN || undefined };
+const coachModel = process.env.COACH_MODEL || DEFAULT_COACH_MODEL;
+const coach = new CoachService({
+  llm: process.env.ANTHROPIC_API_KEY ? new ClaudeCoachLlm(coachModel) : undefined,
+  log: (m) => console.warn(m),
+});
+console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set ANTHROPIC_API_KEY to enable it (rule-based feedback in the meantime)');
+const base: ServerOptions = { port, auth, coach, http: [authRoutes(auth)], adminToken: process.env.ADMIN_TOKEN || undefined };
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
 // CHESSMATE_DB=off runs fully in memory (nothing saved).

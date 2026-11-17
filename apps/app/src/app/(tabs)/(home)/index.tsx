@@ -63,6 +63,14 @@ export default function Home() {
 
       <Card>
         <Label size={18} bold>
+          AI coach review
+        </Label>
+        <Label muted>See how the coach explains the key moments of a game, then ask it about any position.</Label>
+        <Button variant="secondary" title="Try a sample review" onPress={() => router.push('/review/demo')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
           Practice board
         </Label>
         <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@chessmate/core": "workspace:*",
     "@chessmate/db": "workspace:*",
     "drizzle-orm": "^0.45.4",
