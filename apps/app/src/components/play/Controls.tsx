@@ -34,7 +34,7 @@ export function Segmented<T extends string | number>({
             accessibilityState={{ selected: on, disabled: o.disabled }}
             disabled={o.disabled}
             onPress={() => onChange(o.value)}
-            style={({ hovered }: { hovered?: boolean }) => [
+            style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
               styles.segmentItem,
               { height: size === 'sm' ? 30 : 36 },
               on && [styles.segmentOn, { backgroundColor: dark ? 'rgba(255,255,255,0.11)' : '#FFFFFF', borderColor: t.glassBorder }],

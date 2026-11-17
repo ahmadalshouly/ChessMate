@@ -34,7 +34,7 @@ export function Sidebar() {
         ))}
       </View>
       <View style={[styles.userCard, { borderColor: t.border }]}>
-        <Pressable onPress={() => router.navigate('/profile')} style={({ hovered }: { hovered?: boolean }) => [styles.userRow, hovered && { backgroundColor: t.surfaceSunken }]} accessibilityRole="button">
+        <Pressable onPress={() => router.navigate('/profile')} style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [styles.userRow, hovered && { backgroundColor: t.surfaceSunken }]} accessibilityRole="button">
           <Avatar name={user.displayName} url={user.avatarUrl} size={36} />
           <View style={{ flex: 1 }}>
             <Text numberOfLines={1} style={[styles.userName, { color: t.text }]}>
