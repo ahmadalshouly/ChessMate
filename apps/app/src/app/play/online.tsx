@@ -1,6 +1,6 @@
 import { parseTimeControl, type Color } from '@chessmate/core';
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
@@ -8,6 +8,7 @@ import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, c
 import { ChatPanel } from '@/components/ChatPanel';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
@@ -28,12 +29,20 @@ const REASONS: Record<string, string> = {
 };
 
 export default function OnlinePlay() {
+  // Signed-in players connect with their access token; guests with "guest:<name>".
+  const { getGameToken } = useAuth();
+  const [token, setToken] = useState<string | null>(null);
+  useEffect(() => {
+    getGameToken().then(setToken, () => {});
+  }, [getGameToken]);
+  return token ? <OnlineGame token={token} /> : <Screen>{null}</Screen>;
+}
+
+function OnlineGame({ token }: { token: string }) {
   // tc: quick-pair time control. mode=friend: set up a challenge (to=<player id> prefills a direct one).
   // challenge=<id>: an invite link was opened.
   const { tc: tcParam, mode, to, challenge: inviteId } = useLocalSearchParams<{ tc?: string; mode?: string; to?: string; challenge?: string }>();
   const timeControl = useMemo(() => parseTimeControl(tcParam ?? '5+0'), [tcParam]);
-  // Guest identity until accounts land.
-  const [token] = useState(() => `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`);
   const { state, actions, send, subscribe } = useOnlineGame(token);
   const chat = useGameChat(state.gameId, state.me?.id ?? null, send, subscribe);
   const size = useBoardSize(300);

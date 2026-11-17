@@ -26,3 +26,23 @@ const fromEnv = process.env.EXPO_PUBLIC_SERVER_URL;
 
 /** Game server WebSocket URL. EXPO_PUBLIC_SERVER_URL wins when set. */
 export const SERVER_URL: string = typeof fromEnv === 'string' && fromEnv.length > 0 ? fromEnv : fallback();
+
+function httpBaseFromWs(wsUrl: string): string {
+  try {
+    const u = new URL(wsUrl);
+    u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return `http://localhost:${PORT}`;
+  }
+}
+
+const apiFromEnv = process.env.EXPO_PUBLIC_API_URL;
+
+/**
+ * HTTP API base (accounts, auth). Defaults to the game server's host and port,
+ * so one `pnpm dev:server` serves both. EXPO_PUBLIC_API_URL wins when set.
+ */
+export const API_URL: string = (
+  typeof apiFromEnv === 'string' && apiFromEnv.length > 0 ? apiFromEnv : httpBaseFromWs(SERVER_URL)
+).replace(/\/+$/, '');
