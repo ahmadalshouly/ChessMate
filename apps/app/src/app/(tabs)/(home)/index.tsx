@@ -1,0 +1,121 @@
+import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory } from '@chessmate/core';
+import { router } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+
+import { LiveStats } from '@/components/LiveStats';
+import { Page } from '@/components/shell/Page';
+import { Button, Card, Label } from '@/components/ui';
+
+export default function Home() {
+  return (
+    <Page>
+      <View style={styles.hero}>
+        <Label size={28} bold>
+          Play. Learn. Improve.
+        </Label>
+        <Label muted>Real-time games against players worldwide, with a coach that shows you why a move works.</Label>
+      </View>
+
+      <LiveStats />
+
+      <Card>
+        <Label size={18} bold>
+          Play online
+        </Label>
+        <Button title="Open the lobby" onPress={() => router.push('/play')} />
+        <Label muted>Or quick-pair at a time control:</Label>
+        <View style={styles.grid}>
+          {PRESET_TIME_CONTROLS.map((tc) => {
+            const key = formatTimeControl(tc);
+            return (
+              <View key={key} style={styles.cell}>
+                <Button
+                  variant="secondary"
+                  title={`${key} · ${timeCategory(tc)}`}
+                  onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
+                />
+              </View>
+            );
+          })}
+        </View>
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Play a friend
+        </Label>
+        <Label muted>Send an invite link or challenge a player, or play face to face on one device.</Label>
+        <View style={styles.grid}>
+          <View style={styles.cell}>
+            <Button title="Challenge a friend" onPress={() => router.push({ pathname: '/play/online', params: { mode: 'friend' } })} />
+          </View>
+          <View style={styles.cell}>
+            <Button variant="secondary" title="Over the board" onPress={() => router.push('/play/otb')} />
+          </View>
+        </View>
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Play vs computer
+        </Label>
+        <Label muted>Eight opponents from beginner to expert. Unrated, with takebacks and hints. Works offline.</Label>
+        <Button title="Choose an opponent" onPress={() => router.push('/play/computer')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          AI coach review
+        </Label>
+        <Label muted>See how the coach explains the key moments of a game, then ask it about any position.</Label>
+        <Button variant="secondary" title="Try a sample review" onPress={() => router.push('/review/demo')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Analysis board
+        </Label>
+        <Label muted>Explore any position or PGN with Stockfish: evaluation bar, best lines and arrows, full game reviews.</Label>
+        <Button title="Open analysis board" onPress={() => router.push('/analysis')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Game history
+        </Label>
+        <Label muted>Replay past games move by move, see the opening, and share or import PGN.</Label>
+        <Button variant="secondary" title="Open game history" onPress={() => router.push('/games')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Friends
+        </Label>
+        <Label muted>See who is online, watch friends' live games, and follow their results.</Label>
+        <Button variant="secondary" title="Open friends" onPress={() => router.push('/friends')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Practice board
+        </Label>
+        <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
+        <Button title="Open practice board" onPress={() => router.push('/play/local')} />
+      </Card>
+
+      <Card>
+        <Label size={18} bold>
+          Leaderboards
+        </Label>
+        <Label muted>Top players in bullet, blitz, rapid and classical, worldwide, in your country, and among your friends.</Label>
+        <Button variant="secondary" title="View leaderboards" onPress={() => router.push('/leaderboard')} />
+      </Card>
+    </Page>
+  );
+}
+
+const styles = StyleSheet.create({
+  hero: { gap: 6, paddingHorizontal: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
+  cell: { width: '50%', padding: 4 },
+});

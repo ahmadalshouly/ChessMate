@@ -1,0 +1,88 @@
+name: CI
+# Runs on every pull request and on pushes to main. Never starts EAS builds.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Public game server for the built site; falls back to a placeholder on PRs.
+      EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL || 'wss://chessmate-server.fly.dev/ws' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/app/dist
+          retention-days: 7
+
+  docker:
+    name: Server image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: chessmate-server:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test
+        run: |
+          docker run -d --name server -p 8787:8787 -e AUTH_SECRET=ci-smoke-test-secret-0123456789abcdef chessmate-server:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8787/health; then echo; break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8787/health
+          docker exec server sh -c 'test -x "$STOCKFISH_PATH" && echo uci | timeout 5 "$STOCKFISH_PATH" | head -1'
+      - name: Server logs
+        if: always()
+        run: docker logs server || true

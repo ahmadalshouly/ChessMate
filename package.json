@@ -1,0 +1,29 @@
+{
+  "name": "chessmate",
+  "private": true,
+  "scripts": {
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "dev:server": "pnpm --filter @chessmate/server dev",
+    "dev:app": "pnpm --filter @chessmate/app start",
+    "web": "pnpm --filter @chessmate/app web",
+    "db:up": "docker compose up -d postgres",
+    "db:generate": "pnpm --filter @chessmate/db generate",
+    "db:migrate": "pnpm --filter @chessmate/db migrate",
+    "db:studio": "pnpm --filter @chessmate/db studio",
+    "lint": "eslint .",
+    "build:server": "pnpm --filter @chessmate/server build",
+    "build:web": "pnpm --filter @chessmate/app export:web",
+    "start:server": "pnpm --filter @chessmate/server start",
+    "puzzles:import": "pnpm --filter @chessmate/server puzzles:import"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=12"
+  }
+}

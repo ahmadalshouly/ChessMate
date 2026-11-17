@@ -1,0 +1,131 @@
+import { friendships, openDb, ratings, users, type DbHandle } from '@chessmate/db';
+import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DbLeaderboardSource, LeaderboardError, Leaderboards, MemoryLeaderboardSource } from '../src/leaderboard';
+import { MemoryPlayerStore } from '../src/players';
+import { ChessServer } from '../src/server';
+
+let h: DbHandle;
+let boards: Leaderboards;
+
+beforeAll(async () => {
+  h = openDb({ url: '', path: 'memory://' });
+  await h.migrate();
+  const db = h.db;
+  const add = async (id: string, country: string | null, rating: number, rd = 60, games = 30, category: 'blitz' | 'bullet' = 'blitz') => {
+    await db.insert(users).values({ id, username: id, displayName: id.toUpperCase(), country }).onConflictDoNothing();
+    await db.insert(ratings).values({ userId: id, category, rating, rd, volatility: 0.06, games, wins: 10, losses: 10, draws: 10, peak: rating + 50 });
+  };
+  await add('ana', 'US', 2100);
+  await add('ben', 'US', 1900.4);
+  await add('cai', 'DE', 1899.6); // rounds to 1900: ties with ben
+  await add('dee', 'DE', 1700);
+  await add('eve', 'US', 2400, 300); // provisional: hidden from global/country
+  await add('fox', null, 1600, 60, 0); // no games: never ranked
+  await add('ana', 'US', 1500, 60, 5, 'bullet');
+  await add('gon', 'US', 2600);
+  await db.update(users).set({ deletedAt: new Date() }).where(eq(users.id, 'gon')); // deleted account: never ranked
+  await db.insert(friendships).values([
+    { requesterId: 'dee', addresseeId: 'ana', status: 'accepted' },
+    { requesterId: 'eve', addresseeId: 'dee', status: 'accepted' },
+    { requesterId: 'dee', addresseeId: 'ben', status: 'pending' }, // not a friend yet
+  ]);
+  boards = new Leaderboards(new DbLeaderboardSource(db));
+});
+afterAll(() => h.close());
+
+describe('Leaderboards (Postgres)', () => {
+
+  it('ranks the global board with shared ranks for ties and hides provisional players', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'global' });
+    expect(p.total).toBe(4);
+    expect(p.entries.map((e) => [e.rank, e.userId, e.rating])).toEqual([
+      [1, 'ana', 2100],
+      [2, 'ben', 1900],
+      [2, 'cai', 1900],
+      [4, 'dee', 1700],
+    ]);
+    expect(p.entries[0]).toMatchObject({ displayName: 'ANA', country: 'US', games: 30, peak: 2150, provisional: false });
+  });
+
+  it('separates categories', async () => {
+    expect((await boards.get({ category: 'bullet', scope: 'global' })).entries.map((e) => e.userId)).toEqual(['ana']);
+  });
+
+  it('pages and still reports the viewer row when it is off the page', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'global', limit: 2, offset: 0, viewerId: 'dee' });
+    expect(p.entries).toHaveLength(2);
+    expect(p.you).toMatchObject({ userId: 'dee', rank: 4 });
+    const p2 = await boards.get({ category: 'blitz', scope: 'global', limit: 2, offset: 2 });
+    expect(p2.entries.map((e) => e.userId)).toEqual(['cai', 'dee']);
+  });
+
+  it('filters by country, defaulting to the viewer country', async () => {
+    expect((await boards.get({ category: 'blitz', scope: 'country', country: 'de' })).entries.map((e) => [e.rank, e.userId])).toEqual([
+      [1, 'cai'],
+      [2, 'dee'],
+    ]);
+    const mine = await boards.get({ category: 'blitz', scope: 'country', viewerId: 'ben' });
+    expect(mine.country).toBe('US');
+    expect(mine.entries.map((e) => e.userId)).toEqual(['ana', 'ben']);
+    await expect(boards.get({ category: 'blitz', scope: 'country' })).rejects.toThrow(LeaderboardError);
+  });
+
+  it('shows friends plus the viewer, provisional players included', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'friends', viewerId: 'dee' });
+    expect(p.entries.map((e) => [e.rank, e.userId, e.provisional])).toEqual([
+      [1, 'eve', true],
+      [2, 'ana', false],
+      [3, 'dee', false],
+    ]);
+    expect(p.you?.rank).toBe(3);
+    await expect(boards.get({ category: 'blitz', scope: 'friends' })).rejects.toThrow(/Sign in/);
+  });
+
+  it('rejects unknown categories and clamps limits', async () => {
+    await expect(boards.get({ category: 'nope' as never, scope: 'global' })).rejects.toThrow(/category/);
+    expect((await boards.get({ category: 'blitz', scope: 'global', limit: 10_000 })).entries).toHaveLength(4);
+  });
+});
+
+describe('Leaderboards (memory store)', () => {
+  it('ranks non-guest players with a settled rating', async () => {
+    const store = new MemoryPlayerStore();
+    store.save({ id: 'p1', name: 'One', ratings: { rapid: { rating: 1800, rd: 80, volatility: 0.06 } } });
+    store.save({ id: 'p2', name: 'Two', ratings: { rapid: { rating: 1600, rd: 340, volatility: 0.06 } } });
+    store.save({ id: 'g_x', name: 'Guest', ratings: { rapid: { rating: 2500, rd: 50, volatility: 0.06 } } });
+    const boards = new Leaderboards(new MemoryLeaderboardSource(() => store.all(), () => ['p2']));
+    expect((await boards.get({ category: 'rapid', scope: 'global' })).entries.map((e) => e.userId)).toEqual(['p1']);
+    expect((await boards.get({ category: 'rapid', scope: 'friends', viewerId: 'p1' })).entries.map((e) => e.userId)).toEqual(['p1', 'p2']);
+  });
+});
+
+describe('HTTP API', () => {
+  let server: ChessServer;
+  let base: string;
+  beforeAll(async () => {
+    server = new ChessServer({ port: 0, leaderboards: boards, viewerFor: (t) => (t === 'tok-dee' ? 'dee' : null) });
+    base = `http://localhost:${await server.listen()}`;
+  });
+  afterAll(() => server.close());
+
+  it('serves live stats', async () => {
+    const res = await fetch(`${base}/api/stats`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(await res.json()).toMatchObject({ playersOnline: 0, gamesInProgress: 0, playersSeeking: 0 });
+  });
+
+  it('serves leaderboards with the viewer from the bearer token', async () => {
+    const res = await fetch(`${base}/api/leaderboard?category=blitz&scope=friends`, { headers: { authorization: 'Bearer tok-dee' } });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.you.userId).toBe('dee');
+    expect(body.entries).toHaveLength(3);
+  });
+
+  it('returns 401 for a friends board without sign-in and 400 for bad input', async () => {
+    expect((await fetch(`${base}/api/leaderboard?scope=friends`)).status).toBe(401);
+    expect((await fetch(`${base}/api/leaderboard?category=chess960`)).status).toBe(400);
+  });
+});
