@@ -17,6 +17,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { GameRoom, type MoveError } from './gameRoom';
 import { Matchmaker } from './matchmaker';
+import type { GamePersistence } from './persistence';
 import { MemoryPlayerStore, authenticate, playerInfo, ratingFor, type Player, type PlayerStore } from './players';
 import { socialRoutes, type HttpRoute, type ResolveUser } from './social/http';
 import { isAccountId, type SocialService } from './social/service';
@@ -24,6 +25,8 @@ import { isAccountId, type SocialService } from './social/service';
 export interface ServerOptions {
   port: number;
   store?: PlayerStore;
+  /** Saves games, moves and rating changes; omitted means in-memory only. */
+  persistence?: GamePersistence;
   /** How long a disconnected player may be away before forfeiting. */
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
@@ -118,6 +121,7 @@ export class ChessServer {
     for (const c of this.wss.clients) c.terminate();
     await new Promise<void>((r) => this.wss.close(() => r()));
     await new Promise<void>((r) => this.http.close(() => r()));
+    await this.opts.persistence?.flush();
   }
 
   // ---- connection handling ----
@@ -296,12 +300,14 @@ export class ChessServer {
     const room = new GameRoom(id, playerInfo(white, tc), playerInfo(black, tc), tc, rated, now, {
       onMove: (r, m) => {
         const t = this.now();
+        this.opts.persistence?.moveMade(r, m);
         this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
         this.schedule(r);
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
         const ratingChange = r.rated && outcome.reason !== 'aborted' ? this.applyRatings(r) : undefined;
+        this.opts.persistence?.gameEnded(r, outcome, ratingChange);
         this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
@@ -314,6 +320,7 @@ export class ChessServer {
       },
     });
     this.rooms.set(id, room);
+    this.opts.persistence?.gameStarted(room);
     for (const [p, color] of [
       [white, 'w'],
       [black, 'b'],

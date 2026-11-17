@@ -10,6 +10,7 @@ apps/
   server/    Realtime game server (Node, WebSockets): matchmaking, authoritative games, clocks, ratings
 packages/
   core/      Shared TypeScript chess logic used by app and server
+  db/        Postgres schema, migrations and queries (Drizzle ORM)
 ```
 
 `@chessmate/core` holds everything both sides must agree on:
@@ -44,6 +45,30 @@ pnpm dev:app             # terminal 2: Expo dev server (press w for web)
 ```
 
 Checks: `pnpm test` and `pnpm typecheck`.
+
+## Database
+
+Games, moves, accounts and ratings are saved in Postgres. Nothing to install for local development: without `DATABASE_URL` the server runs Postgres embedded in-process (PGlite) and keeps its data in `.data/pglite` at the repo root. Migrations run automatically when the server starts.
+
+| Setting | What it does |
+| --- | --- |
+| `DATABASE_URL` | Connect to a real Postgres, e.g. `postgres://chessmate:chessmate@localhost:5432/chessmate` |
+| `DATABASE_PATH` | Folder for the embedded database when `DATABASE_URL` is unset (default `.data/pglite`) |
+| `CHESSMATE_DB=off` | Keep everything in memory, save nothing |
+
+To use a real Postgres locally (Docker Desktop):
+
+```powershell
+pnpm db:up                                                                         # starts postgres:17 from docker-compose.yml
+$env:DATABASE_URL = "postgres://chessmate:chessmate@localhost:5432/chessmate"       # PowerShell
+pnpm dev:server
+```
+
+To start over with an empty embedded database, stop the server and delete the `.data` folder.
+
+Schema changes: edit `packages/db/src/schema.ts`, then `pnpm db:generate` to write a migration into `packages/db/drizzle/` and commit it. `pnpm db:studio` opens a browser view of the data (needs `DATABASE_URL`).
+
+Tables: `users`, `refresh_sessions`, `password_resets`, `oauth_accounts`, `ratings` (one row per user and pool: bullet, blitz, rapid, classical, correspondence, puzzle), `rating_history`, `games` (players, time control, result, PGN, ratings before and after), `moves` (per ply with clocks and room for engine evals), `friendships`, `notifications`, `puzzles`, `puzzle_attempts`.
 
 ## Trying it on your own devices
 

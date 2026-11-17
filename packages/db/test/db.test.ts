@@ -17,7 +17,8 @@ import {
 
 let h: DbHandle;
 beforeAll(async () => {
-  h = openDb({ url: '', path: 'memory://' });
+  // Set TEST_DATABASE_URL to run against a real Postgres (use a throwaway database).
+  h = openDb({ url: process.env.TEST_DATABASE_URL ?? '', path: 'memory://' });
   await h.migrate();
 });
 afterAll(() => h.close());
