@@ -1,18 +1,16 @@
-import { BOARD_THEMES, PIECE_SETS, type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
+import { type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { ApiError } from '@/features/account/api';
-import { BOARD_THEME_COLORS, PIECE_SET_LABELS } from '@/features/account/boardThemes';
 import { useAccountSession } from '@/features/account/session';
 import { useSettingsSync } from '@/features/account/settingsStore';
+import { BoardCustomizer } from '@/features/board/BoardCustomizer';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
 
-const PREVIEW_FEN = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
 const VOLUME = [
   { value: '0.3', label: 'Low' },
   { value: '0.7', label: 'Medium' },
@@ -61,31 +59,7 @@ export function SettingsScreen() {
           )}
 
           <Section title="Board">
-            <View style={styles.preview}>
-              <Board fen={PREVIEW_FEN} orientation="w" size={200} lastMove={{ from: 'g1', to: 'f3' }} />
-              <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
-                {BOARD_THEMES.map((theme) => {
-                  const c = BOARD_THEME_COLORS[theme];
-                  const on = s.board.theme === theme;
-                  return (
-                    <Pressable
-                      key={theme}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      onPress={() => set({ board: { theme } })}
-                      style={[styles.themeRow, { borderColor: on ? t.text : t.border }]}>
-                      <View style={styles.swatch}>
-                        <View style={{ flex: 1, backgroundColor: c.light }} />
-                        <View style={{ flex: 1, backgroundColor: c.dark }} />
-                      </View>
-                      <Text style={{ color: t.text, fontWeight: on ? '700' : '400' }}>{c.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <Text style={[styles.label, { color: t.muted }]}>Pieces</Text>
-            <Segmented value={s.board.pieces} options={PIECE_SETS.map((p) => ({ value: p, label: PIECE_SET_LABELS[p] }))} onChange={(pieces) => set({ board: { pieces } })} />
+            <BoardCustomizer onChange={(board) => set({ board })} />
             <ToggleRow title="Coordinates" value={s.board.coordinates} onChange={(v) => set({ board: { coordinates: v } })} />
             <ToggleRow title="Highlight last move" value={s.board.highlightLastMove} onChange={(v) => set({ board: { highlightLastMove: v } })} />
             <ToggleRow title="Show legal moves" value={s.board.showLegalMoves} onChange={(v) => set({ board: { showLegalMoves: v } })} />
@@ -262,8 +236,5 @@ function DeleteAccount() {
 const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
-  preview: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 8 },
-  swatch: { width: 28, height: 28, borderRadius: 6, overflow: 'hidden', flexDirection: 'row' },
   label: { fontSize: 13, fontWeight: '600', marginTop: 4 },
 });

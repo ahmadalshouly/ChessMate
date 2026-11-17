@@ -1,19 +1,29 @@
+import { BOARD_THEMES, type BoardTheme as BoardThemeId } from '@chessmate/core';
+
+export type { BoardThemeId };
+
 /**
- * Board colour themes. `mono` is the brand default; the rest are user choices
- * (Settings > Board). Overlay colours stay semi-transparent so they read on any theme.
+ * Board themes (Settings > Board). Graphite is the brand default; the ids are shared
+ * with the server (`BOARD_THEMES` in @chessmate/core) so a player's choice follows them
+ * to every device. Overlay colours stay semi-transparent so they read on any theme.
  */
 export interface BoardTheme {
   id: BoardThemeId;
   name: string;
+  /** Short line shown under the name in the picker. */
+  note: string;
   light: string;
   dark: string;
+  /**
+   * Surface treatment drawn over the squares:
+   * - flat: plain squares
+   * - glass: a soft light-to-shade sheen across the whole board
+   * - natural: each square shifts its tone slightly, like stone or wood
+   */
+  finish: 'flat' | 'glass' | 'natural';
   /** Coordinates drawn on light / dark squares. */
   coordOnLight: string;
   coordOnDark: string;
-  whitePiece: string;
-  whitePieceOutline: string;
-  blackPiece: string;
-  blackPieceOutline: string;
   lastMove: string;
   selected: string;
   check: string;
@@ -23,101 +33,76 @@ export interface BoardTheme {
   arrow: string;
   /** Frame around the board. */
   frame: string;
+  /** Legacy piece colours, used only by the Unicode fallback. */
+  whitePiece: string;
+  whitePieceOutline: string;
+  blackPiece: string;
+  blackPieceOutline: string;
 }
 
-export type BoardThemeId = 'mono' | 'graphite' | 'marble' | 'slate' | 'walnut' | 'tournament';
+type Spec = Pick<BoardTheme, 'name' | 'note' | 'light' | 'dark'> & Partial<Omit<BoardTheme, 'id'>>;
 
-const shared = {
-  whitePiece: '#FFFFFF',
-  whitePieceOutline: '#15171B',
-  blackPiece: '#15171B',
-  blackPieceOutline: 'rgba(255, 255, 255, 0.35)',
-  check: 'rgba(201, 56, 56, 0.72)',
-  threat: 'rgba(201, 56, 56, 0.32)',
-  arrow: 'rgba(20, 20, 22, 0.62)',
-};
+function make(id: BoardThemeId, spec: Spec): BoardTheme {
+  return {
+    id,
+    finish: 'flat',
+    coordOnLight: spec.dark,
+    coordOnDark: spec.light,
+    lastMove: 'rgba(255, 214, 10, 0.36)',
+    selected: 'rgba(10, 10, 11, 0.24)',
+    check: 'rgba(214, 48, 48, 0.75)',
+    threat: 'rgba(214, 48, 48, 0.3)',
+    hint: 'rgba(10, 10, 11, 0.28)',
+    arrow: 'rgba(20, 20, 22, 0.62)',
+    frame: 'rgba(255, 255, 255, 0.45)',
+    whitePiece: '#FFFFFF',
+    whitePieceOutline: '#15171B',
+    blackPiece: '#15171B',
+    blackPieceOutline: 'rgba(255, 255, 255, 0.35)',
+    ...spec,
+  };
+}
 
 export const boardThemes: Record<BoardThemeId, BoardTheme> = {
-  mono: {
-    ...shared,
-    id: 'mono',
-    name: 'Monochrome',
-    light: '#EDEDEF',
-    dark: '#8E8E96',
-    coordOnLight: '#8E8E96',
-    coordOnDark: '#EDEDEF',
-    lastMove: 'rgba(255, 214, 10, 0.38)',
-    selected: 'rgba(10, 10, 11, 0.28)',
-    hint: 'rgba(10, 10, 11, 0.30)',
-    frame: 'rgba(255, 255, 255, 0.5)',
-  },
-  graphite: {
-    ...shared,
-    id: 'graphite',
-    name: 'Graphite',
-    light: '#A3A3AB',
-    dark: '#4A4A52',
-    coordOnLight: '#4A4A52',
-    coordOnDark: '#A3A3AB',
-    lastMove: 'rgba(255, 255, 255, 0.28)',
-    selected: 'rgba(255, 255, 255, 0.30)',
-    hint: 'rgba(10, 10, 11, 0.38)',
-    arrow: 'rgba(255, 255, 255, 0.7)',
+  graphite: make('graphite', { name: 'Graphite', note: 'Default', light: '#EDEDEF', dark: '#8E8E96', finish: 'glass' }),
+  marble: make('marble', { name: 'Marble', note: 'Veined stone', light: '#F4F2ED', dark: '#B5B0A6', finish: 'natural', lastMove: 'rgba(10, 10, 11, 0.13)', selected: 'rgba(10, 10, 11, 0.2)' }),
+  slate: make('slate', { name: 'Slate', note: 'Cool and calm', light: '#DCE2E8', dark: '#5F6B78', finish: 'natural', lastMove: 'rgba(120, 190, 255, 0.4)' }),
+  contrast: make('contrast', { name: 'High contrast', note: 'Maximum clarity', light: '#FFFFFF', dark: '#3A3B41', lastMove: 'rgba(255, 196, 0, 0.5)', hint: 'rgba(120, 120, 128, 0.55)', arrow: 'rgba(255, 170, 0, 0.8)' }),
+  frost: make('frost', { name: 'Frost', note: 'Frosted glass', light: '#F6F8FB', dark: '#BAC4D0', finish: 'glass', lastMove: 'rgba(90, 160, 255, 0.3)', frame: 'rgba(255, 255, 255, 0.75)' }),
+  onyx: make('onyx', {
+    name: 'Onyx',
+    note: 'Polished black',
+    light: '#C9CBD1',
+    dark: '#45474F',
+    finish: 'glass',
+    lastMove: 'rgba(255, 255, 255, 0.26)',
+    selected: 'rgba(255, 255, 255, 0.28)',
+    hint: 'rgba(10, 10, 11, 0.4)',
+    arrow: 'rgba(255, 255, 255, 0.72)',
     frame: 'rgba(255, 255, 255, 0.18)',
-  },
-  marble: {
-    ...shared,
-    id: 'marble',
-    name: 'Marble',
-    light: '#F7F7F5',
-    dark: '#C9C9C6',
-    coordOnLight: '#A6A6A2',
-    coordOnDark: '#F7F7F5',
-    lastMove: 'rgba(10, 10, 11, 0.12)',
-    selected: 'rgba(10, 10, 11, 0.22)',
-    hint: 'rgba(10, 10, 11, 0.26)',
-    frame: 'rgba(255, 255, 255, 0.7)',
-  },
-  slate: {
-    ...shared,
-    id: 'slate',
-    name: 'Slate',
-    light: '#DDE3EA',
-    dark: '#6F7F91',
-    coordOnLight: '#6F7F91',
-    coordOnDark: '#DDE3EA',
-    lastMove: 'rgba(120, 190, 255, 0.42)',
-    selected: 'rgba(10, 30, 60, 0.26)',
-    hint: 'rgba(10, 20, 40, 0.30)',
-    frame: 'rgba(255, 255, 255, 0.45)',
-  },
-  walnut: {
-    ...shared,
-    id: 'walnut',
-    name: 'Walnut',
-    light: '#E8D5B5',
-    dark: '#A47A55',
-    coordOnLight: '#A47A55',
-    coordOnDark: '#E8D5B5',
-    lastMove: 'rgba(255, 220, 80, 0.42)',
-    selected: 'rgba(40, 20, 0, 0.26)',
-    hint: 'rgba(40, 20, 0, 0.30)',
-    frame: 'rgba(255, 240, 220, 0.4)',
-  },
-  tournament: {
-    ...shared,
-    id: 'tournament',
-    name: 'Tournament',
-    light: '#E6EBDD',
-    dark: '#7A9270',
-    coordOnLight: '#7A9270',
-    coordOnDark: '#E6EBDD',
-    lastMove: 'rgba(255, 230, 60, 0.45)',
-    selected: 'rgba(20, 40, 10, 0.25)',
-    hint: 'rgba(20, 30, 10, 0.28)',
-    frame: 'rgba(255, 255, 255, 0.4)',
-  },
+  }),
+  ivory: make('ivory', { name: 'Ivory', note: 'Warm and quiet', light: '#F7F2E8', dark: '#A0968A', finish: 'natural' }),
+  walnut: make('walnut', { name: 'Walnut', note: 'Dark wood', light: '#E9D6B6', dark: '#9C7250', finish: 'natural', lastMove: 'rgba(255, 220, 80, 0.4)', selected: 'rgba(40, 20, 0, 0.26)', hint: 'rgba(40, 20, 0, 0.3)', frame: 'rgba(255, 240, 220, 0.4)' }),
+  maple: make('maple', { name: 'Maple', note: 'Light wood', light: '#F1E2C6', dark: '#C49A6C', finish: 'natural', lastMove: 'rgba(255, 210, 60, 0.42)', selected: 'rgba(40, 20, 0, 0.24)', hint: 'rgba(40, 20, 0, 0.28)' }),
+  tournament: make('tournament', { name: 'Tournament', note: 'Club classic', light: '#E8ECDF', dark: '#76906C', lastMove: 'rgba(255, 230, 60, 0.45)', selected: 'rgba(20, 40, 10, 0.25)' }),
+  ocean: make('ocean', { name: 'Ocean', note: 'Deep blue', light: '#E0EAF1', dark: '#4E7896', finish: 'glass', lastMove: 'rgba(120, 220, 255, 0.38)', selected: 'rgba(5, 25, 50, 0.26)' }),
+  midnight: make('midnight', {
+    name: 'Midnight',
+    note: 'Night blue',
+    light: '#A7B0C2',
+    dark: '#2E374B',
+    finish: 'glass',
+    lastMove: 'rgba(140, 180, 255, 0.34)',
+    selected: 'rgba(255, 255, 255, 0.24)',
+    hint: 'rgba(5, 8, 20, 0.42)',
+    arrow: 'rgba(255, 255, 255, 0.72)',
+    frame: 'rgba(255, 255, 255, 0.16)',
+  }),
+  emerald: make('emerald', { name: 'Emerald', note: 'Jewel green', light: '#E2EFE7', dark: '#3A7D61', finish: 'glass', lastMove: 'rgba(255, 236, 110, 0.42)' }),
+  amethyst: make('amethyst', { name: 'Amethyst', note: 'Soft violet', light: '#ECE6F3', dark: '#7F6CA1', finish: 'glass' }),
+  rose: make('rose', { name: 'Rose', note: 'Muted rose', light: '#F5E7E7', dark: '#B67D87', finish: 'natural' }),
+  sand: make('sand', { name: 'Sand', note: 'Desert light', light: '#F3E9D4', dark: '#C8AC82', finish: 'natural' }),
 };
 
-export const boardThemeList: BoardTheme[] = Object.values(boardThemes);
-export const DEFAULT_BOARD_THEME: BoardThemeId = 'mono';
+export const boardThemeList: BoardTheme[] = BOARD_THEMES.map((id) => boardThemes[id]);
+export const DEFAULT_BOARD_THEME: BoardThemeId = 'graphite';

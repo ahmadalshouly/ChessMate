@@ -137,6 +137,6 @@ Badge tones: `neutral, solid, outline, success, warning, danger, live`.
 
 ## Board themes
 
-`boardThemes`: `mono` (default), `graphite`, `marble`, `slate`, `walnut`, `tournament`. Each has square colours, coordinates, piece fills/outlines and overlay colours (`lastMove, selected, check, threat, hint, arrow`).
+`boardThemes`: 16 themes keyed by the ids in `BOARD_THEMES` (@chessmate/core), `graphite` is the default. Each has square colours, a `finish` (`flat`, `glass` sheen, or `natural` per-square tone variation), coordinates and overlay colours (`lastMove, selected, check, threat, hint, arrow`).
 
-`<Board>` uses the user's choice automatically; pass `theme={boardThemes.slate}` to override for previews. Drop `<BoardThemePicker />` into Settings to let users choose, or use `<BoardThemeSwatch theme={…} />` for custom pickers.
+The theme and piece set live in the player's settings (`board.theme`, `board.pieces`), saved to their account when signed in and on the device otherwise. `<Board>` uses both automatically; pass `theme={boardThemes.slate}` or `pieces="glass"` to override for previews. The full picker with live preview is `<BoardCustomizer />` (`src/features/board`), used in Settings; `<BoardThemePicker />` and `<BoardThemeSwatch theme={…} />` remain for compact pickers. Change settings from anywhere with `updateSettings(patch)` from `src/features/account/settingsStore`.
