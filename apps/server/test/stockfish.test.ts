@@ -26,7 +26,7 @@ describe('Stockfish process', () => {
   }, 60_000);
 });
 
-/** A real review finds the queen brilliancy in a smothered mate. */
+/** A real review finds the Masterpiece in a smothered mate. */
 describe('Stockfish review badges', () => {
   it('gives !!! to Qg8+ before Nf7#', async () => {
     const { AnalysisService, EnginePool } = await import('../src/engine');
@@ -35,7 +35,7 @@ describe('Stockfish review badges', () => {
     try {
       const out: unknown[] = [];
       const review = await service.review('t', { id: 1, initialFen: '5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1', moves: ['d5g8', 'f8g8', 'h6f7'] }, (m) => out.push(m));
-      expect(review?.moves.map((m) => m.judgement.classification)).toEqual(['royal', 'forced', 'great']);
+      expect(review?.moves.map((m) => m.judgement.classification)).toEqual(['masterpiece', 'forced', 'great']);
     } finally {
       service.close();
     }

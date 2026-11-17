@@ -31,9 +31,14 @@ describe('sacrifice detection', () => {
 });
 
 describe('classifyMove', () => {
-  it('gives !!! to a sound queen sacrifice', () => {
+  it('gives !!! to a queen sacrifice that forces mate', () => {
     const j = classifyMove({ fenBefore: SMOTHER, uci: 'd5g8', bestMove: 'd5g8', bestScore: { mate: 2 }, playedScore: { mate: 2 } });
-    expect(j.classification).toBe('royal');
+    expect(j.classification).toBe('masterpiece');
+  });
+
+  it('gives !! (not !!!) to a sound queen sacrifice that does not force mate', () => {
+    const j = classifyMove({ fenBefore: SMOTHER, uci: 'd5g8', bestMove: 'd5g8', bestScore: { cp: 300 }, playedScore: { cp: 300 } });
+    expect(j.classification).toBe('brilliant');
   });
 
   it('gives !! to a sound sacrifice by another piece', () => {

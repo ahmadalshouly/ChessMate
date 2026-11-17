@@ -180,7 +180,7 @@ export default function Analysis() {
             </View>
             {engineOn && last && lastGrade && (
               <View style={styles.row}>
-                <MoveBadge cls={lastGrade.classification} size={22} />
+                <MoveBadge cls={lastGrade.classification} size={52} variant="full" />
                 <Label>
                   {last.san} is {MOVE_CLASS[lastGrade.classification].phrase}
                 </Label>
@@ -216,7 +216,7 @@ export default function Analysis() {
                       {moveLabel(i) ? <Text style={{ color: cursor === i + 1 ? t.onAccent : t.muted }}>{moveLabel(i)} </Text> : null}
                       {m.san}
                     </Text>
-                    {engineOn && grades[i] && <MoveBadge cls={grades[i]!.classification} size={14} />}
+                    {engineOn && grades[i] && <MoveBadge cls={grades[i]!.classification} size={16} />}
                   </Pressable>
                 ))}
               </View>

@@ -148,15 +148,17 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 
 | Badge | Meaning |
 | --- | --- |
-| **!!!** Queen brilliancy | A brilliant move made by the queen that offers the queen itself (for example a queen sacrifice that forces mate). ChessMate's top tier. |
-| **!!** Brilliant | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
-| **!** Great | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
-| Best, Excellent, Good | Close to the engine's choice. |
-| Book, Forced | A known opening move; the only legal move. |
-| **?!** Inaccuracy, **?** Mistake, **??** Blunder | Increasing loss of winning chances. |
-| Miss | Your opponent just erred and the move let the chance slip. |
+| **!!!** Masterpiece (purple, crown) | A queen sacrifice that leads to a forced mate. ChessMate's top tier. Any other brilliant queen move is !!. |
+| **!!** Brilliant (teal, sparkles) | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
+| **!** Great (sapphire, target) | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
+| Best Move (gold, star), Excellent (copper, check), Good (green, rising check) | Close to the engine's choice. |
+| Book Move (brown, book), Forced (slate, arrow) | A known opening move; the only legal move. |
+| **?!** Inaccuracy (yellow), **?** Mistake (orange, cross), **??** Blunder (red, lightning) | Increasing loss of winning chances. |
+| Missed Chance (steel blue, crossed arrows) | Your opponent just erred and the move let the chance slip. |
 
-To try them: open the analysis board, import `1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7`, and step through it (6. Nxf7 is brilliant). For the !!! badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
+Badges are SVG medallions (`react-native-svg`): the full coin with its name, icon and symbol in the review, and a small white-edged coin (symbol or icon only) pinned to the moved piece on the board. Run `pnpm install` after pulling, since `react-native-svg` is new.
+
+To try them: open the analysis board, import `1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7`, and step through it (6. Nxf7 is brilliant). For the !!! (Masterpiece) badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
 
 Engine help is refused while you have a live game, and for any position currently on the board in a live game.
 

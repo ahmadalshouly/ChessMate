@@ -5,7 +5,7 @@ export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: unde
 
 /**
  * Move classes, strongest first:
- * - royal (!!!): a brilliant move made by the queen, offering the queen itself.
+ * - masterpiece (!!!): a queen sacrifice that leads to a forced mate.
  *   ChessMate's own top tier, above brilliant.
  * - brilliant (!!): a sound sacrifice; the best (or near best) move gives
  *   material away and the position stays good.
@@ -16,7 +16,7 @@ export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: unde
  * - miss: the opponent just erred and the move let the chance slip.
  */
 export type MoveClass =
-  | 'royal'
+  | 'masterpiece'
   | 'brilliant'
   | 'great'
   | 'best'
@@ -30,7 +30,7 @@ export type MoveClass =
   | 'forced';
 
 /** Every class, in display order (strongest first). */
-export const MOVE_CLASSES: MoveClass[] = ['royal', 'brilliant', 'great', 'best', 'excellent', 'good', 'book', 'forced', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+export const MOVE_CLASSES: MoveClass[] = ['masterpiece', 'brilliant', 'great', 'best', 'excellent', 'good', 'book', 'forced', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 
 /** Logistic slope converting centipawns to expected score. */
 const K = 0.004;
@@ -127,9 +127,11 @@ export function judgeMove(params: {
   if (top && !easilyWinning) {
     const sac = params.sacrifice;
     if (sac && after >= SOUND_AFTER) {
-      // !!! is reserved for the queen: a brilliant move by the queen that offers the queen itself.
-      const royal = params.movedPiece === 'q' && sac.piece === 'q';
-      return { classification: royal ? 'royal' : 'brilliant', loss, accuracy: 100 };
+      // !!! (Masterpiece) is reserved for a queen sacrifice that leads to a forced mate.
+      // Any other sound sacrifice, queen or not, is !!.
+      const mateFor = params.playedScore.mate !== undefined && (params.mover === 'w' ? params.playedScore.mate > 0 : params.playedScore.mate < 0);
+      const masterpiece = params.movedPiece === 'q' && sac.piece === 'q' && mateFor;
+      return { classification: masterpiece ? 'masterpiece' : 'brilliant', loss, accuracy: 100 };
     }
     if (params.secondBestScore && !params.isRecapture && after >= SOUND_AFTER) {
       const second = expectedScoreFor(params.secondBestScore, params.mover);

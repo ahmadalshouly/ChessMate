@@ -298,7 +298,7 @@ export function buildReviewPrompt(analysis: GameAnalysis, facts: ReviewFacts): s
 }
 
 const TAGS: Partial<Record<MoveClass, string>> = {
-  royal: ' !!! (queen brilliancy)',
+  masterpiece: ' !!! (Masterpiece, queen sacrifice)',
   brilliant: ' !!',
   great: ' !',
   inaccuracy: ' ?!',
@@ -312,7 +312,7 @@ function tag(c: MoveClass): string {
 }
 
 function countText(c: Partial<Record<MoveClass, number>>): string {
-  const strong = (c.royal ?? 0) + (c.brilliant ?? 0);
+  const strong = (c.masterpiece ?? 0) + (c.brilliant ?? 0);
   const base = `${c.blunder ?? 0} blunders, ${c.mistake ?? 0} mistakes, ${c.miss ?? 0} missed chances, ${c.inaccuracy ?? 0} inaccuracies`;
   return strong ? `${base}, ${strong} brilliant` : base;
 }

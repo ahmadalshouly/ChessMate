@@ -17,11 +17,11 @@ import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
 /** Classes where the played move needs no "better move" arrow. */
-const NO_ARROW = new Set<MoveClass>(['royal', 'brilliant', 'great', 'best', 'forced', 'book']);
+const NO_ARROW = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'best', 'forced', 'book']);
 /** Summary rows shown even when nobody played that kind of move. */
 const ALWAYS_LISTED = new Set<MoveClass>(['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder']);
 /** Moves marked on the evaluation graph. */
-const GRAPH_MARKED = new Set<MoveClass>(['royal', 'brilliant', 'great', 'mistake', 'miss', 'blunder']);
+const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'mistake', 'miss', 'blunder']);
 
 /**
  * Game review: Stockfish grades every move of a finished game (best to
@@ -144,7 +144,7 @@ export default function Review() {
                 {current ? (
                   <>
                     <View style={styles.row}>
-                      <MoveBadge cls={current.judgement.classification} size={26} />
+                      <MoveBadge cls={current.judgement.classification} size={64} variant="full" />
                       <Label bold size={17}>
                         {moveNumber(current)} {current.san} is {MOVE_CLASS[current.judgement.classification].phrase}
                       </Label>
@@ -179,9 +179,17 @@ export default function Review() {
                   </View>
                 </View>
                 <SummaryRow label="Accuracy" w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
-                {REVIEW_ORDER.filter((c) => ALWAYS_LISTED.has(c) || (review.counts.w[c] ?? 0) + (review.counts.b[c] ?? 0) > 0).map((c) => (
-                  <SummaryRow key={c} cls={c} label={MOVE_CLASS[c].label} w={String(review.counts.w[c] ?? 0)} b={String(review.counts.b[c] ?? 0)} />
-                ))}
+                <View style={styles.medalGrid}>
+                  {REVIEW_ORDER.filter((c) => ALWAYS_LISTED.has(c) || (review.counts.w[c] ?? 0) + (review.counts.b[c] ?? 0) > 0).map((c) => (
+                    <View key={c} style={styles.medalTile} accessibilityLabel={`${MOVE_CLASS[c].label}: White ${review.counts.w[c] ?? 0}, Black ${review.counts.b[c] ?? 0}`}>
+                      <MoveBadge cls={c} size={68} variant="full" />
+                      <Label muted size={12}>
+                        {review.counts.w[c] ?? 0} · {review.counts.b[c] ?? 0}
+                      </Label>
+                    </View>
+                  ))}
+                </View>
+                <Label muted size={12}>Counts are White · Black.</Label>
                 <Label muted size={12}>Engine depth {review.depth}</Label>
               </Card>
 
@@ -198,7 +206,7 @@ export default function Review() {
                         {m.color === 'w' || m.ply === 1 ? <Text style={{ color: ply === m.ply ? t.onAccent : t.muted }}>{moveNumber(m)} </Text> : null}
                         {m.san}
                       </Text>
-                      <MoveBadge cls={m.judgement.classification} size={14} />
+                      <MoveBadge cls={m.judgement.classification} size={16} />
                     </Pressable>
                   ))}
                 </View>
@@ -226,11 +234,10 @@ function moveNumber(m: ReviewedMove) {
   return m.color === 'w' ? `${full}.` : `${full}…`;
 }
 
-function SummaryRow({ label, w, b, cls, strong }: { label: string; w: string; b: string; cls?: ReviewedMove['judgement']['classification']; strong?: boolean }) {
+function SummaryRow({ label, w, b, strong }: { label: string; w: string; b: string; strong?: boolean }) {
   return (
     <View style={styles.summaryRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {cls && <MoveBadge cls={cls} size={22} />}
         <Label bold={strong}>{label}</Label>
       </View>
       <View style={styles.summaryCell}>
@@ -283,6 +290,8 @@ const styles = StyleSheet.create({
   summaryHead: { flexDirection: 'row', gap: 8 },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryCell: { width: 52, alignItems: 'flex-end' },
+  medalGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, paddingVertical: 6 },
+  medalTile: { alignItems: 'center', gap: 2, width: 74 },
   moveList: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   moveChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   graph: { flexDirection: 'row', borderRadius: 6, overflow: 'hidden' },
