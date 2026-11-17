@@ -145,22 +145,34 @@ export class AnalysisService {
     const ctrl = new AbortController();
     const entry = { id: req.id, ctrl };
     c.review = entry;
-    const depth = this.opts.reviewDepth ?? 14;
-    const movetimeMs = this.opts.reviewMoveTimeMs ?? 400;
+    const depth = this.opts.reviewDepth ?? REVIEW_DEFAULTS.depth;
+    const movetimeMs = this.opts.reviewMoveTimeMs ?? REVIEW_DEFAULTS.movetimeMs;
     try {
-      const evals: PositionEval[] = [];
-      for (let i = 0; i < fens.length; i++) {
-        const fen = fens[i]!;
-        const term = terminalState(fen);
-        if (term) {
-          evals.push({ score: terminalScore(fen, term), pv: [], depth: 0 });
-        } else {
-          const res = await this.pool.run((engine) => engine.search(fen, { multipv: 1, depth, movetimeMs }, undefined, ctrl.signal), ctrl.signal);
-          evals.push(positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined));
+      // Two lines per position: the second tells "the only good move" (!) apart from an easy one.
+      // Positions are independent, so they spread across every engine in the pool.
+      const evals: PositionEval[] = new Array(fens.length);
+      let done = 0;
+      let next = 0;
+      const worker = async () => {
+        while (next < fens.length && !ctrl.signal.aborted) {
+          const i = next++;
+          const fen = fens[i]!;
+          const term = terminalState(fen);
+          if (term) {
+            evals[i] = { score: terminalScore(fen, term), pv: [], depth: 0 };
+          } else {
+            const res = await this.pool.run(
+              (engine) => engine.search(fen, { multipv: REVIEW_DEFAULTS.multipv, depth, movetimeMs }, undefined, ctrl.signal),
+              ctrl.signal,
+            );
+            evals[i] = positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null);
+          }
+          if (ctrl.signal.aborted) return;
+          send({ t: 'reviewProgress', id: req.id, done: ++done, total: fens.length });
         }
-        if (ctrl.signal.aborted) return null;
-        send({ t: 'reviewProgress', id: req.id, done: i + 1, total: fens.length });
-      }
+      };
+      await Promise.all(Array.from({ length: Math.min(this.pool.size, fens.length) }, worker));
+      if (ctrl.signal.aborted) return null;
       const review = buildReview(fens[0]!, req.moves, evals);
       this.remember(cacheKey, review);
       send({ t: 'reviewResult', id: req.id, review });
@@ -192,6 +204,9 @@ export class AnalysisService {
     if (this.reviewCache.size > 200) this.reviewCache.delete(this.reviewCache.keys().next().value!);
   }
 }
+
+/** Per-position search for game reviews. REVIEW_DEPTH and REVIEW_MOVETIME_MS override. */
+export const REVIEW_DEFAULTS = { depth: 18, movetimeMs: 800, multipv: 2 } as const;
 
 function clamp(n: number, lo: number, hi: number) {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo;

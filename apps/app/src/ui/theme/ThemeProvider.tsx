@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, useColorScheme } from 'react-native';
 
+import { getSettings, updateSettings, useSettings } from '@/features/account/settingsStore';
+
 import { boardThemes, DEFAULT_BOARD_THEME, type BoardTheme, type BoardThemeId } from './boardThemes';
 import { themes, type ColorScheme, type ColorTokens, type Theme } from './tokens';
 
@@ -18,7 +20,6 @@ export interface AppearanceStorage {
 
 export interface AppearanceSettings {
   preference: ThemePreference;
-  boardTheme: BoardThemeId;
 }
 
 const STORAGE_KEY = 'chessmate.appearance';
@@ -49,8 +50,6 @@ interface ThemeContextValue {
   setPreference: (p: ThemePreference) => void;
   /** Flip between light and dark (leaves "system"). */
   toggleScheme: () => void;
-  boardTheme: BoardTheme;
-  setBoardTheme: (id: BoardThemeId) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -67,7 +66,6 @@ export function ThemeProvider({
   const system = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [settings, setSettings] = useState<AppearanceSettings>(() => ({
     preference: initial?.preference ?? 'system',
-    boardTheme: initial?.boardTheme ?? DEFAULT_BOARD_THEME,
   }));
 
   useEffect(() => {
@@ -76,7 +74,6 @@ export function ThemeProvider({
       if (cancelled || !saved) return;
       setSettings((s) => ({
         preference: isPreference(saved.preference) ? saved.preference : s.preference,
-        boardTheme: saved.boardTheme && saved.boardTheme in boardThemes ? saved.boardTheme : s.boardTheme,
       }));
     });
     return () => {
@@ -97,8 +94,6 @@ export function ThemeProvider({
       preference: settings.preference,
       setPreference: (preference) => update({ preference }),
       toggleScheme: () => update({ preference: scheme === 'dark' ? 'light' : 'dark' }),
-      boardTheme: boardThemes[settings.boardTheme],
-      setBoardTheme: (boardTheme) => update({ boardTheme }),
     };
   }, [settings, system, storage]);
 
@@ -117,8 +112,6 @@ function useFallback(): ThemeContextValue {
     preference: 'system',
     setPreference: () => {},
     toggleScheme: () => {},
-    boardTheme: boardThemes[DEFAULT_BOARD_THEME],
-    setBoardTheme: () => {},
   };
 }
 
@@ -144,8 +137,18 @@ export function useThemePreference() {
   return { preference, setPreference, toggleScheme, scheme: theme.scheme };
 }
 
-/** Active board theme and setter. */
-export function useBoardTheme() {
-  const { boardTheme, setBoardTheme } = useThemeContext();
-  return { boardTheme, setBoardTheme };
+const setBoardTheme = (theme: BoardThemeId) => updateSettings({ board: { theme } }).catch(() => undefined);
+
+/**
+ * Active board theme and setter. The choice lives in the player's settings
+ * (saved to their account when signed in, on the device otherwise).
+ */
+export function useBoardTheme(): { boardTheme: BoardTheme; setBoardTheme: (id: BoardThemeId) => void } {
+  const id = useSettings().board.theme;
+  return { boardTheme: boardThemes[id] ?? boardThemes[DEFAULT_BOARD_THEME], setBoardTheme };
+}
+
+/** Board theme outside React (e.g. sharing images). */
+export function currentBoardTheme(): BoardTheme {
+  return boardThemes[getSettings().board.theme] ?? boardThemes[DEFAULT_BOARD_THEME];
 }

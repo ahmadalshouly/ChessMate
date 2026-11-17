@@ -1,11 +1,13 @@
-import { START_FEN, evalBarFraction, parseUci, type ReviewedMove, type Square } from '@chessmate/core';
+import { START_FEN, evalBarFraction, parseUci, type MoveClass, type ReviewedMove, type Square } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
+import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { BEST_MOVE_ARROW, MOVE_CLASS, REVIEW_ORDER, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
@@ -14,6 +16,12 @@ import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
+/** Classes where the played move needs no "better move" arrow. */
+const NO_ARROW = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'best', 'forced', 'book']);
+/** Summary rows shown even when nobody played that kind of move. */
+const ALWAYS_LISTED = new Set<MoveClass>(['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder']);
+/** Moves marked on the evaluation graph. */
+const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'mistake', 'miss', 'blunder']);
 
 /**
  * Game review: Stockfish grades every move of a finished game (best to
@@ -60,7 +68,7 @@ export default function Review() {
 
   // Show what the engine preferred when the played move was not the best.
   const arrows: Arrow[] = [];
-  if (current && current.bestMove !== current.uci && !['best', 'forced', 'book'].includes(current.judgement.classification)) {
+  if (current && current.bestMove !== current.uci && !NO_ARROW.has(current.judgement.classification)) {
     const m = parseUci(current.bestMove);
     arrows.push({ from: m.from, to: m.to, color: BEST_MOVE_ARROW });
   }
@@ -94,6 +102,7 @@ export default function Review() {
                 checkSquare={checkSquareOf(fen)}
               />
               <BoardArrows arrows={arrows} size={size} orientation={orientation} />
+              {current && <BoardMoveBadge square={current.uci.slice(2, 4) as Square} cls={current.judgement.classification} size={size} orientation={orientation} />}
             </View>
           </View>
 
@@ -135,7 +144,7 @@ export default function Review() {
                 {current ? (
                   <>
                     <View style={styles.row}>
-                      <Badge cls={current.judgement.classification} />
+                      <MoveBadge cls={current.judgement.classification} size={64} variant="full" />
                       <Label bold size={17}>
                         {moveNumber(current)} {current.san} is {MOVE_CLASS[current.judgement.classification].phrase}
                       </Label>
@@ -170,9 +179,17 @@ export default function Review() {
                   </View>
                 </View>
                 <SummaryRow label="Accuracy" w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
-                {REVIEW_ORDER.map((c) => (
-                  <SummaryRow key={c} cls={c} label={MOVE_CLASS[c].label} w={String(review.counts.w[c])} b={String(review.counts.b[c])} />
-                ))}
+                <View style={styles.medalGrid}>
+                  {REVIEW_ORDER.filter((c) => ALWAYS_LISTED.has(c) || (review.counts.w[c] ?? 0) + (review.counts.b[c] ?? 0) > 0).map((c) => (
+                    <View key={c} style={styles.medalTile} accessibilityLabel={`${MOVE_CLASS[c].label}: White ${review.counts.w[c] ?? 0}, Black ${review.counts.b[c] ?? 0}`}>
+                      <MoveBadge cls={c} size={68} variant="full" />
+                      <Label muted size={12}>
+                        {review.counts.w[c] ?? 0} · {review.counts.b[c] ?? 0}
+                      </Label>
+                    </View>
+                  ))}
+                </View>
+                <Label muted size={12}>Counts are White · Black.</Label>
                 <Label muted size={12}>Engine depth {review.depth}</Label>
               </Card>
 
@@ -189,7 +206,7 @@ export default function Review() {
                         {m.color === 'w' || m.ply === 1 ? <Text style={{ color: ply === m.ply ? t.onAccent : t.muted }}>{moveNumber(m)} </Text> : null}
                         {m.san}
                       </Text>
-                      <View style={[styles.dot, { backgroundColor: MOVE_CLASS[m.judgement.classification].color }]} />
+                      <MoveBadge cls={m.judgement.classification} size={16} />
                     </Pressable>
                   ))}
                 </View>
@@ -217,20 +234,10 @@ function moveNumber(m: ReviewedMove) {
   return m.color === 'w' ? `${full}.` : `${full}…`;
 }
 
-function Badge({ cls }: { cls: ReviewedMove['judgement']['classification'] }) {
-  const c = MOVE_CLASS[cls];
-  return (
-    <View style={[styles.badge, { backgroundColor: c.color }]}>
-      <Text style={styles.badgeText}>{c.symbol}</Text>
-    </View>
-  );
-}
-
-function SummaryRow({ label, w, b, cls, strong }: { label: string; w: string; b: string; cls?: ReviewedMove['judgement']['classification']; strong?: boolean }) {
+function SummaryRow({ label, w, b, strong }: { label: string; w: string; b: string; strong?: boolean }) {
   return (
     <View style={styles.summaryRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {cls && <Badge cls={cls} />}
         <Label bold={strong}>{label}</Label>
       </View>
       <View style={styles.summaryCell}>
@@ -252,7 +259,7 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
       {moves.map((m) => {
         const white = evalBarFraction(m.scoreAfter);
         const cls = m.judgement.classification;
-        const flagged = cls === 'mistake' || cls === 'blunder';
+        const flagged = GRAPH_MARKED.has(cls);
         return (
           <Pressable key={m.ply} onPress={() => onSelect(m.ply)} style={[styles.graphCol, { backgroundColor: '#1B1B1F' }]}>
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: height * white, backgroundColor: '#E9E9EC' }} />
@@ -280,14 +287,13 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
-  badge: { minWidth: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  badgeText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
   summaryHead: { flexDirection: 'row', gap: 8 },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryCell: { width: 52, alignItems: 'flex-end' },
+  medalGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, paddingVertical: 6 },
+  medalTile: { alignItems: 'center', gap: 2, width: 74 },
   moveList: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   moveChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
   graph: { flexDirection: 'row', borderRadius: 6, overflow: 'hidden' },
   graphCol: { flex: 1, height: '100%' },
   graphMark: { position: 'absolute', top: 2, left: '20%', right: '20%', height: 4, borderRadius: 2 },

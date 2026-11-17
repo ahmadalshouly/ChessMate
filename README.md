@@ -49,11 +49,12 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 - **Engine and coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
-- **Original look.** Monochrome, frosted-glass brand; no assets taken from other chess sites.
+- **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
+- **Boards and pieces.** Players pick from 16 board themes and 8 piece sets in Settings > Board, saved to their account (or the device for guests) and used on every board. Piece artwork comes from openly licensed sets by their original authors (Apache 2.0, MIT, CC BY, CC BY-SA, CC0; never non-commercial or GPL art), plus ChessMate's own Glass set. Sources, credits and how to add a set: [apps/app/art/pieces/README.md](apps/app/art/pieces/README.md).
 
 ## Design system
 
-UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open http://localhost:8081/design in the browser to see every component in light and dark.
+UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Type: Montserrat (the logo's wordmark face) for titles, Geist for body text, Geist Mono for clocks, ratings and labels, all bundled with the app. Logo files (SVG, black and white) are in `apps/app/assets/brand/`. Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open http://localhost:8081/design in the browser to see every component in light and dark.
 
 ## Getting started
 
@@ -66,7 +67,7 @@ pnpm dev:server          # terminal 1: game server on port 8787
 pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or press w for web)
 ```
 
-The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen after pulling, stop it and run `pnpm dev:app --clear`.
+The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`.
 
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
 
@@ -109,7 +110,10 @@ The game server also serves the account API at `http://<host>:8787/api/auth` (co
 | `GET /me` | `Authorization: Bearer <accessToken>` | `200 {user}` |
 | `POST /forgot-password` | `{email}` | `202` always |
 | `POST /reset-password` | `{token, password}` | `204`, signs out every device |
-| `POST /change-password` | `{currentPassword, newPassword}` + Bearer | `204` |
+| `POST /change-password` | `{currentPassword, newPassword}` + Bearer | `204` (accounts without a password may leave `currentPassword` empty) |
+| `GET /providers` | | `200 {providers: {google, apple}}`: which social sign-ins the server accepts |
+| `POST /google` | `{idToken}` (Google ID token) | `201` new account / `200` existing, `{user, tokens}` |
+| `POST /apple` | `{idToken, fullName?}` (Apple identity token) | `201` / `200`, `{user, tokens}` |
 
 Errors are `{error: {code, message, field?}}`. Passwords are hashed with scrypt; access tokens are 15-minute JWTs and refresh tokens last 30 days. The WebSocket `hello` accepts an access token, and `guest:<name>` still works for guest play.
 
@@ -119,6 +123,10 @@ Local development needs no setup: accounts are saved in the same database as gam
 - `CORS_ORIGINS`: comma-separated web origins allowed in production (development allows any).
 - `APP_WEB_URL`: base URL used in printed reset links (default `http://localhost:8081`).
 - `TRUST_PROXY=1`: use `X-Forwarded-For` for rate limiting when behind a reverse proxy.
+- `GOOGLE_CLIENT_IDS`: comma-separated Google OAuth client IDs (web, iOS, Android) whose ID tokens are accepted. Unset turns Google sign-in off.
+- `APPLE_CLIENT_IDS`: comma-separated Apple audiences, default `com.chessmate.app`. Outside production Expo Go's `host.exp.Exponent` is accepted too. Set it to an empty string to turn Apple sign-in off.
+
+Google and Apple ID tokens are checked against the providers' published signing keys (fetched and cached), plus issuer, audience and expiry (`apps/server/src/auth/oauth.ts`). Links live in the `oauth_accounts` table.
 
 ### AI coach
 
@@ -141,8 +149,24 @@ Then open the app and tap **Try a sample review** on the home screen. Details: [
 
 The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games. The app gets:
 
-- **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move.
-- **Game review** (after an online game → Review game, or from the analysis board): every move graded best / excellent / good / inaccuracy / mistake / blunder, accuracy per side, eval graph, and the better move drawn on the board.
+- **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move. Every move you play or step through gets a badge on the moved piece once the engine has seen the position before and after it (depth 12+).
+- **Game review** (after an online game → Review game, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
+
+Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visuals in `apps/app/src/components/MoveBadge.tsx`):
+
+| Badge | Meaning |
+| --- | --- |
+| **!!!** Masterpiece (purple, crown) | A queen sacrifice that leads to a forced mate. ChessMate's top tier. Any other brilliant queen move is !!. |
+| **!!** Brilliant (teal, sparkles) | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
+| **!** Great (sapphire, target) | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
+| Best Move (gold, star), Excellent (copper, check), Good (green, rising check) | Close to the engine's choice. |
+| Book Move (brown, book), Forced (slate, arrow) | A known opening move; the only legal move. |
+| **?!** Inaccuracy (yellow), **?** Mistake (orange, cross), **??** Blunder (red, lightning) | Increasing loss of winning chances. |
+| Missed Chance (steel blue, crossed arrows) | Your opponent just erred and the move let the chance slip. |
+
+Badges are SVG medallions (`react-native-svg`): the full coin with its name, icon and symbol in the review, and a small white-edged coin (symbol or icon only) pinned to the moved piece on the board. Run `pnpm install` after pulling, since `react-native-svg` is new.
+
+To try them: open the analysis board, import `1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7`, and step through it (6. Nxf7 is brilliant). For the !!! (Masterpiece) badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
 
 Engine help is refused while you have a live game, and for any position currently on the board in a live game.
 
@@ -151,7 +175,7 @@ Which Stockfish runs:
 1. `STOCKFISH_PATH` set: that native binary (fastest; used by the Docker image).
 2. Otherwise the `stockfish` npm package's WebAssembly build, run by a child Node process. This is installed by `pnpm install`, so nothing extra is needed for local development on Windows, macOS or Linux.
 
-Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 14) and `REVIEW_MOVETIME_MS` (default 400, per position). For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
+Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 18) and `REVIEW_MOVETIME_MS` (default 800, per position). Reviews look at two engine lines per position (to spot only moves) and spread positions across all `ENGINE_WORKERS`, so more workers make reviews faster. The analysis board searches to depth 22 by default. For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
 
 ```powershell
 $env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"
@@ -182,27 +206,39 @@ To try two players on one computer, open the lobby in two browser windows (one n
 
 ### Phone on the same Wi-Fi (Expo Go)
 
-1. Start the server: `pnpm dev:server`.
-2. Start Expo: `pnpm dev:app`.
+1. Start the server: `pnpm dev:server`. It prints the address phones should use, e.g. `Phones on the same Wi-Fi reach this server at http://192.168.0.240:8787`.
+2. Start Expo: `pnpm dev:app` (plain LAN mode; no `--tunnel` needed on the same Wi-Fi).
 3. Scan the QR code with Expo Go (Android) or the Camera app (iOS).
 
 Play vs computer and the practice board work without the game server.
 
-The app finds the game server automatically: it uses the same computer address that Expo shows in the QR code (for example `192.168.1.20`), port 8787. If Windows asks, allow Node.js through the firewall on private networks.
+The app finds the game server automatically, on port 8787 of the computer running Expo. Even with `--tunnel` it uses your computer's Wi-Fi address (read when Expo starts), so a phone on the same Wi-Fi still reaches the server.
+
+**If sign-in or sign-up says "Can't reach ChessMate"** (in development the message shows the address it tried):
+
+1. Open `http://<your-computer-ip>:8787/api/stats` in the phone's browser (the address `pnpm dev:server` printed). If it doesn't load, the phone can't reach the server.
+2. Windows Firewall is the usual cause. The firewall allows programs by path, and Node installed through nvm-windows (`C:\nvm4w\nodejs\node.exe`) is a different path from the official installer's. In PowerShell **as Administrator**:
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "Node.js (nvm) dev" -Direction Inbound -Program (Get-Command node).Source -Action Allow -Profile Private
+   ```
+
+   Also check the Wi-Fi is a **Private** network (Settings → Network & internet → Wi-Fi → your network → Private), since the rule above only covers private networks.
+3. Some routers isolate Wi-Fi devices from each other (guest networks, "AP isolation"). Use the main network, not a guest one.
 
 ### Phone on another network (tunnel)
 
-`pnpm dev:app --tunnel` makes the bundle reachable from anywhere, but the game server is still only on your network, so tell the app where it is:
+`pnpm dev:app --tunnel` makes the bundle reachable from anywhere, but the game server is still only on your network. On another network, point the app at a server the phone can reach:
 
 ```powershell
 # Windows PowerShell
-$env:EXPO_PUBLIC_SERVER_URL = "ws://192.168.1.20:8787/ws"   # your computer's LAN IP (ipconfig)
+$env:EXPO_PUBLIC_SERVER_URL = "wss://your-host/ws"
 pnpm dev:app --tunnel
 ```
 
 ```bash
 # macOS / Linux
-EXPO_PUBLIC_SERVER_URL=ws://192.168.1.20:8787/ws pnpm dev:app --tunnel
+EXPO_PUBLIC_SERVER_URL=wss://your-host/ws pnpm dev:app --tunnel
 ```
 
 A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws`.
@@ -238,6 +274,20 @@ Then open `/admin`, enter the same token, and review reports (with the game's ch
 - First launch opens the welcome screen: create an account, sign in, or continue as a guest (casual games and the practice board).
 - Sessions are kept in the iOS Keychain / Android Keystore (`expo-secure-store`); on web they are kept in the browser's local storage.
 - Password reset: there is no email provider in development, so the reset link is printed in the server's terminal. Open it on the device (`chessmate://reset-password?token=...`) or in the browser (`http://localhost:8081/reset-password?token=...`).
+
+**Sign in with Apple and Google.** The buttons appear on the welcome, sign-in and sign-up screens wherever they can work. Setup steps, and where to put the IDs: [docs/sign-in-with-google-and-apple.md](docs/sign-in-with-google-and-apple.md).
+
+| Where | Apple | Google |
+| --- | --- | --- |
+| Expo Go on iPhone | Works with no setup | Not possible in Expo Go (shows a note) |
+| Expo Go on Android | Not offered (Apple's button is iOS only) | Not possible in Expo Go (shows a note) |
+| Web (`http://localhost:8081`) | Not offered | Works once the Google client IDs are set |
+| Installed builds (EAS) | Works (needs the Apple Developer account) | Works once the Google client IDs are set |
+
+Accounts made with Apple or Google have no password; **Settings → Set a password** adds one. Signing in with Google or Apple using an email that already has a ChessMate account signs into that account.
+
+**Settings files.** `pnpm dev:server` reads a `.env` file at the repo root, and Expo reads `apps/app/.env` (only `EXPO_PUBLIC_*` values reach the app). Both are git-ignored; restart the server, and Expo with `pnpm dev:app --clear`, after changing them.
+
 ### Notifications
 
 The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.
@@ -247,6 +297,16 @@ The bell in the header opens the inbox; **Settings** there picks which alerts ar
 - **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
+
+### Moving pieces, premoves, sounds and vibration
+
+Run `pnpm install` after pulling: this adds `expo-haptics` (bundled in Expo Go, so no build is needed).
+
+- **Drag and drop** works on every board next to tap-to-move: press a piece and drag it to a square. A quick tap still selects, and dropping on an illegal square snaps the piece back. On a phone, try it in Expo Go; on the web, with the mouse or a touch screen.
+- **Premoves**: in an online game, tap or drag one of your pieces while your opponent is thinking. The squares turn blue and the move plays the moment they move. Tap elsewhere, right-click (web) or press **Cancel premove** to drop it. Turn premoves off under **Settings → Gameplay**.
+- **Sounds**: move, capture, check, castle, promotion, game start and end, and a low-time warning (online games, once per game). All sounds are synthesised in-house; `node apps/app/scripts/synth-sounds.mjs` regenerates the castle, promote and low-time cues. **Settings → Sound** has the master switch, volume and per-type toggles. Phones in silent mode stay quiet.
+- **Vibration** (phones only): a light tap on your moves, a firmer one on captures and checks, and a buzz on an illegal drop, low time and game end. Toggle it under **Settings → Sound and vibration**.
+
 ### Trying friends and spectating
 
 The server keeps friends, follows, blocks and the activity feed in the database (embedded Postgres by default, nothing to install), and the app's Friends screen is on the home page.

@@ -11,7 +11,8 @@ import {
 } from '@chessmate/core';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
+import { TextInput } from '@/ui/primitives';
 
 import { ChipRow, GameRow, Stat } from '@/components/archive';
 import { Button, Card, Label, Screen } from '@/components/ui';

@@ -1,8 +1,10 @@
 import { Chess } from 'chess.js';
 import type { CoachContext } from './coach';
 import { quickFeedback } from './coach';
-import { gameAccuracy, judgeMove, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
+import { classifyMove } from './classify';
+import { MOVE_CLASSES, gameAccuracy, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { Game, START_FEN, parseUci, toUci } from './game';
+import { openingTimeline } from './openings';
 import { analyzePosition } from './threats';
 import type { Color } from './types';
 import type { UciInfo } from './uci';
@@ -35,8 +37,8 @@ export interface PositionAnalysis {
 /** Limits the server enforces for interactive analysis. */
 export const ANALYSIS_LIMITS = {
   maxMultiPv: 5,
-  defaultDepth: 20,
-  maxDepth: 24,
+  defaultDepth: 22,
+  maxDepth: 30,
   maxMoveTimeMs: 15_000,
   /** Longest game the server will review, in plies. */
   maxReviewPlies: 400,
@@ -145,6 +147,8 @@ export interface PositionEval {
   /** Best line in UCI. */
   pv: string[];
   depth: number;
+  /** Score of the engine's second choice (multipv 2), White's view. Lets the review spot only moves. */
+  secondScore?: Score;
 }
 
 export interface ReviewedMove {
@@ -175,8 +179,6 @@ export interface GameReview {
   depth: number;
 }
 
-const ALL_CLASSES: MoveClass[] = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'book', 'forced'];
-
 
 /**
  * Builds a full review from per-position engine results.
@@ -188,11 +190,15 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
   const game = new Game(initialFen);
   const reviewed: ReviewedMove[] = [];
   const counts = {
-    w: Object.fromEntries(ALL_CLASSES.map((c) => [c, 0])),
-    b: Object.fromEntries(ALL_CLASSES.map((c) => [c, 0])),
+    w: Object.fromEntries(MOVE_CLASSES.map((c) => [c, 0])),
+    b: Object.fromEntries(MOVE_CLASSES.map((c) => [c, 0])),
   } as GameReview['counts'];
   const acc: Record<Color, number[]> = { w: [], b: [] };
   let depth = Infinity;
+  // Moves stay "book" while every position so far is a named opening.
+  const openings = openingTimeline(moves, initialFen);
+  let inBook = true;
+  let previousLoss: number | undefined;
 
   moves.forEach((uci, i) => {
     const before = evals[i]!;
@@ -201,19 +207,26 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     const mover = game.turn;
     const legalMoveCount = game.legalMoves().length;
     const played = game.move(uci);
+    inBook = inBook && !!openings[i + 1] && openings[i + 1]!.ply === i + 1;
     if (!played) throw new Error(`Illegal move in review: ${uci}`);
     const fenAfter = game.fen;
     const term = terminalState(fenAfter);
     // A delivered mate is judged as a won position for the mover.
     const playedScoreForJudge = term === 'checkmate' ? MATED[game.turn] : after.score;
     const bestMove = before.bestMove ?? played.uci;
-    const judgement = judgeMove({
-      mover,
+    const judgement = classifyMove({
+      fenBefore,
+      uci: played.uci,
       bestScore: before.score,
+      bestMove,
+      secondBestScore: before.secondScore,
       playedScore: playedScoreForJudge,
-      playedIsBest: bestMove === played.uci,
       legalMoveCount,
+      book: inBook,
+      previousUci: moves[i - 1],
+      previousLoss,
     });
+    previousLoss = judgement.loss;
     const bestLine = pvToSan(fenBefore, before.pv.length ? before.pv : [bestMove]);
     const bestSan = bestLine[0] ?? played.san;
     const insightAfter = analyzePosition(fenAfter, mover);
@@ -265,7 +278,12 @@ export function coachContextFor(review: GameReview, ply: number, playerRating?: 
 }
 
 /** Converts raw UCI evaluations (side-to-move relative) for a terminal-aware review. */
-export function positionEvalFrom(fen: string, info: { score?: Score; pv?: string[]; depth?: number } | null, bestMove?: string): PositionEval {
+export function positionEvalFrom(
+  fen: string,
+  info: { score?: Score; pv?: string[]; depth?: number } | null,
+  bestMove?: string,
+  second?: { score?: Score } | null,
+): PositionEval {
   const term = terminalState(fen);
   if (term) return { score: terminalScore(fen, term), pv: [], depth: 0 };
   const side = fen.split(' ')[1] === 'b' ? 'b' : 'w';
@@ -274,5 +292,6 @@ export function positionEvalFrom(fen: string, info: { score?: Score; pv?: string
     bestMove: bestMove ?? info?.pv?.[0],
     pv: info?.pv ?? (bestMove ? [bestMove] : []),
     depth: info?.depth ?? 0,
+    ...(second?.score ? { secondScore: toWhitePov(second.score, side) } : {}),
   };
 }

@@ -1,5 +1,6 @@
 import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
 
+import { resolveFontStyle } from '../theme/fonts';
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { ColorTokens, TextVariant } from '../theme/tokens';
 
@@ -44,5 +45,5 @@ export function toneColor(c: ColorTokens, tone: TextTone): string {
  */
 export function Text({ variant = 'body', tone = 'default', align, color, style, ...rest }: TextProps) {
   const t = useAppTheme();
-  return <RNText {...rest} style={[t.typography[variant], { color: color ?? toneColor(t.colors, tone) }, align && { textAlign: align }, style]} />;
+  return <RNText {...rest} style={resolveFontStyle([t.typography[variant], { color: color ?? toneColor(t.colors, tone) }, align && { textAlign: align }, style])} />;
 }

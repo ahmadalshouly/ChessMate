@@ -20,6 +20,6 @@ export function Page({ children, maxWidth = MAX_CONTENT_WIDTH }: { children: Rea
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: 'transparent' },
-  content: { paddingHorizontal: 16, paddingTop: 16, alignItems: 'center' },
-  inner: { width: '100%', gap: 16 },
+  content: { paddingHorizontal: 16, paddingTop: 20, alignItems: 'center' },
+  inner: { width: '100%', gap: 28 },
 });

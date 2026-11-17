@@ -69,7 +69,7 @@ export class AccountProfileBackend implements ProfileDeps {
   }
 
   async deleteAccount(userId: string, password: string): Promise<AccountResult> {
-    if (!(await this.auth.getUser(userId))) return this.dev ? this.dev.deleteAccount(userId) : { ok: false, status: 404, message: 'No such account' };
+    if (!(await this.auth.getUser(userId))) return this.dev ? this.dev.deleteAccount(userId, password) : { ok: false, status: 404, message: 'No such account' };
     return this.wrap(() => this.auth.deleteAccount(userId, password));
   }
 

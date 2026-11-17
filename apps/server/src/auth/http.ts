@@ -15,6 +15,7 @@ const STATUS: Record<AuthError['code'], number> = {
   email_taken: 409,
   not_found: 404,
   rate_limited: 429,
+  not_configured: 503,
 };
 
 const MAX_BODY = 16 * 1024;
@@ -101,6 +102,7 @@ export function authRoutes(auth: AuthService, opts: AuthRoutesOptions = {}): Htt
   const limits = {
     login: new RateLimiter(10, 15 * 60_000),
     signup: new RateLimiter(20, 60 * 60_000),
+    oauth: new RateLimiter(30, 15 * 60_000),
     forgot: new RateLimiter(5, 60 * 60_000),
     other: new RateLimiter(60, 60_000),
   };
@@ -138,6 +140,18 @@ export function authRoutes(auth: AuthService, opts: AuthRoutesOptions = {}): Htt
           const body = await readJson(req);
           await auth.logout(body.refreshToken, body.all === true);
           sendJson(res, 204);
+          return true;
+        }
+        case 'GET /providers': {
+          sendJson(res, 200, { providers: auth.providers() });
+          return true;
+        }
+        case 'POST /google':
+        case 'POST /apple': {
+          limit('oauth', ip);
+          const provider = route === 'POST /google' ? 'google' : 'apple';
+          const { created, ...result } = await auth.oauthSignIn(provider, await readJson(req));
+          sendJson(res, created ? 201 : 200, result);
           return true;
         }
         case 'GET /me': {

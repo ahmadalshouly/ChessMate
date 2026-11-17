@@ -92,7 +92,7 @@ describe('engine analysis over the game socket', () => {
     expect(progress.total).toBe(4);
     const r = (await a.next((m) => m.t === 'reviewResult')) as Extract<ServerMessage, { t: 'reviewResult' }>;
     expect(r.review.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3']);
-    expect(r.review.moves[0]!.judgement.classification).toBe('best');
+    expect(r.review.moves[0]!.judgement.classification).toBe('book');
     a.close();
   });
 

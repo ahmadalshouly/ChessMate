@@ -1,10 +1,10 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname } from 'expo-router';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
+import { Backdrop } from '@/ui';
 
 import { AppHeader } from './AppHeader';
 import { BottomTabBar, useTabBarSpace } from './BottomTabBar';
@@ -38,7 +38,7 @@ export function AppShell() {
       </TabList>
 
       <View style={[styles.fill, { backgroundColor: t.bg }]}>
-        <LinearGradient colors={t.bgGradient} style={StyleSheet.absoluteFill} />
+        <Backdrop />
         <View style={[styles.fill, wide && styles.row]}>
           {wide && <Sidebar />}
           <View style={styles.fill}>

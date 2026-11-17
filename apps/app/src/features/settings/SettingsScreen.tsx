@@ -1,18 +1,19 @@
-import { BOARD_THEMES, PIECE_SETS, type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
+import { type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Board } from '@/components/Board';
+import { Text } from '@/ui/primitives';
+
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { ApiError } from '@/features/account/api';
-import { BOARD_THEME_COLORS, PIECE_SET_LABELS } from '@/features/account/boardThemes';
 import { useAccountSession } from '@/features/account/session';
+import { useAuth } from '@/lib/auth';
 import { useSettingsSync } from '@/features/account/settingsStore';
+import { BoardCustomizer } from '@/features/board/BoardCustomizer';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
 
-const PREVIEW_FEN = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
 const VOLUME = [
   { value: '0.3', label: 'Low' },
   { value: '0.7', label: 'Medium' },
@@ -61,37 +62,13 @@ export function SettingsScreen() {
           )}
 
           <Section title="Board">
-            <View style={styles.preview}>
-              <Board fen={PREVIEW_FEN} orientation="w" size={200} lastMove={{ from: 'g1', to: 'f3' }} />
-              <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
-                {BOARD_THEMES.map((theme) => {
-                  const c = BOARD_THEME_COLORS[theme];
-                  const on = s.board.theme === theme;
-                  return (
-                    <Pressable
-                      key={theme}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: on }}
-                      onPress={() => set({ board: { theme } })}
-                      style={[styles.themeRow, { borderColor: on ? t.text : t.border }]}>
-                      <View style={styles.swatch}>
-                        <View style={{ flex: 1, backgroundColor: c.light }} />
-                        <View style={{ flex: 1, backgroundColor: c.dark }} />
-                      </View>
-                      <Text style={{ color: t.text, fontWeight: on ? '700' : '400' }}>{c.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <Text style={[styles.label, { color: t.muted }]}>Pieces</Text>
-            <Segmented value={s.board.pieces} options={PIECE_SETS.map((p) => ({ value: p, label: PIECE_SET_LABELS[p] }))} onChange={(pieces) => set({ board: { pieces } })} />
+            <BoardCustomizer onChange={(board) => set({ board })} />
             <ToggleRow title="Coordinates" value={s.board.coordinates} onChange={(v) => set({ board: { coordinates: v } })} />
             <ToggleRow title="Highlight last move" value={s.board.highlightLastMove} onChange={(v) => set({ board: { highlightLastMove: v } })} />
             <ToggleRow title="Show legal moves" value={s.board.showLegalMoves} onChange={(v) => set({ board: { showLegalMoves: v } })} />
           </Section>
 
-          <Section title="Sound">
+          <Section title={Platform.OS === 'web' ? 'Sound' : 'Sound and vibration'}>
             <ToggleRow title="Sounds" value={s.sound.enabled} onChange={(v) => set({ sound: { enabled: v } })} />
             {s.sound.enabled && (
               <>
@@ -99,6 +76,14 @@ export function SettingsScreen() {
                 <ToggleRow title="Move and capture sounds" value={s.sound.moves} onChange={(v) => set({ sound: { moves: v } })} />
                 <ToggleRow title="Low time warning" value={s.sound.lowTime} onChange={(v) => set({ sound: { lowTime: v } })} />
               </>
+            )}
+            {Platform.OS !== 'web' && (
+              <ToggleRow
+                title="Vibration"
+                detail="A light buzz on moves, captures, checks and game end"
+                value={s.sound.haptics}
+                onChange={(v) => set({ sound: { haptics: v } })}
+              />
             )}
           </Section>
 
@@ -112,6 +97,12 @@ export function SettingsScreen() {
                 { value: 'always', label: 'Always' },
               ]}
               onChange={(confirmMoves) => set({ gameplay: { confirmMoves } })}
+            />
+            <ToggleRow
+              title="Premoves"
+              detail="Queue your next move while your opponent is thinking. Tap elsewhere or right-click to cancel."
+              value={s.gameplay.premoves}
+              onChange={(v) => set({ gameplay: { premoves: v } })}
             />
             <ToggleRow title="Confirm before resigning" value={s.gameplay.confirmResign} onChange={(v) => set({ gameplay: { confirmResign: v } })} />
           </Section>
@@ -176,20 +167,22 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function ChangePassword() {
   const session = useAccountSession();
+  // Google/Apple accounts start without a password and can set one here.
+  const hasPassword = useAuth().user?.hasPassword !== false;
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ field?: string; text: string; ok?: boolean } | null>(null);
 
-  if (!open) return <Button variant="secondary" title="Change password" onPress={() => setOpen(true)} />;
+  if (!open) return <Button variant="secondary" title={hasPassword ? 'Change password' : 'Set a password'} onPress={() => setOpen(true)} />;
   const submit = async () => {
     if (next.length < 8) return setMsg({ field: 'newPassword', text: 'Use at least 8 characters' });
     setBusy(true);
     setMsg(null);
     try {
       await session.apiFetch('/api/me/password', { method: 'POST', body: { currentPassword: current, newPassword: next } });
-      setMsg({ text: 'Password changed.', ok: true });
+      setMsg({ text: hasPassword ? 'Password changed.' : 'Password set. Sign in again to keep going.', ok: true });
       setCurrent('');
       setNext('');
     } catch (e) {
@@ -200,7 +193,9 @@ function ChangePassword() {
   };
   return (
     <View style={{ gap: 10 }}>
-      <Field label="Current password" value={current} onChangeText={setCurrent} secureTextEntry autoComplete="current-password" error={msg?.field === 'currentPassword' ? msg.text : null} />
+      {hasPassword ? (
+        <Field label="Current password" value={current} onChangeText={setCurrent} secureTextEntry autoComplete="current-password" error={msg?.field === 'currentPassword' ? msg.text : null} />
+      ) : null}
       <Field label="New password" value={next} onChangeText={setNext} secureTextEntry autoComplete="new-password" error={msg?.field === 'newPassword' ? msg.text : null} />
       {msg && !msg.field && <Label muted={!msg.ok}>{msg.text}</Label>}
       <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -208,7 +203,7 @@ function ChangePassword() {
           <Button variant="secondary" title="Cancel" onPress={() => setOpen(false)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button title={busy ? 'Saving...' : 'Update password'} onPress={submit} disabled={busy || !current || !next} />
+          <Button title={busy ? 'Saving...' : 'Update password'} onPress={submit} disabled={busy || (hasPassword && !current) || !next} />
         </View>
       </View>
     </View>
@@ -217,6 +212,7 @@ function ChangePassword() {
 
 function DeleteAccount() {
   const session = useAccountSession();
+  const hasPassword = useAuth().user?.hasPassword !== false;
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -244,15 +240,15 @@ function DeleteAccount() {
   };
   return (
     <View style={{ gap: 10 }}>
-      <Label>Enter your password and type DELETE to confirm.</Label>
-      <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" error={error} />
+      <Label>{hasPassword ? 'Enter your password and type DELETE to confirm.' : 'Type DELETE to confirm.'}</Label>
+      {hasPassword ? <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" error={error} /> : error ? <Label muted>{error}</Label> : null}
       <Field label="Type DELETE" value={confirm} onChangeText={setConfirm} autoCapitalize="characters" autoCorrect={false} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
           <Button variant="secondary" title="Keep my account" onPress={() => setOpen(false)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Button variant="danger" title={busy ? 'Deleting...' : 'Delete forever'} onPress={submit} disabled={busy || !password || confirm !== 'DELETE'} />
+          <Button variant="danger" title={busy ? 'Deleting...' : 'Delete forever'} onPress={submit} disabled={busy || (hasPassword && !password) || confirm !== 'DELETE'} />
         </View>
       </View>
     </View>
@@ -262,8 +258,5 @@ function DeleteAccount() {
 const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
-  preview: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 8 },
-  swatch: { width: 28, height: 28, borderRadius: 6, overflow: 'hidden', flexDirection: 'row' },
   label: { fontSize: 13, fontWeight: '600', marginTop: 4 },
 });

@@ -1,28 +1,49 @@
 import { Game, type Color, type Square } from '@chessmate/core';
 import { useMemo, useState } from 'react';
 
-/** Tap-to-move: tap a piece to see its moves, tap a target to play. */
+import { haptic } from './haptics';
+
+/**
+ * Tap-to-move and drag-and-drop for boards played on this device: tap a piece
+ * to see its moves and tap a target, or drag the piece there. Spread
+ * `dragProps` onto <Board> to enable dragging.
+ */
 export function useBoardInteraction(fen: string, canMove: (color: Color) => boolean, play: (uci: string) => boolean) {
   const [selected, setSelected] = useState<Square | null>(null);
   const game = useMemo(() => new Game(fen), [fen]);
   const targets = selected ? game.legalMoves(selected).map((m) => m.to) : [];
 
-  const onSquarePress = (sq: Square) => {
+  const movable = (sq: Square) => {
     const piece = game.raw.get(sq);
-    if (selected) {
-      const move = game.legalMoves(selected).find((m) => m.to === sq);
-      if (move) {
-        // Auto-queen for now; a promotion picker is on the roadmap.
-        play(`${move.from}${move.to}${move.promotion ? 'q' : ''}`);
-        setSelected(null);
-        return;
-      }
+    return !!piece && piece.color === game.turn && canMove(piece.color);
+  };
+
+  /** Plays from→to if legal (auto-queen for now; a promotion picker is on the roadmap). */
+  const tryMove = (from: Square, to: Square) => {
+    const move = game.legalMoves(from).find((m) => m.to === to);
+    return !!move && play(`${move.from}${move.to}${move.promotion ? 'q' : ''}`);
+  };
+
+  const onSquarePress = (sq: Square) => {
+    if (selected && targets.includes(sq)) {
+      tryMove(selected, sq);
+      setSelected(null);
+      return;
     }
-    if (piece && piece.color === game.turn && canMove(piece.color)) setSelected(sq === selected ? null : sq);
+    if (movable(sq)) setSelected(sq === selected ? null : sq);
     else setSelected(null);
   };
 
-  return { selected, targets, onSquarePress, clear: () => setSelected(null) };
+  const onPieceDrop = (from: Square, to: Square) => {
+    setSelected(null);
+    if (!movable(from)) return;
+    // An illegal drop snaps back; a short buzz says why nothing happened.
+    if (!tryMove(from, to)) haptic('illegal');
+  };
+
+  const clear = () => setSelected(null);
+
+  return { selected, targets, onSquarePress, clear, dragProps: { canDrag: movable, onPieceDrop, onCancel: clear } };
 }
 
 export function checkSquareOf(fen: string): Square | null {

@@ -1,6 +1,7 @@
 import { CHAT_MAX_LENGTH, QUICK_MESSAGES, type PlayerInfo } from '@chessmate/core';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { ReportDialog } from '@/components/ReportDialog';
 import { Card, Label } from '@/components/ui';
