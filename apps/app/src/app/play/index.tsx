@@ -110,7 +110,7 @@ export default function Lobby() {
             accessibilityRole="button"
             accessibilityState={{ selected: tcKey === 'custom' }}
             onPress={() => setTcKey('custom')}
-            style={({ hovered }: { hovered?: boolean }) => [
+            style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
               styles.customRow,
               { borderColor: tcKey === 'custom' ? c.accent : c.border, backgroundColor: hovered ? c.surfacePressed : 'transparent' },
             ]}>
