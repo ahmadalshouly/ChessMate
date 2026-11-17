@@ -1,5 +1,6 @@
 import { abortStaleGames, openDb } from '@chessmate/db';
 import { AuthService, ConsoleMailer, MemoryAuthStore, authRoutes, authSecretFromEnv } from './auth';
+import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbGamePersistence, DbPlayerStore } from './persistence';
 import { ChessServer, type ServerOptions } from './server';
 
@@ -20,7 +21,10 @@ async function start() {
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}`);
   const persistence = new DbGamePersistence(db.db);
   const store = await DbPlayerStore.load(db.db, persistence);
-  return { server: new ChessServer({ ...base, store, persistence }), close: () => db.close() };
+  return {
+    server: new ChessServer({ ...base, store, persistence, leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)) }),
+    close: () => db.close(),
+  };
 }
 
 const { server, close } = await start();

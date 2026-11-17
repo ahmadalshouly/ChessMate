@@ -17,8 +17,10 @@ import { GameRoom, type MoveError } from './gameRoom';
 import type { HttpRoute } from './auth/http';
 import type { AuthService } from './auth/service';
 import { Matchmaker } from './matchmaker';
+import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
-import { MemoryPlayerStore, authenticate, isGuest, playerInfo, type Player, type PlayerStore } from './players';
+import { MemoryPlayerStore, authenticate, devViewerId, isGuest, playerInfo, type Player, type PlayerStore } from './players';
+import { handlePublicApi, type PublicApiDeps, type ServerStats } from './publicApi';
 import { RatingService } from './ratingService';
 
 export interface ServerOptions {
@@ -35,6 +37,10 @@ export interface ServerOptions {
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
   now?: () => number;
+  /** Leaderboard data; defaults to ranking players in the in-memory store. */
+  leaderboards?: Leaderboards;
+  /** Maps an HTTP bearer token to a user id (accounts plug in here). */
+  viewerFor?: PublicApiDeps['viewerFor'];
 }
 
 interface Connection {
@@ -64,12 +70,19 @@ export class ChessServer {
     this.store = opts.store ?? new MemoryPlayerStore();
     this.ratings = opts.ratings ?? new RatingService();
     this.now = opts.now ?? Date.now;
+    const store = this.store;
+    const api: PublicApiDeps = {
+      leaderboards: opts.leaderboards ?? new Leaderboards(new MemoryLeaderboardSource(() => store.all?.() ?? [])),
+      stats: () => this.stats(),
+      viewerFor: opts.viewerFor ?? devViewerId,
+    };
     this.http = createServer(async (req, res) => {
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: true, games: this.rooms.size, seeking: this.matchmaker.size }));
         return;
       }
+      if (handlePublicApi(req, res, api)) return;
       const url = new URL(req.url ?? '/', 'http://localhost');
       for (const route of opts.http ?? []) {
         try {
@@ -333,6 +346,13 @@ export class ChessServer {
   private activeRoomOf(playerId: string): GameRoom | undefined {
     for (const r of this.rooms.values()) if (!r.outcome && r.colorOf(playerId)) return r;
     return undefined;
+  }
+
+  /** Live counts for the home screen. */
+  stats(): ServerStats {
+    let gamesInProgress = 0;
+    for (const r of this.rooms.values()) if (!r.outcome) gamesInProgress++;
+    return { playersOnline: this.sockets.size, gamesInProgress, playersSeeking: this.matchmaker.size, serverNow: this.now() };
   }
 
   getRoom(id: string) {

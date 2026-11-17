@@ -18,6 +18,7 @@ export default function RootLayout() {
         {/* Full-screen flows shown above the shell. */}
         <Stack.Screen name="play/online" options={{ title: 'Play online' }} />
         <Stack.Screen name="play/local" options={{ title: 'Practice board' }} />
+        <Stack.Screen name="leaderboard" options={{ title: 'Leaderboards' }} />
       </Stack>
     </ThemeProvider>
   );
