@@ -5,7 +5,6 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
-import { MoveBadge } from '@/components/MoveBadge';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
@@ -94,7 +93,6 @@ export default function Review() {
                 size={size}
                 lastMove={current ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square } : null}
                 checkSquare={checkSquareOf(fen)}
-                moveBadge={current ? { square: current.uci.slice(2, 4) as Square, cls: current.judgement.classification } : null}
               />
               <BoardArrows arrows={arrows} size={size} orientation={orientation} />
             </View>
@@ -138,7 +136,7 @@ export default function Review() {
                 {current ? (
                   <>
                     <View style={styles.row}>
-                      <MoveBadge cls={current.judgement.classification} size={44} />
+                      <Badge cls={current.judgement.classification} />
                       <Label bold size={17}>
                         {moveNumber(current)} {current.san} is {MOVE_CLASS[current.judgement.classification].phrase}
                       </Label>
@@ -173,7 +171,7 @@ export default function Review() {
                   </View>
                 </View>
                 <SummaryRow label="Accuracy" w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
-                {REVIEW_ORDER.filter((c) => !RARE.has(c) || review.counts.w[c] + review.counts.b[c] > 0).map((c) => (
+                {REVIEW_ORDER.map((c) => (
                   <SummaryRow key={c} cls={c} label={MOVE_CLASS[c].label} w={String(review.counts.w[c])} b={String(review.counts.b[c])} />
                 ))}
                 <Label muted size={12}>Engine depth {review.depth}</Label>
@@ -215,19 +213,25 @@ export default function Review() {
   );
 }
 
-/** Classes listed in the summary only when they happened. */
-const RARE = new Set(['great', 'brilliant', 'book', 'miss']);
-
 function moveNumber(m: ReviewedMove) {
   const full = Number(m.fenBefore.split(' ')[5] ?? 1);
   return m.color === 'w' ? `${full}.` : `${full}…`;
+}
+
+function Badge({ cls }: { cls: ReviewedMove['judgement']['classification'] }) {
+  const c = MOVE_CLASS[cls];
+  return (
+    <View style={[styles.badge, { backgroundColor: c.color }]}>
+      <Text style={styles.badgeText}>{c.symbol}</Text>
+    </View>
+  );
 }
 
 function SummaryRow({ label, w, b, cls, strong }: { label: string; w: string; b: string; cls?: ReviewedMove['judgement']['classification']; strong?: boolean }) {
   return (
     <View style={styles.summaryRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {cls && <MoveBadge cls={cls} size={24} />}
+        {cls && <Badge cls={cls} />}
         <Label bold={strong}>{label}</Label>
       </View>
       <View style={styles.summaryCell}>
@@ -277,6 +281,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
+  badge: { minWidth: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
   summaryHead: { flexDirection: 'row', gap: 8 },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryCell: { width: 52, alignItems: 'flex-end' },

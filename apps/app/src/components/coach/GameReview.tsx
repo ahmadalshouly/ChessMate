@@ -4,14 +4,22 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
-import { MoveBadge } from '@/components/MoveBadge';
-import { MOVE_CLASS } from '@/constants/analysis';
 import { CoachChat } from '@/components/coach/CoachChat';
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme, type Palette } from '@/constants/theme';
 import { requestReview } from '@/lib/coachApi';
 import { useBoardSize } from '@/lib/useBoardSize';
 
+const CLASS_LABEL: Record<MoveClass, string> = {
+  best: 'Best',
+  excellent: 'Excellent',
+  good: 'Good',
+  inaccuracy: 'Inaccuracy ?!',
+  mistake: 'Mistake ?',
+  blunder: 'Blunder ??',
+  book: 'Book',
+  forced: 'Forced',
+};
 
 /**
  * Post-game coach review: summary, accuracy, key moments on the board with
@@ -100,13 +108,7 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
             <ClassChip t={t} cls={moment.classification} />
           </View>
           <View style={{ alignItems: 'center' }}>
-            <Board
-              fen={shown.fen}
-              orientation={me}
-              size={Math.min(size, 520)}
-              lastMove={{ from: shown.from, to: shown.to }}
-              moveBadge={{ square: shown.to, cls: showBest ? 'best' : moment.classification }}
-            />
+            <Board fen={shown.fen} orientation={me} size={Math.min(size, 520)} lastMove={{ from: shown.from, to: shown.to }} />
           </View>
           <View style={styles.toggle}>
             <Segment t={t} active={!showBest} label={`Played ${moment.moveLabel} ${moment.san}`} onPress={() => setShowBest(false)} />
@@ -188,10 +190,10 @@ function MomentText({ t, note, isMine, evalText }: { t: Palette; note: CoachMove
 }
 
 function ClassChip({ t, cls }: { t: Palette; cls: MoveClass }) {
+  const severe = cls === 'blunder' || cls === 'mistake';
   return (
-    <View style={[styles.chip, { borderColor: t.border, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 }]}>
-      <MoveBadge cls={cls} size={22} />
-      <Text style={{ color: MOVE_CLASS[cls].color, fontSize: 13, fontWeight: '700' }}>{MOVE_CLASS[cls].label}</Text>
+    <View style={[styles.chip, { borderColor: severe ? t.danger : t.border }]}>
+      <Text style={{ color: severe ? t.danger : t.muted, fontSize: 13, fontWeight: '600' }}>{CLASS_LABEL[cls]}</Text>
     </View>
   );
 }

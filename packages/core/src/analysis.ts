@@ -1,10 +1,10 @@
 import { Chess } from 'chess.js';
 import type { CoachContext } from './coach';
 import { quickFeedback } from './coach';
-import { expectedScoreFor, gameAccuracy, judgeMove, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
+import { gameAccuracy, judgeMove, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { Game, START_FEN, parseUci, toUci } from './game';
-import { analyzePosition, findHangingPieces } from './threats';
-import { PIECE_VALUES, type Color } from './types';
+import { analyzePosition } from './threats';
+import type { Color } from './types';
 import type { UciInfo } from './uci';
 
 /**
@@ -175,35 +175,7 @@ export interface GameReview {
   depth: number;
 }
 
-const ALL_CLASSES: MoveClass[] = ['great', 'brilliant', 'best', 'excellent', 'good', 'book', 'forced', 'inaccuracy', 'miss', 'mistake', 'blunder'];
-
-/** Material (in pawns) the mover leaves en prise beyond what they just captured. */
-export function sacrificedMaterial(fenBefore: string, fenAfter: string, mover: Color, captured?: string): number {
-  const riskOf = (fen: string) => Math.max(0, ...findHangingPieces(new Chess(fen), mover).map((h) => h.risk));
-  const gained = captured ? PIECE_VALUES[captured as keyof typeof PIECE_VALUES] : 0;
-  return riskOf(fenAfter) - riskOf(fenBefore) - gained;
-}
-
-/**
- * Upgrades or re-labels a judged move with context `judgeMove` can't see:
- * - brilliant: a best or excellent move that gives up at least a minor piece and keeps the mover at least level
- * - great ("Masterpiece"): a brilliant move that leaves the mover clearly winning
- * - miss: an inaccuracy or mistake right after the opponent's mistake or blunder
- */
-export function refineClass(p: {
-  judged: MoveClass;
-  sacrifice: number;
-  /** Mover's expected score (0..1) before and after the move, with best play. */
-  before: number;
-  after: number;
-  opponentPrevious?: MoveClass;
-}): MoveClass {
-  if ((p.judged === 'best' || p.judged === 'excellent') && p.sacrifice >= 2 && p.after >= 0.5 && p.before < 0.97) {
-    return p.after >= 0.9 ? 'great' : 'brilliant';
-  }
-  if ((p.judged === 'inaccuracy' || p.judged === 'mistake') && (p.opponentPrevious === 'mistake' || p.opponentPrevious === 'blunder')) return 'miss';
-  return p.judged;
-}
+const ALL_CLASSES: MoveClass[] = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder', 'book', 'forced'];
 
 
 /**
@@ -241,13 +213,6 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
       playedScore: playedScoreForJudge,
       playedIsBest: bestMove === played.uci,
       legalMoveCount,
-    });
-    judgement.classification = refineClass({
-      judged: judgement.classification,
-      sacrifice: sacrificedMaterial(fenBefore, fenAfter, mover, played.captured),
-      before: expectedScoreFor(before.score, mover),
-      after: expectedScoreFor(playedScoreForJudge, mover),
-      opponentPrevious: reviewed[reviewed.length - 1]?.judgement.classification,
     });
     const bestLine = pvToSan(fenBefore, before.pv.length ? before.pv : [bestMove]);
     const bestSan = bestLine[0] ?? played.san;
