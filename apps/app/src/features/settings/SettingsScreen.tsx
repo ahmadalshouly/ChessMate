@@ -1,7 +1,7 @@
 import { type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/ui/primitives';
 
@@ -68,7 +68,7 @@ export function SettingsScreen() {
             <ToggleRow title="Show legal moves" value={s.board.showLegalMoves} onChange={(v) => set({ board: { showLegalMoves: v } })} />
           </Section>
 
-          <Section title="Sound">
+          <Section title={Platform.OS === 'web' ? 'Sound' : 'Sound and vibration'}>
             <ToggleRow title="Sounds" value={s.sound.enabled} onChange={(v) => set({ sound: { enabled: v } })} />
             {s.sound.enabled && (
               <>
@@ -76,6 +76,14 @@ export function SettingsScreen() {
                 <ToggleRow title="Move and capture sounds" value={s.sound.moves} onChange={(v) => set({ sound: { moves: v } })} />
                 <ToggleRow title="Low time warning" value={s.sound.lowTime} onChange={(v) => set({ sound: { lowTime: v } })} />
               </>
+            )}
+            {Platform.OS !== 'web' && (
+              <ToggleRow
+                title="Vibration"
+                detail="A light buzz on moves, captures, checks and game end"
+                value={s.sound.haptics}
+                onChange={(v) => set({ sound: { haptics: v } })}
+              />
             )}
           </Section>
 
@@ -89,6 +97,12 @@ export function SettingsScreen() {
                 { value: 'always', label: 'Always' },
               ]}
               onChange={(confirmMoves) => set({ gameplay: { confirmMoves } })}
+            />
+            <ToggleRow
+              title="Premoves"
+              detail="Queue your next move while your opponent is thinking. Tap elsewhere or right-click to cancel."
+              value={s.gameplay.premoves}
+              onChange={(v) => set({ gameplay: { premoves: v } })}
             />
             <ToggleRow title="Confirm before resigning" value={s.gameplay.confirmResign} onChange={(v) => set({ gameplay: { confirmResign: v } })} />
           </Section>

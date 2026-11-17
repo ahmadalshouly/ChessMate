@@ -65,12 +65,16 @@ export interface UserSettings {
     volume: number;
     moves: boolean;
     lowTime: boolean;
+    /** Vibrate on moves, captures and game end (phones only). */
+    haptics: boolean;
   };
   gameplay: {
     /** Ask before sending a move in online games. */
     confirmMoves: 'never' | 'correspondence' | 'always';
     autoQueen: boolean;
     confirmResign: boolean;
+    /** Queue a move while the opponent is thinking (live games). */
+    premoves: boolean;
   };
   notifications: {
     gameStart: boolean;
@@ -90,8 +94,8 @@ export interface UserSettings {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   board: { theme: 'graphite', pieces: 'classic', coordinates: true, highlightLastMove: true, showLegalMoves: true },
-  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true },
-  gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true },
+  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true },
+  gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true, premoves: true },
   notifications: { gameStart: true, yourTurn: true, challenges: true, friendRequests: true, email: false },
   privacy: { showOnline: true, showRatingHistory: true, showGames: true, challenges: 'everyone', messages: 'friends' },
 };
