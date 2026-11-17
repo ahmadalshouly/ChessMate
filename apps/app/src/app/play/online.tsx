@@ -10,6 +10,7 @@ import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
+import { useRecordOnlineGame } from '@/lib/recordGame';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
 import { clockRemaining, useOnlineGame } from '@/lib/useOnlineGame';
@@ -45,6 +46,7 @@ function OnlineGame({ token }: { token: string }) {
   const timeControl = useMemo(() => parseTimeControl(tcParam ?? '5+0'), [tcParam]);
   const { state, actions, send, subscribe } = useOnlineGame(token);
   const chat = useGameChat(state.gameId, state.me?.id ?? null, send, subscribe);
+  useRecordOnlineGame(state, timeControl);
   const size = useBoardSize(300);
   const playing = state.status === 'playing';
   useTicker(playing && !!state.clock?.running);
@@ -137,10 +139,13 @@ function OnlineGame({ token }: { token: string }) {
                 {state.outcome.winner === null ? 'Draw' : state.outcome.winner === state.you ? 'You won' : 'You lost'} · {REASONS[state.outcome.reason] ?? state.outcome.reason}
               </Label>
               <Button title="New game" onPress={actions.newGame} />
+              {state.gameId && state.outcome.reason !== 'aborted' && (
+                <Button variant="secondary" title="Review in game history" onPress={() => router.push({ pathname: '/games/[id]', params: { id: `on_${state.gameId}` } })} />
+              )}
               {history.length > 0 && (
                 <Button
                   variant="secondary"
-                  title="Review game"
+                  title="Engine review"
                   onPress={() =>
                     router.push({
                       pathname: '/review',

@@ -16,3 +16,6 @@ export * from './review';
 export * from './sampleAnalysis';
 export * from './notifications';
 export * from './analysis';
+export * from './openings';
+export * from './archive';
+export * from './pgn';

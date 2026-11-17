@@ -37,6 +37,9 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `bot/` | ChessMate's own small engine (alpha-beta, written for this repo) and the eight computer opponents for unrated play |
 | `review.ts` | Engine analysis interface for the coach, game review facts, offline review ([docs/coach.md](docs/coach.md)) |
 | `analysis.ts` | Engine lines for display, FEN/PGN import, per-move game review (`buildReview`) and coach context (`coachContextFor`) |
+| `openings.ts` | Opening name and ECO detection by position (handles transpositions), from the CC0 Lichess opening tables |
+| `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
+| `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
 
 ### Design decisions
 
@@ -150,6 +153,12 @@ Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREA
 $env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"
 pnpm dev:server
 ```
+
+### Game history
+
+Home → **Game history** lists finished online games, practice games (saved when they end, or with "Save to history") and imported PGNs. They are stored on the device, so history works offline and for guests. Open a game to replay it: tap any move, use the arrow buttons (or ←/→, Home/End, F to flip on web), or press ▶▶ to play it through. Each game can be shared as PGN (share sheet on phones, download or copy on web), and **Import PGN** accepts pasted text or a `.pgn` file on web.
+
+Opening names come from `packages/core/data/*.tsv` (lichess-org/chess-openings, CC0). After changing those files, run `node packages/core/scripts/build-openings.mjs` to regenerate `src/openings-data.ts`.
 
 ## Trying it on your own devices
 
