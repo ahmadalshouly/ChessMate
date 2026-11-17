@@ -37,6 +37,14 @@ export default function Home() {
 
         <Card>
           <Label size={18} bold>
+            Friends
+          </Label>
+          <Label muted>See who is online, watch friends' live games, and follow their results.</Label>
+          <Button variant="secondary" title="Open friends" onPress={() => router.push('/friends')} />
+        </Card>
+
+        <Card>
+          <Label size={18} bold>
             Practice board
           </Label>
           <Label muted>Play both sides with live threat detection and move hints. Works offline.</Label>
