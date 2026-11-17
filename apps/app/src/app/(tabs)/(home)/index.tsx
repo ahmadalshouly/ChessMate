@@ -22,6 +22,8 @@ export default function Home() {
         <Label size={18} bold>
           Play online
         </Label>
+        <Button title="Open the lobby" onPress={() => router.push('/play')} />
+        <Label muted>Or quick-pair at a time control:</Label>
         <View style={styles.grid}>
           {PRESET_TIME_CONTROLS.map((tc) => {
             const key = formatTimeControl(tc);

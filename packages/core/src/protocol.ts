@@ -33,11 +33,54 @@ export interface GameSnapshot {
   outcome: GameOutcome | null;
 }
 
+/** Colour a custom game's creator wants to play. */
+export type ColorChoice = Color | 'random';
+
+/** A custom game waiting in the lobby for someone to join. */
+export interface OpenGame {
+  id: string;
+  by: PlayerInfo;
+  timeControl: TimeControl;
+  rated: boolean;
+  color: ColorChoice;
+  /** Only players within this many rating points of the creator may join. */
+  range?: number;
+  createdAt: number;
+}
+
+/** Players waiting in one quick-pairing pool. */
+export interface PoolStat {
+  timeControl: TimeControl;
+  rated: boolean;
+  seeking: number;
+}
+
+export interface LobbyState {
+  online: number;
+  playing: number;
+  pools: PoolStat[];
+  openGames: OpenGame[];
+}
+
 export type ClientMessage =
   | { t: 'hello'; v: number; token: string }
   | { t: 'ping'; id: number }
-  | { t: 'seek'; timeControl: TimeControl; rated: boolean; ratingRange?: [number, number] }
+  | {
+      t: 'seek';
+      timeControl: TimeControl;
+      rated: boolean;
+      ratingRange?: [number, number];
+      /** Fixed rating window (± points). Omit to let the window widen while waiting. */
+      range?: number;
+    }
   | { t: 'cancelSeek' }
+  | { t: 'lobbySub' }
+  | { t: 'lobbyUnsub' }
+  | { t: 'createOpenGame'; timeControl: TimeControl; rated: boolean; color: ColorChoice; range?: number }
+  | { t: 'cancelOpenGame' }
+  | { t: 'joinOpenGame'; id: string }
+  | { t: 'rematch'; gameId: string }
+  | { t: 'declineRematch'; gameId: string }
   | { t: 'join'; gameId: string }
   | { t: 'move'; gameId: string; uci: string; ply: number }
   | { t: 'resign'; gameId: string }
@@ -60,17 +103,36 @@ export type ClientMessage =
   | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string };
 
 export type ServerMessage =
-  | { t: 'welcome'; v: number; player: PlayerInfo }
+  | {
+      t: 'welcome';
+      v: number;
+      player: PlayerInfo;
+      /** Guests only: send this as the token on reconnect to stay the same player. */
+      resumeToken?: string;
+    }
   | { t: 'pong'; id: number; serverNow: number }
   | { t: 'seeking'; timeControl: TimeControl }
   | { t: 'seekCancelled' }
+  /** Matchmaking progress: the current rating window and how many others are in the pool. */
+  | { t: 'seekStatus'; window: number | null; poolSize: number; waitedMs: number }
+  | { t: 'lobby'; lobby: LobbyState }
+  | { t: 'openGameCreated'; game: OpenGame }
+  | { t: 'openGameCancelled' }
+  | { t: 'rematchOffered'; gameId: string; by: Color }
+  | { t: 'rematchDeclined'; gameId: string }
   | { t: 'gameStart'; game: GameSnapshot; you: Color }
   | { t: 'gameState'; game: GameSnapshot }
   | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
   | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }> }
-  | { t: 'opponentConnection'; gameId: string; connected: boolean }
+  | {
+      t: 'opponentConnection';
+      gameId: string;
+      connected: boolean;
+      /** Server time at which an absent opponent forfeits (or the game is aborted). */
+      abandonAt?: number;
+    }
   /** A challenge you sent, received, or looked up (sent again whenever it changes). */
   | { t: 'challenge'; challenge: Challenge }
   | { t: 'challengeGone'; id: string; reason: ChallengeEndReason }

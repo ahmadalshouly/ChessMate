@@ -1,12 +1,13 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { InAppBanner } from '@/components/notifications/InAppBanner';
 import { RootStackHeader } from '@/components/shell/StackHeader';
 import { Screen } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { playClient } from '@/lib/playClient';
 import { UIProvider, useAppTheme } from '@/ui';
 import { NotificationsProvider } from '@/lib/notifications';
 
@@ -26,12 +27,26 @@ function Navigator() {
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <AuthProvider>
         <NotificationsProvider>
+          <PlayAuthBridge />
           <RootStack />
           <InAppBanner />
         </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
   );
+}
+
+/** Signed-in players join games with their account; guests keep their guest identity. */
+function PlayAuthBridge() {
+  const { status, getAccessToken } = useAuth();
+  const signedIn = status === 'signedIn';
+  const prev = useRef<boolean | null>(null);
+  useEffect(() => {
+    const changed = prev.current !== null && prev.current !== signedIn;
+    prev.current = signedIn;
+    playClient.setTokenProvider(signedIn ? getAccessToken : null, changed);
+  }, [signedIn, getAccessToken]);
+  return null;
 }
 
 /** Routes anyone may open without a session: the auth flow and emailed reset links. */
@@ -54,6 +69,7 @@ function RootStack() {
         {/* The app shell: header + tab bar / sidebar around the main sections. */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'ChessMate' }} />
         {/* Full-screen flows shown above the shell. */}
+        <Stack.Screen name="play/index" options={{ title: 'Play' }} />
         <Stack.Screen name="play/online" options={{ title: 'Play online' }} />
         <Stack.Screen name="play/local" options={{ title: 'Practice board' }} />
         <Stack.Screen name="leaderboard" options={{ title: 'Leaderboards' }} />

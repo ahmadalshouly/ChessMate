@@ -1,44 +1,49 @@
-import { START_FEN, timeCategory, type ArchivedGame, type GameOutcome, type PlayedMove, type TimeControl } from '@chessmate/core';
+import { START_FEN, timeCategory, type ArchivedGame, type GameOutcome, type PlayedMove } from '@chessmate/core';
 import { useEffect, useRef } from 'react';
 
 import { saveGame } from './archive';
-import type { OnlineState } from './useOnlineGame';
+import type { GameView } from './playClient';
 
 /** Saves a finished online game to the on-device archive, once. */
-export function useRecordOnlineGame(state: OnlineState, timeControl: TimeControl, rated = false) {
+export function useRecordOnlineGame(view: GameView | null) {
   const saved = useRef<string | null>(null);
   const startedAt = useRef<number>(Date.now());
+  const gameId = view?.gameId ?? null;
   useEffect(() => {
-    if (state.status === 'playing' && saved.current !== state.gameId) startedAt.current = Date.now();
-  }, [state.status, state.gameId]);
+    if (gameId && saved.current !== gameId) startedAt.current = Date.now();
+  }, [gameId]);
   useEffect(() => {
-    const { outcome, gameId, white, black } = state;
-    if (state.status !== 'finished' || !outcome || !gameId || saved.current === gameId) return;
+    if (!view?.outcome || saved.current === view.gameId) return;
+    const { outcome, white, black, timeControl } = view;
     if (outcome.reason === 'aborted') return;
-    saved.current = gameId;
+    saved.current = view.gameId;
+    const delta = (c: 'w' | 'b') => {
+      const rc = view.ratingChange?.[c];
+      return rc ? Math.round(rc.after.rating - rc.before.rating) : null;
+    };
     void saveGame({
-      id: `on_${gameId}`,
+      id: `on_${view.gameId}`,
       source: 'online',
-      white: white?.name ?? 'White',
-      black: black?.name ?? 'Black',
-      whiteRating: white?.rating ?? null,
-      blackRating: black?.rating ?? null,
-      whiteDelta: null,
-      blackDelta: null,
-      myColor: state.you,
+      white: white.name,
+      black: black.name,
+      whiteRating: white.rating,
+      blackRating: black.rating,
+      whiteDelta: delta('w'),
+      blackDelta: delta('b'),
+      myColor: view.you,
       timeControl,
       category: timeCategory(timeControl),
-      rated,
+      rated: view.rated,
       result: outcome.result,
       reason: outcome.reason,
       initialFen: START_FEN,
-      moves: state.history.map((m) => m.uci),
+      moves: view.history.map((m) => m.uci),
       startedAt: startedAt.current,
       endedAt: Date.now(),
       eco: null,
       opening: null,
     });
-  }, [state, timeControl, rated]);
+  }, [view]);
 }
 
 /** Archive entry for a pass-and-play practice game. */

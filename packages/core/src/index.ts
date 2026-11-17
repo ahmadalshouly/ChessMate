@@ -21,3 +21,4 @@ export * from './archive';
 export * from './pgn';
 export * from './profile';
 export * from './puzzle';
+export * from './premove';

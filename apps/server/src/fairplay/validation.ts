@@ -27,6 +27,7 @@ export function validateClientMessage(m: ClientMessage): string | null {
       return isInt(msg.id, 0, Number.MAX_SAFE_INTEGER) ? null : 'Invalid ping';
     case 'seek': {
       if (!isObj(msg.timeControl) || typeof msg.rated !== 'boolean') return 'Invalid seek';
+      if (msg.range !== undefined && !isInt(msg.range, 0, 4000)) return 'Invalid rating window';
       const r = msg.ratingRange;
       if (r === undefined) return null;
       return Array.isArray(r) && r.length === 2 && isInt(r[0], 0, 4000) && isInt(r[1], 0, 4000) && r[0] <= r[1]
@@ -34,13 +35,22 @@ export function validateClientMessage(m: ClientMessage): string | null {
         : 'Invalid rating range';
     }
     case 'cancelSeek':
+    case 'lobbySub':
+    case 'lobbyUnsub':
+    case 'cancelOpenGame':
       return null;
+    case 'createOpenGame':
+      return isObj(msg.timeControl) && typeof msg.rated === 'boolean' ? null : 'Invalid open game';
+    case 'joinOpenGame':
+      return typeof msg.id === 'string' && msg.id.length <= 64 ? null : 'Invalid open game id';
     case 'move':
       if (!isGameId(msg.gameId)) return 'Invalid game id';
       if (!isValidUci(msg.uci)) return 'Invalid move format';
       if (!isInt(msg.ply, 0, MAX_PLY)) return 'Invalid ply';
       return null;
     case 'join':
+    case 'rematch':
+    case 'declineRematch':
     case 'resign':
     case 'offerDraw':
     case 'acceptDraw':

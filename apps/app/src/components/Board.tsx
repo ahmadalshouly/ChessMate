@@ -15,6 +15,8 @@ const GLYPH: Record<string, string> = {
   p: '♟︎',
 };
 
+const PREMOVE_TINT = 'rgba(64, 104, 168, 0.42)';
+
 export interface BoardProps {
   /** Position to display. Boards are driven by immutable FEN strings. */
   fen: string;
@@ -26,6 +28,8 @@ export interface BoardProps {
   checkSquare?: Square | null;
   /** Squares to tint as under threat (feedback mode only). */
   threatened?: Square[];
+  /** Queued premove, tinted until it plays or is cancelled. */
+  premove?: { from: string; to: string } | null;
   onSquarePress?: (square: Square) => void;
   /** Override the user's board theme (previews). Defaults to the theme chosen in settings. */
   theme?: BoardTheme;
@@ -38,7 +42,7 @@ function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
 }
 
 export const Board = memo(function Board(props: BoardProps) {
-  const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], onSquarePress } = props;
+  const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], premove, onSquarePress } = props;
   const { boardTheme } = useBoardTheme();
   const colors = props.theme ?? boardTheme;
   const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
@@ -69,6 +73,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const overlays: string[] = [];
         if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
         if (threatSet.has(sq)) overlays.push(colors.threat);
+        if (premove && (premove.from === sq || premove.to === sq)) overlays.push(PREMOVE_TINT);
         if (selected === sq) overlays.push(colors.selected);
         if (checkSquare === sq) overlays.push(colors.check);
         return (
