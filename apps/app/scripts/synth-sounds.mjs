@@ -1,6 +1,7 @@
 // Synthesises ChessMate's castle, promote and low-time cues as 16-bit mono WAVs.
 // Every sample is generated here, so the sounds are original and need no licence.
 // Usage: node apps/app/scripts/synth-sounds.mjs
+import { Buffer } from 'node:buffer';
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
