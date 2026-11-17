@@ -4,6 +4,7 @@ import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
 import { AuthService, ConsoleMailer, MemoryAuthStore, authRoutes, authSecretFromEnv } from './auth';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
+import { DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles';
 import { DbGamePersistence, DbPlayerStore } from './persistence';
 import { ChessServer, type ServerOptions } from './server';
 
@@ -16,7 +17,9 @@ const coach = new CoachService({
 });
 console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set ANTHROPIC_API_KEY to enable it (rule-based feedback in the meantime)');
 const { service: analysis, engine } = createAnalysisService();
-const base: ServerOptions = { port, auth, coach, analysis, http: [authRoutes(auth)], adminToken: process.env.ADMIN_TOKEN || undefined };
+// Profiles run on the dev backend until the accounts and persistence services are wired in.
+const profiles = profileRoutes(new DevProfileBackend(), new MemoryProfileStore());
+const base: ServerOptions = { port, auth, coach, analysis, http: [authRoutes(auth), profiles], adminToken: process.env.ADMIN_TOKEN || undefined };
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
 // CHESSMATE_DB=off runs fully in memory (nothing saved).

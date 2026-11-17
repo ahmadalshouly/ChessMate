@@ -2,6 +2,7 @@ import { ALL_SQUARES, FILES, Game, type Color, type Piece, type Square } from '@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useBoardAppearance } from '@/features/account/boardThemes';
 import { useBoardTheme, type BoardTheme } from '@/ui';
 
 // Text presentation selector (U+FE0E) stops platforms rendering pieces as emoji.
@@ -42,6 +43,8 @@ export const Board = memo(function Board(props: BoardProps) {
   const colors = props.theme ?? boardTheme;
   const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
   const cell = size / 8;
+  // Coordinates, legal-move dots and last-move highlight follow the user's board settings.
+  const look = useBoardAppearance();
   const squares = useMemo(() => {
     const ordered = [...ALL_SQUARES].sort((a, b) => {
       const ra = Number(a[1]);
@@ -64,7 +67,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const row = Math.floor(i / 8);
         const col = i % 8;
         const overlays: string[] = [];
-        if (lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
+        if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
         if (threatSet.has(sq)) overlays.push(colors.threat);
         if (selected === sq) overlays.push(colors.selected);
         if (checkSquare === sq) overlays.push(colors.check);
@@ -84,10 +87,10 @@ export const Board = memo(function Board(props: BoardProps) {
             {overlays.map((c, k) => (
               <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
             ))}
-            {col === 0 && (
+            {look.coordinates && col === 0 && (
               <Text style={[styles.coord, { color: isLight ? colors.coordOnLight : colors.coordOnDark, top: 2, left: 3, fontSize: cell * 0.18 }]}>{rank}</Text>
             )}
-            {row === 7 && (
+            {look.coordinates && row === 7 && (
               <Text style={[styles.coord, { color: isLight ? colors.coordOnLight : colors.coordOnDark, bottom: 1, right: 3, fontSize: cell * 0.18 }]}>
                 {FILES[fileIdx]}
               </Text>
@@ -106,7 +109,7 @@ export const Board = memo(function Board(props: BoardProps) {
                 {GLYPH[piece.type]}
               </Text>
             )}
-            {targetSet.has(sq) && (
+            {look.showLegalMoves && targetSet.has(sq) && (
               <View
                 pointerEvents="none"
                 style={

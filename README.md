@@ -260,6 +260,25 @@ Global and country boards list players with at least one rated game and a settle
 
 Server-side move validation, rate limiting, Stockfish-based cheat flagging, a moderator review queue and bans with rating refunds. Analysis is optional locally: set `STOCKFISH_PATH` to turn it on. See [docs/fair-play.md](docs/fair-play.md).
 
+## Profiles and settings
+
+Screens: `/profile` (your profile), `/profile/<username>`, `/profile/edit`, `/settings`. The home screen links to Profile and Settings.
+
+REST API on the game server (port 8787), bearer token auth:
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/profiles/:username` | Public profile: avatar, bio, country, ratings per time control, W/D/L, last 10 games (respects privacy settings) |
+| `GET /api/profiles/:username/rating-history?category=blitz` | Rating after each rated game, for the graph |
+| `GET` / `PATCH /api/me/profile` | Own profile plus email; edit display name, bio, country, avatar |
+| `GET` / `PATCH /api/me/settings` | Board theme and pieces, sound, move confirmation, notifications, privacy (partial updates, validated) |
+| `POST /api/me/password` | Change password |
+| `POST /api/me/delete` | Delete account (password required) |
+
+Shared types and validation live in `packages/core/src/profile.ts`; server code in `apps/server/src/profiles/`.
+
+**Trying it before sign-in is merged:** in development the server runs profiles on a stand-in backend with a seeded `demo` player (120 sample games), and the app acts as that player. Start `pnpm dev:server` and `pnpm dev:app`, then open Profile or Settings from the home screen. Board theme, piece set, coordinates and move confirmation apply to the boards straight away. Once accounts are merged, the app uses the signed-in player instead (see `apps/app/src/features/account/session.ts`).
+
 ## Roadmap
 
 1. Accounts and persistence (Postgres for players, games and ratings; signed session tokens in place of guest tokens).

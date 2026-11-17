@@ -19,3 +19,4 @@ export * from './analysis';
 export * from './openings';
 export * from './archive';
 export * from './pgn';
+export * from './profile';

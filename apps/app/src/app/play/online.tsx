@@ -1,4 +1,4 @@
-import { parseTimeControl, type Color } from '@chessmate/core';
+import { parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -8,6 +8,7 @@ import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, c
 import { ChatPanel } from '@/components/ChatPanel';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
 import { useAuth } from '@/lib/auth';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useRecordOnlineGame } from '@/lib/recordGame';
@@ -52,9 +53,11 @@ function OnlineGame({ token }: { token: string }) {
   useTicker(playing && !!state.clock?.running);
 
   const canMove = (c: Color) => playing && c === state.you;
-  const interaction = useBoardInteraction(state.fen, canMove, actions.move);
+  // Move and resign confirmation follow the user's gameplay settings.
+  const prefs = useGameplayPrefs(state.fen, timeCategory(timeControl), actions.move);
+  const interaction = useBoardInteraction(state.fen, canMove, prefs.move);
   const history = state.history;
-  const last = history[history.length - 1];
+  const last = prefs.pending ?? history[history.length - 1];
   const opp: Color = state.you === 'w' ? 'b' : 'w';
   const players = { w: state.white, b: state.black };
   const me = state.me;
@@ -123,7 +126,15 @@ function OnlineGame({ token }: { token: string }) {
               ) : (
                 <Button variant="secondary" title="Offer draw" onPress={actions.offerDraw} disabled={state.drawOfferBy === state.you} />
               )}
-              <Button variant="danger" title="Resign" onPress={actions.resign} />
+              <Button variant="danger" title={prefs.resignAsked ? 'Confirm resign' : 'Resign'} onPress={() => prefs.requestResign() && actions.resign()} />
+              {prefs.resignAsked && <Button variant="secondary" title="Keep playing" onPress={prefs.cancelResign} />}
+            </View>
+          )}
+          {playing && prefs.pending && (
+            <View style={styles.actions}>
+              <Label>Play {prefs.pending.san}?</Label>
+              <Button title="Confirm move" onPress={prefs.confirm} />
+              <Button variant="secondary" title="Cancel" onPress={prefs.cancel} />
             </View>
           )}
           {playing && state.drawOfferBy === opp && (
