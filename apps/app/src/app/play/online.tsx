@@ -1,7 +1,8 @@
 import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';

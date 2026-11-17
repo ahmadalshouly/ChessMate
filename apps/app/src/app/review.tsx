@@ -1,7 +1,8 @@
 import { START_FEN, evalBarFraction, parseUci, type ReviewedMove, type Square } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';

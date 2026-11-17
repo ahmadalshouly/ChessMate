@@ -13,13 +13,15 @@ import {
 } from '@chessmate/core';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
+import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 type ColorChoice = 'w' | 'random' | 'b';
 
@@ -158,24 +160,7 @@ function Avatar({ bot, size = 40, inverted }: { bot: BotProfile; size?: number; 
 }
 
 function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
-  const t = useTheme();
-  return (
-    <View style={[styles.segmented, { borderColor: t.glassBorder, backgroundColor: t.surface }]}>
-      {options.map((o) => {
-        const active = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            onPress={() => onChange(o.value)}
-            style={[styles.segment, { backgroundColor: active ? t.accent : 'transparent' }]}>
-            <Text style={{ color: active ? t.onAccent : t.text, fontWeight: '600' }}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  return <SegmentedControl value={value} onChange={onChange} options={options} />;
 }
 
 // -------------------------------------------------------------------- game

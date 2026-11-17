@@ -1,6 +1,7 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type Square } from '@chessmate/core';
 import { memo, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { useBoardAppearance } from '@/features/account/boardThemes';
 import { useBoardTheme, type BoardTheme } from '@/ui';

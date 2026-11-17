@@ -1,23 +1,27 @@
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { fonts } from '@/ui';
+import { Text } from '@/ui/primitives';
 
-/** Knight mark in a rounded tile, optionally followed by the wordmark. */
-export function Logo({ size = 32, wordmark = true }: { size?: number; wordmark?: boolean }) {
+/** The ChessMate mark (queen and crowned knight). One black PNG, tinted for the theme. */
+const MARK = require('../../../assets/brand/mark.png');
+/** Width / height of the traced mark (assets/brand/chessmate-mark.svg). */
+const MARK_RATIO = 1597 / 1678;
+
+/** Line-art mark, optionally followed by the CHESSMATE wordmark set in Montserrat. */
+export function Logo({ size = 32, wordmark = true, color }: { size?: number; wordmark?: boolean; color?: string }) {
   const t = useTheme();
+  const ink = color ?? t.text;
   return (
     <View style={styles.row} accessibilityRole="header" accessibilityLabel="ChessMate">
-      <View style={[styles.mark, { width: size, height: size, borderRadius: size * 0.3, backgroundColor: t.accent }]}>
-        <MaterialCommunityIcons name="chess-knight" size={size * 0.66} color={t.onAccent} />
-      </View>
-      {wordmark && <Text style={[styles.word, { color: t.text, fontSize: size * 0.56 }]}>ChessMate</Text>}
+      <Image source={MARK} style={{ width: size * MARK_RATIO, height: size, tintColor: ink }} resizeMode="contain" />
+      {wordmark && <Text style={[styles.word, { color: ink, fontSize: size * 0.5, letterSpacing: size * 0.06 }]}>CHESSMATE</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  mark: { alignItems: 'center', justifyContent: 'center' },
-  word: { fontWeight: '800', letterSpacing: -0.4 },
+  word: { fontFamily: fonts.displayMedium },
 });

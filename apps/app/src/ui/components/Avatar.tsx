@@ -39,13 +39,13 @@ export function Avatar({ name, uri, size = 40, status, square, style }: AvatarPr
       <View
         style={[
           StyleSheet.absoluteFill,
-          { borderRadius: radius, overflow: 'hidden', backgroundColor: c.surfaceSunken, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: c.glassBorder },
+          { borderRadius: radius, overflow: 'hidden', backgroundColor: c.surfaceSunken, borderWidth: StyleSheet.hairlineWidth, borderColor: c.borderStrong },
           styles.center,
         ]}>
         {uri ? (
           <Image source={{ uri }} style={StyleSheet.absoluteFill} />
         ) : (
-          <Text style={{ fontSize: size * 0.38, lineHeight: size * 0.46, fontWeight: '700' }}>{initials(name)}</Text>
+          <Text variant="numeric" style={{ fontSize: size * 0.34, lineHeight: size * 0.42, letterSpacing: -0.3 }}>{initials(name)}</Text>
         )}
       </View>
       {status && (

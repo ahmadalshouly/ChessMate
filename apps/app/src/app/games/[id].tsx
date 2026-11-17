@@ -1,7 +1,8 @@
 import { Game, START_FEN, gameToPgn, openingTimeline, viewerOutcome, type ArchivedGame, type Color, type PlayedMove } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { SideDot, formatDate, gameMeta, playerLabel } from '@/components/archive';

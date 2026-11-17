@@ -10,11 +10,13 @@ import {
   type TimeControl,
 } from '@chessmate/core';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Text, TextInput } from '@/ui/primitives';
 
 import { Button, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { challengeLink, copyText, shareLink } from '@/lib/links';
+import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 type Actions = {
   createChallenge: (o: { to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }) => void;
@@ -46,24 +48,7 @@ function viewerColor(c: Challenge): string {
 
 /** Small segmented control in the monochrome glass style. */
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
-  const t = useTheme();
-  return (
-    <View style={[styles.segment, { borderColor: t.glassBorder, backgroundColor: t.surface }]}>
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            onPress={() => onChange(o.value)}
-            style={[styles.segmentItem, on && { backgroundColor: t.accent }]}>
-            <Text style={{ color: on ? t.onAccent : t.text, fontWeight: '600', fontSize: 14 }}>{o.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  return <SegmentedControl size="sm" value={value} onChange={onChange} options={options} />;
 }
 
 function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {

@@ -18,7 +18,8 @@ import {
 } from '@chessmate/core';
 import { Stack } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { useTicker } from '@/components/PlayerBar';
