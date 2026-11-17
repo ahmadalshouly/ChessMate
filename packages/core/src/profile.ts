@@ -21,10 +21,33 @@ export const DEFAULT_AVATAR: Avatar = { id: 'initials', tone: 'ink' };
 
 // ---------- settings ----------
 
-export const BOARD_THEMES = ['graphite', 'marble', 'slate', 'contrast'] as const;
+/** Board colour themes. The app holds the colours (apps/app/src/ui/theme/boardThemes.ts). */
+export const BOARD_THEMES = [
+  'graphite',
+  'marble',
+  'slate',
+  'contrast',
+  'frost',
+  'onyx',
+  'ivory',
+  'walnut',
+  'maple',
+  'tournament',
+  'ocean',
+  'midnight',
+  'emerald',
+  'amethyst',
+  'rose',
+  'sand',
+] as const;
 export type BoardTheme = (typeof BOARD_THEMES)[number];
-export const PIECE_SETS = ['classic', 'outline', 'bold'] as const;
+/** Piece sets. Artwork and credits live in apps/app/art/pieces. */
+export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes'] as const;
 export type PieceSet = (typeof PIECE_SETS)[number];
+/** Ids from older versions, mapped to their closest current choice when settings are loaded. */
+const LEGACY_VALUES: Record<string, Record<string, string>> = {
+  'board.pieces': { outline: 'spatial' },
+};
 export const VISIBILITY = ['everyone', 'friends', 'nobody'] as const;
 export type Visibility = (typeof VISIBILITY)[number];
 
@@ -120,7 +143,9 @@ export function normalizeSettings(stored: unknown): UserSettings {
     const values = stored[section];
     if (!isObject(values)) continue;
     for (const key of Object.keys(DEFAULT_SETTINGS[section])) {
-      const res = applySettingsPatch(out, { [section]: { [key]: values[key] } });
+      const raw = values[key];
+      const value = typeof raw === 'string' ? (LEGACY_VALUES[`${section}.${key}`]?.[raw] ?? raw) : raw;
+      const res = applySettingsPatch(out, { [section]: { [key]: value } });
       if ('settings' in res && values[key] !== undefined) Object.assign(out, res.settings);
     }
   }

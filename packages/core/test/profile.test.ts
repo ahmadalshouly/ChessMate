@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COUNTRIES, DEFAULT_SETTINGS, applySettingsPatch, countryFlag, countryName, normalizeSettings, validateProfileEdit } from '../src';
+import { BOARD_THEMES, COUNTRIES, PIECE_SETS, DEFAULT_SETTINGS, applySettingsPatch, countryFlag, countryName, normalizeSettings, validateProfileEdit } from '../src';
 
 describe('settings', () => {
   it('applies a valid partial patch without touching other keys', () => {
@@ -18,6 +18,13 @@ describe('settings', () => {
     expect(s.board.theme).toBe('contrast');
     expect(s.board.pieces).toBe('classic');
     expect(s.sound).toEqual(DEFAULT_SETTINGS.sound);
+  });
+  it('accepts every board theme and piece set, and maps retired ids', () => {
+    for (const theme of BOARD_THEMES) expect(applySettingsPatch(DEFAULT_SETTINGS, { board: { theme } })).toHaveProperty('settings');
+    for (const pieces of PIECE_SETS) expect(applySettingsPatch(DEFAULT_SETTINGS, { board: { pieces } })).toHaveProperty('settings');
+    expect(applySettingsPatch(DEFAULT_SETTINGS, { board: { pieces: 'outline' } })).toHaveProperty('error');
+    expect(normalizeSettings({ board: { pieces: 'outline', theme: 'midnight' } }).board).toMatchObject({ pieces: 'spatial', theme: 'midnight' });
+    expect(normalizeSettings({ board: { pieces: 'bold' } }).board.pieces).toBe('bold');
   });
 });
 
