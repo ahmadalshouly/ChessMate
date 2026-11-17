@@ -53,10 +53,6 @@ export function quickFeedback(ctx: Pick<CoachContext, 'movePlayed' | 'bestMove' 
   const top = ctx.insightAfter.threats[0];
   const hang = ctx.insightAfter.hanging[0];
   switch (classification) {
-    case 'masterpiece':
-      return `${ctx.movePlayed} is a masterpiece: a winning sacrifice the engine agrees with.`;
-    case 'brilliant':
-      return `${ctx.movePlayed} is brilliant: it gives up material and it works.`;
     case 'best':
       return `${ctx.movePlayed} is the top engine choice.`;
     case 'forced':
@@ -66,8 +62,6 @@ export function quickFeedback(ctx: Pick<CoachContext, 'movePlayed' | 'bestMove' 
     case 'excellent':
     case 'good':
       return `${ctx.movePlayed} is solid. ${ctx.bestMove} was slightly stronger.`;
-    case 'missed':
-      return `${ctx.movePlayed} misses a chance to punish your opponent's error. ${ctx.bestMove} was the way.`;
     default: {
       const reason = top
         ? ` It allows ${top.description}.`

@@ -2,7 +2,6 @@ import { START_FEN } from '@chessmate/core';
 import { useState } from 'react';
 
 import { Board } from '@/components/Board';
-import { MoveBadge } from '@/components/MoveBadge';
 import {
   Avatar,
   Badge,
@@ -205,23 +204,6 @@ export default function DesignSystem() {
             variant="secondary"
             onPress={() => toast.show({ title: 'Connection lost', message: 'Reconnecting…', tone: 'danger', action: { label: 'Retry', onPress: () => {} } })}
           />
-        </Row>
-      </Card>
-
-      <SectionHeader title="Move badges" />
-      <Card>
-        <Row gap="lg" wrap justify="center">
-          {(['best', 'brilliant', 'excellent', 'good', 'book', 'masterpiece', 'blunder', 'mistake', 'missed', 'inaccuracy', 'forced'] as const).map((c) => (
-            <MoveBadge key={c} cls={c} size={96} />
-          ))}
-        </Row>
-        <Row gap="md" wrap>
-          {(['brilliant', 'best', 'excellent', 'inaccuracy', 'mistake', 'missed', 'blunder'] as const).map((c) => (
-            <MoveBadge key={c} cls={c} size={40} />
-          ))}
-          {(['masterpiece', 'brilliant', 'best', 'inaccuracy', 'mistake', 'missed', 'blunder'] as const).map((c) => (
-            <MoveBadge key={c + 's'} cls={c} size={20} />
-          ))}
         </Row>
       </Card>
 

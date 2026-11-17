@@ -8,16 +8,11 @@ import { Board } from '@/components/Board';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
-import { MoveBadge } from '@/components/MoveBadge';
 import { BEST_MOVE_ARROW, MOVE_CLASS, REVIEW_ORDER, formatEval } from '@/constants/analysis';
-
 import { useTheme } from '@/constants/theme';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
-
-/** Classes that only get a summary row when they happened. */
-const RARE = new Set(['masterpiece', 'brilliant', 'missed', 'book']);
 
 const EVAL_BAR = 20;
 
@@ -176,7 +171,7 @@ export default function Review() {
                   </View>
                 </View>
                 <SummaryRow label="Accuracy" w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
-                {REVIEW_ORDER.filter((c) => !RARE.has(c) || review.counts.w[c] + review.counts.b[c] > 0).map((c) => (
+                {REVIEW_ORDER.map((c) => (
                   <SummaryRow key={c} cls={c} label={MOVE_CLASS[c].label} w={String(review.counts.w[c])} b={String(review.counts.b[c])} />
                 ))}
                 <Label muted size={12}>Engine depth {review.depth}</Label>
@@ -195,7 +190,7 @@ export default function Review() {
                         {m.color === 'w' || m.ply === 1 ? <Text style={{ color: ply === m.ply ? t.onAccent : t.muted }}>{moveNumber(m)} </Text> : null}
                         {m.san}
                       </Text>
-                      {m.judgement.classification !== 'good' && m.judgement.classification !== 'book' && m.judgement.classification !== 'forced' && <MoveBadge cls={m.judgement.classification} size={16} rim={false} />}
+                      <View style={[styles.dot, { backgroundColor: MOVE_CLASS[m.judgement.classification].color }]} />
                     </Pressable>
                   ))}
                 </View>
@@ -224,14 +219,19 @@ function moveNumber(m: ReviewedMove) {
 }
 
 function Badge({ cls }: { cls: ReviewedMove['judgement']['classification'] }) {
-  return <MoveBadge cls={cls} size={34} />;
+  const c = MOVE_CLASS[cls];
+  return (
+    <View style={[styles.badge, { backgroundColor: c.color }]}>
+      <Text style={styles.badgeText}>{c.symbol}</Text>
+    </View>
+  );
 }
 
 function SummaryRow({ label, w, b, cls, strong }: { label: string; w: string; b: string; cls?: ReviewedMove['judgement']['classification']; strong?: boolean }) {
   return (
     <View style={styles.summaryRow}>
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {cls && <MoveBadge cls={cls} size={22} />}
+        {cls && <Badge cls={cls} />}
         <Label bold={strong}>{label}</Label>
       </View>
       <View style={styles.summaryCell}>
@@ -253,7 +253,7 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
       {moves.map((m) => {
         const white = evalBarFraction(m.scoreAfter);
         const cls = m.judgement.classification;
-        const flagged = cls === 'mistake' || cls === 'blunder' || cls === 'missed' || cls === 'brilliant' || cls === 'masterpiece';
+        const flagged = cls === 'mistake' || cls === 'blunder';
         return (
           <Pressable key={m.ply} onPress={() => onSelect(m.ply)} style={[styles.graphCol, { backgroundColor: '#1B1B1F' }]}>
             <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: height * white, backgroundColor: '#E9E9EC' }} />

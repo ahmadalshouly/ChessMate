@@ -5,12 +5,21 @@ import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { CoachChat } from '@/components/coach/CoachChat';
-import { MoveBadgeLabel } from '@/components/MoveBadge';
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme, type Palette } from '@/constants/theme';
 import { requestReview } from '@/lib/coachApi';
 import { useBoardSize } from '@/lib/useBoardSize';
 
+const CLASS_LABEL: Record<MoveClass, string> = {
+  best: 'Best',
+  excellent: 'Excellent',
+  good: 'Good',
+  inaccuracy: 'Inaccuracy ?!',
+  mistake: 'Mistake ?',
+  blunder: 'Blunder ??',
+  book: 'Book',
+  forced: 'Forced',
+};
 
 /**
  * Post-game coach review: summary, accuracy, key moments on the board with
@@ -180,8 +189,13 @@ function MomentText({ t, note, isMine, evalText }: { t: Palette; note: CoachMove
   );
 }
 
-function ClassChip({ cls }: { t: Palette; cls: MoveClass }) {
-  return <MoveBadgeLabel cls={cls} size={28} />;
+function ClassChip({ t, cls }: { t: Palette; cls: MoveClass }) {
+  const severe = cls === 'blunder' || cls === 'mistake';
+  return (
+    <View style={[styles.chip, { borderColor: severe ? t.danger : t.border }]}>
+      <Text style={{ color: severe ? t.danger : t.muted, fontSize: 13, fontWeight: '600' }}>{CLASS_LABEL[cls]}</Text>
+    </View>
+  );
 }
 
 function Badge({ t, text }: { t: Palette; text: string }) {

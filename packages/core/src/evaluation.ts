@@ -3,18 +3,7 @@ import type { Color } from './types';
 /** Engine score. Always from White's point of view. */
 export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: undefined };
 
-export type MoveClass =
-  | 'masterpiece'
-  | 'brilliant'
-  | 'best'
-  | 'excellent'
-  | 'good'
-  | 'book'
-  | 'inaccuracy'
-  | 'mistake'
-  | 'missed'
-  | 'blunder'
-  | 'forced';
+export type MoveClass = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'book' | 'forced';
 
 /** Logistic slope converting centipawns to expected score. */
 const K = 0.004;
@@ -65,12 +54,6 @@ const THRESHOLDS: [MoveClass, number][] = [
 /**
  * Judges a move by how much expected score the mover gave up compared with
  * the engine's best line.
- *
- * - brilliant: a best move that leaves material en prise (a sound sacrifice) and keeps
- *   the mover at least equal.
- * - masterpiece: a brilliant sacrifice of a rook or more that leaves the mover winning.
- * - missed: the opponent just erred (mistake or blunder) and this move, an inaccuracy or
- *   mistake, let the chance go while the mover stood clearly better.
  */
 export function judgeMove(params: {
   mover: Color;
@@ -78,20 +61,12 @@ export function judgeMove(params: {
   playedScore: Score;
   playedIsBest: boolean;
   legalMoveCount?: number;
-  /** Material (pawns) the move leaves en prise beyond what it captured. See `sacrificedMaterial`. */
-  sacrifice?: number;
-  /** The opponent's previous move was a mistake or blunder. */
-  opponentErred?: boolean;
 }): MoveJudgement {
   const before = expectedScoreFor(params.bestScore, params.mover);
   const after = expectedScoreFor(params.playedScore, params.mover);
   const loss = Math.max(0, before - after);
   const accuracy = moveAccuracy(loss);
   if (params.legalMoveCount === 1) return { classification: 'forced', loss, accuracy };
-  const sacrifice = params.sacrifice ?? 0;
-  if ((params.playedIsBest || loss < 0.005) && sacrifice >= 2 && after >= 0.5) {
-    return { classification: sacrifice >= 5 && after >= 0.9 ? 'masterpiece' : 'brilliant', loss, accuracy: 100 };
-  }
   if (params.playedIsBest || loss < 0.005) return { classification: 'best', loss, accuracy: 100 };
   // Missing a forced mate while still winning comfortably is not a blunder.
   let classification: MoveClass = 'blunder';
@@ -101,13 +76,7 @@ export function judgeMove(params: {
       break;
     }
   }
-  if (params.opponentErred && before >= 0.7 && (classification === 'inaccuracy' || classification === 'mistake')) classification = 'missed';
   return { classification, loss, accuracy };
-}
-
-/** Classes that count as an error by the opponent, for `opponentErred`. */
-export function isError(c: MoveClass | undefined): boolean {
-  return c === 'mistake' || c === 'blunder';
 }
 
 export function moveAccuracy(loss: number): number {
