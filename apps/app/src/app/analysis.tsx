@@ -1,4 +1,15 @@
-import { Game, START_FEN, importPosition, parseUci } from '@chessmate/core';
+import {
+  Game,
+  START_FEN,
+  classifyMove,
+  importPosition,
+  openingTimeline,
+  parseUci,
+  positionKey,
+  terminalScore,
+  type MoveJudgement,
+  type PositionAnalysis,
+} from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -6,14 +17,17 @@ import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, V
 import { Board } from '@/components/Board';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
+import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
-import { ARROW_COLORS, formatEval } from '@/constants/analysis';
+import { ARROW_COLORS, MOVE_CLASS, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
+/** Depth an engine result needs before it is used to grade moves. */
+const GRADE_DEPTH = 12;
 
 /**
  * Analysis board: explore any position (from a FEN, a PGN, or a finished
@@ -76,6 +90,19 @@ export default function Analysis() {
     return () => window.removeEventListener('keydown', onKey);
   }, [line.length]);
 
+  // Keep the deepest result per position, so every move on the line can be graded once
+  // the engine has seen the position before it and the position after it.
+  const [seen, setSeen] = useState<Map<string, PositionAnalysis>>(() => new Map());
+  const latest = engine.state.analysis;
+  const [recorded, setRecorded] = useState(latest);
+  if (latest !== recorded) {
+    setRecorded(latest);
+    if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
+  }
+  const openings = useMemo(() => openingTimeline(line, start), [line, start]);
+  const grades = useMemo(() => gradeLine(start, history, seen, openings), [start, history, seen, openings]);
+  const lastGrade = cursor > 0 ? grades[cursor - 1] : undefined;
+
   const analysis = engineOn && engine.state.analysis?.fen === new Game(fen).fen ? engine.state.analysis : null;
   const top = analysis?.lines[0];
   const arrows: Arrow[] = (analysis?.lines ?? [])
@@ -125,6 +152,7 @@ export default function Analysis() {
                 onSquarePress={interaction.onSquarePress}
               />
               {engineOn && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
+              {engineOn && last && lastGrade && <BoardMoveBadge square={last.to} cls={lastGrade.classification} size={size} orientation={orientation} />}
             </View>
           </View>
 
@@ -149,6 +177,14 @@ export default function Analysis() {
                 <Switch value={engineOn} onValueChange={setEngineOn} accessibilityLabel="Engine" />
               </View>
             </View>
+            {engineOn && last && lastGrade && (
+              <View style={styles.row}>
+                <MoveBadge cls={lastGrade.classification} size={22} />
+                <Label>
+                  {last.san} is {MOVE_CLASS[lastGrade.classification].phrase}
+                </Label>
+              </View>
+            )}
             {locked && <Label muted>Engine analysis is off while you have a live game. It comes back when the game ends.</Label>}
             {unavailable && <Label muted>{engine.state.error?.message}</Label>}
             {!engine.state.connected && engineOn && <Label muted>Connecting to the engine…</Label>}
@@ -179,6 +215,7 @@ export default function Analysis() {
                       {moveLabel(i) ? <Text style={{ color: cursor === i + 1 ? t.onAccent : t.muted }}>{moveLabel(i)} </Text> : null}
                       {m.san}
                     </Text>
+                    {engineOn && grades[i] && <MoveBadge cls={grades[i]!.classification} size={14} />}
                   </Pressable>
                 ))}
               </View>
@@ -228,6 +265,54 @@ export default function Analysis() {
       </ScrollView>
     </Screen>
   );
+}
+
+/** Stores a result unless a deeper (or equally deep but wider) one is already known. */
+function remember(prev: Map<string, PositionAnalysis>, a: PositionAnalysis): Map<string, PositionAnalysis> {
+  const key = positionKey(a.fen);
+  const old = prev.get(key);
+  if (old && (old.depth > a.depth || (old.depth === a.depth && old.lines.length > a.lines.length))) return prev;
+  const next = new Map(prev);
+  next.set(key, a);
+  return next;
+}
+
+/**
+ * Grades each move of the line from the engine results seen so far. A move is
+ * graded once both the position before it and the one after it have been
+ * analysed; the rest stay undefined until the player visits them.
+ */
+function gradeLine(
+  start: string,
+  history: { fenAfter: string; uci: string }[],
+  seen: Map<string, PositionAnalysis>,
+  openings: ({ ply: number } | null)[],
+): (MoveJudgement | undefined)[] {
+  const out: (MoveJudgement | undefined)[] = [];
+  let inBook = true;
+  history.forEach((m, i) => {
+    inBook = inBook && !!openings[i + 1] && openings[i + 1]!.ply === i + 1;
+    const fenBefore = i === 0 ? start : history[i - 1]!.fenAfter;
+    const before = seen.get(positionKey(fenBefore));
+    const after = seen.get(positionKey(m.fenAfter));
+    const best = before?.lines[0];
+    const playedScore = after?.terminal ? terminalScore(after.fen, after.terminal) : after?.lines[0]?.score;
+    if (!best || !playedScore) return out.push(undefined);
+    out.push(
+      classifyMove({
+        fenBefore,
+        uci: m.uci,
+        bestScore: best.score,
+        bestMove: best.pv[0],
+        secondBestScore: before.lines[1]?.score,
+        playedScore,
+        book: inBook,
+        previousUci: history[i - 1]?.uci,
+        previousLoss: out[i - 1]?.loss,
+      }),
+    );
+  });
+  return out;
 }
 
 function NavButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
@@ -284,6 +369,6 @@ const styles = StyleSheet.create({
   pvRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
   pvScore: { fontWeight: '700', minWidth: 54, textAlign: 'center', paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   moves: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  moveChip: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  moveChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   input: { minHeight: 90, borderWidth: 1, borderRadius: 10, padding: 10, textAlignVertical: 'top', fontSize: 14 },
 });

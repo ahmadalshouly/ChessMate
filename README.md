@@ -141,8 +141,22 @@ Then open the app and tap **Try a sample review** on the home screen. Details: [
 
 The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games. The app gets:
 
-- **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move.
-- **Game review** (after an online game → Review game, or from the analysis board): every move graded best / excellent / good / inaccuracy / mistake / blunder, accuracy per side, eval graph, and the better move drawn on the board.
+- **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move. Every move you play or step through gets a badge on the moved piece once the engine has seen the position before and after it (depth 12+).
+- **Game review** (after an online game → Review game, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
+
+Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visuals in `apps/app/src/components/MoveBadge.tsx`):
+
+| Badge | Meaning |
+| --- | --- |
+| **!!!** Queen brilliancy | A brilliant move made by the queen that offers the queen itself (for example a queen sacrifice that forces mate). ChessMate's top tier. |
+| **!!** Brilliant | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
+| **!** Great | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
+| Best, Excellent, Good | Close to the engine's choice. |
+| Book, Forced | A known opening move; the only legal move. |
+| **?!** Inaccuracy, **?** Mistake, **??** Blunder | Increasing loss of winning chances. |
+| Miss | Your opponent just erred and the move let the chance slip. |
+
+To try them: open the analysis board, import `1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7`, and step through it (6. Nxf7 is brilliant). For the !!! badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
 
 Engine help is refused while you have a live game, and for any position currently on the board in a live game.
 
@@ -151,7 +165,7 @@ Which Stockfish runs:
 1. `STOCKFISH_PATH` set: that native binary (fastest; used by the Docker image).
 2. Otherwise the `stockfish` npm package's WebAssembly build, run by a child Node process. This is installed by `pnpm install`, so nothing extra is needed for local development on Windows, macOS or Linux.
 
-Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 14) and `REVIEW_MOVETIME_MS` (default 400, per position). For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
+Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 18) and `REVIEW_MOVETIME_MS` (default 800, per position). Reviews look at two engine lines per position (to spot only moves) and spread positions across all `ENGINE_WORKERS`, so more workers make reviews faster. The analysis board searches to depth 22 by default. For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
 
 ```powershell
 $env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"

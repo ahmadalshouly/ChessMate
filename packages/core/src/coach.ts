@@ -59,6 +59,14 @@ export function quickFeedback(ctx: Pick<CoachContext, 'movePlayed' | 'bestMove' 
       return `${ctx.movePlayed} was the only legal move.`;
     case 'book':
       return `${ctx.movePlayed} is a known opening move.`;
+    case 'royal':
+      return `${ctx.movePlayed}!!! A queen brilliancy: the queen is offered and the engine backs it.`;
+    case 'brilliant':
+      return `${ctx.movePlayed}!! A sound sacrifice. The material comes back with interest.`;
+    case 'great':
+      return `${ctx.movePlayed}! The only move that keeps the advantage. Everything else was clearly worse.`;
+    case 'miss':
+      return `${ctx.movePlayed} misses a chance after your opponent's error. ${ctx.bestMove} would have punished it.`;
     case 'excellent':
     case 'good':
       return `${ctx.movePlayed} is solid. ${ctx.bestMove} was slightly stronger.`;
