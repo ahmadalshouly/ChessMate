@@ -52,7 +52,7 @@ export type ServerMessage =
   | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
-  | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating }> }
+  | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }> }
   | { t: 'opponentConnection'; gameId: string; connected: boolean }
   | { t: 'error'; code: ErrorCode; message: string };
 

@@ -1,9 +1,10 @@
-import { DEFAULT_RATING, isProvisional, timeCategory, type PlayerInfo, type Rating, type TimeCategory, type TimeControl } from '@chessmate/core';
+import { isProvisionalRating, type PlayerInfo, type Rating, type TimeCategory } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
 
 export interface Player {
   id: string;
   name: string;
+  /** @deprecated Ratings live in RatingService; kept for store compatibility. */
   ratings: Partial<Record<TimeCategory, Rating>>;
 }
 
@@ -23,13 +24,12 @@ export class MemoryPlayerStore implements PlayerStore {
   }
 }
 
-export function ratingFor(p: Player, tc: TimeControl): Rating {
-  return p.ratings[timeCategory(tc)] ?? DEFAULT_RATING;
+export function isGuest(p: Pick<Player, 'id'>): boolean {
+  return p.id.startsWith('g_');
 }
 
-export function playerInfo(p: Player, tc: TimeControl): PlayerInfo {
-  const r = ratingFor(p, tc);
-  return { id: p.id, name: p.name, rating: Math.round(r.rating), provisional: isProvisional(r) };
+export function playerInfo(p: Player, r: Rating): PlayerInfo {
+  return { id: p.id, name: p.name, rating: Math.round(r.rating), provisional: isProvisionalRating(r) };
 }
 
 /**

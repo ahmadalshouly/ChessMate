@@ -1,8 +1,10 @@
-import { formatTimeControl, type TimeControl } from '@chessmate/core';
+import { DEFAULT_RANGE_OPTIONS, formatTimeControl, matchmakingGap, type RatingRangeOptions, type TimeControl } from '@chessmate/core';
 
 export interface Seek {
   playerId: string;
   rating: number;
+  /** Rating deviation; provisional players get a wider initial window. Defaults to established. */
+  rd?: number;
   timeControl: TimeControl;
   rated: boolean;
   createdAt: number;
@@ -24,7 +26,7 @@ export class Matchmaker {
   private pools = new Map<string, Seek[]>();
 
   constructor(
-    private readonly opts = { baseGap: 100, gapPerSecond: 20, maxGap: 800 },
+    private readonly opts: RatingRangeOptions = DEFAULT_RANGE_OPTIONS,
   ) {}
 
   private key(s: Pick<Seek, 'timeControl' | 'rated'>) {
@@ -63,8 +65,7 @@ export class Matchmaker {
   }
 
   allowedGap(seek: Seek, now: number): number {
-    const waited = Math.max(0, now - seek.createdAt) / 1000;
-    return Math.min(this.opts.maxGap, this.opts.baseGap + waited * this.opts.gapPerSecond);
+    return matchmakingGap({ rd: seek.rd ?? 0 }, now - seek.createdAt, this.opts);
   }
 
   private compatible(a: Seek, b: Seek, now: number): boolean {
