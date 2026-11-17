@@ -1,9 +1,11 @@
-import { themeLabel, type PuzzleDto } from '@chessmate/core';
+import { Game, themeLabel, type PuzzleDto, type Square } from '@chessmate/core';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { gameEndFeedback, moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import type { usePuzzle } from '@/lib/usePuzzle';
 
@@ -40,6 +42,7 @@ export function PuzzleBoard({
   const side = view.solver === 'w' ? 'White' : 'Black';
   const tone = view.feedback === 'wrong' || view.feedback === 'failed' ? t.danger : view.feedback === 'solved' || view.feedback === 'correct' ? SUCCESS[t.scheme] : t.text;
   const over = view.feedback === 'solved' || view.feedback === 'failed';
+  usePuzzleSounds(view.fen, view.lastMove, over);
 
   return (
     <View style={{ width: size, gap: 12 }}>
@@ -52,6 +55,7 @@ export function PuzzleBoard({
         lastMove={view.lastMove}
         checkSquare={checkSquareOf(view.fen)}
         onSquarePress={interaction.onSquarePress}
+        {...interaction.dragProps}
       />
       <Card>
         <View style={styles.status}>
@@ -79,6 +83,32 @@ export function PuzzleBoard({
       </Card>
     </View>
   );
+}
+
+/** Move cues for the solver's moves and the puzzle's replies, worked out from the position change. */
+function usePuzzleSounds(fen: string, lastMove: { from: string; to: string } | null | undefined, over: boolean) {
+  const prev = useRef(fen);
+  const wasOver = useRef(over);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = fen;
+    if (before === fen || !lastMove) return;
+    try {
+      const after = new Game(fen).fen;
+      for (const m of new Game(before).legalMoves(lastMove.from as Square)) {
+        if (m.to !== lastMove.to) continue;
+        const g = new Game(before);
+        const played = g.move(`${m.from}${m.to}${m.promotion ?? ''}`);
+        if (played && g.fen === after) return moveFeedback(played.san);
+      }
+    } catch {
+      // A new puzzle loaded; nothing to play.
+    }
+  }, [fen, lastMove]);
+  useEffect(() => {
+    if (over && !wasOver.current) gameEndFeedback();
+    wasOver.current = over;
+  }, [over]);
 }
 
 const styles = StyleSheet.create({

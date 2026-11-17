@@ -9,6 +9,7 @@ import { EvalBar } from '@/components/EvalBar';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { ARROW_COLORS, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
+import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
@@ -47,6 +48,7 @@ export default function Analysis() {
   const play = (uci: string) => {
     const played = new Game(fen).move(uci);
     if (!played) return false;
+    moveFeedback(played.san);
     if (line[cursor] === played.uci) setCursor(cursor + 1);
     else {
       setLine([...line.slice(0, cursor), played.uci]);
@@ -123,6 +125,7 @@ export default function Analysis() {
                 lastMove={last ? { from: last.from, to: last.to } : null}
                 checkSquare={checkSquareOf(fen)}
                 onSquarePress={interaction.onSquarePress}
+                {...interaction.dragProps}
               />
               {engineOn && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
             </View>

@@ -19,6 +19,16 @@ describe('settings', () => {
     expect(s.board.pieces).toBe('classic');
     expect(s.sound).toEqual(DEFAULT_SETTINGS.sound);
   });
+  it('turns premoves and haptics on by default, and fills them in for settings saved before they existed', () => {
+    expect(DEFAULT_SETTINGS.gameplay.premoves).toBe(true);
+    expect(DEFAULT_SETTINGS.sound.haptics).toBe(true);
+    const old = normalizeSettings({ sound: { enabled: false, volume: 0.3, moves: true, lowTime: false }, gameplay: { confirmMoves: 'always' } });
+    expect(old.sound).toEqual({ enabled: false, volume: 0.3, moves: true, lowTime: false, haptics: true });
+    expect(old.gameplay.premoves).toBe(true);
+    const off = applySettingsPatch(DEFAULT_SETTINGS, { gameplay: { premoves: false }, sound: { haptics: false } });
+    expect('settings' in off && [off.settings.gameplay.premoves, off.settings.sound.haptics]).toEqual([false, false]);
+    expect(applySettingsPatch(DEFAULT_SETTINGS, { gameplay: { premoves: 'yes' } })).toHaveProperty('error');
+  });
 });
 
 describe('profile edits and countries', () => {

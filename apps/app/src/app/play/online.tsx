@@ -14,6 +14,7 @@ import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
 import { clockRemaining, playClient, usePlay } from '@/lib/playClient';
 import { useRecordOnlineGame } from '@/lib/recordGame';
+import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
@@ -60,6 +61,7 @@ export default function OnlinePlay() {
   const ms = (c: Color) => (view ? clockRemaining(view.clock, c, view.clockOffset) : null);
   const history = view?.history ?? [];
   const last = prefs.pending ?? history[history.length - 1];
+  useLowTimeWarning(view?.gameId ?? null, live, ms(you), view?.timeControl.initialMs ?? 0);
   const abandonIn = view?.opponentAbandonAt ? Math.max(0, Math.ceil((view.opponentAbandonAt - (Date.now() + view.clockOffset)) / 1000)) : null;
 
   const me = s.me;
@@ -169,6 +171,7 @@ export default function OnlinePlay() {
                   lastMove={last ? { from: last.from, to: last.to } : null}
                   checkSquare={checkSquareOf(view.fen)}
                   onSquarePress={board.onSquarePress}
+                  {...board.dragProps}
                 />
                 {view.outcome && !hideResult && (
                   <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
@@ -214,7 +217,9 @@ export default function OnlinePlay() {
                     <Button variant="secondary" title="Decline" onPress={playClient.declineDraw} />
                   </View>
                 )}
-                {live && !board.myTurn && <Label muted>Opponent to move. Tap a piece to queue a premove.</Label>}
+                {live && !board.myTurn && (
+                  <Label muted>{board.canPremove ? 'Opponent to move. Tap or drag a piece to queue a premove.' : 'Opponent to move.'}</Label>
+                )}
                 {view.outcome && hideResult && <Button title="Show result" onPress={() => setHideResult(false)} />}
                 {view.outcome && view.outcome.reason !== 'aborted' && (
                   <View style={styles.actions}>
