@@ -7,8 +7,6 @@ export const nav: Messages<typeof en> = {
   learnTitle: 'Lernen & Coach',
   social: 'Community',
   profile: 'Profil',
-  ratingValue: 'Wertung {rating}',
-  ratingProvisional: 'Wertung {rating}, vorläufig',
   unrated: 'Ohne Wertung',
   signInToSave: 'Anmelden, um Partien zu speichern',
   openProfile: 'Profil öffnen',

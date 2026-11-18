@@ -4,16 +4,22 @@
  */
 import type { ReactNode } from 'react';
 import { View, type ViewStyle } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Backdrop, Button as UIButton, Card as UICard, Text, useColors } from '@/ui';
 
-/** Full-screen brand background. Children control their own padding and scrolling. */
+/**
+ * Full-screen page background. Content ends above the bottom safe area (the iPhone
+ * home indicator, Android gesture bar), so scroll views inside can always reach their
+ * last row; screens inside see a bottom inset of 0 so nothing pads for it twice.
+ */
 export function Screen({ children }: { children: ReactNode }) {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg }}>
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingBottom: insets.bottom }}>
       <Backdrop />
-      {children}
+      <SafeAreaInsetsContext value={{ ...insets, bottom: 0 }}>{children}</SafeAreaInsetsContext>
     </View>
   );
 }

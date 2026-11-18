@@ -9,19 +9,17 @@ import { useT } from '@/i18n';
 import { useCurrentUser } from '@/lib/currentUser';
 
 import { Avatar } from './Avatar';
-import { RatingChip } from './RatingChip';
 
 /** Sign-in screen; provided by the accounts work. */
 export const SIGN_IN_HREF = '/sign-in' as Href;
 
-/** Right side of the header: rating, sign-in (guests) and the avatar. */
+/** Right side of the header: sign-in (guests), notifications and the avatar. */
 export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
   const t = useTheme();
   const user = useCurrentUser();
   const tr = useT();
   return (
     <View style={styles.row}>
-      {user.rating != null && <RatingChip rating={user.rating} provisional={user.provisional} />}
       {showSignIn && user.status === 'guest' && (
         <Pressable
           accessibilityRole="button"

@@ -5,6 +5,7 @@ import { router, type Href } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { LiveBoard } from '@/components/LiveBoard';
 import { LiveStats } from '@/components/LiveStats';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -105,9 +106,14 @@ export default function Home() {
         </View>
       </View>
 
-      <ModeSection index={2} title={tr('nav.play')} modes={PLAY} cols={cols} />
-      <ModeSection index={3} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
-      <ModeSection index={4} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+      <View style={{ gap: t.space.md }}>
+        <SectionHeader index={2} title={tr('home.liveBoard.title')} />
+        <LiveBoard width={Math.min(content, 1080) - 32} />
+      </View>
+
+      <ModeSection index={3} title={tr('nav.play')} modes={PLAY} cols={cols} />
+      <ModeSection index={4} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
+      <ModeSection index={5} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
     </Page>
   );
 }

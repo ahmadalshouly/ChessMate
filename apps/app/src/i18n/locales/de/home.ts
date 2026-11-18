@@ -41,6 +41,16 @@ export const home: Messages<typeof en> = {
     body: 'Die besten Spieler weltweit, in deinem Land und unter Freunden.',
   },
   heroTitle: 'Dein Zug.',
+  liveBoard: {
+    title: 'Live-Brett',
+    watch: 'Partie ansehen',
+    finding: 'Suche eine laufende Partie…',
+    empty: 'Gerade läuft keine Partie. Starte eine, dann steht vielleicht deine auf diesem Brett.',
+    over: 'Partie beendet. Wechsle zur nächsten Live-Partie…',
+    rated: 'Gewertet',
+    casual: 'Ungewertet',
+    a11y: 'Live-Partie: {white} gegen {black}',
+  },
   stats: {
     online: 'Spieler online',
     games: 'Laufende Partien',
