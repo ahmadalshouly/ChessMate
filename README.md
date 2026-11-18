@@ -234,6 +234,8 @@ The app finds the game server automatically, on port 8787 of the computer runnin
    Also check the Wi-Fi is a **Private** network (Settings → Network & internet → Wi-Fi → your network → Private), since the rule above only covers private networks.
 3. Some routers isolate Wi-Fi devices from each other (guest networks, "AP isolation"). Use the main network, not a guest one.
 
+**If Expo stops with `EMFILE: too many open files`**: Metro must not watch folders that change while the server runs. `apps/app/metro.config.js` keeps it away from `.data/` (the dev database) and `.ruv-swarm/`. If you add another folder that changes at runtime, add it to that block list, then restart with `pnpm dev:app --clear`.
+
 ### Phone on another network (tunnel)
 
 `pnpm dev:app --tunnel` makes the bundle reachable from anywhere, but the game server is still only on your network. On another network, point the app at a server the phone can reach:
