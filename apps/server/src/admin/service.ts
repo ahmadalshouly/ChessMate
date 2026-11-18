@@ -1,6 +1,8 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  ROLE_TAG_LABELS,
   TITLE_REVOKE_REASONS,
+  isRoleTag,
   isChessTitle,
   MAX_RATING_ADJUSTMENT,
   WARNING_CATEGORIES,
@@ -29,6 +31,7 @@ import {
   type FairPlayStatus,
   type RatingCategory,
   type ReportAction,
+  type RoleTag,
   type StaffRole,
 } from '@chessmate/core';
 import {
@@ -327,6 +330,7 @@ export class AdminService {
       openReports: b.moderation.store.listReports().filter((r) => r.targetId === u.id && r.status === 'open').length,
       fairPlay: this.fairPlayStatus(u.id, u.closedReason),
       title: this.titles.titleOf(u.id),
+      roleTag: this.titles.roleTagOf(u.id),
       devAccount: !u.email && !u.passwordHash && !UUID.test(u.id),
     };
   }
@@ -702,12 +706,47 @@ export class AdminService {
     return { ok: true, title: input.title };
   }
 
+  /**
+   * Gives a player an official role tag (staff, streamer, coach, ...) or
+   * takes it away (tag: null). Admins only, so players can trust the tag.
+   */
+  async setPlayerRoleTag(actor: Actor, id: string, input: { tag?: unknown; note?: unknown }) {
+    this.require(actor, 'tags.manage');
+    const u = await this.user(id);
+    const previous = this.titles.roleTagOf(id);
+    const note = text(input.note, 500);
+    let tag: RoleTag | null = null;
+    if (input.tag !== null && input.tag !== '' && input.tag !== undefined) {
+      if (!isRoleTag(input.tag)) throw new AdminError('invalid_input', 'Unknown tag');
+      tag = input.tag;
+    }
+    if (tag === previous) throw new AdminError('conflict', tag ? 'The player already has this tag' : 'This player has no tag');
+    if (tag && this.closed.has(id)) throw new AdminError('conflict', 'The account is closed');
+    await this.titles.setRoleTag(id, tag);
+    if (tag) {
+      this.b.notifications.notify(id, {
+        kind: 'system',
+        title: `You are now tagged as ${ROLE_TAG_LABELS[tag]}`,
+        body: 'The tag shows next to your name in games and on your profile.',
+        url: null,
+        data: { roleTag: tag, status: 'granted' },
+      });
+    }
+    await this.audit(actor, tag ? 'tag.grant' : 'tag.remove', { type: 'user', id, name: u.username }, note || null, { tag, previous });
+    return { ok: true, roleTag: tag };
+  }
+
   /** A fair-play closure also takes the title away and turns down pending applications. */
   private async stripTitleForFairPlay(actor: Actor, id: string, username: string) {
     const title = this.titles.titleOf(id);
     if (title) {
       await this.titles.setTitle(id, null);
       await this.audit(actor, 'title.revoke', { type: 'user', id, name: username }, 'fair_play', { title, reason: 'fair_play', automatic: true });
+    }
+    const tag = this.titles.roleTagOf(id);
+    if (tag) {
+      await this.titles.setRoleTag(id, null);
+      await this.audit(actor, 'tag.remove', { type: 'user', id, name: username }, 'fair_play', { tag: null, previous: tag, automatic: true });
     }
     for (const a of await listTitleApplications(this.db, { userId: id, status: 'pending' })) {
       await reviewTitleApplication(this.db, a.id, { status: 'rejected', by: actor.id, byName: actor.username, note: 'Account closed for fair play', at: new Date(this.now()) });

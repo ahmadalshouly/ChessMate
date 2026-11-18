@@ -5,6 +5,16 @@ import { fairPlayRecords, titleApplications, titleDocuments, users, type TitleAp
 export type TitleDocumentMeta = { id: string; applicationId: string; name: string; mime: string; size: number };
 export type TitleApplicationWithDocs = TitleApplicationRow & { username: string; documents: TitleDocumentMeta[] };
 
+/** userId → role tag for every tagged account; loaded once at boot. */
+export async function listRoleTaggedUsers(db: Database): Promise<{ id: string; roleTag: string }[]> {
+  const rows = await db.select({ id: users.id, roleTag: users.roleTag }).from(users).where(isNotNull(users.roleTag));
+  return rows.map((r) => ({ id: r.id, roleTag: r.roleTag! }));
+}
+
+export async function setUserRoleTag(db: Database, userId: string, roleTag: string | null, at = new Date()): Promise<void> {
+  await db.update(users).set({ roleTag, updatedAt: at }).where(eq(users.id, userId));
+}
+
 /** userId → title for every titled account; loaded once at boot. */
 export async function listTitledUsers(db: Database): Promise<{ id: string; title: string }[]> {
   const rows = await db.select({ id: users.id, title: users.title }).from(users).where(isNotNull(users.title));

@@ -1,5 +1,6 @@
 import type { ChatLine, ReportReason } from './chat';
 import type { RatingCategory } from './ratingSystem';
+import type { RoleTag } from './roleTags';
 import type { ChessTitle, TitleApplication } from './titles';
 
 /**
@@ -41,6 +42,8 @@ export const ADMIN_PERMISSIONS = [
   'titles.review',
   /** Grant or take away a title directly, e.g. after a fair-play closure. */
   'titles.revoke',
+  /** Give or remove official role tags (staff, streamer, coach, ...). Admins only. */
+  'tags.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -121,6 +124,8 @@ export interface AdminPlayerSummary {
   fairPlay: FairPlayStatus;
   /** Verified chess title. */
   title: ChessTitle | null;
+  /** Official role tag (staff, streamer, coach, ...). */
+  roleTag: RoleTag | null;
   /** Development-only identities (no password, email or Google/Apple link). */
   devAccount: boolean;
 }

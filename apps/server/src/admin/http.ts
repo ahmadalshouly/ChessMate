@@ -49,6 +49,7 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /titles/:id/reject           { note }   shown to the player
  *   GET  /documents/:id               { url, expiresAt }: a 10-minute link that opens a proof file
  *   POST /players/:id/title           { title, note } grants; { title: null, reason, note? } takes it away
+ *   POST /players/:id/tag             { tag, note? } sets an official role tag; { tag: null } removes it (admins only)
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -127,6 +128,8 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.titleDocumentLink(actor, id!, publicBaseUrl(req)));
         case 'POST players/:id/title':
           return ok(await admin.setPlayerTitle(actor, id!, await body()));
+        case 'POST players/:id/tag':
+          return ok(await admin.setPlayerRoleTag(actor, id!, await body()));
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

@@ -7,8 +7,6 @@ export const nav: Messages<typeof en> = {
   learnTitle: 'التعلّم والتدريب',
   social: 'اجتماعي',
   profile: 'الملف الشخصي',
-  ratingValue: 'التصنيف {rating}',
-  ratingProvisional: 'التصنيف {rating}، مبدئي',
   unrated: 'غير مصنّف',
   signInToSave: 'سجّل الدخول لحفظ المباريات',
   openProfile: 'افتح الملف الشخصي',

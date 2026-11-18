@@ -43,7 +43,7 @@ import { OpenGames } from './openGames';
 import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
 import { MemoryPlayerStore, authenticate, devViewerId, isGuest, playerInfo, type Player, type PlayerStore } from './players';
-import { handlePublicApi, type PublicApiDeps, type ServerStats } from './publicApi';
+import { handlePublicApi, type FeaturedGame, type PublicApiDeps, type ServerStats } from './publicApi';
 import { RatingService } from './ratingService';
 import { Moderation } from './moderation';
 import {
@@ -181,6 +181,7 @@ export class ChessServer {
     const api: PublicApiDeps = {
       leaderboards: opts.leaderboards ?? new Leaderboards(new MemoryLeaderboardSource(() => store.all?.() ?? [])),
       stats: () => this.stats(),
+      featured: () => this.featuredGame(),
       viewerFor: opts.viewerFor ?? devViewerId,
     };
     this.moderation = opts.moderation ?? new Moderation(undefined, this.now);
@@ -1072,6 +1073,26 @@ export class ChessServer {
     let gamesInProgress = 0;
     for (const r of this.rooms.values()) if (!r.outcome) gamesInProgress++;
     return { playersOnline: this.sockets.size, gamesInProgress, playersSeeking: this.matchmaker.size, serverNow: this.now() };
+  }
+
+  private featuredId: string | null = null;
+
+  /**
+   * The Play tab's live board: a random game in progress. The pick sticks while that
+   * game lasts, so everyone opening the Play tab watches the same board, then moves on.
+   */
+  featuredGame(): FeaturedGame | null {
+    let room = this.featuredId ? this.rooms.get(this.featuredId) : undefined;
+    if (!room || room.outcome) {
+      const live = [...this.rooms.values()].filter((r) => !r.outcome);
+      // Prefer games already under way over ones still waiting for the first move.
+      const started = live.filter((r) => r.game.ply > 0);
+      const pool = started.length ? started : live;
+      room = pool[Math.floor(Math.random() * pool.length)];
+      this.featuredId = room?.id ?? null;
+    }
+    if (!room) return null;
+    return { gameId: room.id, white: room.white, black: room.black, timeControl: room.timeControl, rated: room.rated, ply: room.game.ply };
   }
 
   getRoom(id: string) {

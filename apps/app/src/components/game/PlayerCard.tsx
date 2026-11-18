@@ -4,6 +4,8 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/features/profile/Avatar';
+import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
+import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatNumber, useT } from '@/i18n';
 import { countryLabel } from '@/i18n/chess';
 import { countryFlag } from '@/lib/leaderboardApi';
@@ -31,8 +33,8 @@ export interface PlayerCardProps {
 }
 
 /**
- * A player above or below the board: avatar, name with country flag, rating
- * and clock. Tap it to see the player's profile without leaving the game.
+ * A player above or below the board: avatar, title, name, country flag, role
+ * tag, rating and clock. Tap it to see the player's profile without leaving the game.
  */
 export function PlayerCard({ player, ms, active, offline, avatar, subtitle, status, pressable = true }: PlayerCardProps) {
   const t = useAppTheme();
@@ -44,12 +46,17 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
   const flag = countryFlag(profile?.country);
   const rating = player ? `${player.rating}${player.provisional ? '?' : ''}` : '';
   const canOpen = pressable && !!player;
+  const tag = profile?.roleTag ?? null;
+  const tagName = tag ? tr(`chessTitle.roleTags.${tag}`) : null;
+  const label = player
+    ? [profile?.title ? tr(`chessTitle.names.${profile.title}`) : null, player.name, flag ? countryLabel(profile?.country) : null, tagName, rating].filter(Boolean).join(', ')
+    : undefined;
 
   return (
     <>
       <Pressable
         accessibilityRole={canOpen ? 'button' : undefined}
-        accessibilityLabel={player ? `${player.name}${flag ? `, ${countryLabel(profile?.country) ?? ''}` : ''}, ${rating}` : undefined}
+        accessibilityLabel={label}
         disabled={!canOpen}
         onPress={() => setOpen(true)}
         style={styles.row}>
@@ -61,13 +68,16 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
               </View>
               <View style={styles.names}>
                 <View style={styles.nameLine}>
+                  <TitleBadge title={profile?.title} />
                   <Text variant="bodyStrong" numberOfLines={1} style={styles.name}>
                     {player?.name ?? '…'}
                   </Text>
                   {flag ? <Text style={styles.flag}>{flag}</Text> : null}
+                  <RoleTagBadge tag={tag} compact />
                 </View>
                 <Text variant="caption" tone="muted" numberOfLines={1} style={styles.sub}>
                   {subtitle ?? rating}
+                  {tagName && !subtitle ? ` · ${tagName}` : ''}
                   {offline ? ` · ${tr('play.online.reconnecting').split('.')[0]}` : ''}
                 </Text>
               </View>
@@ -111,9 +121,17 @@ function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; 
       <View style={styles.sheetHead}>
         <Avatar avatar={profile?.avatar ?? DEFAULT_AVATAR} name={player.name} size={64} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text variant="heading" numberOfLines={1}>
-            {profile?.displayName || player.name}
-          </Text>
+          <View style={styles.nameLine}>
+            <TitleBadge title={profile?.title} size="md" />
+            <Text variant="heading" numberOfLines={1} style={styles.name}>
+              {profile?.displayName || player.name}
+            </Text>
+          </View>
+          {profile?.roleTag ? (
+            <View style={styles.sheetTag}>
+              <RoleTagBadge tag={profile.roleTag} />
+            </View>
+          ) : null}
           <Text tone="muted" numberOfLines={1}>
             {hasProfile(player) ? `@${profile?.username ?? player.name}` : tr('game.player.guest')}
           </Text>
@@ -172,6 +190,7 @@ const styles = StyleSheet.create({
   pill: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   clock: { minWidth: 92, height: 44, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   clockText: { fontSize: 24, lineHeight: 28 },
+  sheetTag: { flexDirection: 'row', marginVertical: 2 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stats: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1, alignItems: 'center', gap: 2 },

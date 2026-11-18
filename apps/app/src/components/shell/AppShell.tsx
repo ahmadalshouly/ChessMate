@@ -1,6 +1,7 @@
 import { usePathname } from 'expo-router';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
@@ -10,7 +11,6 @@ import { RestrictionBanner } from '@/components/account/RestrictionBanner';
 
 import { AppHeader } from './AppHeader';
 import { BottomTabBar, useTabBarSpace } from './BottomTabBar';
-import { ShellInsetsContext } from './ShellInsets';
 import { Sidebar } from './Sidebar';
 
 function useActiveTab() {
@@ -29,6 +29,7 @@ export function AppShell() {
   const wide = width >= SIDEBAR_BREAKPOINT;
   const tab = useActiveTab();
   const tabBarSpace = useTabBarSpace();
+  const insets = useSafeAreaInsets();
   const tr = useT();
 
   return (
@@ -47,9 +48,18 @@ export function AppShell() {
           <View style={styles.fill}>
             <AppHeader title={tr(tab.title)} withSidebar={wide} />
             <RestrictionBanner />
-            <ShellInsetsContext value={{ bottom: wide ? 0 : tabBarSpace }}>
+            {wide ? (
               <TabSlot style={styles.fill} />
-            </ShellInsetsContext>
+            ) : (
+              // Screens end where the floating tab bar begins, so every screen (scrolling or not)
+              // can reach its last row. The bar's space already includes the bottom safe area,
+              // so screens inside see a bottom inset of 0 and don't pad for it twice.
+              <View style={[styles.fill, { paddingBottom: tabBarSpace }]}>
+                <SafeAreaInsetsContext value={{ ...insets, bottom: 0 }}>
+                  <TabSlot style={styles.fill} />
+                </SafeAreaInsetsContext>
+              </View>
+            )}
           </View>
         </View>
         {!wide && <BottomTabBar />}

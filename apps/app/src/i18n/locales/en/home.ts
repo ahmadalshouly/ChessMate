@@ -38,6 +38,16 @@ export const home = {
     body: 'Top players worldwide, in your country and among friends.',
   },
   heroTitle: 'Your move.',
+  liveBoard: {
+    title: 'Live board',
+    watch: 'Watch game',
+    finding: 'Finding a live game…',
+    empty: 'No games in progress right now. Start one and yours could be on this board.',
+    over: 'Game over. Switching to another live game…',
+    rated: 'Rated',
+    casual: 'Casual',
+    a11y: 'Live game: {white} against {black}',
+  },
   stats: {
     online: 'Players online',
     games: 'Games in progress',

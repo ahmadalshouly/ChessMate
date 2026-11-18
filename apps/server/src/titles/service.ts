@@ -1,7 +1,9 @@
 import {
   isChessTitle,
+  isRoleTag,
   validateTitleApplication,
   type ChessTitle,
+  type RoleTag,
   type MyTitleState,
   type TitleApplication,
   type TitleDocType,
@@ -12,8 +14,10 @@ import {
   getTitleDocument,
   insertTitleApplication,
   listTitleApplications,
+  listRoleTaggedUsers,
   listTitledUsers,
   reviewTitleApplication,
+  setUserRoleTag,
   setUserTitle,
   type Database,
   type TitleApplicationWithDocs,
@@ -55,6 +59,7 @@ export class TitleService {
   private readonly now: () => number;
   private readonly secret: Buffer;
   private readonly titles = new Map<string, ChessTitle>();
+  private readonly roleTags = new Map<string, RoleTag>();
 
   constructor(opts: TitleServiceOptions) {
     this.db = opts.db;
@@ -64,6 +69,12 @@ export class TitleService {
 
   async load(): Promise<void> {
     for (const t of await listTitledUsers(this.db)) if (isChessTitle(t.title)) this.titles.set(t.id, t.title);
+    for (const t of await listRoleTaggedUsers(this.db)) if (isRoleTag(t.roleTag)) this.roleTags.set(t.id, t.roleTag);
+  }
+
+  /** Official role tag (staff, streamer, coach, ...), cached with titles because profiles read both. */
+  roleTagOf(userId: string): RoleTag | null {
+    return this.roleTags.get(userId) ?? null;
   }
 
   titleOf(userId: string): ChessTitle | null {
@@ -105,6 +116,13 @@ export class TitleService {
     await setUserTitle(this.db, userId, title, new Date(this.now()));
     if (title) this.titles.set(userId, title);
     else this.titles.delete(userId);
+  }
+
+  /** Sets or clears the role tag on the account and in the cache. Admin console only. */
+  async setRoleTag(userId: string, tag: RoleTag | null): Promise<void> {
+    await setUserRoleTag(this.db, userId, tag, new Date(this.now()));
+    if (tag) this.roleTags.set(userId, tag);
+    else this.roleTags.delete(userId);
   }
 
   /** A URL that opens one document for LINK_TTL_MS without a bearer token (images and PDFs open in a browser tab). */

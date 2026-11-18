@@ -306,6 +306,8 @@ export const admin: Messages<typeof en> = {
       title_reject: 'رفض طلب لقب من',
       title_revoke: 'سحب لقب',
       title_grant: 'منح لقبًا لـ',
+      tag_grant: 'منح وسم دور لـ',
+      tag_remove: 'أزال وسم الدور من',
     },
   },
   titles: {
@@ -354,5 +356,19 @@ export const admin: Messages<typeof en> = {
     applications: 'طلبات الألقاب',
     noApplications: 'لا توجد طلبات ألقاب.',
     linkFailed: 'تعذّر فتح الملف',
+  },
+  tags: {
+    section: 'وسم الدور',
+    none: 'بلا وسم',
+    hint: 'يظهر بجانب الاسم في المباريات وفي الملف الشخصي. المسؤولون فقط يمنحون الوسوم أو يزيلونها.',
+    set: 'منح وسم',
+    change: 'تغيير الوسم',
+    remove: 'إزالة الوسم',
+    setTitle: 'منح {name} وسم دور',
+    setBody: 'يصل إشعار للاعب ويظهر الوسم فورًا. إغلاق الحساب بسبب اللعب النظيف يزيله تلقائيًا.',
+    removeTitle: 'إزالة وسم {tag} من {name}؟',
+    removeBody: 'يختفي الوسم من اسمه في المباريات وفي ملفه الشخصي.',
+    tag: 'الوسم',
+    note: 'ملاحظة لسجل التدقيق (اختياري)',
   },
 };
