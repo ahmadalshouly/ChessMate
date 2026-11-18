@@ -51,18 +51,6 @@ export const game: Messages<typeof en> = {
     undoTitle: 'هل تتراجع عن آخر نقلة؟',
     undo: 'تراجع',
   },
-  header: {
-    streak: 'سلسلة الانتصارات',
-    streakPill: { zero: 'لا انتصارات متتالية', one: 'فوز واحد متتالٍ', two: 'فوزان متتاليان', few: '{count} انتصارات متتالية', many: '{count} فوزًا متتاليًا', other: '{count} فوز متتالٍ' },
-    noStreak: 'ابدأ سلسلة انتصارات',
-    h2h: 'المواجهات',
-    winRate: 'فوز الخصم',
-    games: 'المباريات',
-    rating: 'التصنيف',
-    level: 'المستوى',
-    form: 'آخر مباريات {name}',
-    passAndPlay: 'لعب على جهاز واحد',
-  },
   resign: {
     title: 'هل تريد الاستسلام؟',
     body: 'سيفوز خصمك بالمباراة.',

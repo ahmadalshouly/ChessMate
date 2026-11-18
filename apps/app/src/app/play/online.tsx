@@ -10,7 +10,6 @@ import { ChatPanel } from '@/components/ChatPanel';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
-import { MatchHeader } from '@/components/game/MatchHeader';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
@@ -292,7 +291,6 @@ export default function OnlinePlay() {
     <Screen>
       <Stack.Screen options={{ title }} />
       <GameLayout
-        header={(h) => <MatchHeader height={h} me={me} opponent={players[opp]} refreshKey={view.outcome ? `${view.gameId}:over` : view.gameId} />}
         notice={connectionNotice}
         top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} />}
         bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} />}

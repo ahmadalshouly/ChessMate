@@ -51,18 +51,6 @@ export const game: Messages<typeof en> = {
     undoTitle: 'Letzten Zug zurücknehmen?',
     undo: 'Zurücknehmen',
   },
-  header: {
-    streak: 'Deine Serie',
-    streakPill: { one: '{count} Sieg in Folge', other: '{count} Siege in Folge' },
-    noStreak: 'Starte eine Serie',
-    h2h: 'Bilanz',
-    winRate: 'Gegner-Siege',
-    games: 'Partien',
-    rating: 'Wertung',
-    level: 'Stufe',
-    form: 'Letzte Partien von {name}',
-    passAndPlay: 'Abwechselnd spielen',
-  },
   resign: {
     title: 'Partie aufgeben?',
     body: 'Dein Gegner gewinnt die Partie.',
