@@ -11,29 +11,31 @@ const cache = new Map<string, Promise<PublicProfile | null>>();
 
 /**
  * Public profile (avatar, country, record) for a player in a game. Looked up
- * once per name and cached for the session; null for guests and while loading.
+ * once per name (and `refreshKey`, e.g. a game id, to fetch it again) and
+ * cached for the session; null for guests and while loading.
  */
-export function usePlayerProfile(player: PlayerInfo | null | undefined): PublicProfile | null {
+export function usePlayerProfile(player: PlayerInfo | null | undefined, refreshKey = ''): PublicProfile | null {
   const session = useAccountSession();
   const name = hasProfile(player) ? player.name : null;
+  const key = name ? `${name}|${refreshKey}` : null;
   const [loaded, setLoaded] = useState<{ name: string; profile: PublicProfile | null } | null>(null);
 
   useEffect(() => {
-    if (!name) return;
+    if (!name || !key) return;
     let live = true;
-    let request = cache.get(name);
+    let request = cache.get(key);
     if (!request) {
       request = session.apiFetch<PublicProfile>(`/api/profiles/${encodeURIComponent(name)}`).catch(() => {
-        cache.delete(name);
+        cache.delete(key);
         return null;
       });
-      cache.set(name, request);
+      cache.set(key, request);
     }
-    void request.then((profile) => live && setLoaded({ name, profile }));
+    void request.then((profile) => live && setLoaded({ name: key, profile }));
     return () => {
       live = false;
     };
-  }, [name, session]);
+  }, [name, key, session]);
 
-  return name && loaded?.name === name ? loaded.profile : null;
+  return key && loaded?.name === key ? loaded.profile : null;
 }

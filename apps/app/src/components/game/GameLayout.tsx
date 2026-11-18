@@ -16,6 +16,8 @@ export const STRIP_HEIGHT = 38;
 const POPOVER_MAX = 420;
 
 export interface GameLayoutProps {
+  /** Fills the space left above the moves row (logo, streak, opponent stats); gets that height. */
+  header?: (height: number) => ReactNode;
   /** Moves in one row, above the players and board. */
   strip: ReactNode;
   /** Opponent card, above the board. */
@@ -35,17 +37,18 @@ export interface GameLayoutProps {
 }
 
 /**
- * The game screen: a row of moves, the players and the board as large as the
- * screen allows, and the action bar. Nothing sits between the board and the
- * bar; whatever a button opens pops up above the bar and closes again, so
- * the board never moves.
+ * The game screen: a header filling whatever room is left at the top, then
+ * the moves row, the players and the board (as large as the screen allows)
+ * sitting right on the action bar. Whatever a button opens pops up above the
+ * bar and closes again, so the board never moves.
  */
-export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, onDismissPopover, notice, actions }: GameLayoutProps) {
+export function GameLayout({ header, strip, top, bottom, renderBoard, notices, popover, onDismissPopover, notice, actions }: GameLayoutProps) {
   const tr = useT();
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const [box, setBox] = useState<{ w: number; h: number; windowH: number } | null>(null);
   const [noticeH, setNoticeH] = useState(0);
+  const [headerH, setHeaderH] = useState(0);
   const keyboard = useKeyboardVisible();
 
   // The keyboard (Android resize) shrinks the screen but not the window: keep the board where it is.
@@ -71,7 +74,9 @@ export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, 
         <>
           <View onLayout={(e) => setNoticeH(e.nativeEvent.layout.height)}>{notice}</View>
           <View style={[styles.column, { width: column, paddingBottom: bottomSpace }]}>
-            <View style={{ flex: 1 }} />
+            <View style={styles.header} onLayout={(e) => setHeaderH(Math.floor(e.nativeEvent.layout.height))}>
+              {header && headerH > 0 ? header(headerH) : null}
+            </View>
             <View style={{ height: STRIP_HEIGHT }}>{strip}</View>
             <View style={{ width: size, alignSelf: 'center' }}>
               {top}
@@ -85,7 +90,6 @@ export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, 
               </View>
               {bottom}
             </View>
-            <View style={{ flex: 1 }} />
             <ActionBar actions={actions} />
           </View>
           {popover ? (
@@ -118,6 +122,7 @@ function useKeyboardVisible() {
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
   column: { flex: 1, alignSelf: 'center', paddingTop: PAD, gap: GAP },
+  header: { flex: 1, minHeight: 0, overflow: 'hidden' },
   notices: { position: 'absolute', top: 8, left: 8, right: 8, gap: 6 },
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.18)' },
   popover: { alignSelf: 'center', borderRadius: 30, overflow: 'hidden' },

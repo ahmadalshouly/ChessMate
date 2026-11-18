@@ -9,7 +9,7 @@ import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService, type ReviewStore } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
-import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles';
+import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
 import { PuzzleApi } from './puzzles/api';
 import { openPuzzleStore } from './puzzles/setup';
 import { MemoryRatingRepository, RatingService } from './ratingService';
@@ -55,10 +55,10 @@ const puzzles = new PuzzleApi({ store: puzzleStore });
 const ratingRepo = new MemoryRatingRepository();
 const ratings = new RatingService(ratingRepo);
 
-function services(authStore: AuthStore) {
+function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number) => Promise<FinishedGame[]>) {
   const auth = new AuthService({ store: authStore, mailer: new ConsoleMailer(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
-  const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend());
+  const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend(), gamesOf);
   const profiles = profileRoutes(profileDeps, new MemoryProfileStore());
   const base: ServerOptions = {
     port,
@@ -85,7 +85,7 @@ async function start() {
   const stale = await abortStaleGames(db.db);
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
-  const { auth, base } = services(new DbAuthStore(db.db));
+  const { auth, base } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
   const persistence = new DbGamePersistence(db.db);
   reviewStore.current = { get: (k) => getGameReview(db.db, k), put: (k, r, g) => saveGameReview(db.db, k, r, g) };
   const store = await DbPlayerStore.load(db.db, persistence);
