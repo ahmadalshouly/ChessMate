@@ -47,6 +47,7 @@ export default function AdminDashboard() {
                 <StatTile icon="shield-checkmark-outline" tone="warning" label={tr('admin.dashboard.openFairPlay')} value={d.queues.openFairPlay} onPress={() => router.push('/admin/fairplay')} />
                 <StatTile icon="volume-mute-outline" label={tr('admin.dashboard.activeMutes')} value={d.queues.activeMutes} onPress={() => router.push('/admin/players?filter=muted')} />
                 <StatTile icon="warning-outline" label={tr('admin.dashboard.warnings7d')} value={d.queues.warnings7d} />
+                {can('titles.review') && <StatTile icon="ribbon-outline" label={tr('admin.dashboard.titleApplications')} value={d.queues.titleApplications} onPress={() => router.push('/admin/titles')} />}
               </TileGrid>
             </Stack>
           </Section>

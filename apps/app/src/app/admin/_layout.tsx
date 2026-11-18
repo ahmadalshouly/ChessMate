@@ -23,6 +23,7 @@ export default function AdminLayout() {
       <Stack.Screen name="players/index" options={{ title: tr('admin.nav.players'), headerShown: !wide }} />
       <Stack.Screen name="reports" options={{ title: tr('admin.nav.reports'), headerShown: !wide }} />
       <Stack.Screen name="fairplay/index" options={{ title: tr('admin.nav.fairplay'), headerShown: !wide }} />
+      <Stack.Screen name="titles/index" options={{ title: tr('admin.nav.titles'), headerShown: !wide }} />
       <Stack.Screen name="games/index" options={{ title: tr('admin.nav.games'), headerShown: !wide }} />
       <Stack.Screen name="audit" options={{ title: tr('admin.nav.audit'), headerShown: !wide }} />
     </Stack>

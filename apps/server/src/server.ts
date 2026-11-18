@@ -29,6 +29,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './challenges';
 import { handleAdmin } from './admin/tokenApi';
 import { CLOSE_ACCOUNT_CLOSED, adminRoutes, type AdminBridge, type AdminService } from './admin';
+import { titleRoutes } from './titles';
 import { CoachService } from './coach/coachService';
 import { createCoachHttpHandler } from './coach/http';
 import type { AnalysisService } from './engine/analysisService';
@@ -216,6 +217,7 @@ export class ChessServer {
     if (opts.admin && opts.auth) {
       opts.admin.attach(this.adminBridge(fp.analyzer === undefined ? !!process.env.STOCKFISH_PATH : !!fp.analyzer));
       routes.push(adminRoutes(opts.admin, opts.auth));
+      routes.push(titleRoutes(opts.admin.titles, opts.auth));
     }
     if (this.social) {
       routes.push(socialRoutes(this.social, opts.resolveUser ?? devResolveUser));

@@ -1,5 +1,5 @@
 import type { HttpRoute } from '../auth/http';
-import { applyCors, bearerUser, readJson, sendJson } from '../auth/http';
+import { applyCors, bearerUser, publicBaseUrl, readJson, sendJson } from '../auth/http';
 import { AuthError, type AuthService } from '../auth/service';
 import { AdminError, type Actor, type AdminService } from './service';
 
@@ -43,6 +43,12 @@ const STATUS: Record<AdminError['code'], number> = {
  *   GET  /games/:id
  *   POST /games/:id/abort             { reason }
  *   GET  /audit?target=&actor=&action=&before=
+ *   GET  /titles?status=pending|approved|rejected|withdrawn|all
+ *   GET  /titles/:id                  application with the player's standing
+ *   POST /titles/:id/approve          { note? }
+ *   POST /titles/:id/reject           { note }   shown to the player
+ *   GET  /documents/:id               { url, expiresAt }: a 10-minute link that opens a proof file
+ *   POST /players/:id/title           { title, note } grants; { title: null, reason, note? } takes it away
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -109,6 +115,18 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ game: await admin.game(actor, id!) });
         case 'POST games/:id/abort':
           return ok(await admin.abortGame(actor, id!, await body()));
+        case 'GET titles':
+          return ok({ applications: await admin.titleQueue(actor, q.get('status') ?? 'pending') });
+        case 'GET titles/:id':
+          return ok({ application: await admin.titleApplication(actor, id!) });
+        case 'POST titles/:id/approve':
+          return ok(await admin.approveTitle(actor, id!, await body()));
+        case 'POST titles/:id/reject':
+          return ok(await admin.rejectTitle(actor, id!, await body()));
+        case 'GET documents/:id':
+          return ok(await admin.titleDocumentLink(actor, id!, publicBaseUrl(req)));
+        case 'POST players/:id/title':
+          return ok(await admin.setPlayerTitle(actor, id!, await body()));
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

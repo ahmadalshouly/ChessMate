@@ -181,3 +181,109 @@ describe('admin console', () => {
     expect(d.body.recent.length).toBeGreaterThan(0);
   });
 });
+
+// 1x1 PNG and a minimal PDF header: the server checks magic bytes, not just the declared type.
+const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const PDF = Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64');
+
+async function titleCall(as: string, method: string, path: string, body?: unknown) {
+  const res = await fetch(`${base}/api/titles${path}`, {
+    method,
+    headers: { authorization: `Bearer ${tokens[as]}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: res.status, body: (await res.json()) as Record<string, any> };
+}
+
+describe('title applications', () => {
+  let appId = '';
+
+  it('lets a player apply with proof, once at a time, and checks the files', async () => {
+    await signup('carla');
+    const bad = await titleCall('carla', 'POST', '/apply', { title: 'IM', fullName: 'Carla Ruiz', documents: [{ name: 'cert.png', mime: 'image/png', data: PDF }] });
+    expect(bad.status).toBe(400);
+    expect((await titleCall('carla', 'POST', '/apply', { title: 'IM', fullName: 'Carla Ruiz', documents: [] })).body.error.field).toBe('documents');
+    const ok = await titleCall('carla', 'POST', '/apply', {
+      title: 'IM',
+      fullName: 'Carla Ruiz',
+      fideId: '2201234',
+      federation: 'es',
+      note: 'Title awarded 2019',
+      documents: [
+        { name: 'certificate.pdf', mime: 'application/pdf', data: PDF },
+        { name: 'card.png', mime: 'image/png', data: PNG },
+      ],
+    });
+    expect(ok.status).toBe(201);
+    expect(ok.body.application).toMatchObject({ title: 'IM', federation: 'ES', status: 'pending' });
+    expect(ok.body.application.documents).toHaveLength(2);
+    appId = ok.body.application.id;
+    const twice = await titleCall('carla', 'POST', '/apply', { title: 'GM', fullName: 'Carla Ruiz', documents: [{ name: 'c.png', mime: 'image/png', data: PNG }] });
+    expect(twice.status).toBe(409);
+    const mine = await titleCall('carla', 'GET', '/me');
+    expect(mine.body).toMatchObject({ title: null });
+    expect(mine.body.applications[0].reviewedBy).toBeNull();
+  });
+
+  it('shows staff the queue and opens proof documents through a signed link', async () => {
+    const queue = await call('mod', 'GET', '/titles');
+    expect(queue.body.applications.map((a: { username: string }) => a.username)).toEqual(['carla']);
+    expect((await call('mod', 'GET', '/dashboard')).body.queues.titleApplications).toBe(1);
+    const app = (await call('mod', 'GET', `/titles/${appId}`)).body.application;
+    const link = await call('mod', 'GET', `/documents/${app.documents[1].id}`);
+    expect(link.status).toBe(200);
+    const file = await fetch(link.body.url);
+    expect(file.status).toBe(200);
+    expect(file.headers.get('content-type')).toBe('image/png');
+    expect(Buffer.from(await file.arrayBuffer()).toString('base64')).toBe(PNG);
+    // Tampered or token-less links are refused, and players cannot reach the queue.
+    expect((await fetch(link.body.url.replace(/sig=[^&]+/, 'sig=nope'))).status).toBe(403);
+    expect((await call('carla', 'GET', '/titles')).status).toBe(403);
+  });
+
+  it('approves a title: it shows on the profile and in the admin record', async () => {
+    expect((await call('mod', 'POST', `/titles/${appId}/reject`, {})).status).toBe(400);
+    expect((await call('mod', 'POST', `/titles/${appId}/approve`, { note: 'FIDE profile matches' })).status).toBe(200);
+    expect((await call('mod', 'POST', `/titles/${appId}/approve`, {})).status).toBe(409);
+    expect(admin.titles.titleOf(ids.carla!)).toBe('IM');
+    expect((await titleCall('carla', 'GET', '/me')).body.title).toBe('IM');
+    const p = await call('owner', 'GET', `/players/${ids.carla}`);
+    expect(p.body.player.title).toBe('IM');
+    expect(p.body.player.titleApplications[0]).toMatchObject({ status: 'approved', reviewedBy: 'mod' });
+    expect((await getUser(h.db, ids.carla!))?.title).toBe('IM');
+  });
+
+  it('lets admins take a title away, and a fair-play closure removes it automatically', async () => {
+    // Moderators review applications but cannot remove titles.
+    expect((await call('mod', 'POST', `/players/${ids.carla}/title`, { title: null, reason: 'invalid_proof' })).status).toBe(403);
+    expect((await call('owner', 'POST', `/players/${ids.carla}/title`, { title: null })).status).toBe(400);
+    expect((await call('owner', 'POST', `/players/${ids.carla}/title`, { title: null, reason: 'invalid_proof', note: 'Certificate was edited' })).status).toBe(200);
+    expect(admin.titles.titleOf(ids.carla!)).toBeNull();
+    expect((await call('owner', 'POST', `/players/${ids.carla}/title`, { title: 'FM', note: 'Checked on ratings.fide.com' })).status).toBe(200);
+    expect(admin.titles.titleOf(ids.carla!)).toBe('FM');
+
+    expect((await call('owner', 'POST', `/players/${ids.carla}/close`, { reason: 'fair_play', note: 'engine' })).status).toBe(200);
+    expect(admin.titles.titleOf(ids.carla!)).toBeNull();
+    const log = await call('owner', 'GET', `/audit?target=${ids.carla}&action=title`);
+    expect(log.body.entries.map((e: { action: string }) => e.action)).toEqual(['title.revoke', 'title.grant', 'title.revoke', 'title.approve']);
+  });
+});
+
+describe('fair-play persistence', () => {
+  it('keeps cases, bans, refund history and the case log across a restart', async () => {
+    const { DbFairPlayStore } = await import('../src/fairplay');
+    const a = await DbFairPlayStore.load(h.db);
+    a.saveCase({ playerId: 'p1', status: 'open', score: 72, reasons: ['manual_report'], assessment: null, openedAt: 1, updatedAt: 2 });
+    a.saveBan({ playerId: 'p2', reason: 'engine', bannedAt: 3, by: 'owner', refunds: [] });
+    a.addRatedGame({ gameId: 'g9', category: 'blitz', endedAt: 4, white: { id: 'p1', delta: 8 }, black: { id: 'p3', delta: -8 } });
+    a.markRefunded('g9');
+    a.audit({ at: 5, playerId: 'p1', action: 'manual_report', by: 'owner', note: 'x' });
+    a.deleteBan('p2');
+    await a.flush();
+    const b = await DbFairPlayStore.load(h.db);
+    expect(b.getCase('p1')).toMatchObject({ status: 'open', score: 72 });
+    expect(b.getBan('p2')).toBeUndefined();
+    expect(b.ratedGamesOf('p3', 0)[0]).toMatchObject({ gameId: 'g9', refunded: true });
+    expect(b.auditFor('p1')).toHaveLength(1);
+  });
+});

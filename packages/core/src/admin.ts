@@ -1,5 +1,6 @@
 import type { ChatLine, ReportReason } from './chat';
 import type { RatingCategory } from './ratingSystem';
+import type { ChessTitle, TitleApplication } from './titles';
 
 /**
  * Admin console contract, shared by the server (/api/admin/*) and the app.
@@ -36,6 +37,10 @@ export const ADMIN_PERMISSIONS = [
   'games.view',
   'games.abort',
   'audit.view',
+  /** Approve or reject title applications. */
+  'titles.review',
+  /** Grant or take away a title directly, e.g. after a fair-play closure. */
+  'titles.revoke',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -53,6 +58,7 @@ const MODERATOR: readonly AdminPermission[] = [
   'fairplay.review',
   'games.view',
   'audit.view',
+  'titles.review',
 ];
 
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly AdminPermission[]> = {
@@ -113,6 +119,8 @@ export interface AdminPlayerSummary {
   chatMutedUntil: number | null;
   openReports: number;
   fairPlay: FairPlayStatus;
+  /** Verified chess title. */
+  title: ChessTitle | null;
   /** Development-only identities (no password, email or Google/Apple link). */
   devAccount: boolean;
 }
@@ -277,13 +285,15 @@ export interface AdminPlayerDetail extends AdminPlayerSummary {
   audit: AdminAuditEntry[];
   /** Staff notes are audit entries with action "note". */
   notes: AdminAuditEntry[];
+  titleGrantedAt: number | null;
+  titleApplications: TitleApplication[];
 }
 
 export interface AdminDashboard {
   live: { playersOnline: number; gamesInProgress: number; playersSeeking: number };
   accounts: { total: number; new24h: number; new7d: number; closed: number; staff: number };
   games: { last24h: number; rated24h: number; total: number };
-  queues: { openReports: number; openFairPlay: number; activeMutes: number; warnings7d: number };
+  queues: { openReports: number; openFairPlay: number; activeMutes: number; warnings7d: number; titleApplications: number };
   daily: { day: string; signups: number; games: number }[];
   recent: AdminAuditEntry[];
 }

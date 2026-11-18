@@ -1,5 +1,7 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  TITLE_REVOKE_REASONS,
+  isChessTitle,
   MAX_RATING_ADJUSTMENT,
   WARNING_CATEGORIES,
   hasPermission,
@@ -19,6 +21,9 @@ import {
   type AdminPlayerDetail,
   type AdminPlayerSummary,
   type AdminReport,
+  type AdminTitleApplication,
+  type ChessTitle,
+  type TitleDocumentLink,
   type CategoryRating,
   type ChatLine,
   type FairPlayStatus,
@@ -28,6 +33,11 @@ import {
 } from '@chessmate/core';
 import {
   adminCounts,
+  countPendingTitleApplications,
+  getTitleApplication,
+  getTitleDocument,
+  listTitleApplications,
+  reviewTitleApplication,
   adminSearchUsers,
   closeUserAccount,
   getGame,
@@ -56,6 +66,7 @@ import type { GameRoom } from '../gameRoom';
 import type { Moderation, Report } from '../moderation';
 import type { NotificationService } from '../notifications';
 import type { RatingService } from '../ratingService';
+import { TitleService, toApplication } from '../titles/service';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
 
@@ -101,6 +112,8 @@ export interface AdminBridge {
 export interface AdminServiceOptions {
   db: Database;
   auth: AuthService;
+  /** Verified titles. Created on the same database when left out. */
+  titles?: TitleService;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -119,6 +132,7 @@ const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slic
 export class AdminService {
   readonly db: Database;
   private readonly auth: AuthService;
+  readonly titles: TitleService;
   private readonly now: () => number;
   private readonly log: (msg: string) => void;
   private bridge: AdminBridge | null = null;
@@ -130,6 +144,7 @@ export class AdminService {
     this.db = opts.db;
     this.auth = opts.auth;
     this.now = opts.now ?? Date.now;
+    this.titles = opts.titles ?? new TitleService({ db: opts.db, now: this.now });
     this.log = opts.log ?? ((m) => console.log(`[admin] ${m}`));
     this.auth.accountGuard = (id) => {
       const reason = this.closed.get(id);
@@ -149,6 +164,7 @@ export class AdminService {
    * own account an admin without a database tool.
    */
   async load(bootstrapAdmins: string[] = []): Promise<void> {
+    await this.titles.load();
     for (const s of await listStaff(this.db)) this.roles.set(s.id, s.role);
     for (const c of await listClosedUsers(this.db)) this.closed.set(c.id, c.reason ?? 'other');
     const names = bootstrapAdmins.map((n) => n.trim()).filter(Boolean);
@@ -254,6 +270,7 @@ export class AdminService {
         openFairPlay: this.b.fairPlay.store.listCases('open').length,
         activeMutes: this.b.moderation.store.listBans().filter((x) => x.until > now).length,
         warnings7d: c.warnings7d,
+        titleApplications: await countPendingTitleApplications(this.db),
       },
       daily: c.daily,
       recent: hasPermission(actor.role, 'audit.view') ? (await listAudit(this.db, { limit: 8 })).map(toAudit) : [],
@@ -283,6 +300,7 @@ export class AdminService {
       chatMutedUntil: mute?.until ?? null,
       openReports: b.moderation.store.listReports().filter((r) => r.targetId === u.id && r.status === 'open').length,
       fairPlay: this.fairPlayStatus(u.id, u.closedReason),
+      title: this.titles.titleOf(u.id),
       devAccount: !u.email && !u.passwordHash && !UUID.test(u.id),
     };
   }
@@ -320,7 +338,12 @@ export class AdminService {
     const b = this.b;
     const all = b.ratings.all(id, now);
     const reports = b.moderation.store.listReports();
-    const [warnings, games, audit] = await Promise.all([listWarnings(this.db, id), listRecentGames(this.db, { userId: id, limit: 15 }), listAudit(this.db, { targetId: id, limit: 100 })]);
+    const [warnings, games, audit, titleApps] = await Promise.all([
+      listWarnings(this.db, id),
+      listRecentGames(this.db, { userId: id, limit: 15 }),
+      listAudit(this.db, { targetId: id, limit: 100 }),
+      listTitleApplications(this.db, { userId: id, limit: 20 }),
+    ]);
     const mute = b.moderation.activeBan(id, now);
     const fpCase = b.fairPlay.store.getCase(id);
     const entries = hasPermission(actor.role, 'audit.view') ? audit.map(toAudit) : [];
@@ -353,6 +376,8 @@ export class AdminService {
       recentGames: games.map((g) => this.gameSummary(g)),
       audit: entries.filter((e) => e.action !== 'note'),
       notes: entries.filter((e) => e.action === 'note'),
+      titleGrantedAt: u.titleGrantedAt?.getTime() ?? null,
+      titleApplications: titleApps.map((a) => toApplication(a, true)),
     };
   }
 
@@ -490,6 +515,7 @@ export class AdminService {
     if (reason === 'fair_play' && !this.b.fairPlay.isBanned(id)) {
       refunds = this.b.fairPlay.ban(id, actor.username, note || 'Fair play violation')?.refunds ?? [];
     }
+    if (reason === 'fair_play') await this.stripTitleForFairPlay(actor, id, u.username);
     this.b.disconnect(id, reason === 'fair_play' ? 4010 : CLOSE_ACCOUNT_CLOSED, reason === 'fair_play' ? 'account closed for fair play violation' : 'account closed');
     const refunded = refunds.reduce((s, r) => s + r.points, 0);
     await this.audit(actor, 'account.close', { type: 'user', id, name: u.username }, note || reason, {
@@ -525,7 +551,135 @@ export class AdminService {
       await closeUserAccount(this.db, playerId, { reason: 'fair_play', note: 'Closed through the fair-play API', by: 'fair-play API', at: new Date(this.now()) });
       await this.auth.store.revokeUserSessions(playerId, this.now());
       await this.audit(SYSTEM, 'account.close', { type: 'user', id: playerId, name: u.username }, 'Closed through the fair-play API', { reason: 'fair_play' });
+      await this.stripTitleForFairPlay(SYSTEM, playerId, u.username);
     })().catch((e) => this.log(`could not record fair-play closure of ${playerId}: ${String(e)}`));
+  }
+
+  // ---------------------------------------------------------------- titles
+
+  private async applicationView(a: NonNullable<Awaited<ReturnType<typeof getTitleApplication>>>): Promise<AdminTitleApplication> {
+    const others = (await listTitleApplications(this.db, { userId: a.userId, limit: 20 })).filter((x) => x.id !== a.id);
+    return {
+      ...toApplication(a, true),
+      currentTitle: this.titles.titleOf(a.userId),
+      playerClosed: this.closed.has(a.userId),
+      fairPlay: this.fairPlayStatus(a.userId),
+      history: others.map((x) => toApplication(x, true)),
+    };
+  }
+
+  async titleQueue(actor: Actor, status: string): Promise<AdminTitleApplication[]> {
+    this.require(actor, 'titles.review');
+    const s = ['pending', 'approved', 'rejected', 'withdrawn'].includes(status) ? status : undefined;
+    const rows = await listTitleApplications(this.db, { status: s, limit: 100 });
+    return rows.map((a) => ({
+      ...toApplication(a, true),
+      currentTitle: this.titles.titleOf(a.userId),
+      playerClosed: this.closed.has(a.userId),
+      fairPlay: this.fairPlayStatus(a.userId),
+      history: [],
+    }));
+  }
+
+  async titleApplication(actor: Actor, id: string): Promise<AdminTitleApplication> {
+    this.require(actor, 'titles.review');
+    const a = await getTitleApplication(this.db, id);
+    if (!a) throw new AdminError('not_found', 'No such application');
+    return this.applicationView(a);
+  }
+
+  /** A short-lived link that opens a proof document in the browser. */
+  async titleDocumentLink(actor: Actor, docId: string, baseUrl: string): Promise<TitleDocumentLink> {
+    this.require(actor, 'titles.review');
+    if (!(await getTitleDocument(this.db, docId))) throw new AdminError('not_found', 'No such document');
+    return this.titles.documentLink(docId, baseUrl);
+  }
+
+  async approveTitle(actor: Actor, id: string, input: { note?: unknown }) {
+    this.require(actor, 'titles.review');
+    const a = await getTitleApplication(this.db, id);
+    if (!a) throw new AdminError('not_found', 'No such application');
+    if (a.status !== 'pending') throw new AdminError('conflict', 'This application was already reviewed');
+    if (this.closed.has(a.userId)) throw new AdminError('conflict', 'The account is closed');
+    if (a.userId === actor.id) throw new AdminError('forbidden', 'Another staff member has to review your own application');
+    const note = text(input.note, 500);
+    if (!(await reviewTitleApplication(this.db, id, { status: 'approved', by: actor.id, byName: actor.username, note: note || null, at: new Date(this.now()) })))
+      throw new AdminError('conflict', 'This application was already reviewed');
+    const previous = this.titles.titleOf(a.userId);
+    await this.titles.setTitle(a.userId, a.title as ChessTitle);
+    this.b.notifications.notify(a.userId, {
+      kind: 'system',
+      title: `Your ${a.title} title is verified`,
+      body: 'The title now shows next to your name.',
+      url: '/settings/title',
+      data: { titleApplicationId: id, title: a.title, status: 'approved' },
+    });
+    await this.audit(actor, 'title.approve', { type: 'user', id: a.userId, name: a.username }, note, { applicationId: id, title: a.title, previous });
+    return { ok: true };
+  }
+
+  async rejectTitle(actor: Actor, id: string, input: { note?: unknown }) {
+    this.require(actor, 'titles.review');
+    const a = await getTitleApplication(this.db, id);
+    if (!a) throw new AdminError('not_found', 'No such application');
+    if (a.userId === actor.id) throw new AdminError('forbidden', 'Another staff member has to review your own application');
+    const note = text(input.note, 500);
+    if (!note) throw new AdminError('invalid_input', 'Tell the player why, so they can apply again with better proof');
+    if (!(await reviewTitleApplication(this.db, id, { status: 'rejected', by: actor.id, byName: actor.username, note, at: new Date(this.now()) })))
+      throw new AdminError('conflict', 'This application was already reviewed');
+    this.b.notifications.notify(a.userId, {
+      kind: 'system',
+      title: `Your ${a.title} title application was not approved`,
+      body: note,
+      url: '/settings/title',
+      data: { titleApplicationId: id, title: a.title, status: 'rejected' },
+    });
+    await this.audit(actor, 'title.reject', { type: 'user', id: a.userId, name: a.username }, note, { applicationId: id, title: a.title });
+    return { ok: true };
+  }
+
+  /**
+   * Grants a title directly or takes it away (title: null). Taking a title
+   * away needs a reason, e.g. fair_play after cheating or invalid_proof.
+   */
+  async setPlayerTitle(actor: Actor, id: string, input: { title?: unknown; reason?: unknown; note?: unknown }) {
+    this.require(actor, 'titles.revoke');
+    const u = await this.user(id);
+    const previous = this.titles.titleOf(id);
+    const note = text(input.note, 500);
+    if (input.title === null || input.title === '' || input.title === undefined) {
+      if (!previous) throw new AdminError('conflict', 'This player has no title');
+      const reason = String(input.reason ?? '');
+      if (!(TITLE_REVOKE_REASONS as readonly string[]).includes(reason)) throw new AdminError('invalid_input', 'Choose why the title is removed');
+      await this.titles.setTitle(id, null);
+      this.b.notifications.notify(id, {
+        kind: 'system',
+        title: `Your ${previous} title was removed`,
+        body: note || (reason === 'fair_play' ? 'Removed after a fair-play review.' : 'Contact support if you think this is a mistake.'),
+        url: '/settings/title',
+        data: { title: previous, status: 'revoked', reason },
+      });
+      await this.audit(actor, 'title.revoke', { type: 'user', id, name: u.username }, note || reason, { title: previous, reason });
+      return { ok: true, title: null };
+    }
+    if (!isChessTitle(input.title)) throw new AdminError('invalid_input', 'Unknown title');
+    if (!note) throw new AdminError('invalid_input', 'Say how the title was verified');
+    if (this.closed.has(id)) throw new AdminError('conflict', 'The account is closed');
+    await this.titles.setTitle(id, input.title);
+    await this.audit(actor, 'title.grant', { type: 'user', id, name: u.username }, note, { title: input.title, previous });
+    return { ok: true, title: input.title };
+  }
+
+  /** A fair-play closure also takes the title away and turns down pending applications. */
+  private async stripTitleForFairPlay(actor: Actor, id: string, username: string) {
+    const title = this.titles.titleOf(id);
+    if (title) {
+      await this.titles.setTitle(id, null);
+      await this.audit(actor, 'title.revoke', { type: 'user', id, name: username }, 'fair_play', { title, reason: 'fair_play', automatic: true });
+    }
+    for (const a of await listTitleApplications(this.db, { userId: id, status: 'pending' })) {
+      await reviewTitleApplication(this.db, a.id, { status: 'rejected', by: actor.id, byName: actor.username, note: 'Account closed for fair play', at: new Date(this.now()) });
+    }
   }
 
   // ---------------------------------------------------------------- reports

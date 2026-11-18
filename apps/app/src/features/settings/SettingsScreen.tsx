@@ -131,6 +131,14 @@ export function SettingsScreen() {
             <Segmented value={s.privacy.messages} options={AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(messages) => set({ privacy: { messages } })} />
           </Section>
 
+          {session.signedIn && (
+            <Section title={tr('chessTitle.screen')}>
+              <Row title={tr('chessTitle.apply')} detail={tr('chessTitle.settingsDetail')}>
+                <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/title')} />
+              </Row>
+            </Section>
+          )}
+
           {staffRole && (
             <Section title={tr('admin.staffSection')}>
               <Text style={[styles.label, { color: t.muted }]}>{tr('admin.staffDetail', { role: tr(`admin.roles.${staffRole}`) })}</Text>

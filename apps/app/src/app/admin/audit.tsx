@@ -7,7 +7,7 @@ import { AdminPage, EmptyState, ErrorLine, PageHeader, Section, useLoad } from '
 import { useT } from '@/i18n';
 import { Button, Chip, Row } from '@/ui';
 
-const FILTERS = ['all', 'account', 'chat', 'player', 'rating', 'role', 'fairplay', 'report', 'game', 'note'] as const;
+const FILTERS = ['all', 'account', 'chat', 'player', 'rating', 'role', 'fairplay', 'report', 'game', 'title', 'note'] as const;
 type Filter = (typeof FILTERS)[number];
 
 export default function AdminAudit() {

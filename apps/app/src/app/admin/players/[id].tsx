@@ -1,24 +1,29 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  CHESS_TITLES,
   MUTE_PRESETS_HOURS,
+  TITLE_REVOKE_REASONS,
   WARNING_CATEGORIES,
   type AccountCloseReason,
   type AdminPlayerDetail,
+  type ChessTitle,
   type RatingCategory,
   type StaffRole,
+  type TitleRevokeReason,
 } from '@chessmate/core';
 import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ActionDialog, ChoiceField, ReasonField } from '@/features/admin/ActionDialog';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AuditRow } from '@/features/admin/AuditRow';
 import { AdminPage, EmptyState, ErrorLine, Field, GameRow, PlayerBadges, Section, useLoad } from '@/features/admin/ui';
+import { TITLE_STATUS_TONE, TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAgo, formatDate, formatDateTime, translateOr, useT } from '@/i18n';
 import { Avatar, Badge, Button, Row, Stack, Text, TextField, useAppTheme } from '@/ui';
 
-type Dialog = 'warn' | 'mute' | 'unmute' | 'rename' | 'rating' | 'role' | 'signout' | 'close' | 'reopen' | 'review' | null;
+type Dialog = 'warn' | 'mute' | 'unmute' | 'rename' | 'rating' | 'role' | 'signout' | 'close' | 'reopen' | 'review' | 'setTitle' | 'removeTitle' | null;
 const poolLabel = (k: RatingCategory) => (k === 'puzzle' ? translateOr('nav.puzzles', 'Puzzles') : translateOr(`common.category.${k}`, k));
 const POOLS: RatingCategory[] = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence', 'puzzle'];
 
@@ -61,6 +66,8 @@ export default function AdminPlayer() {
           {can('fairplay.review') && p.fairPlay !== 'open' && p.fairPlay !== 'banned' && (
             <Button size="sm" variant="secondary" title={tr('admin.player.review')} onPress={() => setDialog('review')} />
           )}
+          {can('titles.revoke') && !closed && <Button size="sm" variant="secondary" title={tr('admin.titles.set')} onPress={() => setDialog('setTitle')} />}
+          {can('titles.revoke') && p.title && <Button size="sm" variant="secondary" title={tr('admin.titles.remove')} onPress={() => setDialog('removeTitle')} />}
           {p.playingGameId && can('games.view') && <Button size="sm" variant="secondary" title={tr('admin.player.watch')} onPress={() => router.push(`/admin/games/${p.playingGameId}`)} />}
           {closed
             ? can('accounts.reopen') && <Button size="sm" title={tr('admin.player.reopen')} onPress={() => setDialog('reopen')} />
@@ -80,6 +87,7 @@ export default function AdminPlayer() {
         <Stack gap="xl" style={{ flexGrow: 1, flexBasis: 340 }}>
           <Warnings p={p} />
           <Notes p={p} onAdded={reload} />
+          <Titles p={p} />
           {can('audit.view') && (
             <Section title={tr('admin.player.history')} index={8} padding="none">
               {p.audit.length === 0 ? <EmptyState icon="document-text-outline" title={tr('admin.player.noHistory')} /> : p.audit.map((e, i) => <AuditRow key={e.id} e={e} last={i === p.audit.length - 1} compact />)}
@@ -115,6 +123,38 @@ function Header({ p }: { p: AdminPlayerDetail }) {
         <Field label={tr('admin.player.lastSeen', { when: '' }).replace(/\s*$/, '')} value={p.lastSeenAt ? formatAgo(p.lastSeenAt) : p.online ? tr('admin.status.online') : '–'} />
       </Row>
     </Stack>
+  );
+}
+
+function Titles({ p }: { p: AdminPlayerDetail }) {
+  const tr = useT();
+  const { colors: c } = useAppTheme();
+  return (
+    <Section title={tr('admin.titles.section')} index={9} padding="none">
+      <Row gap="sm" style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+        {p.title ? <TitleBadge title={p.title} size="md" /> : null}
+        <Text tone={p.title ? 'default' : 'muted'} style={{ flex: 1 }}>
+          {p.title
+            ? `${tr(`chessTitle.names.${p.title}`)}${p.titleGrantedAt ? ` · ${tr('admin.titles.since', { date: formatDate(p.titleGrantedAt) })}` : ''}`
+            : tr('admin.titles.none')}
+        </Text>
+      </Row>
+      {p.titleApplications.map((a) => (
+        <Pressable
+          key={a.id}
+          accessibilityRole="button"
+          onPress={() => router.push(`/admin/titles/${encodeURIComponent(a.id)}`)}
+          style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [styles.appRow, { borderTopColor: c.border }, hovered && { backgroundColor: c.surfaceSunken }]}>
+          <Text variant="bodyStrong" style={{ width: 44 }}>
+            {a.title}
+          </Text>
+          <Text variant="caption" tone="muted" style={{ flex: 1 }} numberOfLines={1}>
+            {[formatDate(a.createdAt), a.reviewNote].filter(Boolean).join(' · ')}
+          </Text>
+          <Badge label={tr(`admin.titles.tabs.${a.status}`)} tone={TITLE_STATUS_TONE[a.status]} />
+        </Pressable>
+      ))}
+    </Section>
   );
 }
 
@@ -297,6 +337,8 @@ function Dialogs({ p, dialog, close, done }: { p: AdminPlayerDetail; dialog: Dia
   const [delta, setDelta] = useState('');
   const [role, setRole] = useState<StaffRole>(p.role);
   const [closeReason, setCloseReason] = useState<AccountCloseReason>('abuse');
+  const [title, setTitle] = useState<ChessTitle>(p.title ?? 'GM');
+  const [revokeReason, setRevokeReason] = useState<TitleRevokeReason>('fair_play');
   const run = (fn: () => Promise<unknown>) => async () => {
     await fn();
     setReason('');
@@ -382,6 +424,23 @@ function Dialogs({ p, dialog, close, done }: { p: AdminPlayerDetail; dialog: Dia
         </ActionDialog>
       );
     }
+    case 'setTitle':
+      return (
+        <ActionDialog {...common} title={tr('admin.titles.set')} description={tr('admin.titles.setBody')} confirmLabel={tr('admin.common.save')} disabled={!reason.trim() || title === p.title} onConfirm={run(() => api.setTitle(p.id, title, reason))}>
+          <ChoiceField label={tr('admin.titles.section')} value={title} onChange={setTitle} options={CHESS_TITLES.map((k) => ({ key: k, label: k }))} />
+          <Text variant="caption" tone="muted">
+            {tr(`chessTitle.names.${title}`)}
+          </Text>
+          <ReasonField required label={tr('admin.titles.verification')} value={reason} onChange={setReason} multiline />
+        </ActionDialog>
+      );
+    case 'removeTitle':
+      return (
+        <ActionDialog {...common} danger title={tr('admin.titles.removeTitle', { title: p.title ?? '', name })} description={tr('admin.titles.removeBody')} confirmLabel={tr('admin.titles.remove')} onConfirm={run(() => api.removeTitle(p.id, revokeReason, reason))}>
+          <ChoiceField label={tr('admin.common.reason')} value={revokeReason} onChange={setRevokeReason} options={TITLE_REVOKE_REASONS.map((k) => ({ key: k, label: tr(`admin.titles.revokeReasons.${k}`) }))} />
+          <ReasonField value={reason} onChange={setReason} multiline />
+        </ActionDialog>
+      );
     case 'reopen':
       return (
         <ActionDialog {...common} title={tr('admin.dialogs.reopenTitle', { name })} description={tr('admin.dialogs.reopenBody')} confirmLabel={tr('admin.player.reopen')} onConfirm={run(() => api.reopen(p.id, reason))}>
@@ -395,6 +454,7 @@ function Dialogs({ p, dialog, close, done }: { p: AdminPlayerDetail; dialog: Dia
 
 const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
+  appRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
   tr: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' },
   c0: { flex: 1.4 },
   cn: { flex: 1, textAlign: 'right' },

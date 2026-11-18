@@ -19,6 +19,7 @@ const ICONS: Record<string, IconName> = {
   report: 'flag-outline',
   game: 'grid-outline',
   note: 'create-outline',
+  title: 'ribbon-outline',
 };
 
 /** Short, readable summary of an entry's details (rating moves, role changes, mute length). */
@@ -27,6 +28,9 @@ function detailLine(e: AdminAuditEntry): string | null {
   if (e.action === 'rating.adjust') return `${String(d.category)} ${String(d.before)} → ${String(d.after)}`;
   if (e.action === 'role.change' || e.action === 'player.rename') return `${String(d.from)} → ${String(d.to)}`;
   if (e.action === 'chat.mute' || e.action === 'report.chat_ban') return d.hours ? `${String(d.hours)} h` : null;
+  if (e.action === 'title.approve' || e.action === 'title.grant') return `${d.previous ? String(d.previous) : '–'} → ${String(d.title)}`;
+  if (e.action === 'title.revoke') return `${String(d.title)} → –`;
+  if (e.action === 'title.reject') return String(d.title);
   if (e.action === 'account.close' && typeof d.refunds === 'number' && d.refunds > 0) return `${d.refunds} refunds · +${String(d.refundedPoints)}`;
   return null;
 }

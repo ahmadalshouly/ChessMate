@@ -102,6 +102,8 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `ENGINE_WORKERS` | `1` | `fly.toml` | Parallel Stockfish processes |
 | `ENGINE_THREADS` | engine default | `fly.toml` | Threads per Stockfish |
 | `ENGINE_HASH_MB` | engine default | `fly.toml` | Hash table size per Stockfish |
+| `ADMIN_USERNAMES` | unset | `fly.toml` or `fly secrets set` | Comma-separated usernames made admins at startup (or when they sign up). Staff roles are stored in the database, so this is only needed once. `pnpm admin:grant <username> [admin\|moderator\|user]` does the same from a shell |
+| `PUBLIC_URL` | derived from the request | `fly.toml` | Public server address used in links the server hands out (title proof files in the admin console) |
 
 Features that add their own server settings (for example an AI coach API key
 or push notification credentials) should add a row here and to `.env.example`.

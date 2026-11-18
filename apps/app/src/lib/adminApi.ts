@@ -10,6 +10,10 @@ import type {
   AdminPlayerDetail,
   AdminPlayerSummary,
   AdminReport,
+  AdminTitleApplication,
+  ChessTitle,
+  TitleDocumentLink,
+  TitleRevokeReason,
   RatingCategory,
   ReportAction,
   StaffRole,
@@ -71,6 +75,13 @@ export function useAdminApi() {
       abortGame: (gameId: string, reason: string) => post(`/games/${id(gameId)}/abort`, { reason }),
       audit: (q: { target?: string; actor?: string; action?: string; before?: number } = {}) =>
         get<{ entries: AdminAuditEntry[] }>(`/audit${qs(q)}`).then((r) => r.entries),
+      titles: (status: string) => get<{ applications: AdminTitleApplication[] }>(`/titles${qs({ status })}`).then((r) => r.applications),
+      titleApplication: (appId: string) => get<{ application: AdminTitleApplication }>(`/titles/${id(appId)}`).then((r) => r.application),
+      approveTitle: (appId: string, note: string) => post(`/titles/${id(appId)}/approve`, { note }),
+      rejectTitle: (appId: string, note: string) => post(`/titles/${id(appId)}/reject`, { note }),
+      documentLink: (docId: string) => get<TitleDocumentLink>(`/documents/${id(docId)}`),
+      setTitle: (playerId: string, title: ChessTitle, note: string) => post(`/players/${id(playerId)}/title`, { title, note }),
+      removeTitle: (playerId: string, reason: TitleRevokeReason, note: string) => post(`/players/${id(playerId)}/title`, { title: null, reason, note }),
     };
   }, [apiFetch]);
 }

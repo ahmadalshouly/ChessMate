@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -33,6 +34,10 @@ const id = () =>
     .$defaultFn(() => randomUUID());
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const ts = (name: string) => timestamp(name, { withTimezone: true });
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => 'bytea',
+  fromDriver: (v) => (Buffer.isBuffer(v) ? v : Buffer.from(v)),
+});
 
 // ---------------------------------------------------------------- enums
 
@@ -107,6 +112,9 @@ export const users = pgTable(
     closedReason: text('closed_reason'),
     closedNote: text('closed_note'),
     closedBy: text('closed_by'),
+    /** Verified chess title (GM, IM, FM, ...), granted by staff. */
+    title: text('title'),
+    titleGrantedAt: ts('title_granted_at'),
   },
   (t) => [
     uniqueIndex('users_username_lower_idx').on(sql`lower(${t.username})`),
@@ -504,10 +512,72 @@ export const chatBans = pgTable('chat_bans', {
   data: jsonb('data').$type<Record<string, unknown>>().notNull(),
 });
 
+/**
+ * Fair-play data (engine reports, cases, bans, rated-game deltas for refunds,
+ * case log), one JSON document per row so the service's shapes can evolve
+ * without migrations. Loaded into memory at boot and written through.
+ */
+export const fairPlayRecords = pgTable(
+  'fair_play_records',
+  {
+    /** report | case | ban | game | log */
+    kind: text('kind').notNull(),
+    /** Unique within a kind: player id for cases and bans, game id for games, a random id otherwise. */
+    key: text('key').notNull(),
+    playerId: text('player_id'),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.key] }), index('fair_play_player_idx').on(t.playerId)],
+);
+
+/** A player's request for a verified title, with the proof they attached. */
+export const titleApplications = pgTable(
+  'title_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    fullName: text('full_name').notNull(),
+    fideId: text('fide_id'),
+    federation: text('federation'),
+    note: text('note'),
+    /** pending | approved | rejected | withdrawn */
+    status: text('status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedByName: text('reviewed_by_name'),
+    reviewNote: text('review_note'),
+    reviewedAt: ts('reviewed_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('title_app_user_idx').on(t.userId, t.createdAt), index('title_app_status_idx').on(t.status, t.createdAt)],
+);
+
+/** Certificates and letters attached to a title application. Kept in the database so a single server needs no file storage. */
+export const titleDocuments = pgTable(
+  'title_documents',
+  {
+    id: id(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => titleApplications.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mime: text('mime').notNull(),
+    size: integer('size').notNull(),
+    data: bytea('data').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('title_doc_app_idx').on(t.applicationId)],
+);
+
 // ---------------------------------------------------------------- row types
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type TitleApplicationRow = typeof titleApplications.$inferSelect;
+export type TitleDocumentRow = typeof titleDocuments.$inferSelect;
 export type RefreshSession = typeof refreshSessions.$inferSelect;
 export type NewRefreshSession = typeof refreshSessions.$inferInsert;
 export type PasswordReset = typeof passwordResets.$inferSelect;
