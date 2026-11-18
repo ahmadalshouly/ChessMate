@@ -21,7 +21,7 @@ export default function NotificationSettings() {
   const kindLabel = (k: NotificationKind) => tr(`notifications.kinds.${k}.label` as TKey);
   const kindDescription = (k: NotificationKind) => tr(`notifications.kinds.${k}.description` as TKey);
   const range = (startMin: number, endMin: number) => tr('notifications.settings.range', { start: hhmm(startMin), end: hhmm(endMin) });
-  const { prefs, updatePrefs, push, turnOnPush, turnOffPush, sendTest, offline } = useNotifications();
+  const { prefs, updatePrefs, push, turnOnPush, turnOffPush, offline } = useNotifications();
   const pushOn = push.state === 'enabled';
 
   const toggle = (kind: NotificationKind, channel: 'inApp' | 'push', value: boolean) => void updatePrefs({ kinds: { [kind]: { [channel]: value } } });
@@ -56,7 +56,6 @@ export default function NotificationSettings() {
               ) : push.state !== 'unsupported' ? (
                 <Button title={pushOn ? tr('notifications.settings.turnOff') : tr('notifications.settings.turnOn')} variant={pushOn ? 'secondary' : 'primary'} onPress={() => void (pushOn ? turnOffPush() : turnOnPush())} />
               ) : null}
-              <Button title={tr('notifications.settings.sendTest')} variant="secondary" disabled={offline} onPress={() => void sendTest()} />
             </View>
           </Card>
 

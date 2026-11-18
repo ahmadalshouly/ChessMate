@@ -78,7 +78,6 @@ export const notifications: Messages<typeof en> = {
     openSettings: 'فتح الإعدادات',
     turnOff: 'إيقاف الإشعارات الفورية',
     turnOn: 'تفعيل الإشعارات الفورية',
-    sendTest: 'إرسال تجربة',
     whatTitle: 'ما الذي أُبلَّغ به',
     inApp: 'داخل التطبيق',
     push: 'فوري',

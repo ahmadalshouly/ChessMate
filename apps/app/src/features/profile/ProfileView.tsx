@@ -50,7 +50,7 @@ export function ProfileView({ username }: { username: string | null }) {
               <Label muted>{tr('profile.signInBody')}</Label>
               <View style={styles.actions}>
                 <View style={{ flex: 1 }}>
-                  <Button title={tr('auth.signIn')} onPress={() => router.push('/sign-in')} />
+                  <Button title={tr('auth.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: '/profile' } })} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button variant="secondary" title={tr('settings.title')} onPress={() => router.push('/settings')} />

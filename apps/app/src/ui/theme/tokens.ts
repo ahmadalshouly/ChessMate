@@ -1,4 +1,4 @@
-import type { TextStyle } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 import { families } from './fonts';
 
@@ -262,11 +262,14 @@ export type TextVariant = keyof typeof typography;
 
 export function shadows(c: ColorTokens) {
   const k = c.scheme === 'dark' ? 3 : 1;
+  // Android draws `elevation` as a solid shadow under the whole box, which shows through any
+  // translucent fill as a grey slab. Glass there leans on the hairline edge instead.
+  const android = Platform.OS === 'android';
   return {
     none: {},
-    sm: { shadowColor: c.shadow, shadowOpacity: 0.04 * k, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-    md: { shadowColor: c.shadow, shadowOpacity: 0.06 * k, shadowRadius: 28, shadowOffset: { width: 0, height: 10 }, elevation: 3 },
-    lg: { shadowColor: c.shadow, shadowOpacity: 0.1 * k, shadowRadius: 48, shadowOffset: { width: 0, height: 22 }, elevation: 8 },
+    sm: { shadowColor: c.shadow, shadowOpacity: 0.04 * k, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: android ? 0 : 1 },
+    md: { shadowColor: c.shadow, shadowOpacity: 0.06 * k, shadowRadius: 28, shadowOffset: { width: 0, height: 10 }, elevation: android ? 0 : 3 },
+    lg: { shadowColor: c.shadow, shadowOpacity: 0.1 * k, shadowRadius: 48, shadowOffset: { width: 0, height: 22 }, elevation: android ? 2 : 8 },
   } as const;
 }
 export type Elevation = keyof ReturnType<typeof shadows>;
@@ -284,8 +287,26 @@ export interface Theme {
   shadows: ReturnType<typeof shadows>;
 }
 
+/**
+ * Android has no backdrop blur, so a translucent panel shows whatever sits under it
+ * (the board, other cards) instead of frosting it. There, glass fills are near-opaque
+ * frosted tones: still layered and glassy against the backdrop, never see-through.
+ */
+const androidGlass: Record<ColorScheme, Partial<ColorTokens>> = {
+  light: {
+    surface: 'rgba(255, 255, 255, 0.94)',
+    surfaceStrong: '#FFFFFF',
+    surfaceSubtle: 'rgba(255, 255, 255, 0.86)',
+  },
+  dark: {
+    surface: 'rgba(24, 24, 27, 0.94)',
+    surfaceStrong: '#18181B',
+    surfaceSubtle: 'rgba(20, 20, 23, 0.9)',
+  },
+};
+
 export function makeTheme(scheme: ColorScheme): Theme {
-  const c = colors[scheme];
+  const c = Platform.OS === 'android' ? { ...colors[scheme], ...androidGlass[scheme] } : colors[scheme];
   return { scheme, colors: c, space, radii, blur, motion, layout, fonts, typography, shadows: shadows(c) };
 }
 

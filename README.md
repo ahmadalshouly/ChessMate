@@ -299,8 +299,7 @@ Accounts made with Apple or Google have no password; **Settings → Set a passwo
 The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.
 
 - **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running.
-- **Send a test** on the settings screen sends yourself a sample notification (development servers only).
-- **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
+- **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow. To see one arrive, send yourself a friend request or challenge from a second account (another browser tab works): a system banner appears and the bell badge updates. There is no test button in the app; development servers still accept `POST /api/notifications/test` with your access token for scripted checks.
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
 

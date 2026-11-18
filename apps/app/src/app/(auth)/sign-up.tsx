@@ -8,7 +8,7 @@ import { StrengthMeter, TextField } from '@/components/auth/TextField';
 import { Button, Label } from '@/components/ui';
 import { passwordStrength, useAuth, validateEmail, validatePassword, validateUsername } from '@/lib/auth';
 import { toFormError } from '@/lib/auth/errors';
-import { safeNext } from '@/lib/auth/navigation';
+import { leaveAuth } from '@/lib/auth/navigation';
 import { useT } from '@/i18n';
 
 type Field = 'username' | 'email' | 'password';
@@ -42,7 +42,7 @@ export default function SignUp() {
     setBusy(true);
     try {
       await signUp(values);
-      router.replace(safeNext(next));
+      leaveAuth(next);
     } catch (err) {
       const fe = toFormError(err);
       const f = fe.field as Field | undefined;
@@ -107,7 +107,7 @@ export default function SignUp() {
       />
       <StrengthMeter score={passwordStrength(values.password)} visible={values.password.length > 0} />
       <Button title={busy ? tr('auth.signUp.busy') : tr('auth.signUp.submit')} onPress={submit} disabled={busy} />
-      <SocialSignIn onSignedIn={() => router.replace(safeNext(next))} />
+      <SocialSignIn onSignedIn={() => leaveAuth(next)} />
       <Label muted size={12}>
         {tr('auth.signUp.fairPlay')}
       </Label>

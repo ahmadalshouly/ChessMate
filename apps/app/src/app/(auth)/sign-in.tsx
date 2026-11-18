@@ -8,7 +8,7 @@ import { TextField } from '@/components/auth/TextField';
 import { Button, Label } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { toFormError } from '@/lib/auth/errors';
-import { safeNext } from '@/lib/auth/navigation';
+import { leaveAuth } from '@/lib/auth/navigation';
 import { useT } from '@/i18n';
 
 export default function SignIn() {
@@ -30,7 +30,7 @@ export default function SignIn() {
     setBusy(true);
     try {
       await signIn(login, password);
-      router.replace(safeNext(next));
+      leaveAuth(next);
     } catch (err) {
       const fe = toFormError(err);
       setErrors(fe.field === 'login' || fe.field === 'password' ? { [fe.field]: fe.message } : { form: fe.message });
@@ -77,7 +77,7 @@ export default function SignIn() {
       <Button title={busy ? tr('auth.signInScreen.busy') : tr('auth.signIn')} onPress={submit} disabled={busy} />
       {status !== 'guest' ? <Divider label={tr('common.or')} /> : null}
       {/* Its own "or" divider only when the guest option below isn't shown. */}
-      <SocialSignIn divider={status === 'guest'} onSignedIn={() => router.replace(safeNext(next))} />
+      <SocialSignIn divider={status === 'guest'} onSignedIn={() => leaveAuth(next)} />
       {status !== 'guest' ? (
         <>
           <Button

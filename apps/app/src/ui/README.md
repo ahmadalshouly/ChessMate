@@ -72,6 +72,8 @@ Older code that uses `useTheme()` from `@/constants/theme` and `Screen/Card/Butt
 <Card title="Play online" subtitle="Rated" headerRight={<Badge label="1520" />} onPress={open}>…</Card>
 ```
 
+Android has no backdrop blur, and it draws `elevation` as a solid shadow that shows through translucent fills as a grey slab. So on Android the glass tokens (`surface`, `surfaceStrong`, `surfaceSubtle`) are near-opaque and the `sm`/`md` shadows have no elevation (see `androidGlass` in `theme/tokens.ts`). Use the tokens rather than hand-written `rgba(...)` fills and the panels stay readable over the board on every platform.
+
 ### Text
 ```tsx
 <Text variant="title">Play</Text>
