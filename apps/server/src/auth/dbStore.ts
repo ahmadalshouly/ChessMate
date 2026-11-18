@@ -24,6 +24,9 @@ function toUser({ user: r, hasOAuth }: { user: UserRow; hasOAuth: boolean }): Us
     passwordHash: r.passwordHash,
     createdAt: r.createdAt.getTime(),
     passwordChangedAt: toMs(r.passwordChangedAt) ?? r.createdAt.getTime(),
+    role: r.role,
+    closedAt: toMs(r.closedAt),
+    closedReason: r.closedReason,
   };
 }
 

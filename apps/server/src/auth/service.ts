@@ -3,7 +3,7 @@ import { signJwt, verifyJwt } from './jwt';
 import type { Mailer } from './mailer';
 import { OAuthTokenError, type OAuthVerifier } from './oauth';
 import { hashPassword, needsRehash, verifyPassword } from './passwords';
-import { UniqueViolation, type AuthStore, type OAuthProvider, type SessionRecord, type UserRecord } from './store';
+import { UniqueViolation, type AuthStore, type OAuthProvider, type SessionRecord, type StaffRole, type UserRecord } from './store';
 
 export const ACCESS_TTL_MS = 15 * 60_000;
 export const REFRESH_TTL_MS = 30 * 24 * 3600_000;
@@ -19,7 +19,9 @@ export type AuthErrorCode =
   | 'rate_limited'
   | 'unauthorized'
   | 'not_found'
-  | 'not_configured';
+  | 'not_configured'
+  | 'account_closed'
+  | 'forbidden';
 
 export class AuthError extends Error {
   constructor(
@@ -40,7 +42,12 @@ export interface PublicUser {
   /** False for Google/Apple accounts that never set a password. */
   hasPassword: boolean;
   createdAt: string;
+  /** "moderator" and "admin" open the admin console. */
+  role: StaffRole;
 }
+
+/** Answers whether an account is closed right now (kept in memory by the admin service). */
+export type AccountGuard = (userId: string) => { reason: string } | null;
 
 export interface Tokens {
   accessToken: string;
@@ -78,7 +85,18 @@ const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const opaqueToken = () => randomBytes(32).toString('base64url');
 
 export function toPublicUser(u: UserRecord): PublicUser {
-  return { id: u.id, username: u.username, email: u.email ?? '', hasPassword: !!u.passwordHash, createdAt: new Date(u.createdAt).toISOString() };
+  return { id: u.id, username: u.username, email: u.email ?? '', hasPassword: !!u.passwordHash, createdAt: new Date(u.createdAt).toISOString(), role: u.role ?? 'user' };
+}
+
+/** Message shown on the sign-in screen for a closed account. The app translates it by code and reason. */
+export function closedAccountError(reason: string | null | undefined): AuthError {
+  return new AuthError(
+    'account_closed',
+    reason === 'fair_play'
+      ? 'This account was closed for violating the fair play policy'
+      : 'This account has been closed. Contact support if you think this is a mistake',
+    reason ?? undefined,
+  );
 }
 
 export function validateUsername(v: unknown): string {
@@ -117,6 +135,8 @@ export class AuthService {
   private readonly now: () => number;
   private readonly oauth: OAuthVerifier | undefined;
   private dummyHash: Promise<string> | null = null;
+  /** Set by the admin service so closures take effect at once, without a store read per request. */
+  accountGuard: AccountGuard | null = null;
 
   constructor(opts: AuthServiceOptions) {
     if (opts.secret.length < 32) throw new Error('Auth secret must be at least 32 characters');
@@ -172,6 +192,7 @@ export class AuthService {
       await this.store.linkOAuth(provider, id.subject, user.id);
       created = true;
     }
+    this.assertOpen(user);
     return { user: toPublicUser(user), tokens: await this.startSession(user), created };
   }
 
@@ -201,6 +222,7 @@ export class AuthService {
     // Always run one hash so response time does not reveal whether the account exists.
     const ok = user?.passwordHash ? await verifyPassword(password, user.passwordHash) : (await verifyPassword(password, await this.getDummyHash()), false);
     if (!user || !user.passwordHash || !ok) throw new AuthError('invalid_credentials', 'Wrong username, email or password');
+    this.assertOpen(user);
     if (needsRehash(user.passwordHash)) {
       user.passwordHash = await hashPassword(password);
       await this.store.updateUser(user);
@@ -220,6 +242,7 @@ export class AuthService {
     if (session.expiresAt <= now) throw invalidToken();
     const user = await this.store.getUser(session.userId);
     if (!user || session.createdAt < user.passwordChangedAt) throw invalidToken();
+    this.assertOpen(user);
     const { tokens, record } = await this.issue(user, session.familyId);
     await this.store.updateSession({ ...session, revokedAt: now, replacedBy: record.id });
     return { user: toPublicUser(user), tokens };
@@ -287,7 +310,18 @@ export class AuthService {
 
   async getUser(userId: string): Promise<PublicUser | null> {
     const u = await this.store.getUser(userId);
-    return u ? toPublicUser(u) : null;
+    return u && !this.closedReason(u) ? toPublicUser(u) : null;
+  }
+
+  /** Why the account is closed, or null when it is open. */
+  private closedReason(u: UserRecord): string | null {
+    if (u.closedAt) return u.closedReason ?? 'other';
+    return this.accountGuard?.(u.id)?.reason ?? null;
+  }
+
+  private assertOpen(u: UserRecord) {
+    const reason = this.closedReason(u);
+    if (reason) throw closedAccountError(reason);
   }
 
   /**
@@ -298,6 +332,7 @@ export class AuthService {
   verifyAccessToken(token: string): AccessIdentity | null {
     const claims = verifyJwt(token, this.secret, Math.floor(this.now() / 1000));
     if (!claims || claims.typ !== 'access' || typeof claims.name !== 'string') return null;
+    if (this.accountGuard?.(claims.sub)) return null;
     return { userId: claims.sub, username: claims.name };
   }
 

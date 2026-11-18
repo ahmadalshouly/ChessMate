@@ -173,7 +173,7 @@ export class DbLeaderboardSource implements LeaderboardSource {
   constructor(private readonly db: Database) {}
 
   private where(f: BoardFilter): SQL | null {
-    const conds: SQL[] = [eq(ratings.category, f.category as never), gt(ratings.games, 0), isNull(users.deletedAt)];
+    const conds: SQL[] = [eq(ratings.category, f.category as never), gt(ratings.games, 0), isNull(users.deletedAt), isNull(users.closedAt)];
     if (!f.includeProvisional) conds.push(lte(ratings.rd, MAX_RANKED_RD));
     if (f.country) conds.push(sql`upper(${users.country}) = ${f.country}`);
     if (f.userIds) {

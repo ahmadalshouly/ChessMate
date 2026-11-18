@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
+import { AdminService, DbModerationStore } from './admin';
 import { AuthService, ConsoleMailer, DbAuthStore, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
@@ -12,6 +13,7 @@ import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence
 import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles';
 import { PuzzleApi } from './puzzles/api';
 import { openPuzzleStore } from './puzzles/setup';
+import { Moderation } from './moderation';
 import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
@@ -86,12 +88,17 @@ async function start() {
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base } = services(new DbAuthStore(db.db));
+  // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
+  const admin = new AdminService({ db: db.db, auth });
+  await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));
   const persistence = new DbGamePersistence(db.db);
   reviewStore.current = { get: (k) => getGameReview(db.db, k), put: (k, r, g) => saveGameReview(db.db, k, r, g) };
   const store = await DbPlayerStore.load(db.db, persistence);
   return {
     server: new ChessServer({
       ...base,
+      admin,
+      moderation: new Moderation(await DbModerationStore.load(db.db)),
       store,
       persistence,
       leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)),

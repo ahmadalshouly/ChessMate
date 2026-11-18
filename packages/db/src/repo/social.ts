@@ -35,6 +35,7 @@ export async function searchUsers(db: Database, prefix: string, limit: number): 
     .where(
       and(
         isNull(users.deletedAt),
+        isNull(users.closedAt),
         or(sql`lower(${users.username}) like ${like}`, sql`lower(coalesce(${users.displayName}, '')) like ${like}`),
       ),
     )

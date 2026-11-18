@@ -18,6 +18,7 @@ import {
   type LiveGameEntry,
   type Presence,
   type Rating,
+  type RatingCategory,
   type ServerMessage,
   canSeekRated,
   sanitizeRatingRange,
@@ -26,7 +27,8 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './challenges';
-import { handleAdmin } from './admin';
+import { handleAdmin } from './admin/tokenApi';
+import { CLOSE_ACCOUNT_CLOSED, adminRoutes, type AdminBridge, type AdminService } from './admin';
 import { CoachService } from './coach/coachService';
 import { createCoachHttpHandler } from './coach/http';
 import type { AnalysisService } from './engine/analysisService';
@@ -98,6 +100,8 @@ export interface ServerOptions {
   social?: SocialService;
   /** Bearer token to account id for the social API. Defaults to dev tokens outside production. */
   resolveUser?: ResolveUser;
+  /** Staff console (/api/admin): roles, account closure, audit log. Needs `auth` and the database. */
+  admin?: AdminService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -179,8 +183,12 @@ export class ChessServer {
       ...fp,
       analyzer: fp.analyzer === undefined ? analyzerFromEnv() : fp.analyzer,
       now: fp.now ?? this.now,
+      refund: fp.refund ?? ((r) => void this.adjustRating(r.playerId, r.category, r.points, `refund:${r.gameId}`)),
     });
-    this.fairPlay.onBan = (id) => this.kickBanned(id);
+    this.fairPlay.onBan = (id) => {
+      this.kickBanned(id);
+      opts.admin?.onFairPlayBan(id);
+    };
     const admin = createAdminHandler(this.fairPlay, fp.adminToken ?? process.env.FAIRPLAY_ADMIN_TOKEN);
     const coachHttp = createCoachHttpHandler({
       service: opts.coach ?? new CoachService(),
@@ -205,6 +213,10 @@ export class ChessServer {
     const httpAuth: HttpAuth = opts.httpAuth ?? ((t) => accountAuth?.(t) ?? devHttpAuth(t));
     this.social = opts.social;
     const routes = [...(opts.http ?? [])];
+    if (opts.admin && opts.auth) {
+      opts.admin.attach(this.adminBridge(fp.analyzer === undefined ? !!process.env.STOCKFISH_PATH : !!fp.analyzer));
+      routes.push(adminRoutes(opts.admin, opts.auth));
+    }
     if (this.social) {
       routes.push(socialRoutes(this.social, opts.resolveUser ?? devResolveUser));
       this.social.attach(
@@ -315,6 +327,7 @@ export class ChessServer {
             : undefined;
       if (!player) return ws.close(4003, 'unauthorized');
       if (this.fairPlay.isBanned(player.id)) return ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
+      if (this.opts.admin?.isClosed(player.id)) return ws.close(CLOSE_ACCOUNT_CLOSED, 'account closed');
       conn.player = player;
       const set = this.sockets.get(player.id) ?? new Set();
       const wasOnline = set.size > 0;
@@ -596,6 +609,40 @@ export class ChessServer {
         if (!this.sockets.has(playerId)) room.abandon(playerId, this.now());
       }, grace),
     );
+  }
+
+  /** Moves a rating without counting a game (refunds, staff corrections), in memory and in the database. */
+  adjustRating(userId: string, category: RatingCategory, delta: number, sourceId: string) {
+    const res = this.ratings.adjust(userId, category, delta, sourceId, this.now());
+    this.opts.persistence?.ratingAdjusted?.(userId, category, res.after);
+    return res;
+  }
+
+  /** What the staff console reads and controls on the live server. */
+  private adminBridge(analysisEnabled: boolean): AdminBridge {
+    return {
+      moderation: this.moderation,
+      fairPlay: this.fairPlay,
+      ratings: this.ratings,
+      notifications: this.notifications,
+      analysisEnabled,
+      live: () => {
+        const s = this.stats();
+        return { playersOnline: s.playersOnline, gamesInProgress: s.gamesInProgress, playersSeeking: s.playersSeeking };
+      },
+      isOnline: (id) => this.sockets.has(id),
+      liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
+      disconnect: (id, code, reason) => {
+        this.matchmaker.remove(id);
+        if (this.openGames.removeBy(id)) this.markLobbyDirty();
+        this.activeRoomOf(id)?.resign(id, this.now());
+        for (const ws of this.sockets.get(id) ?? []) ws.close(code, reason);
+      },
+      adjustRating: (id, category, delta, sourceId) => this.adjustRating(id, category, delta, sourceId),
+      room: (id) => this.rooms.get(id),
+      spectators: (id) => this.spectators.get(id)?.size ?? 0,
+      terminate: (id) => this.rooms.get(id)?.terminate(this.now()) ?? false,
+    };
   }
 
   /** Disconnects a banned account and forfeits its live game. */

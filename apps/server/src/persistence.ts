@@ -1,4 +1,4 @@
-import { timeCategory, type Color, type GameOutcome, type PlayedMove, type Rating } from '@chessmate/core';
+import { timeCategory, type Color, type GameOutcome, type PlayedMove, type Rating, type RatingCategory } from '@chessmate/core';
 import {
   addMove,
   createGame,
@@ -22,6 +22,8 @@ export interface GamePersistence {
   gameStarted(room: GameRoom): void;
   moveMade(room: GameRoom, move: PlayedMove): void;
   gameEnded(room: GameRoom, outcome: GameOutcome, ratingChange?: RatingChange): void;
+  /** A rating moved outside a game (fair-play refund, staff adjustment). */
+  ratingAdjusted?(userId: string, category: RatingCategory, rating: Rating): void;
   /** Resolves once every queued write has finished. */
   flush(): Promise<void>;
 }
@@ -103,6 +105,11 @@ export class DbGamePersistence implements GamePersistence {
         await saveRating(this.db, { userId: id, category, rating: ratingChange[c].after, score: s, gameId: room.id });
       }
     });
+  }
+
+  ratingAdjusted(userId: string, category: RatingCategory, rating: Rating) {
+    if (isGuest(userId)) return;
+    this.queue.push(`adjust rating ${userId}`, () => saveRating(this.db, { userId, category, rating }));
   }
 
   flush() {

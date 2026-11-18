@@ -16,6 +16,8 @@ const STATUS: Record<AuthError['code'], number> = {
   not_found: 404,
   rate_limited: 429,
   not_configured: 503,
+  account_closed: 403,
+  forbidden: 403,
 };
 
 const MAX_BODY = 16 * 1024;
