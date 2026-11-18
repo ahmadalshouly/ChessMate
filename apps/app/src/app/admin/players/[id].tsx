@@ -2,12 +2,14 @@ import {
   ACCOUNT_CLOSE_REASONS,
   CHESS_TITLES,
   MUTE_PRESETS_HOURS,
+  ROLE_TAGS,
   TITLE_REVOKE_REASONS,
   WARNING_CATEGORIES,
   type AccountCloseReason,
   type AdminPlayerDetail,
   type ChessTitle,
   type RatingCategory,
+  type RoleTag,
   type StaffRole,
   type TitleRevokeReason,
 } from '@chessmate/core';
@@ -19,11 +21,12 @@ import { ActionDialog, ChoiceField, ReasonField } from '@/features/admin/ActionD
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AuditRow } from '@/features/admin/AuditRow';
 import { AdminPage, EmptyState, ErrorLine, Field, GameRow, PlayerBadges, Section, useLoad } from '@/features/admin/ui';
+import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { TITLE_STATUS_TONE, TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAgo, formatDate, formatDateTime, translateOr, useT } from '@/i18n';
 import { Avatar, Badge, Button, Row, Stack, Text, TextField, useAppTheme } from '@/ui';
 
-type Dialog = 'warn' | 'mute' | 'unmute' | 'rename' | 'rating' | 'role' | 'signout' | 'close' | 'reopen' | 'review' | 'setTitle' | 'removeTitle' | null;
+type Dialog = 'warn' | 'mute' | 'unmute' | 'rename' | 'rating' | 'role' | 'signout' | 'close' | 'reopen' | 'review' | 'setTitle' | 'removeTitle' | 'setTag' | 'removeTag' | null;
 const poolLabel = (k: RatingCategory) => (k === 'puzzle' ? translateOr('nav.puzzles', 'Puzzles') : translateOr(`common.category.${k}`, k));
 const POOLS: RatingCategory[] = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence', 'puzzle'];
 
@@ -68,6 +71,7 @@ export default function AdminPlayer() {
           )}
           {can('titles.revoke') && !closed && <Button size="sm" variant="secondary" title={tr('admin.titles.set')} onPress={() => setDialog('setTitle')} />}
           {can('titles.revoke') && p.title && <Button size="sm" variant="secondary" title={tr('admin.titles.remove')} onPress={() => setDialog('removeTitle')} />}
+          {can('tags.manage') && !closed && <Button size="sm" variant="secondary" title={p.roleTag ? tr('admin.tags.change') : tr('admin.tags.set')} onPress={() => setDialog('setTag')} />}
           {p.playingGameId && can('games.view') && <Button size="sm" variant="secondary" title={tr('admin.player.watch')} onPress={() => router.push(`/admin/games/${p.playingGameId}`)} />}
           {closed
             ? can('accounts.reopen') && <Button size="sm" title={tr('admin.player.reopen')} onPress={() => setDialog('reopen')} />
@@ -88,6 +92,7 @@ export default function AdminPlayer() {
           <Warnings p={p} />
           <Notes p={p} onAdded={reload} />
           <Titles p={p} />
+          <RoleTagSection p={p} onSet={() => setDialog('setTag')} onRemove={() => setDialog('removeTag')} />
           {can('audit.view') && (
             <Section title={tr('admin.player.history')} index={8} padding="none">
               {p.audit.length === 0 ? <EmptyState icon="document-text-outline" title={tr('admin.player.noHistory')} /> : p.audit.map((e, i) => <AuditRow key={e.id} e={e} last={i === p.audit.length - 1} compact />)}
@@ -154,6 +159,30 @@ function Titles({ p }: { p: AdminPlayerDetail }) {
           <Badge label={tr(`admin.titles.tabs.${a.status}`)} tone={TITLE_STATUS_TONE[a.status]} />
         </Pressable>
       ))}
+    </Section>
+  );
+}
+
+/** The official role tag: what it is, and change / remove for admins. */
+function RoleTagSection({ p, onSet, onRemove }: { p: AdminPlayerDetail; onSet: () => void; onRemove: () => void }) {
+  const tr = useT();
+  const { can } = useAdmin();
+  const manage = can('tags.manage');
+  return (
+    <Section
+      title={tr('admin.tags.section')}
+      index={10}
+      action={
+        manage && p.roleTag ? <Button size="sm" variant="ghost" title={tr('admin.tags.remove')} onPress={onRemove} /> : manage && p.status !== 'closed' ? <Button size="sm" variant="ghost" title={tr('admin.tags.set')} onPress={onSet} /> : undefined
+      }>
+      <Stack gap="sm">
+        <Row gap="sm">
+          {p.roleTag ? <RoleTagBadge tag={p.roleTag} size="md" /> : <Text tone="muted">{tr('admin.tags.none')}</Text>}
+        </Row>
+        <Text variant="caption" tone="tertiary">
+          {tr('admin.tags.hint')}
+        </Text>
+      </Stack>
     </Section>
   );
 }
@@ -339,6 +368,7 @@ function Dialogs({ p, dialog, close, done }: { p: AdminPlayerDetail; dialog: Dia
   const [closeReason, setCloseReason] = useState<AccountCloseReason>('abuse');
   const [title, setTitle] = useState<ChessTitle>(p.title ?? 'GM');
   const [revokeReason, setRevokeReason] = useState<TitleRevokeReason>('fair_play');
+  const [tag, setTag] = useState<RoleTag>(p.roleTag ?? 'streamer');
   const run = (fn: () => Promise<unknown>) => async () => {
     await fn();
     setReason('');
@@ -439,6 +469,22 @@ function Dialogs({ p, dialog, close, done }: { p: AdminPlayerDetail; dialog: Dia
         <ActionDialog {...common} danger title={tr('admin.titles.removeTitle', { title: p.title ?? '', name })} description={tr('admin.titles.removeBody')} confirmLabel={tr('admin.titles.remove')} onConfirm={run(() => api.removeTitle(p.id, revokeReason, reason))}>
           <ChoiceField label={tr('admin.common.reason')} value={revokeReason} onChange={setRevokeReason} options={TITLE_REVOKE_REASONS.map((k) => ({ key: k, label: tr(`admin.titles.revokeReasons.${k}`) }))} />
           <ReasonField value={reason} onChange={setReason} multiline />
+        </ActionDialog>
+      );
+    case 'setTag':
+      return (
+        <ActionDialog {...common} title={tr('admin.tags.setTitle', { name })} description={tr('admin.tags.setBody')} confirmLabel={tr('admin.common.save')} disabled={tag === p.roleTag} onConfirm={run(() => api.setRoleTag(p.id, tag, reason))}>
+          <ChoiceField label={tr('admin.tags.tag')} value={tag} onChange={setTag} options={ROLE_TAGS.map((k) => ({ key: k, label: tr(`chessTitle.roleTags.${k}`) }))} />
+          <Row gap="sm">
+            <RoleTagBadge tag={tag} size="md" />
+          </Row>
+          <ReasonField label={tr('admin.tags.note')} value={reason} onChange={setReason} />
+        </ActionDialog>
+      );
+    case 'removeTag':
+      return (
+        <ActionDialog {...common} danger title={tr('admin.tags.removeTitle', { tag: p.roleTag ? tr(`chessTitle.roleTags.${p.roleTag}`) : '', name })} description={tr('admin.tags.removeBody')} confirmLabel={tr('admin.tags.remove')} onConfirm={run(() => api.setRoleTag(p.id, null, reason))}>
+          <ReasonField label={tr('admin.tags.note')} value={reason} onChange={setReason} />
         </ActionDialog>
       );
     case 'reopen':

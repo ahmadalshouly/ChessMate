@@ -31,6 +31,8 @@ export const game: Messages<typeof en> = {
     changeOpponent: 'Anderen Gegner wählen',
     save: 'Im Partieverlauf speichern',
     saved: 'Im Partieverlauf gespeichert',
+    report: '{name} melden',
+    reported: 'Gemeldet',
   },
   confirm: {
     drawTitle: 'Remis anbieten?',

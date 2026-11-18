@@ -1,3 +1,4 @@
+import type { RoleTag } from './roleTags';
 import type { ChessTitle } from './titles';
 import type { TimeCategory } from './timeControl';
 import type { GameEndReason, GameResult } from './types';
@@ -241,6 +242,8 @@ export interface PublicProfile {
   username: string;
   /** Verified chess title (GM, IM, ...), granted by staff after an application. */
   title?: ChessTitle | null;
+  /** Official tag (ChessMate staff, streamer, coach, ...), only set by admins. */
+  roleTag?: RoleTag | null;
   displayName: string;
   avatar: Avatar;
   bio: string | null;

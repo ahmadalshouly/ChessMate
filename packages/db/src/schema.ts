@@ -115,6 +115,8 @@ export const users = pgTable(
     /** Verified chess title (GM, IM, FM, ...), granted by staff. */
     title: text('title'),
     titleGrantedAt: ts('title_granted_at'),
+    /** Official role tag next to the name (staff, streamer, coach, ...), set by admins only. */
+    roleTag: text('role_tag'),
   },
   (t) => [
     uniqueIndex('users_username_lower_idx').on(sql`lower(${t.username})`),

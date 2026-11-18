@@ -303,6 +303,8 @@ export const admin = {
       title_reject: 'turned down the title application of',
       title_revoke: 'removed the title of',
       title_grant: 'granted a title to',
+      tag_grant: 'gave a role tag to',
+      tag_remove: 'removed the role tag of',
     },
   },
   titles: {
@@ -351,5 +353,19 @@ export const admin = {
     applications: 'Title applications',
     noApplications: 'No title applications.',
     linkFailed: 'Could not open the file',
+  },
+  tags: {
+    section: 'Role tag',
+    none: 'No tag',
+    hint: 'Shown next to the name in games and on the profile. Only admins can give or remove tags.',
+    set: 'Set tag',
+    change: 'Change tag',
+    remove: 'Remove tag',
+    setTitle: 'Give {name} a role tag',
+    setBody: 'The player is notified and the tag shows right away. A fair-play closure removes it automatically.',
+    removeTitle: 'Remove the {tag} tag from {name}?',
+    removeBody: 'The tag disappears from their name in games and on their profile.',
+    tag: 'Tag',
+    note: 'Note for the audit log (optional)',
   },
 };

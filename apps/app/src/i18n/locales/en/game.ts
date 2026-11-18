@@ -29,6 +29,8 @@ export const game = {
     changeOpponent: 'Choose another opponent',
     save: 'Save to game history',
     saved: 'Saved to game history',
+    report: 'Report {name}',
+    reported: 'Reported',
   },
   confirm: {
     drawTitle: 'Offer a draw?',

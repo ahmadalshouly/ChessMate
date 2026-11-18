@@ -89,10 +89,10 @@ export default function LocalPlay() {
   );
 
   const actions: GameAction[] = [
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
       ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview }
       : { key: 'undo', icon: 'undo-variant', label: tr('practice.undo'), onPress: () => toggle('undo'), active: panel === 'undo', disabled: history.length === 0 },
-    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     { key: 'flip', icon: 'swap-vertical', label: tr('game.action.flip'), onPress: () => setFlip((f) => !f) },
     { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
     { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
