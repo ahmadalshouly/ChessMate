@@ -22,7 +22,7 @@ export function RestrictionBanner({ compact = false }: { compact?: boolean }) {
         accessibilityRole="button"
         accessibilityLabel={`${tr('server.restriction.title')}. ${tr('server.restriction.body')}`}
         onPress={() => router.push('/notifications')}
-        style={({ pressed }) => [styles.press, pressed && { opacity: 0.85 }]}>
+        style={({ pressed }) => [styles.press, compact && { maxWidth: undefined }, pressed && { opacity: 0.85 }]}>
         <GlassView radius="lg" elevation="sm" strength="strong" style={[styles.card, { borderColor: c.danger }]}>
           <View style={[styles.icon, { backgroundColor: c.danger }]}>
             <Ionicons name="shield-outline" size={18} color="#FFFFFF" />

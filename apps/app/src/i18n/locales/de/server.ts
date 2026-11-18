@@ -5,7 +5,7 @@ export const server: Messages<typeof en> = {
   restriction: {
     badge: 'Fair Play',
     title: 'Online-Spiele sind für dieses Konto deaktiviert',
-    body: 'Dein Konto wurde wegen eines Fair-Play-Verstoßes geschlossen. Du kannst weiterhin deine Partien analysieren, Puzzles lösen und gegen den Computer spielen. Tippe hier für die Begründung.',
+    body: 'Wegen eines Fair-Play-Verstoßes geschlossen. Partien analysieren, Puzzles und Spiele gegen den Computer gehen weiterhin.',
     playDisabled: 'Online-Spiele sind für dieses Konto deaktiviert, weil es wegen eines Fair-Play-Verstoßes geschlossen wurde.',
   },
   actionNotAllowed: 'Diese Aktion ist gerade nicht erlaubt.',

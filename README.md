@@ -299,6 +299,10 @@ Then sign in to the app with that account and open `/admin`. If you were already
 
 **Verified titles.** Players apply for a FIDE title (GM, IM, FM, CM, WGM, WIM, WFM, WCM) in **Settings → Verified title**, with up to three proof files (PDF, PNG, JPEG or WebP, 3 MB each). Staff review them under **Titles** in the console: open the files, check the FIDE profile, then approve or reject with a reason the player reads. Approved titles show next to the player's name on their profile and in the console. Admins can also set or remove a title from a player's record (for example after a fair-play violation), and closing an account for fair play removes its title automatically. Proof files are stored in the database and open only through short-lived links from the console.
 
+**Telling players.** Warnings, account closures and reopenings reach the player three ways: an account notification in the app (or a message in their Messages inbox once that is wired), a push notification when the app is closed, and an email. In development the email is printed in the `pnpm dev:server` terminal (look for `[email]`); nothing is sent. To send real email, set `EMAIL_PROVIDER=resend`, `RESEND_API_KEY` and `EMAIL_FROM` in `.env`. Staff notes stay internal; players get a fixed, plain-language explanation.
+
+**Fair-play closures keep sign-in.** An account closed for fair play can still sign in, read its notifications, review games, solve puzzles and play the computer, but online play (seeking, open games, challenges, rematches) is refused and every main screen shows a red *Fair play* banner. Other closures (abuse, multiple accounts...) still block sign-in. To try it: sign up two accounts, make one an admin, close the other under **Players → Close account → Fair play violation**, then sign in as that player.
+
 Account closures, warnings, mutes, reports, titles and fair-play cases are all kept in the database, so they survive a server restart.
 
 The older token-only APIs still work for scripts: `ADMIN_TOKEN` for the reports API under `/admin/` and `FAIRPLAY_ADMIN_TOKEN` for `/admin/fairplay/*` (see [docs/fair-play.md](docs/fair-play.md)).

@@ -73,7 +73,7 @@ export class AccountNotifier {
 }
 
 const SIGN_OFF = '\n\nThe ChessMate team';
-const SUPPORT = 'If you think this is a mistake, reply to this email or contact support from the app (Settings > Help) to appeal.';
+const SUPPORT = 'If you think this is a mistake, reply to this email to appeal.';
 
 /* ---------------------------------------------------------------- templates */
 
