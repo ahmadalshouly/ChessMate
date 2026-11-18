@@ -18,6 +18,7 @@ import {
   type OpenGame,
   type PlayedMove,
   type PlayerInfo,
+  type PlayRestriction,
   type Rating,
   type ServerMessage,
   type Square,
@@ -94,6 +95,11 @@ export interface PlayState {
   challengeEnded: Record<string, ChallengeEndReason>;
   /** Set when the server closed this account (fair play); no reconnects after that. */
   closedReason: string | null;
+  /**
+   * Online play turned off for this account (closed for a fair-play
+   * violation). Undefined until the server has said hello.
+   */
+  restriction: PlayRestriction | null | undefined;
 }
 
 const TOKEN_KEY = 'chessmate.playToken';
@@ -123,6 +129,7 @@ class PlayClient {
     challenges: {},
     challengeEnded: {},
     closedReason: null,
+    restriction: undefined,
   };
   private listeners = new Set<() => void>();
   /** Raw server message listeners (chat, etc.) so features can live in their own hooks. */
@@ -272,8 +279,12 @@ class PlayClient {
           this.token = m.resumeToken;
           storage()?.setItem(TOKEN_KEY, m.resumeToken);
         }
-        this.set({ connection: 'online', me: m.player, error: null });
+        this.set({ connection: 'online', me: m.player, error: null, restriction: m.restriction ?? null });
+        if (m.restriction) return this.set({ seek: null, seekStatus: null, openGame: null });
         return this.restore();
+      case 'restriction':
+        if (m.restriction) return this.set({ restriction: m.restriction, seek: null, seekStatus: null, openGame: null });
+        return this.set({ restriction: null, error: null });
       case 'lobby':
         return this.set({ lobby: m.lobby });
       case 'seeking':
@@ -329,6 +340,7 @@ class PlayClient {
       }
       case 'error':
         if (m.code === 'chat_restricted') return; // shown by the chat panel
+        if (m.code === 'account_restricted') return this.set({ restriction: this.state.restriction ?? { reason: 'fair_play' }, seek: null, seekStatus: null, openGame: null });
         if (m.id !== undefined) return; // engine analysis errors belong to the analysis screen
         return this.set({ error: m.message });
       default:
@@ -395,7 +407,13 @@ class PlayClient {
 
   // ---- actions ----
 
+  /** True when online play is off for this account; the restriction banner explains why. */
+  private get restricted() {
+    return !!this.state.restriction;
+  }
+
   seek(req: SeekRequest) {
+    if (this.restricted) return;
     this.dismissFinished();
     this.set({ seek: req, seekStatus: null, error: null });
     this.send({ t: 'seek', ...req });
@@ -407,6 +425,7 @@ class PlayClient {
   }
 
   createOpenGame(timeControl: TimeControl, rated: boolean, color: ColorChoice, range?: number) {
+    if (this.restricted) return;
     this.dismissFinished();
     this.send({ t: 'createOpenGame', timeControl, rated, color, range });
   }
@@ -417,6 +436,7 @@ class PlayClient {
   }
 
   joinOpenGame(id: string) {
+    if (this.restricted) return;
     this.dismissFinished();
     this.set({ error: null });
     this.send({ t: 'joinOpenGame', id });
@@ -486,11 +506,13 @@ class PlayClient {
 
   /** Direct challenge when `to` is a player id; open invite link otherwise. */
   createChallenge = (opts: { to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }) => {
+    if (this.restricted) return;
     this.dismissFinished();
     this.send({ t: 'challengeCreate', ...opts });
   };
   getChallenge = (id: string) => this.send({ t: 'challengeGet', id });
   acceptChallenge = (id: string) => {
+    if (this.restricted) return;
     this.dismissFinished();
     this.send({ t: 'challengeAccept', id });
   };

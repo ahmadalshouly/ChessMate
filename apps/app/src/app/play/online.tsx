@@ -8,6 +8,7 @@ import { Board } from '@/components/Board';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
 import { ReportDialog } from '@/components/ReportDialog';
+import { RestrictionBanner } from '@/components/account/RestrictionBanner';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
@@ -24,6 +25,7 @@ import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
 import { clockRemaining, isGuest, playClient, usePlay } from '@/lib/playClient';
 import { useRecordOnlineGame } from '@/lib/recordGame';
+import { useAccountRestriction } from '@/lib/accountRestriction';
 import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
@@ -54,6 +56,7 @@ export default function OnlinePlay() {
     }
   }, [tcParam]);
   const s = usePlay();
+  const restricted = !!useAccountRestriction();
   const view = s.game;
   const size = useBoardSize(300);
   const live = !!view && !view.outcome;
@@ -116,7 +119,9 @@ export default function OnlinePlay() {
 
   const title = view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
-  const connectionNotice = s.closedReason ? (
+  const connectionNotice = restricted ? (
+    <RestrictionBanner compact />
+  ) : s.closedReason ? (
     <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
       <Text style={{ color: t.text, fontWeight: '600' }}>{serverText(s.closedReason)}</Text>
     </View>

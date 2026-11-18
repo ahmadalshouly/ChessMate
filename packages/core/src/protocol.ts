@@ -115,7 +115,11 @@ export type ServerMessage =
       player: PlayerInfo;
       /** Guests only: send this as the token on reconnect to stay the same player. */
       resumeToken?: string;
+      /** Set when online play is turned off for this account (closed for a fair-play violation). */
+      restriction?: PlayRestriction | null;
     }
+  /** Online play was turned off for this account, or back on (null). */
+  | { t: 'restriction'; restriction: PlayRestriction | null }
   | { t: 'pong'; id: number; serverNow: number }
   | { t: 'seeking'; timeControl: TimeControl }
   | { t: 'seekCancelled' }
@@ -177,7 +181,14 @@ export type ErrorCode =
   | 'chat_restricted'
   | 'engine_locked'
   | 'engine_unavailable'
-  | 'forbidden';
+  | 'forbidden'
+  /** The account is closed for a fair-play violation: it can sign in but not play online. */
+  | 'account_restricted';
+
+/** Why an account cannot play online. */
+export interface PlayRestriction {
+  reason: 'fair_play';
+}
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

@@ -2,6 +2,12 @@ import type { Messages } from '../../core';
 import type { server as en } from '../en/server';
 
 export const server: Messages<typeof en> = {
+  restriction: {
+    badge: 'Fair Play',
+    title: 'Online-Spiele sind für dieses Konto deaktiviert',
+    body: 'Wegen eines Fair-Play-Verstoßes geschlossen. Partien analysieren, Puzzles und Spiele gegen den Computer gehen weiterhin.',
+    playDisabled: 'Online-Spiele sind für dieses Konto deaktiviert, weil es wegen eines Fair-Play-Verstoßes geschlossen wurde.',
+  },
   actionNotAllowed: 'Diese Aktion ist gerade nicht erlaubt.',
   alreadyInGame: 'Du bist schon in einer Partie.',
   gameInProgress: 'Die Partie läuft noch.',

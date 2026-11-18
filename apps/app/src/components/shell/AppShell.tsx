@@ -7,6 +7,7 @@ import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
 import { Backdrop } from '@/ui';
+import { RestrictionBanner } from '@/components/account/RestrictionBanner';
 
 import { AppHeader } from './AppHeader';
 import { BottomTabBar, useTabBarSpace } from './BottomTabBar';
@@ -46,6 +47,7 @@ export function AppShell() {
           {wide && <Sidebar />}
           <View style={styles.fill}>
             <AppHeader title={tr(tab.title)} withSidebar={wide} />
+            <RestrictionBanner />
             {wide ? (
               <TabSlot style={styles.fill} />
             ) : (

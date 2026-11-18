@@ -32,6 +32,11 @@ export interface AuthUser {
   createdAt: string;
   /** "moderator" or "admin" opens the admin console. Missing on older servers. */
   role?: 'user' | 'moderator' | 'admin';
+  /**
+   * Set when the account was closed for a fair-play violation: it can sign in
+   * but online play is off. Missing on older servers.
+   */
+  restriction?: { reason: 'fair_play'; since: string | null } | null;
 }
 
 export interface AuthTokens {

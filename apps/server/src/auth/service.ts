@@ -44,7 +44,24 @@ export interface PublicUser {
   createdAt: string;
   /** "moderator" and "admin" open the admin console. */
   role: StaffRole;
+  /**
+   * Set when the account was closed for a fair-play violation. Such accounts
+   * can still sign in (to read their messages, review games and appeal) but
+   * cannot play online. Null for accounts in good standing.
+   */
+  restriction: AccountRestriction | null;
 }
+
+export interface AccountRestriction {
+  reason: 'fair_play';
+  /** ISO timestamp of the closure, when known. */
+  since: string | null;
+}
+
+/** Closure reasons that still allow sign-in, with online play turned off. */
+export const RESTRICTED_REASONS: ReadonlySet<string> = new Set(['fair_play']);
+/** True when a closure with this reason blocks sign-in entirely. */
+export const blocksSignIn = (reason: string | null | undefined): boolean => !!reason && !RESTRICTED_REASONS.has(reason);
 
 /** Answers whether an account is closed right now (kept in memory by the admin service). */
 export type AccountGuard = (userId: string) => { reason: string } | null;
@@ -84,8 +101,19 @@ const COMMON_PASSWORDS = new Set(['password', 'password1', '12345678', '12345678
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const opaqueToken = () => randomBytes(32).toString('base64url');
 
-export function toPublicUser(u: UserRecord): PublicUser {
-  return { id: u.id, username: u.username, email: u.email ?? '', hasPassword: !!u.passwordHash, createdAt: new Date(u.createdAt).toISOString(), role: u.role ?? 'user' };
+export function toPublicUser(u: UserRecord, guardReason?: string | null): PublicUser {
+  const reason = u.closedAt ? (u.closedReason ?? 'other') : (guardReason ?? null);
+  const restriction: AccountRestriction | null =
+    reason === 'fair_play' ? { reason: 'fair_play', since: u.closedAt ? new Date(u.closedAt).toISOString() : null } : null;
+  return {
+    id: u.id,
+    username: u.username,
+    email: u.email ?? '',
+    hasPassword: !!u.passwordHash,
+    createdAt: new Date(u.createdAt).toISOString(),
+    role: u.role ?? 'user',
+    restriction,
+  };
 }
 
 /** Message shown on the sign-in screen for a closed account. The app translates it by code and reason. */
@@ -196,7 +224,7 @@ export class AuthService {
       user.role = (await this.onAccountCreated?.(user)) ?? user.role;
     }
     this.assertOpen(user);
-    return { user: toPublicUser(user), tokens: await this.startSession(user), created };
+    return { user: this.publicUser(user), tokens: await this.startSession(user), created };
   }
 
   async signup(input: { username?: unknown; email?: unknown; password?: unknown }): Promise<AuthResult> {
@@ -214,7 +242,7 @@ export class AuthService {
       throw e;
     }
     user.role = (await this.onAccountCreated?.(user)) ?? user.role;
-    return { user: toPublicUser(user), tokens: await this.startSession(user) };
+    return { user: this.publicUser(user), tokens: await this.startSession(user) };
   }
 
   /** `login` is a username or an email address. */
@@ -231,7 +259,7 @@ export class AuthService {
       user.passwordHash = await hashPassword(password);
       await this.store.updateUser(user);
     }
-    return { user: toPublicUser(user), tokens: await this.startSession(user) };
+    return { user: this.publicUser(user), tokens: await this.startSession(user) };
   }
 
   /** Rotates a refresh token. Reusing an already-rotated token revokes the whole session family. */
@@ -249,7 +277,7 @@ export class AuthService {
     this.assertOpen(user);
     const { tokens, record } = await this.issue(user, session.familyId);
     await this.store.updateSession({ ...session, revokedAt: now, replacedBy: record.id });
-    return { user: toPublicUser(user), tokens };
+    return { user: this.publicUser(user), tokens };
   }
 
   /** Ends the session for this refresh token, or every session of its user when `all` is set. */
@@ -314,7 +342,7 @@ export class AuthService {
 
   async getUser(userId: string): Promise<PublicUser | null> {
     const u = await this.store.getUser(userId);
-    return u && !this.closedReason(u) ? toPublicUser(u) : null;
+    return u && !blocksSignIn(this.closedReason(u)) ? this.publicUser(u) : null;
   }
 
   /** Why the account is closed, or null when it is open. */
@@ -323,9 +351,14 @@ export class AuthService {
     return this.accountGuard?.(u.id)?.reason ?? null;
   }
 
+  private publicUser(u: UserRecord): PublicUser {
+    return toPublicUser(u, this.accountGuard?.(u.id)?.reason);
+  }
+
+  /** Fair-play closures still sign in (restricted); every other closure is refused. */
   private assertOpen(u: UserRecord) {
     const reason = this.closedReason(u);
-    if (reason) throw closedAccountError(reason);
+    if (blocksSignIn(reason)) throw closedAccountError(reason);
   }
 
   /**
@@ -336,7 +369,7 @@ export class AuthService {
   verifyAccessToken(token: string): AccessIdentity | null {
     const claims = verifyJwt(token, this.secret, Math.floor(this.now() / 1000));
     if (!claims || claims.typ !== 'access' || typeof claims.name !== 'string') return null;
-    if (this.accountGuard?.(claims.sub)) return null;
+    if (blocksSignIn(this.accountGuard?.(claims.sub)?.reason)) return null;
     return { userId: claims.sub, username: claims.name };
   }
 

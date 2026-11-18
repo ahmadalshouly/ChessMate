@@ -68,6 +68,8 @@ import type { FairPlayCase, FairPlayService } from '../fairplay';
 import type { GameRoom } from '../gameRoom';
 import type { Moderation, Report } from '../moderation';
 import type { NotificationService } from '../notifications';
+import { emailSenderFromEnv, type EmailSender } from '../email';
+import { AccountNotifier, closedNotice, reopenedNotice, warningNotice, type SystemMessageSink } from './notices';
 import type { RatingService } from '../ratingService';
 import { TitleService, toApplication } from '../titles/service';
 
@@ -104,6 +106,11 @@ export interface AdminBridge {
   liveGameOf(userId: string): string | null;
   /** Closes every socket of the account and forfeits its live game. */
   disconnect(userId: string, code: number, reason: string): void;
+  /**
+   * Turns online play off (fair-play closure) or back on: forfeits the live
+   * game, drops seeks and challenges, and tells the player's open apps.
+   */
+  setRestricted(userId: string, restricted: boolean): void;
   /** Moves a rating without counting a game, in memory and in the database. */
   adjustRating(userId: string, category: RatingCategory, delta: number, sourceId: string): { before: CategoryRating; after: CategoryRating };
   room(gameId: string): GameRoom | undefined;
@@ -117,6 +124,8 @@ export interface AdminServiceOptions {
   auth: AuthService;
   /** Verified titles. Created on the same database when left out. */
   titles?: TitleService;
+  /** Emails players about staff decisions. Defaults to EMAIL_PROVIDER (console in development). */
+  email?: EmailSender;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -142,6 +151,8 @@ export class AdminService {
   private readonly roles = new Map<string, StaffRole>();
   private readonly closed = new Map<string, string>();
   private bootstrap = new Set<string>();
+  /** Tells players about warnings, closures and reopenings (inbox or notification, plus email). */
+  readonly notices: AccountNotifier;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -149,6 +160,7 @@ export class AdminService {
     this.now = opts.now ?? Date.now;
     this.titles = opts.titles ?? new TitleService({ db: opts.db, now: this.now });
     this.log = opts.log ?? ((m) => console.log(`[admin] ${m}`));
+    this.notices = new AccountNotifier(() => this.b.notifications, opts.email ?? emailSenderFromEnv(), this.log);
     this.auth.accountGuard = (id) => {
       const reason = this.closed.get(id);
       return reason ? { reason } : null;
@@ -204,6 +216,20 @@ export class AdminService {
 
   isClosed(userId: string): boolean {
     return this.closed.has(userId);
+  }
+
+  /** Why the account is closed (fair_play, abuse, ...), or null when it is open. */
+  closedReason(userId: string): string | null {
+    return this.closed.get(userId) ?? null;
+  }
+
+  /** Where staff messages land in the player's Messages inbox. Without one, players get an account notification. */
+  set systemMessages(sink: SystemMessageSink | null) {
+    this.notices.systemMessages = sink;
+  }
+
+  private async tellPlayer(u: User, notice: Parameters<AccountNotifier['tell']>[1]) {
+    await this.notices.tell({ id: u.id, username: u.username, email: u.email ?? null }, notice);
   }
 
   /** Resolves the signed-in staff member, or throws unauthorized/forbidden. */
@@ -394,7 +420,7 @@ export class AdminService {
     if (!message) throw new AdminError('invalid_input', 'Write the warning the player will read');
     const reportId = typeof input.reportId === 'string' ? input.reportId : null;
     const w = await insertWarning(this.db, { userId: id, category, message, issuedBy: actor.id, issuedByName: actor.username, reportId });
-    this.b.notifications.notify(id, { kind: 'system', title: 'Warning from ChessMate moderators', body: message, url: null, data: { warningId: w.id, category } });
+    await this.tellPlayer(u, { ...warningNotice({ username: u.username, category, message }), data: { action: 'warning', warningCategory: category, warningId: w.id } });
     await this.audit(actor, 'player.warn', { type: 'user', id, name: u.username }, message, { category, reportId });
     return { ok: true };
   }
@@ -514,13 +540,16 @@ export class AdminService {
     // Mark closed first: the fair-play ban hook below sees it and does not close twice.
     this.closed.set(id, reason);
     await closeUserAccount(this.db, id, { reason, note: note || null, by: actor.username, at: new Date(at) });
-    await this.auth.store.revokeUserSessions(id, at);
+    // Fair-play closures keep sign-in (restricted: no online play); every other closure signs the player out.
+    if (reason !== 'fair_play') await this.auth.store.revokeUserSessions(id, at);
     let refunds: { playerId: string; points: number; category: string; gameId: string }[] = [];
     if (reason === 'fair_play' && !this.b.fairPlay.isBanned(id)) {
       refunds = this.b.fairPlay.ban(id, actor.username, note || 'Fair play violation')?.refunds ?? [];
     }
     if (reason === 'fair_play') await this.stripTitleForFairPlay(actor, id, u.username);
-    this.b.disconnect(id, reason === 'fair_play' ? 4010 : CLOSE_ACCOUNT_CLOSED, reason === 'fair_play' ? 'account closed for fair play violation' : 'account closed');
+    if (reason === 'fair_play') this.b.setRestricted(id, true);
+    else this.b.disconnect(id, CLOSE_ACCOUNT_CLOSED, 'account closed');
+    await this.tellPlayer(u, closedNotice({ username: u.username, reason }));
     const refunded = refunds.reduce((s, r) => s + r.points, 0);
     await this.audit(actor, 'account.close', { type: 'user', id, name: u.username }, note || reason, {
       reason,
@@ -535,9 +564,12 @@ export class AdminService {
     const u = await this.user(id);
     if (!this.closed.has(id) && !u.closedAt) throw new AdminError('conflict', 'This account is open');
     const note = text(input.note, 1000);
+    const previousReason = u.closedReason ?? this.closed.get(id) ?? null;
     await reopenUserAccount(this.db, id);
     this.closed.delete(id);
     if (this.b.fairPlay.isBanned(id)) this.b.fairPlay.unban(id, actor.username, note || 'Account reopened');
+    if (previousReason === 'fair_play') this.b.setRestricted(id, false);
+    await this.tellPlayer(u, reopenedNotice({ username: u.username, previousReason }));
     await this.audit(actor, 'account.reopen', { type: 'user', id, name: u.username }, note, { previousReason: u.closedReason });
     return { ok: true };
   }
@@ -553,7 +585,7 @@ export class AdminService {
       const u = await getUser(this.db, playerId);
       if (!u) return;
       await closeUserAccount(this.db, playerId, { reason: 'fair_play', note: 'Closed through the fair-play API', by: 'fair-play API', at: new Date(this.now()) });
-      await this.auth.store.revokeUserSessions(playerId, this.now());
+      await this.tellPlayer(u, closedNotice({ username: u.username, reason: 'fair_play' }));
       await this.audit(SYSTEM, 'account.close', { type: 'user', id: playerId, name: u.username }, 'Closed through the fair-play API', { reason: 'fair_play' });
       await this.stripTitleForFairPlay(SYSTEM, playerId, u.username);
     })().catch((e) => this.log(`could not record fair-play closure of ${playerId}: ${String(e)}`));
@@ -747,7 +779,10 @@ export class AdminService {
     if (action === 'warn') {
       const message = text(input.message, 500) || defaultWarning(r.reason);
       await insertWarning(this.db, { userId: r.targetId, category: r.reason, message, issuedBy: actor.id, issuedByName: actor.username, reportId: r.id }).catch(() => undefined);
-      this.b.notifications.notify(r.targetId, { kind: 'system', title: 'Warning from ChessMate moderators', body: message, url: null, data: { reportId: r.id } });
+      const target = await getUser(this.db, r.targetId).catch(() => undefined);
+      const notice = warningNotice({ username: target?.username ?? r.targetName, category: r.reason, message });
+      if (target) await this.tellPlayer(target, { ...notice, data: { ...notice.data, reportId: r.id } });
+      else this.b.notifications.notify(r.targetId, { kind: 'system', title: notice.title, body: message, url: notice.url, data: { reportId: r.id } });
     }
     if (action === 'chat_ban') this.require(actor, 'players.mute');
     const hours = Number(input.hours) > 0 ? Number(input.hours) : 24;
