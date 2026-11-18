@@ -41,9 +41,3 @@ export function useHistoryNav(length: number) {
   return { shown, live, goTo, back, forward, toLive, canBack: shown > 0, canForward: shown < length };
 }
 
-/** "2… Nc6" for the move at a ply (1-based), "–" for the start position. */
-export function moveLabel(history: { san: string }[], ply: number): string {
-  if (ply <= 0) return '–';
-  const no = Math.ceil(ply / 2);
-  return `${no}${ply % 2 === 1 ? '.' : '…'} ${history[ply - 1]?.san ?? ''}`;
-}

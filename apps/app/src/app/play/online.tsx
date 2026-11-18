@@ -10,10 +10,10 @@ import { ChatPanel } from '@/components/ChatPanel';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
-import { MoveList } from '@/components/game/MoveList';
-import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { MoveStrip } from '@/components/game/MoveStrip';
+import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
-import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
+import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { GameOverCard, endResult } from '@/components/play/GameOverCard';
 import { Pill, Row } from '@/components/play/Controls';
@@ -29,7 +29,8 @@ import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
-import { Button as UIButton, Modal } from '@/ui';
+
+type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
@@ -94,7 +95,7 @@ export default function OnlinePlay() {
   };
 
   const nav = useHistoryNav(history.length);
-  const [panel, setPanel] = useState<'chat' | 'more' | null>(null);
+  const [panel, setPanel] = useState<Popup | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [chatSeen, setChatSeen] = useState(0);
   useEffect(() => {
@@ -103,7 +104,7 @@ export default function OnlinePlay() {
   }, [gameId]);
   const lastLine = chat.lines[chat.lines.length - 1];
   const unread = panel !== 'chat' && chat.lines.length > chatSeen && !!lastLine && lastLine.playerId !== me?.id;
-  const toggle = (p: 'chat' | 'more') => {
+  const toggle = (p: Popup) => {
     if (p === 'chat' || panel === 'chat') setChatSeen(chat.lines.length);
     setPanel(panel === p ? null : p);
   };
@@ -192,8 +193,9 @@ export default function OnlinePlay() {
       pathname: '/review',
       params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
     });
-  const resign = () => {
-    if (prefs.requestResign()) playClient.resign();
+  const confirmThen = (fn: () => void) => () => {
+    setPanel(null);
+    fn();
   };
 
   const actions: GameAction[] = [
@@ -201,16 +203,17 @@ export default function OnlinePlay() {
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     ...(!over
       ? history.length < 2
-        ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: playClient.abort }]
-        : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: playClient.offerDraw, disabled: view.drawOfferBy === you, dot: view.drawOfferBy === opp }]
+        ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: () => toggle('abort'), active: panel === 'abort' }]
+        : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: () => toggle('draw'), active: panel === 'draw', disabled: view.drawOfferBy === you || view.drawOfferBy === opp, dot: view.drawOfferBy === opp }]
       : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), onPress: openReview, disabled: !reviewable }]),
     !over
-      ? { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: resign, disabled: history.length < 2, danger: true }
+      ? { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => toggle('resign'), active: panel === 'resign', disabled: history.length < 2, danger: true }
       : {
           key: 'rematch',
           icon: 'refresh',
           label: tr('game.action.rematch'),
-          onPress: () => playClient.rematch(),
+          onPress: () => toggle('rematch'),
+          active: panel === 'rematch',
           dot: oppOfferedRematch,
           disabled: !oppOfferedRematch && (view.rematchBy === you || view.rematchDeclined || !view.opponentConnected),
         },
@@ -233,35 +236,56 @@ export default function OnlinePlay() {
       : []),
   ];
 
-  const dockHeader = (
+  const notices = (
     <>
-      {!nav.live && (
-        <DockNotice icon="history" text={tr('game.viewingMove', { move: moveLabel(history, nav.shown) })}>
-          <NoticeButton icon="skip-next" label={tr('game.live')} onPress={nav.toLive} />
-        </DockNotice>
-      )}
       {live && prefs.pending && (
-        <DockNotice icon="help-circle-outline" text={tr('play.confirmMoveQ', { san: prefs.pending.san })} strong>
+        <BoardNotice icon="help-circle-outline" text={tr('play.confirmMoveQ', { san: prefs.pending.san })} strong>
           <NoticeButton icon="close" label={tr('common.cancel')} onPress={prefs.cancel} />
           <NoticeButton icon="check" label={tr('play.confirmMove')} onPress={prefs.confirm} primary />
-        </DockNotice>
+        </BoardNotice>
       )}
       {live && view.drawOfferBy === opp && (
-        <DockNotice icon="handshake-outline" text={tr('play.online.drawOffered')} strong>
+        <BoardNotice icon="handshake-outline" text={tr('play.online.drawOffered')} strong>
           <NoticeButton icon="close" label={tr('common.decline')} onPress={playClient.declineDraw} />
           <NoticeButton icon="check" label={tr('common.accept')} onPress={playClient.acceptDraw} primary />
-        </DockNotice>
+        </BoardNotice>
       )}
-      {live && view.drawOfferBy === you && <DockNotice icon="handshake-outline" text={`${tr('game.draw.offered')}. ${tr('game.draw.offeredBody')}`} />}
+      {live && view.drawOfferBy === you && <BoardNotice icon="handshake-outline" text={`${tr('game.draw.offered')}. ${tr('game.draw.offeredBody')}`} />}
       {!view.opponentConnected && live && (
-        <DockNotice
+        <BoardNotice
           icon="wifi-off"
           text={history.length < 2 ? tr('play.online.oppGoneEarly') : abandonIn !== null ? tr('play.online.oppGoneWin', { n: abandonIn }) : tr('play.online.oppGoneWait')}
         />
       )}
-      {s.error && <DockNotice icon="alert-circle-outline" text={serverText(s.error)} />}
+      {s.error && <BoardNotice icon="alert-circle-outline" text={serverText(s.error)} />}
     </>
   );
+  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected)) || !!s.error;
+  const oppName = players[opp].name;
+
+  const popover =
+    panel === 'chat' ? (
+      <View style={{ height: 340 }}>
+        <ChatPanel chat={chat} me={me} opponent={players[opp]} canChat fill onClose={() => toggle('chat')} />
+      </View>
+    ) : panel === 'more' ? (
+      <OptionsPanel title={tr('game.more.title')} onClose={() => setPanel(null)} items={moreItems.map((it) => ({ ...it, onPress: confirmThen(it.onPress) }))} />
+    ) : panel === 'draw' ? (
+      <ConfirmPanel icon="handshake-outline" title={tr('game.confirm.drawTitle')} body={tr('game.confirm.drawBody')} confirmLabel={tr('game.confirm.draw')} onConfirm={confirmThen(playClient.offerDraw)} onCancel={() => setPanel(null)} />
+    ) : panel === 'abort' ? (
+      <ConfirmPanel icon="close-circle-outline" title={tr('game.confirm.abortTitle')} body={tr('game.confirm.abortBody')} confirmLabel={tr('game.confirm.abort')} onConfirm={confirmThen(playClient.abort)} onCancel={() => setPanel(null)} danger />
+    ) : panel === 'resign' ? (
+      <ConfirmPanel icon="flag-outline" title={tr('game.resign.title')} body={tr('game.resign.body')} confirmLabel={tr('game.resign.confirm')} onConfirm={confirmThen(playClient.resign)} onCancel={() => setPanel(null)} danger />
+    ) : panel === 'rematch' ? (
+      <ConfirmPanel
+        icon="refresh"
+        title={oppOfferedRematch ? tr('game.confirm.acceptRematchTitle') : tr('game.confirm.rematchTitle')}
+        body={oppOfferedRematch ? tr('game.confirm.acceptRematchBody', { name: oppName }) : tr('game.confirm.rematchBody', { name: oppName })}
+        confirmLabel={oppOfferedRematch ? tr('game.confirm.acceptRematch') : tr('game.confirm.rematch')}
+        onConfirm={confirmThen(() => playClient.rematch())}
+        onCancel={() => setPanel(null)}
+      />
+    ) : null;
 
   return (
     <Screen>
@@ -303,39 +327,19 @@ export default function OnlinePlay() {
             )}
           </>
         )}
-        dock={
-          <MoveList
+        strip={
+          <MoveStrip
             sans={history.map((m) => m.san)}
             shown={nav.shown}
             onSelect={nav.goTo}
-            header={dockHeader}
+            onLive={nav.toLive}
             empty={live ? (you === 'w' ? tr('play.online.firstMoveWhite') : tr('play.online.firstMoveBlack')) : undefined}
           />
         }
-        panel={
-          panel === 'chat' ? (
-            <ChatPanel chat={chat} me={me} opponent={players[opp]} canChat fill onClose={() => setPanel(null)} />
-          ) : panel === 'more' ? (
-            <OptionsPanel
-              title={tr('game.more.title')}
-              onClose={() => setPanel(null)}
-              items={moreItems.map((it) => ({ ...it, onPress: () => { setPanel(null); it.onPress(); } }))}
-            />
-          ) : null
-        }
+        notices={hasNotice && nav.live ? notices : null}
+        popover={popover}
+        onDismissPopover={() => setPanel(null)}
         actions={actions}
-      />
-      <Modal
-        visible={prefs.resignAsked}
-        onClose={prefs.cancelResign}
-        title={tr('game.resign.title')}
-        description={tr('game.resign.body')}
-        actions={
-          <>
-            <UIButton variant="ghost" title={tr('play.keepPlaying')} onPress={prefs.cancelResign} />
-            <UIButton variant="danger" title={tr('game.resign.confirm')} onPress={resign} />
-          </>
-        }
       />
     </Screen>
   );
