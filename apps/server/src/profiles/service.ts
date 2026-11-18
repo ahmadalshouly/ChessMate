@@ -73,6 +73,7 @@ export class ProfileService {
     return {
       id: user.id,
       title: this.deps.titleOf?.(user.id) ?? null,
+      roleTag: this.deps.roleTagOf?.(user.id) ?? null,
       username: user.username,
       displayName: rec.displayName ?? user.username,
       avatar: rec.avatar,

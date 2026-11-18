@@ -7,6 +7,7 @@ import { Pressable, RefreshControl, StyleSheet, View, useWindowDimensions } from
 import { dirIcon, formatAgo, formatDateTime, formatNumber, useT, type TFunction } from '@/i18n';
 import { Avatar, Badge, GlassView, Row, Screen, SectionHeader, Stack, Text, useAppTheme, type BadgeTone } from '@/ui';
 import { TitleBadge } from '@/features/titles/TitleBadge';
+import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -163,6 +164,7 @@ export function PlayerBadges({ p }: { p: AdminPlayerSummary }) {
   return (
     <Row gap="xs" wrap>
       <TitleBadge title={p.title} />
+      <RoleTagBadge tag={p.roleTag} />
       {p.role !== 'user' && <Badge label={tr(`admin.roles.${p.role}`)} tone={roleTone(p.role)} />}
       {p.status === 'closed' && <Badge label={tr('admin.status.closed')} tone="danger" />}
       {p.playingGameId ? <Badge label={tr('admin.status.playing')} tone="live" /> : p.online ? <Badge label={tr('admin.status.online')} tone="success" /> : null}

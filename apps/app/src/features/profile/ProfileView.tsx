@@ -14,6 +14,7 @@ import { reasonText } from '@/components/play/GameOverCard';
 import { Avatar } from './Avatar';
 import { Divider, Segmented, SectionTitle } from './controls';
 import { RatingGraph } from './RatingGraph';
+import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
@@ -95,6 +96,7 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
               <Text style={[styles.name, { color: t.text, flexShrink: 1 }]} numberOfLines={1}>
                 {profile.displayName}
               </Text>
+              <RoleTagBadge tag={profile.roleTag} size="md" />
             </View>
             <View style={styles.meta}>
               <Text style={{ color: t.muted }}>@{profile.username}</Text>

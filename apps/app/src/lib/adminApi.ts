@@ -13,6 +13,7 @@ import type {
   AdminTitleApplication,
   ChessTitle,
   TitleDocumentLink,
+  RoleTag,
   TitleRevokeReason,
   RatingCategory,
   ReportAction,
@@ -82,6 +83,7 @@ export function useAdminApi() {
       documentLink: (docId: string) => get<TitleDocumentLink>(`/documents/${id(docId)}`),
       setTitle: (playerId: string, title: ChessTitle, note: string) => post(`/players/${id(playerId)}/title`, { title, note }),
       removeTitle: (playerId: string, reason: TitleRevokeReason, note: string) => post(`/players/${id(playerId)}/title`, { title: null, reason, note }),
+      setRoleTag: (playerId: string, tag: RoleTag | null, note: string) => post(`/players/${id(playerId)}/tag`, { tag, note }),
     };
   }, [apiFetch]);
 }

@@ -20,6 +20,7 @@ const ICONS: Record<string, IconName> = {
   game: 'grid-outline',
   note: 'create-outline',
   title: 'ribbon-outline',
+  tag: 'pricetag-outline',
 };
 
 /** Short, readable summary of an entry's details (rating moves, role changes, mute length). */
@@ -31,6 +32,7 @@ function detailLine(e: AdminAuditEntry): string | null {
   if (e.action === 'title.approve' || e.action === 'title.grant') return `${d.previous ? String(d.previous) : '–'} → ${String(d.title)}`;
   if (e.action === 'title.revoke') return `${String(d.title)} → –`;
   if (e.action === 'title.reject') return String(d.title);
+  if (e.action === 'tag.grant' || e.action === 'tag.remove') return `${d.previous ? String(d.previous) : '–'} → ${d.tag ? String(d.tag) : '–'}`;
   if (e.action === 'account.close' && typeof d.refunds === 'number' && d.refunds > 0) return `${d.refunds} refunds · +${String(d.refundedPoints)}`;
   return null;
 }

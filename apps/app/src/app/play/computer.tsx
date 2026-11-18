@@ -295,10 +295,10 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   );
 
   const actions: GameAction[] = [
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
       ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview, disabled: plyCount === 0 }
       : { key: 'takeback', icon: 'undo-variant', label: tr('game.action.takeback'), onPress: () => toggle('takeback'), active: panel === 'takeback', disabled: !canTakeback },
-    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
       ? { key: 'rematch', icon: 'refresh', label: tr('game.action.rematch'), onPress: () => toggle('rematch'), active: panel === 'rematch' }
       : { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => toggle('resign'), active: panel === 'resign', disabled: plyCount < 1, danger: true },

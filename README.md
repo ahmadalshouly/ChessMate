@@ -273,7 +273,7 @@ Reports, mutes and every other staff tool live in the admin console (next sectio
 Staff accounts manage ChessMate at `/admin` in the app (on web: http://localhost:8081/admin). Signed-in staff also get an **Admin console** link in the sidebar and in Settings. There are two staff roles:
 
 - **Moderator**: dashboard, player search and records, warnings, chat mutes, renames, staff notes, the reports queue, fair-play reviews (open and dismiss cases), title applications, game lookup and the audit log.
-- **Admin**: everything a moderator can do, plus emails, closing and reopening accounts, closing for fair play (which refunds the cheater's opponents and removes their title), rating adjustments, setting or removing titles, aborting live games, signing a player out everywhere, and giving or taking away staff roles.
+- **Admin**: everything a moderator can do, plus emails, closing and reopening accounts, closing for fair play (which refunds the cheater's opponents and removes their title), rating adjustments, setting or removing titles and role tags, aborting live games, signing a player out everywhere, and giving or taking away staff roles.
 
 Every staff action is written to the audit log with who did it and why.
 
@@ -299,7 +299,11 @@ Then sign in to the app with that account and open `/admin`. If you were already
 
 **Verified titles.** Players apply for a FIDE title (GM, IM, FM, CM, WGM, WIM, WFM, WCM) in **Settings → Verified title**, with up to three proof files (PDF, PNG, JPEG or WebP, 3 MB each). Staff review them under **Titles** in the console: open the files, check the FIDE profile, then approve or reject with a reason the player reads. Approved titles show next to the player's name on their profile and in the console. Admins can also set or remove a title from a player's record (for example after a fair-play violation), and closing an account for fair play removes its title automatically. Proof files are stored in the database and open only through short-lived links from the console.
 
-Account closures, warnings, mutes, reports, titles and fair-play cases are all kept in the database, so they survive a server restart.
+**Role tags.** Admins can give a player one official tag from their record in the console (**Set tag**): ChessMate staff, Moderator, Streamer, Coach, Arbiter, Content creator or Ambassador. The tag shows as a small black-and-white seal next to the player's name on the game screen (with the title, profile picture and flag) and on their profile, and the player gets a notification. Moderators cannot set tags, players cannot pick these themselves, and closing an account for fair play removes the tag automatically. To try it: make your account an admin (below), open **Admin → Players**, pick an account, press **Set tag**, then start a game against that account and look at its player card.
+
+**Reporting from a game.** In an online game, the **More** button (now the first button under the board) has **Report <name>** at the bottom of its menu. It opens the same report sheet as the chat's flag button, and the report includes the game's moves and chat for moderators.
+
+Account closures, warnings, mutes, reports, titles, role tags and fair-play cases are all kept in the database, so they survive a server restart.
 
 The older token-only APIs still work for scripts: `ADMIN_TOKEN` for the reports API under `/admin/` and `FAIRPLAY_ADMIN_TOKEN` for `/admin/fairplay/*` (see [docs/fair-play.md](docs/fair-play.md)).
 ### Accounts and sign-in

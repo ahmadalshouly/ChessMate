@@ -31,6 +31,8 @@ export const game: Messages<typeof en> = {
     changeOpponent: 'اختيار خصم آخر',
     save: 'حفظ في سجل المباريات',
     saved: 'تم الحفظ في سجل المباريات',
+    report: 'الإبلاغ عن {name}',
+    reported: 'تم الإبلاغ',
   },
   confirm: {
     drawTitle: 'هل تعرض التعادل؟',

@@ -306,6 +306,8 @@ export const admin: Messages<typeof en> = {
       title_reject: 'hat den Titelantrag abgelehnt von',
       title_revoke: 'hat den Titel entzogen von',
       title_grant: 'hat einen Titel vergeben an',
+      tag_grant: 'hat ein Rollen-Tag vergeben an',
+      tag_remove: 'hat das Rollen-Tag entfernt von',
     },
   },
   titles: {
@@ -354,5 +356,19 @@ export const admin: Messages<typeof en> = {
     applications: 'Titelanträge',
     noApplications: 'Keine Titelanträge.',
     linkFailed: 'Datei konnte nicht geöffnet werden',
+  },
+  tags: {
+    section: 'Rollen-Tag',
+    none: 'Kein Tag',
+    hint: 'Erscheint in Partien und im Profil neben dem Namen. Nur Admins können Tags vergeben oder entfernen.',
+    set: 'Tag vergeben',
+    change: 'Tag ändern',
+    remove: 'Tag entfernen',
+    setTitle: 'Rollen-Tag für {name}',
+    setBody: 'Der Spieler wird benachrichtigt und das Tag erscheint sofort. Eine Schließung wegen Fair Play entfernt es automatisch.',
+    removeTitle: 'Tag „{tag}“ von {name} entfernen?',
+    removeBody: 'Das Tag verschwindet in Partien und im Profil.',
+    tag: 'Tag',
+    note: 'Notiz fürs Protokoll (optional)',
   },
 };

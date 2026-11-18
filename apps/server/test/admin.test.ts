@@ -269,6 +269,40 @@ describe('title applications', () => {
   });
 });
 
+describe('role tags', () => {
+  beforeAll(() => signup('dana'));
+
+  it('lets only admins give and remove a role tag, and keeps it across a restart', async () => {
+    expect((await call('mod', 'POST', `/players/${ids.dana}/tag`, { tag: 'streamer' })).status).toBe(403);
+    expect((await call('dana', 'POST', `/players/${ids.dana}/tag`, { tag: 'staff' })).status).toBe(403);
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: 'grandmaster' })).status).toBe(400);
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: 'streamer', note: 'Twitch partner' })).status).toBe(200);
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: 'streamer' })).status).toBe(409);
+    expect(admin.titles.roleTagOf(ids.dana!)).toBe('streamer');
+    expect((await call('owner', 'GET', `/players/${ids.dana}`)).body.player.roleTag).toBe('streamer');
+    expect((await getUser(h.db, ids.dana!))?.roleTag).toBe('streamer');
+
+    // A fresh title service (a server restart) reads tags back from the database.
+    const fresh = new AdminService({ db: h.db, auth, log: () => {} });
+    await fresh.load([]);
+    expect(fresh.titles.roleTagOf(ids.dana!)).toBe('streamer');
+
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: 'coach' })).status).toBe(200);
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: null })).status).toBe(200);
+    expect(admin.titles.roleTagOf(ids.dana!)).toBeNull();
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: null })).status).toBe(409);
+    const log = await call('owner', 'GET', `/audit?target=${ids.dana}&action=tag`);
+    expect(log.body.entries.map((e: { action: string }) => e.action)).toEqual(['tag.remove', 'tag.grant', 'tag.grant']);
+  });
+
+  it('removes the tag when the account is closed for fair play', async () => {
+    await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: 'coach' });
+    expect((await call('owner', 'POST', `/players/${ids.dana}/close`, { reason: 'fair_play', note: 'engine' })).status).toBe(200);
+    expect(admin.titles.roleTagOf(ids.dana!)).toBeNull();
+    expect((await call('owner', 'POST', `/players/${ids.dana}/tag`, { tag: 'coach' })).status).toBe(409);
+  });
+});
+
 describe('fair-play persistence', () => {
   it('keeps cases, bans, refund history and the case log across a restart', async () => {
     const { DbFairPlayStore } = await import('../src/fairplay');

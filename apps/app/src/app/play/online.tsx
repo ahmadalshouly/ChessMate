@@ -7,6 +7,7 @@ import { Text } from '@/ui/primitives';
 import { Board } from '@/components/Board';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
+import { ReportDialog } from '@/components/ReportDialog';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
@@ -98,9 +99,13 @@ export default function OnlinePlay() {
   const [panel, setPanel] = useState<Popup | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [chatSeen, setChatSeen] = useState(0);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
   useEffect(() => {
     setPanel(null);
     setFlipped(false);
+    setReporting(false);
+    setReported(false);
   }, [gameId]);
   const lastLine = chat.lines[chat.lines.length - 1];
   const unread = panel !== 'chat' && chat.lines.length > chatSeen && !!lastLine && lastLine.playerId !== me?.id;
@@ -199,8 +204,8 @@ export default function OnlinePlay() {
   };
 
   const actions: GameAction[] = [
-    { key: 'chat', icon: 'chat-outline', label: tr('game.action.chat'), onPress: () => toggle('chat'), active: panel === 'chat', dot: unread },
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
+    { key: 'chat', icon: 'chat-outline', label: tr('game.action.chat'), onPress: () => toggle('chat'), active: panel === 'chat', dot: unread },
     ...(!over
       ? history.length < 2
         ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: () => toggle('abort'), active: panel === 'abort' }]
@@ -221,6 +226,9 @@ export default function OnlinePlay() {
     { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
   ];
 
+  const opponent = players[opp];
+  // Same report sheet as the chat's: reason, optional note; the report carries this game's moves and chat.
+  const canReport = !!me && opponent.id !== me.id;
   const moreItems: OptionItem[] = [
     { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlipped((f) => !f) },
     ...(view.premove ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.setPremove(null) }] : []),
@@ -233,6 +241,9 @@ export default function OnlinePlay() {
             : []),
           { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
         ]
+      : []),
+    ...(canReport
+      ? [{ key: 'report', icon: 'flag-outline' as const, label: reported ? tr('game.more.reported') : tr('game.more.report', { name: opponent.name }), onPress: () => setReporting(true), disabled: reported, danger: true }]
       : []),
   ];
 
@@ -341,6 +352,18 @@ export default function OnlinePlay() {
         onDismissPopover={() => setPanel(null)}
         actions={actions}
       />
+      {canReport && (
+        <ReportDialog
+          visible={reporting}
+          player={opponent}
+          onClose={() => setReporting(false)}
+          onSubmit={async (reason, note) => {
+            const ok = await chat.report(opponent.id, reason, note);
+            if (ok) setReported(true);
+            return ok;
+          }}
+        />
+      )}
     </Screen>
   );
 }
