@@ -2,6 +2,7 @@ import {
   AnalysisError,
   buildChatFacts,
   buildReviewPrompt,
+  coachLanguageNote,
   offlineReview,
   prepareReview,
   type CoachChatReply,
@@ -96,21 +97,21 @@ export class CoachService {
     return !!this.opts.llm;
   }
 
-  async review(analysis: GameAnalysis, perspective: Color): Promise<CoachReview> {
+  async review(analysis: GameAnalysis, perspective: Color, language?: string): Promise<CoachReview> {
     if (perspective !== 'w' && perspective !== 'b') throw new CoachInputError('perspective must be "w" or "b"');
-    const key = createHash('sha256').update(perspective).update(JSON.stringify(analysis)).digest('hex');
+    const key = createHash('sha256').update(perspective).update(coachLanguageNote(language)).update(JSON.stringify(analysis)).digest('hex');
     const hit = this.cache.get(key);
     if (hit) return hit;
     const pending = this.inflight.get(key);
     if (pending) return pending;
-    const p = this.computeReview(analysis, perspective).finally(() => this.inflight.delete(key));
+    const p = this.computeReview(analysis, perspective, language).finally(() => this.inflight.delete(key));
     this.inflight.set(key, p);
     const review = await p;
     if (review.source === 'ai') this.remember(key, review);
     return review;
   }
 
-  private async computeReview(analysis: GameAnalysis, perspective: Color): Promise<CoachReview> {
+  private async computeReview(analysis: GameAnalysis, perspective: Color, language?: string): Promise<CoachReview> {
     let facts;
     try {
       facts = prepareReview(analysis, perspective);
@@ -124,7 +125,7 @@ export class CoachService {
     try {
       const raw = await llm.complete({
         system: REVIEW_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildReviewPrompt(analysis, facts) }],
+        messages: [{ role: 'user', content: buildReviewPrompt(analysis, facts) + coachLanguageNote(language) }],
         jsonSchema: REVIEW_SCHEMA as unknown as Record<string, unknown>,
         effort: 'high',
       });
@@ -168,7 +169,7 @@ export class CoachService {
     // Facts ride on the first user turn so the system prompt stays cacheable.
     const turns = messages.map((m, i) => ({
       role: m.role === 'coach' ? ('assistant' as const) : ('user' as const),
-      content: i === 0 ? `<position_facts>\n${facts}\n</position_facts>\n\n${m.text}` : m.text,
+      content: i === 0 ? `<position_facts>\n${facts}\n</position_facts>${coachLanguageNote(req.language)}\n\n${m.text}` : m.text,
     }));
     try {
       const reply = await llm.complete({ system: CHAT_SYSTEM_PROMPT, messages: turns, effort: 'medium', maxTokens: 4000 });

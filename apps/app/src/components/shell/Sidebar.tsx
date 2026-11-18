@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
+import { dirIcon, useT } from '@/i18n';
 import { useCurrentUser } from '@/lib/currentUser';
 import { SIDEBAR_WIDTH, TABS } from '@/navigation/tabs';
 import { fonts } from '@/ui';
@@ -20,12 +21,13 @@ export function Sidebar() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
+  const tr = useT();
   return (
-    <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingLeft: insets.left + 14 }]}>
+    <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingStart: insets.left + 14 }]}>
       <View style={styles.logo}>
         <Logo size={30} />
       </View>
-      <Text style={[styles.section, { color: t.textTertiary }]}>Navigate</Text>
+      <Text style={[styles.section, { color: t.textTertiary }]}>{tr('nav.section')}</Text>
       <View accessibilityRole="tablist" style={styles.nav}>
         {TABS.map((tab, i) => (
           <NavItem key={tab.name} tab={tab} variant="side" index={i} />
@@ -39,18 +41,18 @@ export function Sidebar() {
               {user.displayName}
             </Text>
             <Text style={[styles.userMeta, { color: t.muted }]}>
-              {user.rating != null ? `${Math.round(user.rating)}${user.provisional ? '?' : ''} ELO` : 'UNRATED'}
+              {user.rating != null ? `${Math.round(user.rating)}${user.provisional ? '?' : ''} ${tr('nav.elo')}` : tr('nav.unrated').toLocaleUpperCase()}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={14} color={t.textTertiary} />
+          <Ionicons name={dirIcon('chevron-forward')} size={14} color={t.textTertiary} />
         </Pressable>
         {user.status === 'guest' && (
           <Pressable
             accessibilityRole="button"
             onPress={() => router.push(SIGN_IN_HREF)}
             style={({ pressed }) => [styles.signIn, { backgroundColor: t.accent, opacity: pressed ? 0.8 : 1 }]}>
-            <Text style={[styles.signInText, { color: t.onAccent }]}>Sign in to save games</Text>
-            <Ionicons name="arrow-forward" size={14} color={t.onAccent} />
+            <Text style={[styles.signInText, { color: t.onAccent }]}>{tr('nav.signInToSave')}</Text>
+            <Ionicons name={dirIcon('arrow-forward')} size={14} color={t.onAccent} />
           </Pressable>
         )}
       </View>
@@ -59,7 +61,7 @@ export function Sidebar() {
 }
 
 const styles = StyleSheet.create({
-  panel: { paddingRight: 14, borderTopWidth: 0, borderBottomWidth: 0, borderLeftWidth: 0 },
+  panel: { paddingEnd: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
   logo: { paddingHorizontal: 8, paddingBottom: 30 },
   section: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 1.4, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 10 },
   nav: { gap: 2, flex: 1 },

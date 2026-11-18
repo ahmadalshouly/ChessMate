@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { fonts } from '@/ui';
 import { Text } from '@/ui/primitives';
 
@@ -81,6 +82,7 @@ export function Tile({ title, caption, selected, onPress, live }: { title: strin
 /** − value + stepper. */
 export function Stepper({ label, value, onDec, onInc }: { label: string; value: string; onDec: () => void; onInc: () => void }) {
   const t = useTheme();
+  const tr = useT();
   const btn = (icon: string, fn: () => void, a11y: string) => (
     <Pressable
       accessibilityRole="button"
@@ -94,9 +96,9 @@ export function Stepper({ label, value, onDec, onInc }: { label: string; value: 
   return (
     <View style={styles.stepRow}>
       <Text style={[styles.stepLabel, { color: t.muted }]}>{label}</Text>
-      {btn('−', onDec, `Less ${label}`)}
+      {btn('−', onDec, tr('common.less', { label }))}
       <Text style={[styles.stepValue, { color: t.text }]}>{value}</Text>
-      {btn('+', onInc, `More ${label}`)}
+      {btn('+', onInc, tr('common.more', { label }))}
     </View>
   );
 }

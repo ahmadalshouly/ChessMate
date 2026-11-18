@@ -1,0 +1,38 @@
+import type { Messages } from '../../core';
+import type { server as en } from '../en/server';
+
+export const server: Messages<typeof en> = {
+  actionNotAllowed: 'Diese Aktion ist gerade nicht erlaubt.',
+  alreadyInGame: 'Du bist schon in einer Partie.',
+  gameInProgress: 'Die Partie läuft noch.',
+  invalidChallenge: 'Dieser Herausforderungslink ist ungültig.',
+  invalidTimeControl: 'Diese Bedenkzeit ist ungültig.',
+  youCreatedThis: 'Du hast diese Partie erstellt.',
+  opponentLeft: 'Dein Gegner ist gegangen.',
+  outOfRange: 'Deine Wertung liegt außerhalb des Bereichs dieser Partie.',
+  finishCurrent: 'Beende zuerst deine aktuelle Partie.',
+  engineLocked: 'Engine-Analyse ist während Live-Partien deaktiviert.',
+  engineOff: 'Auf diesem Server läuft keine Engine-Analyse.',
+  cannotWatch: 'Du kannst diese Partie nicht ansehen.',
+  challengerNotFound: 'Der Herausforderer wurde nicht gefunden.',
+  noSuchGame: 'Diese Partie existiert nicht.',
+  noSuchPlayer: 'Spieler nicht gefunden.',
+  gameNotOpen: 'Diese Partie ist nicht mehr offen.',
+  inviteExpired: 'Diese Einladung ist abgelaufen oder wurde zurückgezogen.',
+  inviteOther: 'Diese Einladung ist für einen anderen Spieler.',
+  slowDown: 'Langsamer, bitte.',
+  slowDownChat: 'Langsamer: zu viele Nachrichten.',
+  signInRated: 'Melde dich an, um gewertet zu spielen.',
+  reportSelf: 'Du kannst dich nicht selbst melden.',
+  tooManyReports: 'Zu viele Meldungen. Versuch es später erneut.',
+  coachRateLimited: 'Zu viele Coach-Anfragen. Versuch es später erneut.',
+  coachFailed: 'Der Coach konnte nicht antworten. Versuch es erneut.',
+  noSuchAccount: 'Konto nicht gefunden.',
+  closedFairPlay: 'Dieses Konto wurde wegen eines Fair-Play-Verstoßes geschlossen.',
+  notOnline: '{name} ist gerade nicht online.',
+  inAnotherGame: '{name} ist in einer anderen Partie.',
+  chatRestricted: {
+    one: 'Der Chat ist für dein Konto noch {count} Minute gesperrt.',
+    other: 'Der Chat ist für dein Konto noch {count} Minuten gesperrt.',
+  },
+};

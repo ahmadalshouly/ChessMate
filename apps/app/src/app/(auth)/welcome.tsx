@@ -8,17 +8,20 @@ import { SocialSignIn } from '@/components/auth/SocialSignIn';
 import { Logo } from '@/components/shell/Logo';
 import { useAuth } from '@/lib/auth';
 import { Backdrop, Button, GlassView, Text, useAppTheme } from '@/ui';
+import { LanguageChips } from '@/components/i18n/LanguageChips';
+import { useI18n, type TKey } from '@/i18n';
 
-const FEATURES: { icon: ComponentProps<typeof Ionicons>['name']; title: string; body: string }[] = [
-  { icon: 'flash-outline', title: 'Rated games, any time', body: 'Bullet to classical against players at your level.' },
-  { icon: 'analytics-outline', title: 'Engine insight', body: 'Evaluation, accuracy and the best line after every game.' },
-  { icon: 'chatbubble-ellipses-outline', title: 'A coach that explains', body: 'Threats and move feedback in plain language, as you play.' },
+const FEATURES: { icon: ComponentProps<typeof Ionicons>['name']; title: TKey; body: TKey }[] = [
+  { icon: 'flash-outline', title: 'auth.welcome.rated', body: 'auth.welcome.ratedBody' },
+  { icon: 'analytics-outline', title: 'auth.welcome.engine', body: 'auth.welcome.engineBody' },
+  { icon: 'chatbubble-ellipses-outline', title: 'auth.welcome.coach', body: 'auth.welcome.coachBody' },
 ];
 
 export default function Welcome() {
   const t = useAppTheme();
   const c = t.colors;
   const { continueAsGuest } = useAuth();
+  const { tr, rtl } = useI18n();
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -30,7 +33,7 @@ export default function Welcome() {
               <Logo size={88} wordmark={false} />
               <Text style={[styles.word, { color: c.text, fontFamily: t.fonts.displayMedium }]}>CHESSMATE</Text>
               <Text variant="overline" tone="muted" style={{ letterSpacing: 3 }}>
-                Play · Learn · Improve
+                {tr('auth.welcome.tagline')}
               </Text>
             </View>
 
@@ -41,9 +44,9 @@ export default function Welcome() {
                     <Ionicons name={f.icon} size={17} color={c.text} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text variant="subheading">{f.title}</Text>
+                    <Text variant="subheading">{tr(f.title)}</Text>
                     <Text variant="caption" tone="muted">
-                      {f.body}
+                      {tr(f.body)}
                     </Text>
                   </View>
                 </View>
@@ -51,8 +54,8 @@ export default function Welcome() {
             </GlassView>
 
             <View style={styles.actions}>
-              <Button title="Create free account" size="lg" fullWidth onPress={() => router.push('/sign-up')} />
-              <Button title="Sign in" size="lg" variant="secondary" fullWidth onPress={() => router.push('/sign-in')} />
+              <Button title={tr('auth.welcome.createAccount')} size="lg" fullWidth onPress={() => router.push('/sign-up')} />
+              <Button title={tr('auth.signIn')} size="lg" variant="secondary" fullWidth onPress={() => router.push('/sign-in')} />
               <SocialSignIn onSignedIn={() => router.replace('/')} />
               <Pressable
                 accessibilityRole="button"
@@ -61,13 +64,14 @@ export default function Welcome() {
                   router.replace('/');
                 }}
                 style={({ pressed }) => [styles.guest, { opacity: pressed ? 0.6 : 1 }]}>
-                <Text variant="label">Continue as guest</Text>
-                <Ionicons name="arrow-forward" size={14} color={c.text} />
+                <Text variant="label">{tr('auth.continueAsGuest')}</Text>
+                <Ionicons name={rtl ? 'arrow-back' : 'arrow-forward'} size={14} color={c.text} />
               </Pressable>
               <Text variant="caption" tone="tertiary" align="center">
-                Guests can play casual games and use the practice board. Ratings and history need an account.
+                {tr('auth.welcome.guestNote')}
               </Text>
             </View>
+            <LanguageChips />
           </View>
         </ScrollView>
       </SafeAreaView>

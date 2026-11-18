@@ -9,6 +9,7 @@ import { Platform, View } from 'react-native';
 import { Divider, FormMessage } from '@/components/auth/AuthShell';
 import { ApiError, authApi, useAuth, type OAuthProvider } from '@/lib/auth';
 import { Button, useAppTheme } from '@/ui';
+import { translate } from '@/i18n';
 
 // Closes the Google pop-up on web once it lands back on the app.
 WebBrowser.maybeCompleteAuthSession();
@@ -33,10 +34,10 @@ function messageFor(provider: OAuthProvider, e: unknown): string {
   const name = provider === 'google' ? 'Google' : 'Apple';
   if (e instanceof ApiError) {
     if (e.code === 'network') return e.message;
-    if (e.code === 'not_configured') return `${name} sign-in isn't set up on the server yet.`;
-    if (e.code === 'rate_limited') return 'Too many attempts. Wait a minute and try again.';
+    if (e.code === 'not_configured') return translate('auth.social.notConfigured', { provider: name });
+    if (e.code === 'rate_limited') return translate('auth.errors.rate_limited');
   }
-  return `${name} sign-in didn't work. Please try again.`;
+  return translate('auth.social.failed', { provider: name });
 }
 
 /**
@@ -71,17 +72,17 @@ export function SocialSignIn({ onSignedIn, divider = true }: { onSignedIn: () =>
 
   return (
     <View style={{ gap: 12 }}>
-      {divider ? <Divider label="or" /> : null}
+      {divider ? <Divider label={translate('common.or')} /> : null}
       {error ? <FormMessage kind="error">{error}</FormMessage> : null}
       {showApple ? <AppleButton onError={setError} onSignedIn={onSignedIn} /> : null}
       {showGoogle ? (
         inExpoGo && Platform.OS !== 'web' ? (
           <Button
-            title="Continue with Google"
+            title={translate('auth.social.google')}
             variant="secondary"
             fullWidth
             leftIcon={<GoogleIcon />}
-            onPress={() => setError("Google sign-in can't run inside Expo Go. Try it on the web version (press w in Expo) or in an installed build.")}
+            onPress={() => setError(translate('auth.social.expoGo'))}
           />
         ) : (
           <GoogleButton onError={setError} onSignedIn={onSignedIn} />
@@ -128,7 +129,7 @@ function GoogleButton({ onError, onSignedIn }: { onError: (m: string | null) => 
 
   return (
     <Button
-      title="Continue with Google"
+      title={translate('auth.social.google')}
       variant="secondary"
       fullWidth
       loading={busy}

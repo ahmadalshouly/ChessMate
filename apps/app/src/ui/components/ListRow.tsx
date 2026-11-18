@@ -71,7 +71,7 @@ export function ListGroup({ children }: { children: ReactNode }) {
     <GlassView radius="lg">
       {rows.map((row, i) => (
         <Fragment key={row.key ?? i}>
-          {i > 0 && <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: c.border }} />}
+          {i > 0 && <View style={{ height: StyleSheet.hairlineWidth, marginStart: 16, backgroundColor: c.border }} />}
           {row}
         </Fragment>
       ))}

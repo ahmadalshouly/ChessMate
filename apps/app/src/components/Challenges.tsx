@@ -1,6 +1,5 @@
 import {
   PRESET_TIME_CONTROLS,
-  describeChallengeColor,
   formatTimeControl,
   timeCategory,
   type Challenge,
@@ -16,6 +15,8 @@ import { Text, TextInput } from '@/ui/primitives';
 import { Button, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { challengeLink, copyText, shareLink } from '@/lib/links';
+import { translate, useT, type TKey } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 type Actions = {
@@ -26,11 +27,11 @@ type Actions = {
   cancelChallenge: (id: string) => void;
 };
 
-const ENDED: Record<ChallengeEndReason, string> = {
-  accepted: 'Challenge accepted',
-  declined: 'Your challenge was declined',
-  cancelled: 'This challenge was cancelled',
-  expired: 'This challenge expired',
+const ENDED: Record<ChallengeEndReason, TKey> = {
+  accepted: 'challenge.ended.accepted',
+  declined: 'challenge.ended.declined',
+  cancelled: 'challenge.ended.cancelled',
+  expired: 'challenge.ended.expired',
 };
 
 export function isGuestId(id: string | undefined): boolean {
@@ -38,12 +39,17 @@ export function isGuestId(id: string | undefined): boolean {
 }
 
 export function summary(c: Pick<Challenge, 'timeControl' | 'rated'>): string {
-  return `${formatTimeControl(c.timeControl)} ${timeCategory(c.timeControl)} · ${c.rated ? 'rated' : 'casual'}`;
+  return `${formatTimeControl(c.timeControl)} ${translate(`common.category.${timeCategory(c.timeControl)}`)} · ${translate(c.rated ? 'challenge.rated' : 'challenge.casual')}`;
 }
 
 /** Colour the viewer will play if they accept. */
 function viewerColor(c: Challenge): string {
-  return c.color === 'w' ? 'Black' : c.color === 'b' ? 'White' : 'Random colour';
+  return translate(c.color === 'w' ? 'challenge.youPlay.b' : c.color === 'b' ? 'challenge.youPlay.w' : 'challenge.youPlay.random');
+}
+
+/** Colour the challenger chose for themselves. */
+function ownColor(c: Challenge): string {
+  return translate(c.color === 'w' ? 'challenge.youPlay.w' : c.color === 'b' ? 'challenge.youPlay.b' : 'challenge.youPlay.random');
 }
 
 /** Small segmented control in the monochrome glass style. */
@@ -70,6 +76,7 @@ function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () 
  */
 export function CreateChallenge({ me, actions, initialTo, initialTc }: { me: PlayerInfo | null; actions: Actions; initialTo?: string; initialTc?: TimeControl }) {
   const t = useTheme();
+  const tr = useT();
   const [tc, setTc] = useState<TimeControl>(initialTc ?? PRESET_TIME_CONTROLS[5]!);
   const [color, setColor] = useState<ChallengeColor>('random');
   const [rated, setRated] = useState(false);
@@ -80,35 +87,35 @@ export function CreateChallenge({ me, actions, initialTo, initialTc }: { me: Pla
   return (
     <View style={{ gap: 12 }}>
       <Label size={18} bold>
-        Play a friend
+        {tr('home.friend.title')}
       </Label>
-      <Label muted>Time control</Label>
+      <Label muted>{tr('play.lobby.timeControl')}</Label>
       <View style={styles.wrap}>
         {PRESET_TIME_CONTROLS.map((p) => {
           const key = formatTimeControl(p);
           return <Chip key={key} label={key} on={formatTimeControl(tc) === key} onPress={() => setTc(p)} />;
         })}
       </View>
-      <Label muted>Your colour</Label>
+      <Label muted>{tr('challenge.yourColour')}</Label>
       <Segmented<ChallengeColor>
         value={color}
         onChange={setColor}
         options={[
-          { value: 'w', label: 'White' },
-          { value: 'random', label: 'Random' },
-          { value: 'b', label: 'Black' },
+          { value: 'w', label: tr('play.white') },
+          { value: 'random', label: tr('play.random') },
+          { value: 'b', label: tr('play.black') },
         ]}
       />
       <View style={styles.row}>
-        <Label muted>{guest ? 'Rated games need an account' : 'Rated game'}</Label>
-        <Switch value={rated && !guest} onValueChange={setRated} disabled={guest} style={{ marginLeft: 'auto' }} />
+        <Label muted>{guest ? tr('challenge.ratedNeedsAccount') : tr('challenge.ratedGame')}</Label>
+        <Switch value={rated && !guest} onValueChange={setRated} disabled={guest} style={{ marginStart: 'auto' }} />
       </View>
-      <Button title="Create invite link" onPress={() => actions.createChallenge({ timeControl: tc, rated: rated && !guest, color })} />
-      <Label muted>Or challenge a player directly by their player ID</Label>
+      <Button title={tr('challenge.createLink')} onPress={() => actions.createChallenge({ timeControl: tc, rated: rated && !guest, color })} />
+      <Label muted>{tr('challenge.orDirect')}</Label>
       <TextInput
         value={to}
         onChangeText={setTo}
-        placeholder="Player ID"
+        placeholder={tr('challenge.playerId')}
         placeholderTextColor={t.muted}
         autoCapitalize="none"
         autoCorrect={false}
@@ -116,11 +123,11 @@ export function CreateChallenge({ me, actions, initialTo, initialTc }: { me: Pla
       />
       <Button
         variant="secondary"
-        title="Send challenge"
+        title={tr('challenge.send')}
         disabled={!target || target === me?.id}
         onPress={() => actions.createChallenge({ to: target, timeControl: tc, rated: rated && !guest, color })}
       />
-      {me && <Label muted>Your player ID: {me.id}</Label>}
+      {me && <Label muted>{tr('challenge.yourId', { id: me.id })}</Label>}
     </View>
   );
 }
@@ -130,11 +137,12 @@ export function OutgoingChallenge({ challenge, actions }: { challenge: Challenge
   const link = challengeLink(challenge.id);
   const [note, setNote] = useState<string | null>(null);
   const t = useTheme();
+  const tr = useT();
   return (
     <View style={{ gap: 10 }}>
-      <Label bold>{challenge.to ? `Waiting for ${challenge.to.name} to accept...` : 'Invite link ready'}</Label>
+      <Label bold>{challenge.to ? tr('challenge.waitingFor', { name: challenge.to.name }) : tr('challenge.linkReady')}</Label>
       <Label muted>
-        {summary(challenge)} · you play {describeChallengeColor(challenge.color).toLowerCase()}
+        {summary(challenge)} · {ownColor(challenge)}
       </Label>
       {!challenge.to && (
         <>
@@ -143,37 +151,37 @@ export function OutgoingChallenge({ challenge, actions }: { challenge: Challenge
           </Text>
           <View style={styles.row}>
             <Button
-              title="Share link"
+              title={tr('challenge.shareLink')}
               onPress={async () => {
-                const r = await shareLink(link, 'Play chess with me on ChessMate:');
-                setNote(r === 'copied' ? 'Link copied' : r === 'failed' ? 'Copy the link above to share it' : null);
+                const r = await shareLink(link, tr('challenge.shareMessage'));
+                setNote(r === 'copied' ? tr('challenge.copied') : r === 'failed' ? tr('challenge.copyAbove') : null);
               }}
             />
-            <Button variant="secondary" title="Copy" onPress={async () => setNote((await copyText(link)) ? 'Link copied' : 'Long-press the link to copy it')} />
+            <Button variant="secondary" title={tr('challenge.copy')} onPress={async () => setNote((await copyText(link)) ? tr('challenge.copied') : tr('challenge.longPress'))} />
           </View>
           {note && <Label muted>{note}</Label>}
-          <Label muted>The game starts as soon as your friend opens the link and accepts. Keep this screen open.</Label>
+          <Label muted>{tr('challenge.startsWhen')}</Label>
         </>
       )}
-      <Button variant="secondary" title="Cancel challenge" onPress={() => actions.cancelChallenge(challenge.id)} />
+      <Button variant="secondary" title={tr('challenge.cancel')} onPress={() => actions.cancelChallenge(challenge.id)} />
     </View>
   );
 }
 
 /** A direct challenge someone sent you. */
 export function IncomingChallenge({ challenge, actions }: { challenge: Challenge; actions: Actions }) {
+  const tr = useT();
   return (
     <View style={{ gap: 8 }}>
       <Label bold>
-        {challenge.from.name} ({challenge.from.rating}
-        {challenge.from.provisional ? '?' : ''}) challenges you
+        {tr('challenge.challengesYou', { name: challenge.from.name, rating: `${challenge.from.rating}${challenge.from.provisional ? '?' : ''}` })}
       </Label>
       <Label muted>
-        {summary(challenge)} · you play {viewerColor(challenge).toLowerCase()}
+        {summary(challenge)} · {viewerColor(challenge)}
       </Label>
       <View style={styles.row}>
-        <Button title="Accept" onPress={() => actions.acceptChallenge(challenge.id)} />
-        <Button variant="secondary" title="Decline" onPress={() => actions.declineChallenge(challenge.id)} />
+        <Button title={tr('common.accept')} onPress={() => actions.acceptChallenge(challenge.id)} />
+        <Button variant="secondary" title={tr('common.decline')} onPress={() => actions.declineChallenge(challenge.id)} />
       </View>
     </View>
   );
@@ -197,26 +205,27 @@ export function InviteDetails({
   connected: boolean;
   actions: Actions;
 }) {
+  const tr = useT();
   useEffect(() => {
     if (connected) actions.getChallenge(id);
     // Re-fetch after every reconnect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, connected]);
 
-  if (ended && ended !== 'accepted') return <Label>{ENDED[ended]}.</Label>;
-  if (!challenge) return <Label muted>{error ?? (connected ? 'Loading invite...' : 'Connecting...')}</Label>;
-  if (challenge.status === 'accepted') return <Label muted>This invite was already used to start a game.</Label>;
+  if (ended && ended !== 'accepted') return <Label>{tr(ENDED[ended])}.</Label>;
+  if (!challenge) return <Label muted>{error ? serverText(error) : connected ? tr('challenge.loading') : tr('play.connecting')}</Label>;
+  if (challenge.status === 'accepted') return <Label muted>{tr('challenge.used')}</Label>;
   if (me && challenge.from.id === me.id) return <OutgoingChallenge challenge={challenge} actions={actions} />;
   return (
     <View style={{ gap: 8 }}>
       <IncomingChallenge challenge={challenge} actions={actions} />
-      {error && <Label muted>{error}</Label>}
+      {error && <Label muted>{serverText(error)}</Label>}
     </View>
   );
 }
 
 export function challengeEndedText(reason: ChallengeEndReason): string {
-  return ENDED[reason];
+  return translate(ENDED[reason]);
 }
 
 const styles = StyleSheet.create({

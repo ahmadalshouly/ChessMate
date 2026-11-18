@@ -1,5 +1,7 @@
 import { formatScore, isMatedScore, type MoveClass, type Score } from '@chessmate/core';
 
+import { translate } from '@/i18n';
+
 /** Icon drawn in the middle of a medallion (see components/MoveBadge.tsx). */
 export type BadgeIcon =
   | 'star'
@@ -19,7 +21,8 @@ export type BadgeIcon =
  * Move classification medallions. Each class is an embossed coin in its own
  * metal colour; colour is reserved for game signals like these, the chrome
  * around them stays black and white. `glyph` is the annotation symbol shown
- * under the icon (and alone on the board).
+ * under the icon (and alone on the board). `label` and `phrase` follow the app
+ * language (keys `moveClass.<class>.label|phrase`).
  */
 export interface MoveClassStyle {
   label: string;
@@ -31,20 +34,42 @@ export interface MoveClassStyle {
   color: string;
 }
 
-export const MOVE_CLASS: Record<MoveClass, MoveClassStyle> = {
-  masterpiece: { label: 'Masterpiece', phrase: 'a Masterpiece', symbol: '!!!', glyph: '!!!', icon: 'crown', color: '#6A5FB4' },
-  brilliant: { label: 'Brilliant', phrase: 'brilliant', symbol: '!!', glyph: '!!', icon: 'sparkles', color: '#2FA3A6' },
-  great: { label: 'Great', phrase: 'a great move', symbol: '!', glyph: '!', icon: 'target', color: '#3F6FC4' },
-  best: { label: 'Best Move', phrase: 'the best move', symbol: '★', icon: 'star', color: '#C99A22' },
-  excellent: { label: 'Excellent', phrase: 'excellent', symbol: '✓', icon: 'check', color: '#C0784A' },
-  good: { label: 'Good', phrase: 'good', symbol: '✓', icon: 'trend-check', color: '#4E9A47' },
-  book: { label: 'Book Move', phrase: 'a book move', symbol: 'Book', icon: 'book', color: '#7A5137' },
-  forced: { label: 'Forced', phrase: 'forced', symbol: '→', icon: 'arrow', color: '#6E7681' },
-  inaccuracy: { label: 'Inaccuracy', phrase: 'an inaccuracy', symbol: '?!', glyph: '?!', icon: 'trend-down', color: '#E0B83C' },
-  mistake: { label: 'Mistake', phrase: 'a mistake', symbol: '?', glyph: '?', icon: 'cross', color: '#E07B2C' },
-  miss: { label: 'Missed Chance', phrase: 'a missed chance', symbol: '✕', icon: 'crossed-arrows', color: '#5E8DAA' },
-  blunder: { label: 'Blunder', phrase: 'a blunder', symbol: '??', glyph: '??', icon: 'bolt', color: '#C93A33' },
+const CLASS_STYLE: Record<MoveClass, Omit<MoveClassStyle, 'label' | 'phrase'>> = {
+  masterpiece: { symbol: '!!!', glyph: '!!!', icon: 'crown', color: '#6A5FB4' },
+  brilliant: { symbol: '!!', glyph: '!!', icon: 'sparkles', color: '#2FA3A6' },
+  great: { symbol: '!', glyph: '!', icon: 'target', color: '#3F6FC4' },
+  best: { symbol: '★', icon: 'star', color: '#C99A22' },
+  excellent: { symbol: '✓', icon: 'check', color: '#C0784A' },
+  good: { symbol: '✓', icon: 'trend-check', color: '#4E9A47' },
+  book: { symbol: 'Book', icon: 'book', color: '#7A5137' },
+  forced: { symbol: '→', icon: 'arrow', color: '#6E7681' },
+  inaccuracy: { symbol: '?!', glyph: '?!', icon: 'trend-down', color: '#E0B83C' },
+  mistake: { symbol: '?', glyph: '?', icon: 'cross', color: '#E07B2C' },
+  miss: { symbol: '✕', icon: 'crossed-arrows', color: '#5E8DAA' },
+  blunder: { symbol: '??', glyph: '??', icon: 'bolt', color: '#C93A33' },
 };
+
+export const MOVE_CLASS = Object.fromEntries(
+  (Object.keys(CLASS_STYLE) as MoveClass[]).map((c) => [
+    c,
+    {
+      ...CLASS_STYLE[c],
+      get label() {
+        return translate(`moveClass.${c}.label`);
+      },
+      get phrase() {
+        return translate(`moveClass.${c}.phrase`);
+      },
+      ...(c === 'book'
+        ? {
+            get symbol() {
+              return translate('moveClass.book.symbol');
+            },
+          }
+        : null),
+    },
+  ]),
+) as Record<MoveClass, MoveClassStyle>;
 
 export const REVIEW_ORDER: MoveClass[] = ['masterpiece', 'brilliant', 'great', 'best', 'excellent', 'good', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 

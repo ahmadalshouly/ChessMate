@@ -1,0 +1,17 @@
+export const leaderboard = {
+  standing: 'Your standing',
+  global: 'Global',
+  codeYours: 'Country code (yours: {code})',
+  codeExample: 'Country code, e.g. US',
+  ranked: { one: '{n} ranked player', other: '{n} ranked players' },
+  rankedIn: { one: '{n} ranked player in {country}', other: '{n} ranked players in {country}' },
+  empty: 'No ranked players yet',
+  emptyFriends: 'Add friends and play rated games to see how you compare.',
+  emptyBody: 'Players appear here once their rating settles after a few rated games.',
+  signInFriends: 'Sign in to see friends',
+  chooseCountry: 'Choose a country',
+  unavailable: 'Leaderboard unavailable',
+  rowA11y: 'Rank {rank}, {name}, rating {rating}',
+  games: { one: '{count} game', other: '{count} games' },
+  peak: 'peak {n}',
+};

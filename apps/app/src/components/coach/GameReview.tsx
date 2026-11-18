@@ -9,6 +9,8 @@ import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label } from '@/components/ui';
 import { MOVE_CLASS } from '@/constants/analysis';
 import { useTheme, type Palette } from '@/constants/theme';
+import { translate, useT } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
 import { requestReview } from '@/lib/coachApi';
 import { useBoardSize } from '@/lib/useBoardSize';
 
@@ -18,6 +20,7 @@ import { useBoardSize } from '@/lib/useBoardSize';
  */
 export function GameReview({ analysis, perspective, token }: { analysis: GameAnalysis; perspective: Color; token: string }) {
   const t = useTheme();
+  const tr = useT();
   const size = useBoardSize(360);
   const [review, setReview] = useState<CoachReview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +34,7 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
     setReview(null);
     requestReview(analysis, perspective, token)
       .then((r) => live && setReview(r))
-      .catch((e) => live && setError(e instanceof Error ? e.message : 'Review failed'));
+      .catch((e) => live && setError(e instanceof Error ? serverText(e.message) : translate('coach.reviewFailed')));
     return () => {
       live = false;
     };
@@ -50,9 +53,9 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
   if (error) {
     return (
       <Card>
-        <Label bold>Couldn't load the review</Label>
+        <Label bold>{tr('coach.loadFailed')}</Label>
         <Label muted>{error}</Label>
-        <Button title="Try again" onPress={() => setAttempt((a) => a + 1)} />
+        <Button title={tr('common.tryAgain')} onPress={() => setAttempt((a) => a + 1)} />
       </Card>
     );
   }
@@ -61,7 +64,7 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
       <Card>
         <View style={styles.loading}>
           <ActivityIndicator color={t.text} />
-          <Label muted>Your coach is reviewing the game…</Label>
+          <Label muted>{tr('coach.reviewing')}</Label>
         </View>
       </Card>
     );
@@ -76,25 +79,25 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
       <Card>
         <View style={styles.between}>
           <Label size={20} bold>
-            Game review
+            {tr('coach.title')}
           </Label>
-          <Badge t={t} text={review.source === 'ai' ? 'AI coach' : 'Quick review'} />
+          <Badge t={t} text={review.source === 'ai' ? tr('coach.ai') : tr('coach.quick')} />
         </View>
         <Label>{review.summary}</Label>
         <View style={styles.statsRow}>
-          <Stat t={t} label="Your accuracy" value={`${Math.round(review.accuracy[me])}%`} />
-          <Stat t={t} label="Opponent" value={`${Math.round(review.accuracy[them])}%`} />
-          <Stat t={t} label="Blunders" value={String(review.counts[me].blunder ?? 0)} />
-          <Stat t={t} label="Mistakes" value={String(review.counts[me].mistake ?? 0)} />
+          <Stat t={t} label={tr('coach.yourAccuracy')} value={`${Math.round(review.accuracy[me])}%`} />
+          <Stat t={t} label={tr('coach.opponent')} value={`${Math.round(review.accuracy[them])}%`} />
+          <Stat t={t} label={tr('coach.blunders')} value={String(review.counts[me].blunder ?? 0)} />
+          <Stat t={t} label={tr('coach.mistakes')} value={String(review.counts[me].mistake ?? 0)} />
         </View>
-        {review.source === 'offline' && <Label muted size={13}>The AI coach is offline, so this is a rule-based review.</Label>}
+        {review.source === 'offline' && <Label muted size={13}>{tr('coach.offline')}</Label>}
       </Card>
 
       {moment && shown && move ? (
         <Card>
           <View style={styles.between}>
             <Label size={18} bold>
-              Key moment {index + 1} of {review.keyMoments.length}
+              {tr('coach.keyMoment', { n: index + 1, total: review.keyMoments.length })}
             </Label>
             <ClassChip t={t} cls={moment.classification} />
           </View>
@@ -105,18 +108,18 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
             </View>
           </View>
           <View style={styles.toggle}>
-            <Segment t={t} active={!showBest} label={`Played ${moment.moveLabel} ${moment.san}`} onPress={() => setShowBest(false)} />
-            {moment.betterMove && <Segment t={t} active={showBest} label={`Best ${moment.betterMove}`} onPress={() => setShowBest(true)} />}
+            <Segment t={t} active={!showBest} label={tr('coach.played', { move: `${moment.moveLabel} ${moment.san}` })} onPress={() => setShowBest(false)} />
+            {moment.betterMove && <Segment t={t} active={showBest} label={tr('coach.best', { move: moment.betterMove })} onPress={() => setShowBest(true)} />}
           </View>
           <MomentText t={t} note={moment} isMine={moment.mover === me} evalText={`${formatScore(move.best.score)} → ${formatScore(move.scoreAfter)}`} />
           <View style={styles.nav}>
             <View style={{ flex: 1 }}>
-              <Button variant="secondary" title="Previous" disabled={index === 0} onPress={() => (setIndex(index - 1), setShowBest(false))} />
+              <Button variant="secondary" title={tr('common.previous')} disabled={index === 0} onPress={() => (setIndex(index - 1), setShowBest(false))} />
             </View>
             <View style={{ flex: 1 }}>
               <Button
                 variant="secondary"
-                title="Next"
+                title={tr('common.next')}
                 disabled={index >= review.keyMoments.length - 1}
                 onPress={() => (setIndex(index + 1), setShowBest(false))}
               />
@@ -125,15 +128,15 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
         </Card>
       ) : (
         <Card>
-          <Label bold>No serious mistakes</Label>
-          <Label muted>The engine found no inaccuracies worth reviewing in this game.</Label>
+          <Label bold>{tr('coach.noMistakes')}</Label>
+          <Label muted>{tr('coach.noMistakesBody')}</Label>
         </Card>
       )}
 
       {review.mistakePatterns.length > 0 && (
         <Card>
           <Label size={18} bold>
-            Habits to fix
+            {tr('coach.habits')}
           </Label>
           {review.mistakePatterns.map((p, i) => (
             <Label key={i}>• {p}</Label>
@@ -144,7 +147,7 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
       {review.studyThemes.length > 0 && (
         <Card>
           <Label size={18} bold>
-            Study next
+            {tr('coach.studyNext')}
           </Label>
           {review.studyThemes.map((s, i) => (
             <View key={i} style={{ gap: 2 }}>
@@ -172,11 +175,12 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
 }
 
 function MomentText({ t, note, isMine, evalText }: { t: Palette; note: CoachMoveNote; isMine: boolean; evalText: string }) {
+  const tr = useT();
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ color: t.muted, fontSize: 13 }}>
-        {isMine ? 'Your move' : "Your opponent's move"}
-        {note.theme ? ` · ${note.theme}` : ''} · eval {evalText}
+        {isMine ? tr('coach.yourMove') : tr('coach.opponentMove')}
+        {note.theme ? ` · ${note.theme}` : ''} · {tr('coach.eval', { value: evalText })}
       </Text>
       <Label>{note.explanation}</Label>
     </View>

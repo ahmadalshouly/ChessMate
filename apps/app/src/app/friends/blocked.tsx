@@ -7,8 +7,10 @@ import { Pill, UserRow, timeAgo } from '@/components/social';
 import { Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
+import { useT } from '@/i18n';
 
 export default function BlockedScreen() {
+  const tr = useT();
   const [list, setList] = useState<{ user: SocialUser; since: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(() => socialApi.blocked().then(setList, (e: Error) => setError(e.message)), []);
@@ -16,19 +18,19 @@ export default function BlockedScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Blocked players' }} />
+      <Stack.Screen options={{ title: tr('friends.blocked') }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
-          <Label muted>Blocked players can't find you, send requests, follow you, or watch your games. They aren't told.</Label>
+          <Label muted>{tr('friends.blockedBody')}</Label>
           {error && <Label muted>{error}</Label>}
           <Card>
-            {list.length === 0 && <Label muted>You haven't blocked anyone.</Label>}
+            {list.length === 0 && <Label muted>{tr('friends.blockedNone')}</Label>}
             {list.map((b) => (
               <UserRow
                 key={b.user.id}
                 user={b.user}
-                subtitle={`Blocked ${timeAgo(b.since)}`}
-                right={<Pill title="Unblock" onPress={() => void socialApi.unblock(b.user.id).then(load)} />}
+                subtitle={tr('friends.blockedAgo', { ago: timeAgo(b.since) })}
+                right={<Pill title={tr('friends.unblock')} onPress={() => void socialApi.unblock(b.user.id).then(load)} />}
               />
             ))}
           </Card>

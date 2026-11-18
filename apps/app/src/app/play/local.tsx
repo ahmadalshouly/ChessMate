@@ -1,4 +1,4 @@
-import { Game, analyzePosition, pieceName, type PlayedMove, type Square } from '@chessmate/core';
+import { Game, analyzePosition, type PlayedMove, type Square } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, View } from 'react-native';
@@ -10,12 +10,16 @@ import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
 import { useBoardSize } from '@/lib/useBoardSize';
+import { reasonText } from '@/components/play/GameOverCard';
+import { useT } from '@/i18n';
+import { colorLabel, pieceLabel, threatText } from '@/i18n/chess';
 
 /**
  * Pass-and-play practice board with ChessMate's threat detection. Runs fully
  * on device (no engine) so it works offline; engine review lives server-side.
  */
 export default function LocalPlay() {
+  const tr = useT();
   const game = useRef(new Game());
   const [view, setView] = useState<{ fen: string; history: PlayedMove[] }>(() => ({ fen: new Game().fen, history: [] }));
   const [flip, setFlip] = useState(false);
@@ -49,7 +53,7 @@ export default function LocalPlay() {
 
   const insight = useMemo(() => analyzePosition(view.fen, snapshot.turn), [view.fen, snapshot]);
   const threatened: Square[] = showThreats ? insight.hanging.map((h) => h.square) : [];
-  const side = snapshot.turn === 'w' ? 'White' : 'Black';
+  const side = colorLabel(snapshot.turn);
 
   return (
     <Screen>
@@ -70,7 +74,7 @@ export default function LocalPlay() {
           <View style={styles.row}>
             <Button
               variant="secondary"
-              title="Undo"
+              title={tr('practice.undo')}
               disabled={history.length === 0}
               onPress={() => {
                 game.current.undo();
@@ -78,9 +82,9 @@ export default function LocalPlay() {
                 sync();
               }}
             />
-            <Button variant="secondary" title="Flip" onPress={() => setFlip((f) => !f)} />
+            <Button variant="secondary" title={tr('computer.flip')} onPress={() => setFlip((f) => !f)} />
             <View style={styles.toggle}>
-              <Label muted>Threats</Label>
+              <Label muted>{tr('practice.threats')}</Label>
               <Switch value={showThreats} onValueChange={setShowThreats} />
             </View>
           </View>
@@ -88,23 +92,23 @@ export default function LocalPlay() {
           <Card>
             {outcome ? (
               <Label size={18} bold>
-                {outcome.result} · {outcome.reason.replace(/_/g, ' ')}
+                {outcome.result} · {reasonText(outcome.reason)}
               </Label>
             ) : (
               <Label bold>
-                {side} to move{snapshot.inCheck ? ' (in check)' : ''}
+                {snapshot.inCheck ? tr('practice.toMoveInCheck', { color: side }) : tr('play.toMove', { color: side })}
               </Label>
             )}
             {showThreats && !outcome && (
               <>
                 {insight.hanging.slice(0, 3).map((h) => (
                   <Label key={h.square} muted>
-                    ⚠ {side}&apos;s {pieceName(h.piece)} on {h.square} can be won
+                    {`⚠ ${tr('practice.hanging', { color: side, piece: pieceLabel(h.piece), square: h.square })}`}
                   </Label>
                 ))}
                 {insight.threats.slice(0, 3).map((t) => (
                   <Label key={`t${t.uci}`} muted>
-                    ⚔ Opponent threatens {t.description}
+                    {`⚔ ${tr('practice.threatens', { threat: threatText(t, view.fen) })}`}
                   </Label>
                 ))}
                 {insight.opportunities
@@ -112,18 +116,18 @@ export default function LocalPlay() {
                   .slice(0, 3)
                   .map((o) => (
                     <Label key={`o${o.uci}`} muted>
-                      ★ Chance: {o.description}
+                      {`★ ${tr('computer.chance', { threat: threatText(o, view.fen) })}`}
                     </Label>
                   ))}
                 {insight.hanging.length + insight.threats.length + insight.opportunities.filter((o) => o.kind !== 'check').length === 0 && (
-                  <Label muted>No immediate tactics.</Label>
+                  <Label muted>{tr('computer.noTactics')}</Label>
                 )}
               </>
             )}
             {history.length > 0 && (
               <View style={styles.row}>
-                {!outcome && <Button variant="secondary" title={savedId ? 'Update saved game' : 'Save to history'} onPress={save} />}
-                {savedId && <Button variant="secondary" title="Review" onPress={() => router.push({ pathname: '/games/[id]', params: { id: savedId } })} />}
+                {!outcome && <Button variant="secondary" title={savedId ? tr('practice.updateSaved') : tr('practice.save')} onPress={save} />}
+                {savedId && <Button variant="secondary" title={tr('practice.review')} onPress={() => router.push({ pathname: '/games/[id]', params: { id: savedId } })} />}
               </View>
             )}
             {history.length > 0 && <Label muted>{history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>}
@@ -137,5 +141,5 @@ export default function LocalPlay() {
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 'auto' },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginStart: 'auto' },
 });

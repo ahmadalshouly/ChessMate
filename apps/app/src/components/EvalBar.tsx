@@ -3,12 +3,14 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { formatEval } from '@/constants/analysis';
+import { useT } from '@/i18n';
 
 /**
  * Vertical evaluation bar. White's share fills from White's side of the
  * board, so it follows the board orientation.
  */
 export function EvalBar({ score, orientation, height, width = 20 }: { score: Score | null; orientation: Color; height: number; width?: number }) {
+  const tr = useT();
   const white = score ? evalBarFraction(score) : 0.5;
   const whiteOnBottom = orientation === 'w';
   const whiteAhead = white >= 0.5;
@@ -18,7 +20,7 @@ export function EvalBar({ score, orientation, height, width = 20 }: { score: Sco
   return (
     <View
       accessibilityRole="progressbar"
-      accessibilityLabel={score ? `Evaluation ${formatEval(score)}` : 'Evaluation pending'}
+      accessibilityLabel={score ? tr('analysis.evalA11y', { score: formatEval(score) }) : tr('analysis.evalPending')}
       style={[styles.bar, { width, height }]}>
       <View
         style={{

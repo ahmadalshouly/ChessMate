@@ -1,3 +1,4 @@
+import { translate } from '@/i18n';
 import type { TimeCategory } from '@chessmate/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -124,7 +125,7 @@ export function useLeaderboard(q: { category: TimeCategory; scope: LeaderboardSc
         setPage((prev) => (offset > 0 && prev ? { ...next, entries: [...prev.entries, ...next.entries] } : next));
       } catch (e) {
         if (id !== req.current) return;
-        setError({ status: e instanceof ApiError ? e.status : 0, message: e instanceof ApiError ? e.message : 'Cannot reach the server' });
+        setError({ status: e instanceof ApiError ? e.status : 0, message: e instanceof ApiError ? e.message : translate('puzzles.home.unreachable') });
         if (offset === 0) setPage(null);
       } finally {
         if (id === req.current) setLoading(false);

@@ -1,0 +1,16 @@
+export const review = {
+  nothing: 'Nothing to review yet. Finish a game or load one on the analysis board.',
+  unavailable: 'Review unavailable',
+  locked: 'Engine review is off while you have a live game. Come back when it ends.',
+  reviewing: 'Reviewing your game…',
+  progress: '{done} of {total} positions',
+  waitingEngine: 'Waiting for the engine',
+  moveIs: '{move} is {cls}',
+  engineLine: 'Engine line: {line} ({eval})',
+  stepThrough: 'Step through the game to see how each move was graded.',
+  accuracy: 'Accuracy',
+  depth: 'Engine depth {n}',
+  explore: 'Explore in analysis board',
+  countA11y: '{label}: White {w}, Black {b}',
+  countsLegend: 'Counts are White · Black.',
+};

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { useNotifications } from '@/lib/notifications';
 
 import { BellIcon } from './BellIcon';
@@ -10,8 +11,9 @@ import { BellIcon } from './BellIcon';
 /** Header bell with unread badge; opens the notification center. */
 export function NotificationBell() {
   const t = useTheme();
+  const tr = useT();
   const { unread } = useNotifications();
-  const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
+  const label = unread > 0 ? tr('notifications.bellUnread', { count: unread }) : tr('settings.notifications.title');
   return (
     <Pressable
       accessibilityRole="button"

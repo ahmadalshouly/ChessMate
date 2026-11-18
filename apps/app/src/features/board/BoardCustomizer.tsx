@@ -6,6 +6,8 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { useSettings } from '@/features/account/settingsStore';
+import { useT } from '@/i18n';
+import { boardThemeText, pieceSetText } from '@/i18n/chess';
 import { Tabs, Text, boardThemeList, useAppTheme, type BoardTheme, type BoardThemeId } from '@/ui';
 
 import { pieceImage, pieceSetList, PIECE_SET_INFO } from './pieceSets';
@@ -26,6 +28,7 @@ type Section = 'board' | 'pieces';
  */
 export function BoardCustomizer({ onChange }: { onChange: (patch: { theme?: BoardThemeId; pieces?: PieceSet }) => void }) {
   const t = useAppTheme();
+  const tr = useT();
   const c = t.colors;
   const { board } = useSettings();
   const [section, setSection] = useState<Section>('board');
@@ -62,10 +65,10 @@ export function BoardCustomizer({ onChange }: { onChange: (patch: { theme?: Boar
           </View>
           <View style={styles.caption}>
             <Text variant="overline" tone="muted">
-              Now using
+              {tr('board.nowUsing')}
             </Text>
             <Text variant="subheading">
-              {theme.name} board · {set.name} pieces
+              {tr('board.current', { board: boardThemeText(theme).name, pieces: pieceSetText(set).name })}
             </Text>
           </View>
         </View>
@@ -73,15 +76,15 @@ export function BoardCustomizer({ onChange }: { onChange: (patch: { theme?: Boar
 
       <Tabs<Section>
         items={[
-          { key: 'board', label: 'Board' },
-          { key: 'pieces', label: 'Pieces' },
+          { key: 'board', label: tr('settings.board.title') },
+          { key: 'pieces', label: tr('settings.board.pieces') },
         ]}
         value={section}
         onChange={setSection}
       />
 
       {tile > 0 && section === 'board' && (
-        <View style={[styles.grid, { gap }]} accessibilityRole="radiogroup" accessibilityLabel="Board theme">
+        <View style={[styles.grid, { gap }]} accessibilityRole="radiogroup" accessibilityLabel={tr('board.themeA11y')}>
           {boardThemeList.map((b) => (
             <ThemeTile key={b.id} theme={b} pieces={board.pieces} size={tile} active={b.id === theme.id} onPress={() => onChange({ theme: b.id })} />
           ))}
@@ -89,7 +92,7 @@ export function BoardCustomizer({ onChange }: { onChange: (patch: { theme?: Boar
       )}
 
       {tile > 0 && section === 'pieces' && (
-        <View style={[styles.grid, { gap }]} accessibilityRole="radiogroup" accessibilityLabel="Piece set">
+        <View style={[styles.grid, { gap }]} accessibilityRole="radiogroup" accessibilityLabel={tr('board.pieceSetA11y')}>
           {pieceSetList.map((p) => (
             <PieceTile key={p.id} id={p.id} theme={theme} size={tile} active={p.id === board.pieces} onPress={() => onChange({ pieces: p.id })} />
           ))}
@@ -98,7 +101,7 @@ export function BoardCustomizer({ onChange }: { onChange: (patch: { theme?: Boar
 
       <Pressable onPress={() => setCredits((v) => !v)} accessibilityRole="button" style={styles.creditsToggle}>
         <Text variant="caption" tone="muted">
-          Piece artwork credits
+          {tr('board.credits')}
         </Text>
         <Ionicons name={credits ? 'chevron-up' : 'chevron-down'} size={14} color={c.textTertiary} />
       </Pressable>
@@ -106,7 +109,7 @@ export function BoardCustomizer({ onChange }: { onChange: (patch: { theme?: Boar
         <View style={{ gap: 6 }}>
           {pieceSetList.map((p) => (
             <Text key={p.id} variant="caption" tone="muted">
-              <Text variant="caption">{p.name}: </Text>
+              <Text variant="caption">{pieceSetText(p).name}: </Text>
               {p.credit},{' '}
               <Text variant="caption" style={{ textDecorationLine: 'underline' }} onPress={() => void Linking.openURL(p.licenseUrl)}>
                 {p.license}
@@ -143,12 +146,14 @@ function Selectable({ active, label, onPress, children, size }: { active: boolea
 
 /** 3x3 corner of a board in the theme, with the player's pieces on it. */
 function ThemeTile({ theme, pieces, size, active, onPress }: { theme: BoardTheme; pieces: PieceSet; size: number; active: boolean; onPress: () => void }) {
+  const tr = useT();
+  const text = boardThemeText(theme);
   const inner = size - 10;
   const cell = inner / 3;
   const layout: (readonly ['w' | 'b', string] | null)[] = [['b', 'q'], null, ['b', 'n'], null, ['w', 'n'], null, ['w', 'b'], null, ['w', 'p']];
   return (
     <View style={{ gap: 6, width: size }}>
-      <Selectable active={active} label={`${theme.name} board`} onPress={onPress} size={size}>
+      <Selectable active={active} label={tr('board.themeTileA11y', { name: text.name })} onPress={onPress} size={size}>
         <View style={{ width: inner, height: inner, flexDirection: 'row', flexWrap: 'wrap' }}>
           {layout.map((p, i) => (
             <View key={i} style={{ width: cell, height: cell, backgroundColor: i % 2 === 0 ? theme.light : theme.dark }}>
@@ -166,14 +171,16 @@ function ThemeTile({ theme, pieces, size, active, onPress }: { theme: BoardTheme
           )}
         </View>
       </Selectable>
-      <TileLabel title={theme.name} note={theme.note} active={active} />
+      <TileLabel title={text.name} note={text.note} active={active} />
     </View>
   );
 }
 
 /** King and knight of both colours on the current board. */
 function PieceTile({ id, theme, size, active, onPress }: { id: PieceSet; theme: BoardTheme; size: number; active: boolean; onPress: () => void }) {
+  const tr = useT();
   const info = PIECE_SET_INFO[id];
+  const text = pieceSetText(info);
   const inner = size - 10;
   const cell = inner / 2;
   const pieces: ['w' | 'b', string][] = [
@@ -184,7 +191,7 @@ function PieceTile({ id, theme, size, active, onPress }: { id: PieceSet; theme: 
   ];
   return (
     <View style={{ gap: 6, width: size }}>
-      <Selectable active={active} label={`${info.name} pieces`} onPress={onPress} size={size}>
+      <Selectable active={active} label={tr('board.pieceTileA11y', { name: text.name })} onPress={onPress} size={size}>
         <View style={{ width: inner, height: inner, flexDirection: 'row', flexWrap: 'wrap' }}>
           {pieces.map(([color, type], i) => (
             <View key={i} style={{ width: cell, height: cell, backgroundColor: (i + Math.floor(i / 2)) % 2 === 0 ? theme.light : theme.dark }}>
@@ -193,7 +200,7 @@ function PieceTile({ id, theme, size, active, onPress }: { id: PieceSet; theme: 
           ))}
         </View>
       </Selectable>
-      <TileLabel title={info.name} note={info.note} active={active} />
+      <TileLabel title={text.name} note={text.note} active={active} />
     </View>
   );
 }

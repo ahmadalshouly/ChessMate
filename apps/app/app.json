@@ -41,6 +41,17 @@
         {
           "color": "#0B0B0C"
         }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportsRTL": true,
+          "supportedLocales": [
+            "en",
+            "ar",
+            "de"
+          ]
+        }
       ]
     ],
     "experiments": {

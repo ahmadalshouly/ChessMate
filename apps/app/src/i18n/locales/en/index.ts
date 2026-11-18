@@ -1,0 +1,37 @@
+// English is the source of truth: add new keys here first, then to ar/ and de/.
+import { analysis } from './analysis';
+import { auth } from './auth';
+import { board } from './board';
+import { boardThemes } from './boardThemes';
+import { bots } from './bots';
+import { challenge } from './challenge';
+import { chat } from './chat';
+import { chess } from './chess';
+import { coach } from './coach';
+import { common } from './common';
+import { computer } from './computer';
+import { errors } from './errors';
+import { feedback } from './feedback';
+import { friends } from './friends';
+import { games } from './games';
+import { home } from './home';
+import { leaderboard } from './leaderboard';
+import { learn } from './learn';
+import { moveClass } from './moveClass';
+import { nav } from './nav';
+import { notifications } from './notifications';
+import { pieceSets } from './pieceSets';
+import { play } from './play';
+import { practice } from './practice';
+import { profile } from './profile';
+import { puzzleThemes } from './puzzleThemes';
+import { puzzles } from './puzzles';
+import { report } from './report';
+import { review } from './review';
+import { server } from './server';
+import { settings } from './settings';
+import { social } from './social';
+import { titles } from './titles';
+import { watch } from './watch';
+
+export const en = { nav, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, games, board, boardThemes, pieceSets };

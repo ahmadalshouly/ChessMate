@@ -7,11 +7,13 @@ import { TextInput } from '@/ui/primitives';
 import { GameRow } from '@/components/archive';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { saveGames } from '@/lib/archive';
 import { pickPgnFile } from '@/lib/share';
 
 export default function ImportPgn() {
   const t = useTheme();
+  const tr = useT();
   const [text, setText] = useState('');
   const [myName, setMyName] = useState('');
   const [result, setResult] = useState<{ games: ArchivedGame[]; added: number; errors: { index: number; message: string }[] } | null>(null);
@@ -36,14 +38,14 @@ export default function ImportPgn() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Import PGN' }} />
+      <Stack.Screen options={{ title: tr('games.importPgn') }} />
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.inner}>
           <Card>
             <Label size={18} bold>
-              Import games
+              {tr('games.import.title')}
             </Label>
-            <Label muted>Paste one or more games in PGN format. Comments and variations are skipped. Games you already imported are updated, not duplicated.</Label>
+            <Label muted>{tr('games.import.intro')}</Label>
             <TextInput
               value={text}
               onChangeText={setText}
@@ -58,37 +60,38 @@ export default function ImportPgn() {
             {Platform.OS === 'web' && (
               <Button
                 variant="secondary"
-                title="Choose a .pgn file"
+                title={tr('games.import.choose')}
                 onPress={async () => {
                   const content = await pickPgnFile();
                   if (content) setText(content);
                 }}
               />
             )}
-            <Label muted>Your name in these games (optional, comma-separated). Used to mark wins and losses.</Label>
-            <TextInput value={myName} onChangeText={setMyName} placeholder="e.g. ahmad, ahmad_chess" placeholderTextColor={t.muted} autoCapitalize="none" autoCorrect={false} style={input} />
-            <Button title={busy ? 'Importing…' : 'Import'} disabled={busy || !text.trim()} onPress={run} />
+            <Label muted>{tr('games.import.nameHelp')}</Label>
+            <TextInput value={myName} onChangeText={setMyName} placeholder={tr('games.import.namePlaceholder')} placeholderTextColor={t.muted} autoCapitalize="none" autoCorrect={false} style={input} />
+            <Button title={busy ? tr('games.import.busy') : tr('games.import.cta')} disabled={busy || !text.trim()} onPress={run} />
           </Card>
 
           {result && (
             <Card>
               <Label bold>
                 {result.games.length === 0
-                  ? 'No games could be imported'
-                  : `Imported ${result.games.length} game${result.games.length === 1 ? '' : 's'}${result.added < result.games.length ? ` (${result.games.length - result.added} already in your history)` : ''}`}
+                  ? tr('games.import.none')
+                  : tr('games.import.done', { count: result.games.length }) +
+                    (result.added < result.games.length ? ' ' + tr('games.import.existing', { count: result.games.length - result.added }) : '')}
               </Label>
               {result.errors.slice(0, 5).map((e) => (
                 <Label key={e.index} muted>
-                  Game {e.index + 1}: {e.message}
+                  {tr('games.import.error', { n: e.index + 1, message: e.message })}
                 </Label>
               ))}
-              {result.errors.length > 5 && <Label muted>…and {result.errors.length - 5} more with errors.</Label>}
+              {result.errors.length > 5 && <Label muted>{tr('games.import.moreErrors', { count: result.errors.length - 5 })}</Label>}
               <View style={styles.list}>
                 {result.games.slice(0, 5).map((g) => (
                   <GameRow key={g.id} game={g} onPress={() => router.push({ pathname: '/games/[id]', params: { id: g.id } })} />
                 ))}
               </View>
-              {result.games.length > 0 && <Button title="View game history" onPress={() => router.replace('/games')} />}
+              {result.games.length > 0 && <Button title={tr('games.import.viewHistory')} onPress={() => router.replace('/games')} />}
             </Card>
           )}
         </View>
@@ -101,6 +104,6 @@ const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center', paddingBottom: 48 },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15 },
-  pgn: { minHeight: 200, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }), fontSize: 13 },
+  pgn: { minHeight: 200, writingDirection: 'ltr', textAlign: 'left', fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }), fontSize: 13 },
   list: { gap: 8 },
 });

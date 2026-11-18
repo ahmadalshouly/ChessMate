@@ -1,17 +1,19 @@
 import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 import { fonts } from '@/ui';
 import { Text } from '@/ui/primitives';
 
 /** Compact mono rating pill, e.g. "1200?" for a provisional rating. */
 export function RatingChip({ rating, provisional }: { rating: number; provisional?: boolean }) {
   const t = useTheme();
+  const tr = useT();
   return (
     <View
       style={[styles.chip, { borderColor: t.border, backgroundColor: t.surfaceSunken }]}
-      accessibilityLabel={`Rating ${rating}${provisional ? ', provisional' : ''}`}>
-      <Text style={[styles.k, { color: t.textTertiary }]}>ELO</Text>
+      accessibilityLabel={provisional ? tr('nav.ratingProvisional', { rating }) : tr('nav.ratingValue', { rating })}>
+      <Text style={[styles.k, { color: t.textTertiary }]}>{tr('nav.elo')}</Text>
       <Text style={[styles.text, { color: t.text }]}>
         {Math.round(rating)}
         {provisional ? '?' : ''}

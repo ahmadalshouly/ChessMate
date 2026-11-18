@@ -28,6 +28,7 @@ import { SERVER_URL } from './config';
 import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
 import { haptic } from './haptics';
 import { playSound } from './sounds';
+import { translate } from '@/i18n';
 
 /**
  * One realtime connection for the whole app, shared by the lobby and the game
@@ -216,7 +217,7 @@ class PlayClient {
       this.ws = null;
       // 4010: account closed for a fair-play violation. Reconnecting would only be refused again.
       if (ev.code === 4010) {
-        return this.set({ connection: 'offline', closedReason: 'This account has been closed for a fair play violation.' });
+        return this.set({ connection: 'offline', closedReason: translate('server.closedFairPlay') });
       }
       if (ev.code === 4003 && !this.accountToken) {
         // Resume token expired (server restarted): start over as a new guest.

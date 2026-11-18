@@ -7,6 +7,7 @@ import { useAppTheme } from '../theme/ThemeProvider';
 import { GlassView } from './Glass';
 import { Row, Stack } from './Layout';
 import { Text } from './Text';
+import { translate } from '@/i18n';
 
 export interface ModalProps {
   visible: boolean;
@@ -39,7 +40,7 @@ export function Modal({ visible, onClose, title, description, children, actions,
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={translate('common.close')}
           onPress={dismissable ? onClose : undefined}
           style={StyleSheet.absoluteFill}>
           {Platform.OS !== 'android' && <BlurView intensity={18} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}

@@ -122,7 +122,8 @@ export const Board = memo(function Board(props: BoardProps) {
   const threatSet = new Set(threatened);
 
   return (
-    <View style={[styles.board, { width: size, height: size, borderRadius: Math.max(4, size * 0.012) }]} accessibilityRole="grid">
+    // The board never mirrors: files run a to h left to right in every language.
+    <View style={[styles.board, { width: size, height: size, borderRadius: Math.max(4, size * 0.012), direction: 'ltr' }]} accessibilityRole="grid">
       <Surface theme={colors} orientation={orientation} size={size} />
       {ORDER[orientation].map((sq, i) => {
         const fileIdx = sq.charCodeAt(0) - 97;

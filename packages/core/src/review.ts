@@ -139,6 +139,17 @@ export interface CoachChatRequest {
   /** Context from the reviewed game, e.g. the move just played. */
   lastMove?: { san: string; classification?: MoveClass };
   messages: CoachChatTurn[];
+  /** Reply language as a BCP 47 code (e.g. "ar", "de"). English when absent. */
+  language?: string;
+}
+
+/** Coach reply languages the app ships, by code. */
+export const COACH_LANGUAGES: Readonly<Record<string, string>> = { en: 'English', ar: 'Arabic', de: 'German' };
+
+/** Instruction appended to a coach prompt so it answers in the player's language. Empty for English. */
+export function coachLanguageNote(language?: string): string {
+  const name = language && language !== 'en' ? COACH_LANGUAGES[language] : undefined;
+  return name ? `\n\nWrite every human-readable text in ${name}. Keep move notation (SAN like Nf3, squares like e4) in standard Latin form.` : '';
 }
 
 export interface CoachChatReply {

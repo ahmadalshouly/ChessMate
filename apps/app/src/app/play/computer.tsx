@@ -3,7 +3,6 @@ import {
   Game,
   analyzePosition,
   chooseBotMove,
-  pieceName,
   suggestMove,
   type BotProfile,
   type Color,
@@ -22,7 +21,12 @@ import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
+import { translate, useT, type TKey } from '@/i18n';
+import { colorLabel, pieceLabel, threatText } from '@/i18n/chess';
+import { reasonText } from '@/components/play/GameOverCard';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
+
+const botTagline = (b: BotProfile) => translate(`bots.${b.id}` as TKey);
 
 type ColorChoice = 'w' | 'random' | 'b';
 
@@ -37,6 +41,7 @@ interface Setup {
  * engine runs on device, so it works offline and costs no server time.
  */
 export default function PlayComputer() {
+  const tr = useT();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [round, setRound] = useState(0);
   const begin = (s: Setup) => {
@@ -45,7 +50,7 @@ export default function PlayComputer() {
   };
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Play vs computer' }} />
+      <Stack.Screen options={{ title: tr('titles.computer') }} />
       {setup ? <ComputerGame key={round} setup={setup} onExit={() => setSetup(null)} onRematch={begin} /> : <BotPicker onStart={begin} />}
     </Screen>
   );
@@ -55,6 +60,7 @@ export default function PlayComputer() {
 
 function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const t = useTheme();
+  const tr = useT();
   const [botId, setBotId] = useState(BOTS[2]!.id);
   const [color, setColor] = useState<ColorChoice>('w');
   const [threats, setThreats] = useState(true);
@@ -69,9 +75,9 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
     <ScrollView contentContainerStyle={styles.page}>
       <View style={styles.inner}>
         <Label size={26} bold>
-          Choose your opponent
+          {tr('computer.choose')}
         </Label>
-        <Label muted>Unrated practice. Takebacks and hints are always allowed.</Label>
+        <Label muted>{tr('computer.intro')}</Label>
 
         <View style={styles.botGrid}>
           {BOTS.map((b) => {
@@ -81,7 +87,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
-                  accessibilityLabel={`${b.name}, level ${b.level}, about ${b.rating}`}
+                  accessibilityLabel={tr('computer.botA11y', { name: b.name, level: b.level, rating: b.rating })}
                   onPress={() => setBotId(b.id)}
                   style={({ pressed }) => [
                     styles.botTile,
@@ -94,7 +100,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
                   <Avatar bot={b} inverted={active} />
                   <Text style={[styles.botName, { color: active ? t.onAccent : t.text }]}>{b.name}</Text>
                   <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>
-                    Level {b.level} · ~{b.rating}
+                    {tr('computer.levelRating', { level: b.level, rating: b.rating })}
                   </Text>
                 </Pressable>
               </View>
@@ -109,30 +115,30 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
               <Label size={18} bold>
                 {bot.name}
               </Label>
-              <Label muted>{bot.tagline}</Label>
+              <Label muted>{botTagline(bot)}</Label>
             </View>
           </View>
 
-          <Label bold>Play as</Label>
+          <Label bold>{tr('computer.playAs')}</Label>
           <Segmented
             value={color}
             onChange={setColor}
             options={[
-              { value: 'w', label: 'White' },
-              { value: 'random', label: 'Random' },
-              { value: 'b', label: 'Black' },
+              { value: 'w', label: tr('play.white') },
+              { value: 'random', label: tr('play.random') },
+              { value: 'b', label: tr('play.black') },
             ]}
           />
 
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
-              <Label bold>Live threat feedback</Label>
-              <Label muted>Highlights pieces you could lose and what the computer is threatening.</Label>
+              <Label bold>{tr('computer.liveThreats')}</Label>
+              <Label muted>{tr('computer.liveThreatsBody')}</Label>
             </View>
             <Switch value={threats} onValueChange={setThreats} trackColor={{ true: t.accent, false: t.border }} thumbColor={t.surfaceSolid} />
           </View>
 
-          <Button title={`Play ${bot.name}`} onPress={start} />
+          <Button title={tr('computer.playBot', { name: bot.name })} onPress={start} />
         </Card>
       </View>
     </ScrollView>
@@ -176,6 +182,7 @@ const nextFrame = (fn: () => void, delay = 0) => setTimeout(fn, delay);
 
 function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () => void; onRematch: (s: Setup) => void }) {
   const t = useTheme();
+  const tr = useT();
   const { bot, color: me } = setup;
   const game = useRef(new Game());
   const [view, setView] = useState<GameView>(() => ({ fen: game.current.fen, history: [] }));
@@ -281,9 +288,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
       <View style={{ width: size, gap: 10 }}>
         <PlayerRow
           title={bot.name}
-          subtitle={`Level ${bot.level} · ~${bot.rating}`}
+          subtitle={tr('computer.levelRating', { level: bot.level, rating: bot.rating })}
           avatar={<Avatar bot={bot} size={36} />}
-          status={thinking ? 'Thinking…' : !outcome && snapshot.turn === botColor ? 'To move' : null}
+          status={thinking ? tr('computer.thinking') : !outcome && snapshot.turn === botColor ? tr('computer.botToMove') : null}
         />
         <Board
           fen={view.fen}
@@ -305,31 +312,31 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
           }}
         />
         <PlayerRow
-          title="You"
-          subtitle={`${me === 'w' ? 'White' : 'Black'} · unrated`}
+          title={tr('computer.you')}
+          subtitle={tr('computer.youSubtitle', { color: colorLabel(me) })}
           avatar={
             <View style={[styles.youDot, { borderColor: t.text, backgroundColor: me === 'w' ? '#FFFFFF' : '#15171B' }]} />
           }
-          status={myTurn ? 'Your move' : null}
+          status={myTurn ? tr('computer.yourMove') : null}
         />
 
         <View style={styles.controls}>
           <View style={styles.controlCell}>
-            <Button variant="secondary" title="Takeback" disabled={!canTakeback} onPress={takeback} />
+            <Button variant="secondary" title={tr('computer.takeback')} disabled={!canTakeback} onPress={takeback} />
           </View>
           <View style={styles.controlCell}>
-            <Button variant="secondary" title={hintBusy ? 'Hint…' : 'Hint'} disabled={!myTurn || hintBusy} onPress={askHint} />
+            <Button variant="secondary" title={hintBusy ? tr('computer.hintBusy') : tr('computer.hint')} disabled={!myTurn || hintBusy} onPress={askHint} />
           </View>
           <View style={styles.controlCell}>
-            <Button variant="secondary" title="Flip" onPress={() => setFlip((f) => !f)} />
+            <Button variant="secondary" title={tr('computer.flip')} onPress={() => setFlip((f) => !f)} />
           </View>
           <View style={styles.controlCell}>
             {outcome ? (
-              <Button variant="secondary" title="New" onPress={onExit} />
+              <Button variant="secondary" title={tr('computer.new')} onPress={onExit} />
             ) : (
               <Button
                 variant="danger"
-                title="Resign"
+                title={tr('play.resign')}
                 disabled={plyCount < 1}
                 onPress={() => {
                   epoch.current++;
@@ -347,16 +354,16 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
               {verdict.title}
             </Label>
             <Label muted>
-              {verdict.detail} · Unrated
-              {stats.takebacks ? ` · ${stats.takebacks} takeback${stats.takebacks > 1 ? 's' : ''}` : ''}
-              {stats.hints ? ` · ${stats.hints} hint${stats.hints > 1 ? 's' : ''}` : ''}
+              {verdict.detail} · {tr('computer.unrated')}
+              {stats.takebacks ? ` · ${tr('computer.takebacks', { count: stats.takebacks })}` : ''}
+              {stats.hints ? ` · ${tr('computer.hints', { count: stats.hints })}` : ''}
             </Label>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
-                <Button title="Rematch" onPress={() => onRematch({ ...setup, color: me === 'w' ? 'b' : 'w', threats: showThreats })} />
+                <Button title={tr('play.over.rematch')} onPress={() => onRematch({ ...setup, color: me === 'w' ? 'b' : 'w', threats: showThreats })} />
               </View>
               <View style={{ flex: 1 }}>
-                <Button variant="secondary" title="Change opponent" onPress={onExit} />
+                <Button variant="secondary" title={tr('computer.changeOpponent')} onPress={onExit} />
               </View>
             </View>
           </Card>
@@ -364,23 +371,23 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
 
         <Card>
           <View style={styles.row}>
-            <Label bold>Threat feedback</Label>
-            <View style={{ marginLeft: 'auto' }}>
+            <Label bold>{tr('computer.threatFeedback')}</Label>
+            <View style={{ marginStart: 'auto' }}>
               <Switch value={showThreats} onValueChange={setShowThreats} trackColor={{ true: t.accent, false: t.border }} thumbColor={t.surfaceSolid} />
             </View>
           </View>
-          {hint && <Label>Hint: {hint.san} looks strongest here.</Label>}
+          {hint && <Label>{tr('computer.hintText', { san: hint.san })}</Label>}
           {showThreats && !outcome && (
             <>
               {insight.hanging.slice(0, 3).map((h) => (
                 <Label key={h.square} muted>
-                  ⚠ Your {pieceName(h.piece)} on {h.square} can be won
+                  {`⚠ ${tr('computer.hanging', { piece: pieceLabel(h.piece), square: h.square })}`}
                 </Label>
               ))}
               {snapshot.turn === me &&
                 insight.threats.slice(0, 3).map((th) => (
                   <Label key={`t${th.uci}`} muted>
-                    ⚔ {bot.name} threatens {th.description}
+                    {`⚔ ${tr('computer.threatens', { name: bot.name, threat: threatText(th, view.fen) })}`}
                   </Label>
                 ))}
               {snapshot.turn === me &&
@@ -389,12 +396,12 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
                   .slice(0, 3)
                   .map((o) => (
                     <Label key={`o${o.uci}`} muted>
-                      ★ Chance: {o.description}
+                      {`★ ${tr('computer.chance', { threat: threatText(o, view.fen) })}`}
                     </Label>
                   ))}
               {insight.hanging.length === 0 &&
                 (snapshot.turn !== me || insight.threats.length + insight.opportunities.filter((o) => o.kind !== 'check').length === 0) && (
-                  <Label muted>No immediate tactics.</Label>
+                  <Label muted>{tr('computer.noTactics')}</Label>
                 )}
             </>
           )}
@@ -428,9 +435,9 @@ function PlayerRow({ title, subtitle, avatar, status }: { title: string; subtitl
 }
 
 function resultText(o: GameOutcome, me: Color): { title: string; detail: string } {
-  const reason = o.reason.replace(/_/g, ' ');
-  if (o.winner === null) return { title: 'Draw', detail: `${o.result} by ${reason}` };
-  return o.winner === me ? { title: 'You won', detail: `${o.result} by ${reason}` } : { title: 'You lost', detail: `${o.result} by ${reason}` };
+  const detail = `${o.result} ${reasonText(o.reason)}`;
+  if (o.winner === null) return { title: translate('play.result.draw'), detail };
+  return { title: translate(o.winner === me ? 'play.result.won' : 'play.result.lost'), detail };
 }
 
 const styles = StyleSheet.create({

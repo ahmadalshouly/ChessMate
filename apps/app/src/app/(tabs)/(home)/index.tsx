@@ -9,45 +9,47 @@ import { LiveStats } from '@/components/LiveStats';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
 import { Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
+import { translate, useI18n, type TKey } from '@/i18n';
 
 type Glyph = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 interface Mode {
-  title: string;
-  body: string;
+  title: TKey;
+  body: TKey;
   href: Href;
   glyph: Glyph;
 }
 
 const PLAY: Mode[] = [
-  { title: 'Play vs computer', body: 'Eight opponents, beginner to expert. Hints and takebacks, works offline.', href: '/play/computer', glyph: 'chess-rook' },
-  { title: 'Challenge a friend', body: 'Send an invite link or challenge a player directly.', href: { pathname: '/play/online', params: { mode: 'friend' } }, glyph: 'chess-knight' },
-  { title: 'Over the board', body: 'Face to face on one device, with a shared clock.', href: '/play/otb', glyph: 'chess-pawn' },
-  { title: 'Practice board', body: 'Play both sides with live threat detection.', href: '/play/local', glyph: 'chess-bishop' },
+  { title: 'home.computer.title', body: 'home.computer.body', href: '/play/computer', glyph: 'chess-rook' },
+  { title: 'home.friend.title', body: 'home.friend.body', href: { pathname: '/play/online', params: { mode: 'friend' } }, glyph: 'chess-knight' },
+  { title: 'home.otb.title', body: 'home.otb.body', href: '/play/otb', glyph: 'chess-pawn' },
+  { title: 'home.practice.title', body: 'home.practice.body', href: '/play/local', glyph: 'chess-bishop' },
 ];
 
 const IMPROVE: Mode[] = [
-  { title: 'AI coach review', body: 'The key moments of a game, explained. Then ask about any position.', href: '/review/demo', glyph: 'chess-queen' },
-  { title: 'Analysis board', body: 'Engine lines, evaluation bar and arrows for any position or PGN.', href: '/analysis', glyph: 'chess-king' },
-  { title: 'Game history', body: 'Replay past games move by move. Share or import PGN.', href: '/games', glyph: 'history' },
+  { title: 'home.coach.title', body: 'home.coach.body', href: '/review/demo', glyph: 'chess-queen' },
+  { title: 'home.analysis.title', body: 'home.analysis.body', href: '/analysis', glyph: 'chess-king' },
+  { title: 'home.history.title', body: 'home.history.body', href: '/games', glyph: 'history' },
 ];
 
 const COMMUNITY: Mode[] = [
-  { title: 'Friends', body: 'See who is online and watch their live games.', href: '/friends', glyph: 'account-multiple-outline' },
-  { title: 'Leaderboards', body: 'Top players worldwide, in your country and among friends.', href: '/leaderboard', glyph: 'podium' },
+  { title: 'home.friends.title', body: 'home.friends.body', href: '/friends', glyph: 'account-multiple-outline' },
+  { title: 'home.leaderboards.title', body: 'home.leaderboards.body', href: '/leaderboard', glyph: 'podium' },
 ];
 
 const QUICK = PRESET_TIME_CONTROLS.slice(0, 8);
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 5 ? 'Late night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return translate(h < 5 ? 'home.greeting.night' : h < 12 ? 'home.greeting.morning' : h < 18 ? 'home.greeting.afternoon' : 'home.greeting.evening');
 }
 
 export default function Home() {
   const t = useAppTheme();
   const c = t.colors;
   const user = useCurrentUser();
+  const { tr, rtl } = useI18n();
   const { width } = useWindowDimensions();
   // The shell's sidebar takes ~250px at 960 and up.
   const content = width >= 960 ? width - 250 : width;
@@ -62,22 +64,22 @@ export default function Home() {
             {user.displayName ? `, ${user.displayName}` : ''}
           </Text>
           <Text variant="display" style={width < 420 && { fontSize: 32, lineHeight: 38 }}>
-            Your move.
+            {tr('home.heroTitle')}
           </Text>
           <Text tone="muted" style={{ maxWidth: 520 }}>
-            Real-time games against players worldwide, and a coach that shows you why a move works.
+            {tr('home.heroBody')}
           </Text>
         </View>
         <View style={styles.heroActions}>
-          <Button title="Play online" size="lg" onPress={() => router.push('/play')} rightIcon={<Ionicons name="arrow-forward" size={18} color={c.onAccent} />} />
-          <Button title="Puzzles" size="lg" variant="secondary" onPress={() => router.navigate('/puzzles')} />
+          <Button title={tr('home.online.title')} size="lg" onPress={() => router.push('/play')} rightIcon={<Ionicons name={rtl ? 'arrow-back' : 'arrow-forward'} size={18} color={c.onAccent} />} />
+          <Button title={tr('nav.puzzles')} size="lg" variant="secondary" onPress={() => router.navigate('/puzzles')} />
         </View>
       </View>
 
       <LiveStats />
 
       <View style={{ gap: t.space.md }}>
-        <SectionHeader index={1} title="Quick pair" action={<Text variant="caption" tone="tertiary">Tap to start searching</Text>} />
+        <SectionHeader index={1} title={tr('home.quick.title')} action={<Text variant="caption" tone="tertiary">{tr('home.quick.hint')}</Text>} />
         <View style={styles.quick}>
           {QUICK.map((tc) => {
             const key = formatTimeControl(tc);
@@ -85,7 +87,7 @@ export default function Home() {
               <Pressable
                 key={key}
                 accessibilityRole="button"
-                accessibilityLabel={`Quick pair ${key} ${timeCategory(tc)}`}
+                accessibilityLabel={tr('home.quick.a11y', { tc: key, category: tr(`common.category.${timeCategory(tc)}`) })}
                 onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
                 style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                   styles.quickCell,
@@ -95,7 +97,7 @@ export default function Home() {
                   {key}
                 </Text>
                 <Text variant="overline" tone="tertiary" style={{ fontSize: 9.5 }}>
-                  {timeCategory(tc)}
+                  {tr(`common.category.${timeCategory(tc)}`)}
                 </Text>
               </Pressable>
             );
@@ -103,9 +105,9 @@ export default function Home() {
         </View>
       </View>
 
-      <ModeSection index={2} title="Play" modes={PLAY} cols={cols} />
-      <ModeSection index={3} title="Improve" modes={IMPROVE} cols={cols} />
-      <ModeSection index={4} title="Community" modes={COMMUNITY} cols={cols} />
+      <ModeSection index={2} title={tr('nav.play')} modes={PLAY} cols={cols} />
+      <ModeSection index={3} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
+      <ModeSection index={4} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
     </Page>
   );
 }
@@ -133,20 +135,21 @@ function ModeSection({ index, title, modes, cols }: { index: number; title: stri
 function ModeTile({ mode }: { mode: Mode }) {
   const t = useAppTheme();
   const c = t.colors;
+  const { tr, rtl } = useI18n();
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={mode.title} onPress={() => router.push(mode.href)}>
+    <Pressable accessibilityRole="link" accessibilityLabel={tr(mode.title)} onPress={() => router.push(mode.href)}>
       {({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => (
         <GlassView radius="xl" padding="lg" elevation={hovered ? 'lg' : 'md'} style={[styles.tile, { transform: [{ scale: pressed ? 0.985 : 1 }, { translateY: hovered ? -2 : 0 }] }]}>
           <View style={styles.tileTop}>
             <View style={[styles.icon, { borderColor: c.borderStrong }]}>
               <MaterialCommunityIcons name={mode.glyph} size={18} color={c.text} />
             </View>
-            <Ionicons name="arrow-forward" size={16} color={hovered ? c.text : c.textTertiary} style={{ transform: [{ rotate: '-45deg' }] }} />
+            <Ionicons name={rtl ? 'arrow-back' : 'arrow-forward'} size={16} color={hovered ? c.text : c.textTertiary} style={{ transform: [{ rotate: rtl ? '45deg' : '-45deg' }] }} />
           </View>
           <View style={{ gap: 4 }}>
-            <Text variant="subheading">{mode.title}</Text>
+            <Text variant="subheading">{tr(mode.title)}</Text>
             <Text variant="caption" tone="muted" numberOfLines={2}>
-              {mode.body}
+              {tr(mode.body)}
             </Text>
           </View>
         </GlassView>

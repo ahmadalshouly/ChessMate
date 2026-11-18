@@ -1,14 +1,10 @@
+import { translate, type TKey } from '@/i18n';
+import { i18nStore } from '@/i18n/store';
+
 import { ApiError } from './client';
 
-/** Friendly copy for server error codes. */
-const COPY: Record<string, string> = {
-  invalid_credentials: "That username or password doesn't match. Try again.",
-  username_taken: 'That username is taken. Try another.',
-  email_taken: 'An account with this email already exists. Sign in instead?',
-  weak_password: 'Pick a stronger password: at least 8 characters, ideally mixing letters, numbers and symbols.',
-  invalid_token: 'This link has expired or was already used. Request a new one.',
-  rate_limited: 'Too many attempts. Wait a minute and try again.',
-};
+/** Server error codes with friendly, translated copy (`auth.errors.<code>`). */
+const KNOWN = new Set(['invalid_credentials', 'username_taken', 'email_taken', 'weak_password', 'invalid_token', 'rate_limited']);
 
 export interface FormError {
   /** Field the error belongs to, when the server says so. */
@@ -18,10 +14,13 @@ export interface FormError {
 
 export function toFormError(e: unknown): FormError {
   if (e instanceof ApiError) {
-    // The server explains weak passwords precisely (too common, matches username), so prefer its text.
-    const message = e.code === 'weak_password' && e.message ? e.message : (COPY[e.code] ?? e.message);
+    // The server explains weak passwords precisely (too common, matches username), so prefer its
+    // English text in English; other languages get the translated general advice.
+    const useServer = e.code === 'weak_password' && e.message && i18nStore.get().lang === 'en';
+    const message = useServer ? e.message : KNOWN.has(e.code) ? translate(`auth.errors.${e.code}` as TKey) : e.message;
     const field = e.field ?? (e.code === 'username_taken' ? 'username' : e.code === 'email_taken' ? 'email' : e.code === 'weak_password' ? 'password' : undefined);
     return { field, message };
   }
-  return { message: 'Something went wrong. Please try again.' };
+  return { message: translate('errors.tryAgain') };
 }
+

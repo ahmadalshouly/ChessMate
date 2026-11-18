@@ -3,6 +3,7 @@ import { Animated, Easing, Platform, View, type DimensionValue, type StyleProp, 
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { Radius } from '../theme/tokens';
+import { translate } from '@/i18n';
 
 const useNative = Platform.OS !== 'web';
 
@@ -29,7 +30,7 @@ export function Skeleton({ width = '100%', height = 14, radius = 'xs', style }: 
   }, [pulse]);
   const r = typeof radius === 'number' ? radius : t.radii[radius];
   return (
-    <View accessibilityLabel="Loading" style={[{ width, height, borderRadius: r, backgroundColor: t.colors.skeleton, overflow: 'hidden' }, style]}>
+    <View accessibilityLabel={translate('common.loading')} style={[{ width, height, borderRadius: r, backgroundColor: t.colors.skeleton, overflow: 'hidden' }, style]}>
       <Animated.View style={{ flex: 1, backgroundColor: t.colors.skeletonHighlight, opacity: pulse }} />
     </View>
   );

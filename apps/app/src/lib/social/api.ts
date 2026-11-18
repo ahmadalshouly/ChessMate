@@ -11,6 +11,7 @@ import type {
 
 import { SERVER_URL } from '@/lib/config';
 import { getSocialIdentity } from './session';
+import { translate } from '@/i18n';
 
 /** HTTP base of the game server, derived from its WebSocket URL. */
 export const API_URL = SERVER_URL.replace(/^ws/, 'http').replace(/\/ws\/?$/, '');
@@ -26,7 +27,7 @@ export class ApiError extends Error {
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const id = getSocialIdentity();
-  if (!id) throw new ApiError(401, 'Sign in to use friends');
+  if (!id) throw new ApiError(401, translate('friends.signInRequired'));
   let res: Response;
   try {
     res = await fetch(`${API_URL}/api/social/${path}`, {
@@ -35,7 +36,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError(0, 'Server unreachable');
+    throw new ApiError(0, translate('puzzles.home.unreachable'));
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new ApiError(res.status, data.error ?? `Request failed (${res.status})`);

@@ -5,6 +5,7 @@ import { Text } from '@/ui/primitives';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
+import { useI18n } from '@/i18n';
 import { fonts } from '@/ui';
 
 import { Glass } from './Glass';
@@ -17,6 +18,7 @@ import { Glass } from './Glass';
 export function StackHeader({ navigation, options, route, back, insetTop }: NativeStackHeaderProps & { insetTop?: boolean }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { tr, rtl } = useI18n();
   const title = typeof options.title === 'string' ? options.title : route.name;
   return (
     <Glass intensity={60} sheen={false} style={[styles.bar, { paddingTop: (insetTop ? insets.top : 0) + 8 }]}>
@@ -24,11 +26,11 @@ export function StackHeader({ navigation, options, route, back, insetTop }: Nati
         {back ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={back.title ? `Back to ${back.title}` : 'Back'}
+            accessibilityLabel={back.title ? tr('common.backTo', { title: back.title }) : tr('common.back')}
             onPress={() => navigation.goBack()}
             hitSlop={8}
             style={({ pressed }) => [styles.back, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
-            <Ionicons name="chevron-back" size={20} color={t.text} />
+            <Ionicons name={rtl ? 'chevron-forward' : 'chevron-back'} size={20} color={t.text} />
           </Pressable>
         ) : null}
         <Text numberOfLines={1} style={[styles.title, { color: t.text }]} accessibilityRole="header">

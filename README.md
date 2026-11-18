@@ -52,6 +52,12 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 - **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
 - **Boards and pieces.** Players pick from 16 board themes and 8 piece sets in Settings > Board, saved to their account (or the device for guests) and used on every board. Piece artwork comes from openly licensed sets by their original authors (Apache 2.0, MIT, CC BY, CC BY-SA, CC0; never non-commercial or GPL art), plus ChessMate's own Glass set. Sources, credits and how to add a set: [apps/app/art/pieces/README.md](apps/app/art/pieces/README.md).
 
+## Languages
+
+The app is in English, Arabic and German. It follows the device language and can be changed under **Settings → Language** (or the chips at the bottom of the welcome screen). Arabic mirrors the layout right to left, except the chessboard, and uses IBM Plex Sans Arabic. On a phone, switching to or from Arabic restarts the app once. To add text to a screen, see [apps/app/src/i18n/README.md](apps/app/src/i18n/README.md).
+
+To try it on the web, switch the language in Settings. To test the device default, set the browser language (Chrome: Settings → Languages) or the phone language, and pick **Device language** in Settings.
+
 ## Design system
 
 UI components and theme tokens live in `apps/app/src/ui` (import from `@/ui`). Type: Montserrat (the logo's wordmark face) for titles, Geist for body text, Geist Mono for clocks, ratings and labels, all bundled with the app. Logo files (SVG, black and white) are in `apps/app/assets/brand/`. Guidelines and examples: [apps/app/src/ui/README.md](apps/app/src/ui/README.md). With the dev server running, open http://localhost:8081/design in the browser to see every component in light and dark.
@@ -67,7 +73,7 @@ pnpm dev:server          # terminal 1: game server on port 8787
 pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or press w for web)
 ```
 
-The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`.
+The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`. Language support (`expo-localization` and the bundled Arabic font) works in Expo Go, so it needs no new build.
 
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
 

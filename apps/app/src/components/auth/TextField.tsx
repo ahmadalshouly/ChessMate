@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View, type TextInputInstance, type TextInputProp
 import { Text, TextInput } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
+import { useT } from '@/i18n';
 
 type Props = Omit<TextInputProps, 'style'> & {
   label: string;
@@ -14,6 +15,7 @@ type Props = Omit<TextInputProps, 'style'> & {
 
 export const TextField = forwardRef<TextInputInstance, Props>(function TextField({ label, error, hint, password, onFocus, onBlur, ...input }, ref) {
   const t = useTheme();
+  const tr = useT();
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const borderColor = error ? t.danger : focused ? t.text : t.border;
@@ -46,11 +48,11 @@ export const TextField = forwardRef<TextInputInstance, Props>(function TextField
         {password ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
+            accessibilityLabel={revealed ? tr('auth.field.hidePassword') : tr('auth.field.showPassword')}
             hitSlop={8}
             onPress={() => setRevealed((r) => !r)}
             style={styles.toggle}>
-            <Text style={{ color: t.muted, fontSize: 13, fontWeight: '600' }}>{revealed ? 'Hide' : 'Show'}</Text>
+            <Text style={{ color: t.muted, fontSize: 13, fontWeight: '600' }}>{revealed ? tr('auth.field.hide') : tr('auth.field.show')}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -66,10 +68,11 @@ export const TextField = forwardRef<TextInputInstance, Props>(function TextField
 /** Four-segment strength meter shown under a new password. */
 export function StrengthMeter({ score, visible }: { score: 0 | 1 | 2 | 3; visible: boolean }) {
   const t = useTheme();
+  const tr = useT();
   if (!visible) return null;
-  const labels = ['Too short', 'Okay', 'Good', 'Strong'] as const;
+  const labels = [tr('auth.strength.0'), tr('auth.strength.1'), tr('auth.strength.2'), tr('auth.strength.3')] as const;
   return (
-    <View style={styles.meterRow} accessibilityLabel={`Password strength: ${labels[score]}`}>
+    <View style={styles.meterRow} accessibilityLabel={tr('auth.strength.label', { strength: labels[score] })}>
       <View style={styles.meter}>
         {[0, 1, 2, 3].map((i) => (
           <View key={i} style={[styles.seg, { backgroundColor: i <= score && score > 0 ? t.text : t.border }]} />

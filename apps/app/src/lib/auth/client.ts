@@ -1,3 +1,4 @@
+import { translate } from '@/i18n';
 import { API_URL } from '@/lib/config';
 
 import type { ApiErrorBody, AuthResponse, AuthUser } from './contract';
@@ -36,7 +37,7 @@ export async function request<T>(path: string, init: RequestInit & { token?: str
   } catch {
     // In development the usual cause is the phone not reaching the laptop, so say which address was tried.
     const hint = __DEV__ ? ` (tried ${API_URL}. Is pnpm dev:server running, and is this device on the same Wi-Fi?)` : '';
-    throw new ApiError(0, 'network', `Can't reach ChessMate right now. Check your connection and try again.${hint}`);
+    throw new ApiError(0, 'network', translate('errors.network') + hint);
   } finally {
     clearTimeout(timer);
   }
@@ -48,8 +49,8 @@ export async function request<T>(path: string, init: RequestInit & { token?: str
   const body = (await res.json().catch(() => null)) as unknown;
   if (!res.ok) {
     const err = (body as ApiErrorBody | null)?.error;
-    if (err && typeof err.code === 'string') throw new ApiError(res.status, err.code, err.message || 'Something went wrong.', err.field);
-    throw new ApiError(res.status, res.status >= 500 ? 'server' : 'unknown', 'Something went wrong on our side. Please try again.');
+    if (err && typeof err.code === 'string') throw new ApiError(res.status, err.code, err.message || translate('errors.generic'), err.field);
+    throw new ApiError(res.status, res.status >= 500 ? 'server' : 'unknown', translate('errors.server'));
   }
   return body as T;
 }

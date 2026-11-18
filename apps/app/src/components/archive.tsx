@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
+import { formatDate as formatLocalDate, translate, useI18n, useT, type TKey } from '@/i18n';
 
 /** Pill toggle used by the archive filters. */
 export function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -52,7 +53,8 @@ export function ChipRow<T extends string>({
 export function ResultBadge({ game }: { game: ArchivedGame }) {
   const t = useTheme();
   const o = viewerOutcome(game);
-  const text = o === 'win' ? 'W' : o === 'loss' ? 'L' : o === 'draw' ? 'D' : game.result === '1/2-1/2' ? '½' : game.result;
+  const tr = useT();
+  const text = o === 'win' ? tr('games.badge.win') : o === 'loss' ? tr('games.badge.loss') : o === 'draw' ? tr('games.badge.draw') : game.result === '1/2-1/2' ? '½' : game.result;
   const solid = o === 'win';
   return (
     <View
@@ -65,13 +67,13 @@ export function ResultBadge({ game }: { game: ArchivedGame }) {
   );
 }
 
-const SOURCE: Record<ArchivedGame['source'], string> = { online: 'Online', practice: 'Practice', import: 'Imported' };
+const SOURCE: Record<ArchivedGame['source'], TKey> = { online: 'games.source.online', practice: 'games.source.practice', import: 'games.source.import' };
 
 export function formatDate(ms: number): string {
   const d = new Date(ms);
   const now = new Date();
   const sameYear = d.getFullYear() === now.getFullYear();
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
+  return formatLocalDate(d, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
 }
 
 export function playerLabel(name: string, rating: number | null) {
@@ -81,23 +83,26 @@ export function playerLabel(name: string, rating: number | null) {
 /** Summary line under the players: category, time control, moves, date. */
 export function gameMeta(g: ArchivedGame): string {
   const parts: string[] = [];
-  if (g.category) parts.push(g.category[0]!.toUpperCase() + g.category.slice(1));
+  if (g.category) parts.push(translate(`common.category.${g.category}` as TKey));
   if (g.timeControl) parts.push(formatTimeControl(g.timeControl));
-  if (g.source !== 'online') parts.push(SOURCE[g.source]);
-  else if (g.rated) parts.push('Rated');
-  parts.push(`${Math.ceil(g.moves.length / 2)} moves`);
+  if (g.source !== 'online') parts.push(translate(SOURCE[g.source]));
+  else if (g.rated) parts.push(translate('play.rated'));
+  parts.push(translate('games.moveCount', { count: Math.ceil(g.moves.length / 2) }));
   parts.push(formatDate(g.endedAt));
   return parts.join(' · ');
 }
 
 export function GameRow({ game, onPress }: { game: ArchivedGame; onPress: () => void }) {
   const t = useTheme();
+  const { tr, rtl } = useI18n();
   const opp = opponentOf(game);
-  const title = opp ? `vs ${playerLabel(opp, game.myColor === 'w' ? game.blackRating : game.whiteRating)}` : `${game.white} vs ${game.black}`;
+  const title = opp
+    ? tr('games.vsOpponent', { name: playerLabel(opp, game.myColor === 'w' ? game.blackRating : game.whiteRating) })
+    : tr('games.vsPlayers', { white: game.white, black: game.black });
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open game ${title}`}
+      accessibilityLabel={tr('games.openA11y', { title })}
       onPress={onPress}
       style={({ pressed }) => [styles.row, { borderColor: t.glassBorder, opacity: pressed ? 0.8 : 1 }]}>
       <BlurView intensity={30} tint={t.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
@@ -120,7 +125,7 @@ export function GameRow({ game, onPress }: { game: ArchivedGame; onPress: () => 
           {gameMeta(game)}
         </Text>
       </View>
-      <Text style={[styles.chevron, { color: t.muted }]}>›</Text>
+      <Text style={[styles.chevron, { color: t.muted }]}>{rtl ? '‹' : '›'}</Text>
     </Pressable>
   );
 }
@@ -145,7 +150,7 @@ const styles = StyleSheet.create({
   chip: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1 },
   chipText: { fontSize: 14, fontWeight: '600' },
   chipRowWrap: { gap: 6 },
-  chipRow: { gap: 8, paddingRight: 8 },
+  chipRow: { gap: 8, paddingEnd: 8 },
   rowLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
   badge: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontWeight: '800' },

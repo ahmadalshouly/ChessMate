@@ -1,0 +1,33 @@
+import type { Messages } from '../../core';
+import type { computer as en } from '../en/computer';
+
+export const computer: Messages<typeof en> = {
+  choose: 'Wähle deinen Gegner',
+  intro: 'Ungewertetes Training. Zurücknehmen und Tipps sind immer erlaubt.',
+  playAs: 'Spielen als',
+  liveThreats: 'Live-Drohungshinweise',
+  liveThreatsBody: 'Zeigt Figuren, die du verlieren könntest, und was der Computer droht.',
+  takeback: 'Zurücknehmen',
+  new: 'Neu',
+  changeOpponent: 'Gegner wechseln',
+  threatFeedback: 'Drohungshinweise',
+  botA11y: '{name}, Stufe {level}, etwa {rating}',
+  levelRating: 'Stufe {level} · ~{rating}',
+  playBot: 'Gegen {name} spielen',
+  thinking: 'Denkt nach…',
+  botToMove: 'Am Zug',
+  you: 'Du',
+  youSubtitle: '{color} · ungewertet',
+  yourMove: 'Du bist dran',
+  hintBusy: 'Tipp…',
+  hint: 'Tipp',
+  unrated: 'Ungewertet',
+  takebacks: { one: '{count} Rücknahme', other: '{count} Rücknahmen' },
+  hints: { one: '{count} Tipp', other: '{count} Tipps' },
+  hintText: 'Tipp: {san} sieht hier am stärksten aus.',
+  hanging: 'Deine Figur auf {square} ({piece}) kann geschlagen werden',
+  threatens: '{name} droht: {threat}',
+  chance: 'Chance: {threat}',
+  flip: 'Drehen',
+  noTactics: 'Keine unmittelbare Taktik.',
+};

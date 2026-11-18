@@ -9,9 +9,11 @@ import { Button, Label } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { toFormError } from '@/lib/auth/errors';
 import { safeNext } from '@/lib/auth/navigation';
+import { useT } from '@/i18n';
 
 export default function SignIn() {
   const { signIn, continueAsGuest, status } = useAuth();
+  const tr = useT();
   const { next, login: prefill } = useLocalSearchParams<{ next?: string; login?: string }>();
   const [login, setLogin] = useState(prefill ?? '');
   const [password, setPassword] = useState('');
@@ -21,8 +23,8 @@ export default function SignIn() {
 
   async function submit() {
     const e: typeof errors = {};
-    if (!login.trim()) e.login = 'Enter your username or email.';
-    if (!password) e.password = 'Enter your password.';
+    if (!login.trim()) e.login = tr('auth.signInScreen.loginEmpty');
+    if (!password) e.password = tr('auth.signInScreen.passwordEmpty');
     setErrors(e);
     if (e.login || e.password) return;
     setBusy(true);
@@ -38,16 +40,16 @@ export default function SignIn() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to play rated games and keep your history."
+      title={tr('auth.signInScreen.title')}
+      subtitle={tr('auth.signInScreen.subtitle')}
       footer={
         <Label muted>
-          New to ChessMate? <TextLink title="Create an account" onPress={() => router.replace({ pathname: '/sign-up', params: next ? { next } : {} })} />
+          {tr('auth.signInScreen.newHere')} <TextLink title={tr('auth.signInScreen.createLink')} onPress={() => router.replace({ pathname: '/sign-up', params: next ? { next } : {} })} />
         </Label>
       }>
       {errors.form ? <FormMessage kind="error">{errors.form}</FormMessage> : null}
       <TextField
-        label="Username or email"
+        label={tr('auth.signInScreen.login')}
         value={login}
         onChangeText={setLogin}
         error={errors.login}
@@ -59,7 +61,7 @@ export default function SignIn() {
       />
       <TextField
         ref={passwordRef}
-        label="Password"
+        label={tr('auth.password')}
         password
         value={password}
         onChangeText={setPassword}
@@ -70,16 +72,16 @@ export default function SignIn() {
         onSubmitEditing={submit}
       />
       <Label muted size={14}>
-        <TextLink title="Forgot password?" onPress={() => router.push({ pathname: '/forgot-password', params: login.includes('@') ? { email: login } : {} })} />
+        <TextLink title={tr('auth.signInScreen.forgot')} onPress={() => router.push({ pathname: '/forgot-password', params: login.includes('@') ? { email: login } : {} })} />
       </Label>
-      <Button title={busy ? 'Signing in…' : 'Sign in'} onPress={submit} disabled={busy} />
-      {status !== 'guest' ? <Divider label="or" /> : null}
+      <Button title={busy ? tr('auth.signInScreen.busy') : tr('auth.signIn')} onPress={submit} disabled={busy} />
+      {status !== 'guest' ? <Divider label={tr('common.or')} /> : null}
       {/* Its own "or" divider only when the guest option below isn't shown. */}
       <SocialSignIn divider={status === 'guest'} onSignedIn={() => router.replace(safeNext(next))} />
       {status !== 'guest' ? (
         <>
           <Button
-            title="Continue as guest"
+            title={tr('auth.continueAsGuest')}
             variant="secondary"
             onPress={async () => {
               await continueAsGuest();

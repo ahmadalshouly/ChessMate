@@ -11,19 +11,16 @@ import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { clockRemaining } from '@/lib/playClient';
 import { useSpectate } from '@/lib/social/useSpectate';
+import { reasonText } from '@/components/play/GameOverCard';
+import { translate, useT } from '@/i18n';
 
-const REASONS: Record<string, string> = {
-  checkmate: 'by checkmate',
-  resignation: 'by resignation',
-  timeout: 'on time',
-  abandoned: 'by abandonment',
-  aborted: '(aborted)',
-};
+const reasonFor = (reason: string) => (reason === 'abandoned' ? translate('watch.byAbandonment') : reason === 'aborted' ? translate('watch.aborted') : reasonText(reason));
 
 /** Spectator view of a live game. Read-only, with live clocks. */
 export default function WatchScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
   const s = useSpectate(String(gameId));
+  const tr = useT();
   const [orientation, setOrientation] = useState<Color>('w');
   const size = useBoardSize(260);
   useTicker(s.status === 'live' && !!s.clock?.running);
@@ -35,12 +32,12 @@ export default function WatchScreen() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: s.white && s.black ? `${s.white.name} vs ${s.black.name}` : 'Watch' }} />
+      <Stack.Screen options={{ title: s.white && s.black ? tr('watch.title', { white: s.white.name, black: s.black.name }) : tr('watch.watch') }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={{ width: size, gap: 4 }}>
           {s.status === 'error' ? (
             <Card>
-              <Label>{s.error === 'No such game' ? 'This game has ended or does not exist.' : (s.error ?? 'Could not open this game.')}</Label>
+              <Label>{s.error === 'No such game' ? tr('watch.ended') : (s.error ?? tr('watch.couldNotOpen'))}</Label>
             </Card>
           ) : (
             <>
@@ -57,12 +54,12 @@ export default function WatchScreen() {
                 <View style={styles.row}>
                   <Label muted>
                     {s.status === 'connecting'
-                      ? 'Connecting...'
+                      ? tr('play.connecting')
                       : s.outcome
-                        ? `${s.outcome.result} ${REASONS[s.outcome.reason] ?? s.outcome.reason.replace(/_/g, ' ')}`
-                        : `Live · ${s.spectators} watching`}
+                        ? `${s.outcome.result} ${reasonFor(s.outcome.reason)}`
+                        : tr('watch.live', { count: s.spectators })}
                   </Label>
-                  <Pill title="Flip board" onPress={() => setOrientation((o) => (o === 'w' ? 'b' : 'w'))} />
+                  <Pill title={tr('common.flipBoard')} onPress={() => setOrientation((o) => (o === 'w' ? 'b' : 'w'))} />
                 </View>
                 {s.history.length > 0 && (
                   <Label muted size={13}>

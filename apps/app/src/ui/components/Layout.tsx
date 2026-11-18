@@ -150,7 +150,7 @@ export function Divider({ vertical, inset = 0 }: { vertical?: boolean; inset?: n
   return vertical ? (
     <View style={{ width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: c.border }} />
   ) : (
-    <View style={{ height: StyleSheet.hairlineWidth, marginLeft: inset, backgroundColor: c.border }} />
+    <View style={{ height: StyleSheet.hairlineWidth, marginStart: inset, backgroundColor: c.border }} />
   );
 }
 

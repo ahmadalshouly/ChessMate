@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Logo } from '@/components/shell/Logo';
 import { Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { useI18n } from '@/i18n';
 
 /** The ChessMate line-art mark. */
 export function BrandMark({ size = 56 }: { size?: number }) {
@@ -28,6 +29,7 @@ export function AuthShell({
   back?: boolean;
 }) {
   const t = useTheme();
+  const { tr, rtl } = useI18n();
   return (
     <Screen>
       <SafeAreaView style={{ flex: 1 }}>
@@ -37,11 +39,11 @@ export function AuthShell({
               {back ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Back"
+                  accessibilityLabel={tr('common.back')}
                   hitSlop={12}
                   onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}
                   style={styles.back}>
-                  <Text style={{ color: t.muted, fontSize: 15, fontWeight: '600' }}>‹ Back</Text>
+                  <Text style={{ color: t.muted, fontSize: 15, fontWeight: '600' }}>{`${rtl ? '›' : '‹'} ${tr('common.back')}`}</Text>
                 </Pressable>
               ) : null}
               <View style={styles.header}>

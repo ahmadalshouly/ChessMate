@@ -1,4 +1,4 @@
-import { themeLabel, type PuzzleDto } from '@chessmate/core';
+import type { PuzzleDto } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -8,12 +8,15 @@ import { Button, Card, Label, Screen } from '@/components/ui';
 import { puzzleApi } from '@/lib/puzzleApi';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
+import { translate, useT } from '@/i18n';
+import { puzzleThemeLabel } from '@/i18n/chess';
 
 /**
  * Puzzle trainer: rated puzzles near your puzzle rating, optionally filtered
  * by theme. Also opens the daily puzzle (`?daily=1`) or one puzzle (`?id=`).
  */
 export default function PuzzleTrainer() {
+  const tr = useT();
   const params = useLocalSearchParams<{ theme?: string; id?: string; daily?: string }>();
   const theme = params.theme || undefined;
   const daily = params.daily === '1';
@@ -32,7 +35,7 @@ export default function PuzzleTrainer() {
       seen.current.push(r.puzzle.id);
       setPuzzle(r.puzzle);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load a puzzle');
+      setError(e instanceof Error ? e.message : translate('puzzles.train.loadFailed'));
     }
   }, [daily, params.id, theme]);
 
@@ -51,7 +54,7 @@ export default function PuzzleTrainer() {
   }, []);
 
   const view = usePuzzle(puzzle, { onFinish });
-  const title = daily && seen.current.length <= 1 ? 'Daily puzzle' : theme ? themeLabel(theme) : 'Puzzles';
+  const title = daily && seen.current.length <= 1 ? tr('puzzles.daily') : theme ? puzzleThemeLabel(theme) : tr('nav.puzzles');
 
   return (
     <Screen>
@@ -59,9 +62,9 @@ export default function PuzzleTrainer() {
       <ScrollView contentContainerStyle={styles.page}>
         {error ? (
           <Card style={{ width: size }}>
-            <Label bold>Couldn&apos;t load a puzzle</Label>
+            <Label bold>{tr('puzzles.train.couldNotLoad')}</Label>
             <Label muted>{error}</Label>
-            <Button title="Try again" onPress={load} />
+            <Button title={tr('common.tryAgain')} onPress={load} />
           </Card>
         ) : (
           <View style={{ width: size, gap: 12 }}>
@@ -69,16 +72,15 @@ export default function PuzzleTrainer() {
             {result && (
               <Card>
                 <Label size={18} bold>
-                  {result.solved ? 'Nice work.' : 'Keep at it.'}
+                  {result.solved ? tr('puzzles.train.nice') : tr('puzzles.train.keepAtIt')}
                 </Label>
                 {result.delta !== undefined && (
                   <Label muted>
-                    Puzzle rating {result.rating} ({result.delta >= 0 ? '+' : ''}
-                    {result.delta})
+                    {tr('puzzles.train.ratingChange', { rating: result.rating ?? '', delta: `${result.delta >= 0 ? '+' : ''}${result.delta}` })}
                   </Label>
                 )}
-                <Button title="Next puzzle" onPress={load} />
-                {daily && <Button variant="secondary" title="Back to puzzles" onPress={() => router.back()} />}
+                <Button title={tr('puzzles.train.next')} onPress={load} />
+                {daily && <Button variant="secondary" title={tr('puzzles.train.back')} onPress={() => router.back()} />}
               </Card>
             )}
           </View>

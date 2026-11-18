@@ -1,0 +1,33 @@
+import type { Messages } from '../../core';
+import type { computer as en } from '../en/computer';
+
+export const computer: Messages<typeof en> = {
+  choose: 'اختر خصمك',
+  intro: 'تدريب غير مصنّف. التراجع والتلميحات مسموحة دائمًا.',
+  playAs: 'العب بـ',
+  liveThreats: 'ملاحظات التهديد المباشرة',
+  liveThreatsBody: 'يبرز القطع التي قد تخسرها وما يهدد به الكمبيوتر.',
+  takeback: 'تراجع',
+  new: 'جديدة',
+  changeOpponent: 'تغيير الخصم',
+  threatFeedback: 'ملاحظات التهديد',
+  botA11y: '{name}، المستوى {level}، نحو {rating}',
+  levelRating: 'المستوى {level} · ~{rating}',
+  playBot: 'العب ضد {name}',
+  thinking: 'يفكر…',
+  botToMove: 'دوره',
+  you: 'أنت',
+  youSubtitle: '{color} · غير مصنّفة',
+  yourMove: 'دورك',
+  hintBusy: 'تلميح…',
+  hint: 'تلميح',
+  unrated: 'غير مصنّفة',
+  takebacks: { other: 'مرات التراجع: {count}' },
+  hints: { other: 'التلميحات: {count}' },
+  hintText: 'تلميح: تبدو {san} الأقوى هنا.',
+  hanging: 'يمكن أسر {piece} الخاص بك في {square}',
+  threatens: '{name} يهدد: {threat}',
+  chance: 'فرصة: {threat}',
+  flip: 'قلب',
+  noTactics: 'لا تكتيكات فورية.',
+};

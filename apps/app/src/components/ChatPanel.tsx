@@ -7,6 +7,11 @@ import { ReportDialog } from '@/components/ReportDialog';
 import { Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { setChatOff, setMuted, useChatPrefs, type GameChat } from '@/lib/useGameChat';
+import { translateOr, useT } from '@/i18n';
+import { serverText } from '@/i18n/serverMessages';
+
+/** Quick messages are sent as ids, so each player reads them in their own language. */
+export const quickText = (id: string, fallback: string) => translateOr(`chat.quick.${id}`, fallback);
 
 /**
  * In-game chat: quick-message chips, free text (filtered by the server),
@@ -14,6 +19,7 @@ import { setChatOff, setMuted, useChatPrefs, type GameChat } from '@/lib/useGame
  */
 export function ChatPanel({ chat, me, opponent, canChat }: { chat: GameChat; me: PlayerInfo | null; opponent: PlayerInfo | null; canChat: boolean }) {
   const t = useTheme();
+  const tr = useT();
   const prefs = useChatPrefs();
   const [draft, setDraft] = useState('');
   const [reporting, setReporting] = useState(false);
@@ -32,39 +38,39 @@ export function ChatPanel({ chat, me, opponent, canChat }: { chat: GameChat; me:
   return (
     <Card style={{ marginTop: 12 }}>
       <View style={styles.header}>
-        <Label bold>Chat</Label>
+        <Label bold>{tr('chat.title')}</Label>
         <View style={styles.headerActions}>
           {opponent && (
             <>
-              <Chip label={isMuted ? 'Unmute' : 'Mute'} active={isMuted} onPress={() => setMuted(opponent.id, !isMuted)} />
-              <Chip label={reported ? 'Reported' : 'Report'} disabled={reported} onPress={() => setReporting(true)} />
+              <Chip label={isMuted ? tr('chat.unmute') : tr('chat.mute')} active={isMuted} onPress={() => setMuted(opponent.id, !isMuted)} />
+              <Chip label={reported ? tr('chat.reported') : tr('chat.report')} disabled={reported} onPress={() => setReporting(true)} />
             </>
           )}
-          <Chip label={prefs.chatOff ? 'Chat off' : 'Chat on'} active={prefs.chatOff} onPress={() => setChatOff(!prefs.chatOff)} />
+          <Chip label={prefs.chatOff ? tr('chat.off') : tr('chat.on')} active={prefs.chatOff} onPress={() => setChatOff(!prefs.chatOff)} />
         </View>
       </View>
 
       <ScrollView ref={scroll} style={[styles.log, { borderColor: t.border }]} contentContainerStyle={{ padding: 10, gap: 6 }}>
-        {chat.lines.length === 0 && <Label muted>{prefs.chatOff ? 'Chat is off. Turn it on to see messages.' : 'Say hello, or use a quick message.'}</Label>}
+        {chat.lines.length === 0 && <Label muted>{prefs.chatOff ? tr('chat.offHint') : tr('chat.empty')}</Label>}
         {chat.lines.map((l) => {
           const mine = l.playerId === me?.id;
           return (
             <View key={l.id} style={[styles.bubble, mine ? { alignSelf: 'flex-end', backgroundColor: t.accent } : { alignSelf: 'flex-start', backgroundColor: t.surface, borderColor: t.glassBorder, borderWidth: 1 }]}>
               {!mine && <Text style={[styles.name, { color: t.muted }]}>{l.name}</Text>}
-              <Text style={{ color: mine ? t.onAccent : t.text, fontSize: 15 }}>{l.text}</Text>
+              <Text style={{ color: mine ? t.onAccent : t.text, fontSize: 15 }}>{l.quick ? quickText(l.quick, l.text) : l.text}</Text>
             </View>
           );
         })}
-        {chat.hiddenCount > 0 && !prefs.chatOff && <Label muted>{`${chat.hiddenCount} message${chat.hiddenCount === 1 ? '' : 's'} from muted players hidden`}</Label>}
+        {chat.hiddenCount > 0 && !prefs.chatOff && <Label muted>{tr('chat.hidden', { count: chat.hiddenCount })}</Label>}
       </ScrollView>
 
-      {chat.notice && <Label muted>{chat.notice}</Label>}
+      {chat.notice && <Label muted>{serverText(chat.notice)}</Label>}
 
       {canChat && !prefs.chatOff && (
         <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
             {QUICK_MESSAGES.map((q) => (
-              <Chip key={q.id} label={q.text} onPress={() => chat.sendQuick(q.id)} />
+              <Chip key={q.id} label={quickText(q.id, q.text)} onPress={() => chat.sendQuick(q.id)} />
             ))}
           </ScrollView>
           <View style={styles.inputRow}>
@@ -72,15 +78,15 @@ export function ChatPanel({ chat, me, opponent, canChat }: { chat: GameChat; me:
               value={draft}
               onChangeText={setDraft}
               onSubmitEditing={submit}
-              placeholder="Message"
+              placeholder={tr('chat.placeholder')}
               placeholderTextColor={t.muted}
               maxLength={CHAT_MAX_LENGTH}
               returnKeyType="send"
-              accessibilityLabel="Chat message"
+              accessibilityLabel={tr('chat.a11y')}
               style={[styles.input, { color: t.text, borderColor: t.border, backgroundColor: t.surface }]}
             />
             <Pressable accessibilityRole="button" onPress={submit} disabled={!draft.trim()} style={[styles.send, { backgroundColor: t.accent, opacity: draft.trim() ? 1 : 0.4 }]}>
-              <Text style={{ color: t.onAccent, fontWeight: '600' }}>Send</Text>
+              <Text style={{ color: t.onAccent, fontWeight: '600' }}>{tr('chat.send')}</Text>
             </Pressable>
           </View>
         </>

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
+import { formatAgo, translate } from '@/i18n';
 
 /** Monochrome initial badge; no user images yet. */
 export function Avatar({ user, size = 40, presence }: { user: SocialUser; size?: number; presence?: Presence | null }) {
@@ -29,7 +30,7 @@ export function PresenceDot({ presence, style }: { presence: Presence; style?: o
   const playing = presence.status === 'playing';
   return (
     <View
-      accessibilityLabel={presence.status}
+      accessibilityLabel={presenceLabel(presence)}
       style={[
         styles.dot,
         {
@@ -45,7 +46,7 @@ export function PresenceDot({ presence, style }: { presence: Presence; style?: o
 
 export function presenceLabel(p: Presence | null | undefined): string {
   if (!p) return '';
-  return p.status === 'playing' ? 'Playing now' : p.status === 'online' ? 'Online' : 'Offline';
+  return translate(p.status === 'playing' ? 'social.presence.playing' : p.status === 'online' ? 'profile.online' : 'play.offline');
 }
 
 export function UserRow({
@@ -137,21 +138,13 @@ export function SearchField(props: TextInputProps) {
   );
 }
 
-export function timeAgo(ms: number, now = Date.now()): string {
-  const s = Math.max(0, Math.round((now - ms) / 1000));
-  if (s < 60) return 'just now';
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  return d < 30 ? `${d}d ago` : new Date(ms).toLocaleDateString();
-}
+/** "5m ago" in the current language. */
+export const timeAgo = formatAgo;
 
 const styles = StyleSheet.create({
   avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   dot: { width: 14, height: 14, borderRadius: 7 },
-  dotCorner: { position: 'absolute', right: -2, bottom: -2 },
+  dotCorner: { position: 'absolute', end: -2, bottom: -2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
   rowRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },

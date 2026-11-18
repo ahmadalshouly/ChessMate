@@ -1,0 +1,36 @@
+import type { Messages } from '../../core';
+import type { coach as en } from '../en/coach';
+
+export const coach: Messages<typeof en> = {
+  error: 'خطأ في المدرب ({status})',
+  reviewFailed: 'فشلت المراجعة',
+  loadFailed: 'تعذّر تحميل المراجعة',
+  reviewing: 'مدربك يراجع المباراة…',
+  title: 'مراجعة المباراة',
+  ai: 'المدرب الذكي',
+  quick: 'مراجعة سريعة',
+  yourAccuracy: 'دقتك',
+  opponent: 'الخصم',
+  blunders: 'أخطاء فادحة',
+  mistakes: 'أخطاء',
+  offline: 'المدرب الذكي غير متصل، لذا هذه مراجعة قائمة على القواعد.',
+  keyMoment: 'اللحظة الحاسمة {n} من {total}',
+  played: 'لُعبت {move}',
+  best: 'الأفضل {move}',
+  noMistakes: 'لا أخطاء جسيمة',
+  noMistakesBody: 'لم يجد المحرك عدم دقة تستحق المراجعة في هذه المباراة.',
+  habits: 'عادات تحتاج إلى إصلاح',
+  studyNext: 'ادرس بعد ذلك',
+  yourMove: 'نقلتك',
+  opponentMove: 'نقلة خصمك',
+  eval: 'التقييم {value}',
+  starters: {
+    whyBad: 'لماذا كانت نقلتي سيئة؟',
+    plan: 'ما الخطة هنا؟',
+    threat: 'بماذا يهددني خصمي؟',
+  },
+  unavailable: 'المدرب غير متاح',
+  ask: 'اسأل المدرب',
+  askPlaceholder: 'اسأل عن هذا الوضع',
+  sample: 'مباراة نموذجية: {opening}. لعبت بالأبيض.',
+};

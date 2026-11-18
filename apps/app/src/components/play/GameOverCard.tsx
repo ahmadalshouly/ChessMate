@@ -4,27 +4,34 @@ import { Text } from '@/ui/primitives';
 
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { translate, useT, type TKey } from '@/i18n';
 import type { GameView } from '@/lib/playClient';
 
-const REASONS: Record<string, string> = {
-  checkmate: 'by checkmate',
-  resignation: 'by resignation',
-  timeout: 'on time',
-  timeout_vs_insufficient: 'timeout vs insufficient material',
-  stalemate: 'by stalemate',
-  insufficient_material: 'by insufficient material',
-  threefold_repetition: 'by threefold repetition',
-  fifty_move_rule: 'by the fifty-move rule',
-  draw_agreement: 'by agreement',
-  abandoned: 'opponent left the game',
-  aborted: 'before the first moves',
-};
+const REASONS = new Set([
+  'checkmate',
+  'resignation',
+  'timeout',
+  'timeout_vs_insufficient',
+  'stalemate',
+  'insufficient_material',
+  'threefold_repetition',
+  'fifty_move_rule',
+  'draw_agreement',
+  'abandoned',
+  'aborted',
+]);
+
+/** "by checkmate", "on time", … for a game-end reason code. */
+export function reasonText(reason: string): string {
+  return REASONS.has(reason) ? translate(`play.reason.${reason}` as TKey) : reason.replace(/_/g, ' ');
+}
 
 export function resultHeadline(view: GameView): { title: string; detail: string } {
   const o = view.outcome!;
   const youLeft = o.reason === 'abandoned' && o.winner !== view.you;
-  const title = o.reason === 'aborted' ? 'Game aborted' : o.winner === null ? 'Draw' : o.winner === view.you ? 'You won' : 'You lost';
-  const detail = youLeft ? 'you left the game' : (REASONS[o.reason] ?? o.reason.replace(/_/g, ' '));
+  const title =
+    o.reason === 'aborted' ? translate('play.result.aborted') : o.winner === null ? translate('play.result.draw') : o.winner === view.you ? translate('play.result.won') : translate('play.result.lost');
+  const detail = youLeft ? translate('play.reason.youLeft') : reasonText(o.reason);
   return { title, detail };
 }
 
@@ -43,6 +50,7 @@ export function GameOverCard({
   onLobby: () => void;
 }) {
   const t = useTheme();
+  const tr = useT();
   const { title, detail } = resultHeadline(view);
   const opp: Color = view.you === 'w' ? 'b' : 'w';
   const change = view.ratingChange?.[view.you];
@@ -61,7 +69,7 @@ export function GameOverCard({
       </Label>
       <View style={styles.meta}>
         <Label muted>
-          {tc} · {view.rated ? 'Rated' : 'Casual'} vs {opponent.name}
+          {tr('play.over.vs', { tc, mode: view.rated ? tr('play.rated') : tr('play.casual'), name: opponent.name })}
         </Label>
         {change && delta !== null && (
           <View style={[styles.delta, { borderColor: t.glassBorder, backgroundColor: t.surface }]}>
@@ -72,20 +80,20 @@ export function GameOverCard({
           </View>
         )}
       </View>
-      {oppOffered && <Label bold>{opponent.name} wants a rematch.</Label>}
-      {iOffered && <Label muted>Rematch offered. Waiting for {opponent.name}…</Label>}
-      {view.rematchDeclined && <Label muted>Rematch declined.</Label>}
+      {oppOffered && <Label bold>{tr('play.over.wantsRematch', { name: opponent.name })}</Label>}
+      {iOffered && <Label muted>{tr('play.over.rematchWaiting', { name: opponent.name })}</Label>}
+      {view.rematchDeclined && <Label muted>{tr('play.over.declined')}</Label>}
       <View style={styles.buttons}>
         {oppOffered ? (
           <>
-            <Button title="Accept rematch" onPress={onRematch} />
-            <Button variant="secondary" title="Decline" onPress={onDeclineRematch} />
+            <Button title={tr('play.over.acceptRematch')} onPress={onRematch} />
+            <Button variant="secondary" title={tr('common.decline')} onPress={onDeclineRematch} />
           </>
         ) : (
-          <Button title={iOffered ? 'Rematch offered' : 'Rematch'} disabled={iOffered || view.rematchDeclined || !view.opponentConnected} onPress={onRematch} />
+          <Button title={iOffered ? tr('play.over.rematchOffered') : tr('play.over.rematch')} disabled={iOffered || view.rematchDeclined || !view.opponentConnected} onPress={onRematch} />
         )}
-        <Button variant="secondary" title={`New ${tc}`} onPress={onNewGame} />
-        <Button variant="secondary" title="Lobby" onPress={onLobby} />
+        <Button variant="secondary" title={tr('play.over.newGame', { tc })} onPress={onNewGame} />
+        <Button variant="secondary" title={tr('play.over.lobby')} onPress={onLobby} />
       </View>
     </Card>
     </View>

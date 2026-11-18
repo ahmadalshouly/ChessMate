@@ -10,11 +10,13 @@ import { useTheme } from '@/constants/theme';
 import { puzzleApi } from '@/lib/puzzleApi';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
+import { translate, useT, type TKey } from '@/i18n';
 
-const COPY: Record<PuzzleRunMode, { title: string; rules: string }> = {
-  streak: { title: 'Puzzle streak', rules: 'Solve puzzles that get harder each time. One wrong move ends the streak. No clock, no hints.' },
-  rush: { title: 'Puzzle rush', rules: `Solve as many as you can in ${RUSH_DURATION_MS / 60_000} minutes. ${RUSH_LIVES} mistakes and you're out.` },
+const COPY: Record<PuzzleRunMode, { title: TKey; rules: TKey }> = {
+  streak: { title: 'puzzles.run.streakTitle', rules: 'puzzles.run.streakRules' },
+  rush: { title: 'puzzles.run.rushTitle', rules: 'puzzles.run.rushRules' },
 };
+const RULE_PARAMS = { minutes: RUSH_DURATION_MS / 60_000, lives: RUSH_LIVES };
 
 type Phase = 'ready' | 'playing' | 'over';
 
@@ -23,6 +25,7 @@ export default function PuzzleRun() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode: PuzzleRunMode = params.mode === 'rush' ? 'rush' : 'streak';
   const t = useTheme();
+  const tr = useT();
   const size = useBoardSize(360);
   const [phase, setPhase] = useState<Phase>('ready');
   const [queue, setQueue] = useState<PuzzleDto[]>([]);
@@ -51,7 +54,7 @@ export default function PuzzleRun() {
           return [...q, ...fresh];
         });
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not load puzzles');
+        setError(e instanceof Error ? e.message : translate('puzzles.run.loadFailed'));
       } finally {
         fetching.current = false;
       }
@@ -131,17 +134,17 @@ export default function PuzzleRun() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: COPY[mode].title }} />
+      <Stack.Screen options={{ title: tr(COPY[mode].title) }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={{ width: size, gap: 12 }}>
           {phase === 'ready' && (
             <Card>
               <Label size={22} bold>
-                {COPY[mode].title}
+                {tr(COPY[mode].title)}
               </Label>
-              <Label muted>{COPY[mode].rules}</Label>
+              <Label muted>{tr(COPY[mode].rules, RULE_PARAMS)}</Label>
               {error && <Label muted>{error}</Label>}
-              <Button title="Start" onPress={start} />
+              <Button title={tr('puzzles.run.start')} onPress={start} />
             </Card>
           )}
 
@@ -163,10 +166,10 @@ export default function PuzzleRun() {
 
           {phase === 'over' && (
             <Card>
-              <Label muted>{mode === 'rush' ? (left === 0 ? "Time's up" : 'Out of lives') : 'Streak over'}</Label>
+              <Label muted>{mode === 'rush' ? (left === 0 ? tr('puzzles.run.timeUp') : tr('puzzles.run.outOfLives')) : tr('puzzles.run.streakOver')}</Label>
               <Text style={[styles.final, { color: t.text }]}>{score}</Text>
-              <Label muted>{best ? (best.newBest ? 'New personal best!' : `Personal best: ${best.best}`) : 'Saving...'}</Label>
-              <Button title="Play again" onPress={start} />
+              <Label muted>{best ? (best.newBest ? tr('puzzles.run.newBest') : tr('puzzles.run.best', { n: best.best })) : tr('common.saving')}</Label>
+              <Button title={tr('puzzles.run.again')} onPress={start} />
             </Card>
           )}
         </View>
@@ -181,6 +184,6 @@ const styles = StyleSheet.create({
   score: { fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'] },
   lives: { flexDirection: 'row', gap: 6 },
   life: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-  clock: { marginLeft: 'auto', fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  clock: { marginStart: 'auto', fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] },
   final: { fontSize: 56, fontWeight: '800' },
 });

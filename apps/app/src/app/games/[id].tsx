@@ -8,38 +8,27 @@ import { Board } from '@/components/Board';
 import { SideDot, formatDate, gameMeta, playerLabel } from '@/components/archive';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { translate, translateOr, useT } from '@/i18n';
 import { deleteGame, useArchivedGame } from '@/lib/archive';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { canDownload, copyText, downloadPgn, pgnFileName, sharePgn } from '@/lib/share';
 
-const REASONS: Record<string, string> = {
-  checkmate: 'by checkmate',
-  resignation: 'by resignation',
-  timeout: 'on time',
-  timeout_vs_insufficient: 'timeout vs insufficient material',
-  stalemate: 'by stalemate',
-  insufficient_material: 'insufficient material',
-  threefold_repetition: 'threefold repetition',
-  fifty_move_rule: 'fifty-move rule',
-  draw_agreement: 'by agreement',
-  abandoned: 'player left',
-  aborted: 'game aborted',
-};
 
 export default function ReplayScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { game, loading } = useArchivedGame(id);
+  const tr = useT();
   if (!game) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: 'Game' }} />
+        <Stack.Screen options={{ title: tr('games.replay.title') }} />
         <View style={styles.page}>
           {!loading && (
             <Card>
-              <Label bold>Game not found</Label>
-              <Label muted>It may have been deleted from this device.</Label>
-              <Button title="Back to history" onPress={() => router.replace('/games')} />
+              <Label bold>{tr('games.replay.notFound')}</Label>
+              <Label muted>{tr('games.replay.notFoundBody')}</Label>
+              <Button title={tr('games.replay.backToHistory')} onPress={() => router.replace('/games')} />
             </Card>
           )}
         </View>
@@ -50,15 +39,22 @@ export default function ReplayScreen() {
 }
 
 function resultLine(g: ArchivedGame): string {
-  if (g.result === '*') return 'Unfinished game';
+  if (g.result === '*') return translate('games.replay.unfinished');
   const o = viewerOutcome(g);
   const head =
-    o === 'win' ? 'You won' : o === 'loss' ? 'You lost' : g.result === '1/2-1/2' ? 'Draw' : g.result === '1-0' ? `${g.white} won` : `${g.black} won`;
-  return `${head}${g.reason ? ` · ${REASONS[g.reason] ?? g.reason}` : ''}`;
+    o === 'win'
+      ? translate('play.result.won')
+      : o === 'loss'
+        ? translate('play.result.lost')
+        : g.result === '1/2-1/2'
+          ? translate('play.result.draw')
+          : translate('games.replay.playerWon', { name: g.result === '1-0' ? g.white : g.black });
+  return `${head}${g.reason ? ` · ${translateOr(`games.reason.${g.reason}`, g.reason)}` : ''}`;
 }
 
 function Replay({ game }: { game: ArchivedGame }) {
   const t = useTheme();
+  const tr = useT();
   const size = useBoardSize(330);
   const history: PlayedMove[] = useMemo(() => Game.fromUciMoves(game.moves, game.initialFen).history(), [game]);
   const fens = useMemo(() => [game.initialFen, ...history.map((m) => m.fenAfter)], [game, history]);
@@ -131,8 +127,8 @@ function Replay({ game }: { game: ArchivedGame }) {
   }, [history.length, startsWithBlack, firstMoveNo]);
 
   const share = async () => {
-    const ok = await sharePgn(pgn, `${game.white} vs ${game.black}`);
-    if (Platform.OS === 'web' && ok) setNotice('PGN copied to clipboard.');
+    const ok = await sharePgn(pgn, tr('games.vsPlayers', { white: game.white, black: game.black }));
+    if (Platform.OS === 'web' && ok) setNotice(tr('games.replay.pgnCopied'));
   };
 
   const Move = ({ p }: { p: number | null }) => {
@@ -141,7 +137,7 @@ function Replay({ game }: { game: ArchivedGame }) {
     return (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Go to move ${history[p - 1]!.san}`}
+        accessibilityLabel={tr('games.replay.goTo', { move: history[p - 1]!.san })}
         onPress={() => {
           setAutoplay(false);
           go(p);
@@ -154,7 +150,7 @@ function Replay({ game }: { game: ArchivedGame }) {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: `${game.white} vs ${game.black}` }} />
+      <Stack.Screen options={{ title: tr('games.vsPlayers', { white: game.white, black: game.black }) }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={[styles.layout, { maxWidth: Math.max(size, 360) * 2 + 16 }]}>
           <View style={{ width: size, gap: 8 }}>
@@ -179,21 +175,21 @@ function Replay({ game }: { game: ArchivedGame }) {
                 <Text style={{ color: t.muted }}>{delta(orientation)}</Text>
               </Text>
             </View>
-            <View style={styles.controls}>
-              <Ctl label="⏮" a11y="First move" disabled={ply === 0} onPress={() => (setAutoplay(false), go(0))} />
-              <Ctl label="◀" a11y="Previous move" disabled={ply === 0} onPress={() => (setAutoplay(false), go(ply - 1))} />
+            <View style={[styles.controls, { direction: 'ltr' }]}>
+              <Ctl label="⏮" a11y={tr('common.nav.first')} disabled={ply === 0} onPress={() => (setAutoplay(false), go(0))} />
+              <Ctl label="◀" a11y={tr('common.nav.previous')} disabled={ply === 0} onPress={() => (setAutoplay(false), go(ply - 1))} />
               <Ctl
                 label={autoplay ? '❚❚' : '▶︎▶︎'}
-                a11y={autoplay ? 'Pause' : 'Play through'}
+                a11y={autoplay ? tr('common.nav.pause') : tr('common.nav.playThrough')}
                 disabled={history.length === 0}
                 onPress={() => {
                   if (!autoplay && ply >= history.length) setPly(0);
                   setAutoplay((a) => !a);
                 }}
               />
-              <Ctl label="▶" a11y="Next move" disabled={ply >= history.length} onPress={() => (setAutoplay(false), go(ply + 1))} />
-              <Ctl label="⏭" a11y="Last move" disabled={ply >= history.length} onPress={() => (setAutoplay(false), go(history.length))} />
-              <Ctl label="⇅" a11y="Flip board" onPress={() => setOrientation((o) => (o === 'w' ? 'b' : 'w'))} />
+              <Ctl label="▶" a11y={tr('common.nav.next')} disabled={ply >= history.length} onPress={() => (setAutoplay(false), go(ply + 1))} />
+              <Ctl label="⏭" a11y={tr('common.nav.last')} disabled={ply >= history.length} onPress={() => (setAutoplay(false), go(history.length))} />
+              <Ctl label="⇅" a11y={tr('common.flipBoard')} onPress={() => setOrientation((o) => (o === 'w' ? 'b' : 'w'))} />
             </View>
           </View>
 
@@ -207,22 +203,22 @@ function Replay({ game }: { game: ArchivedGame }) {
                 {opening
                   ? `${opening.eco} · ${opening.name}`
                   : game.initialFen !== START_FEN
-                    ? 'Custom starting position'
+                    ? tr('games.replay.customStart')
                     : ply === 0
-                      ? 'Starting position'
-                      : 'Opening not recognised'}
+                      ? tr('games.replay.start')
+                      : tr('games.replay.unknownOpening')}
               </Label>
             </Card>
 
             <Card>
               <View style={styles.moveHeader}>
-                <Label bold>Moves</Label>
+                <Label bold>{tr('analysis.moves')}</Label>
                 <Label muted>
                   {ply}/{history.length}
                 </Label>
               </View>
               {history.length === 0 ? (
-                <Label muted>No moves were played.</Label>
+                <Label muted>{tr('games.replay.noMoves')}</Label>
               ) : (
                 <ScrollView style={styles.moveList} nestedScrollEnabled>
                   {rows.map((r) => (
@@ -237,29 +233,29 @@ function Replay({ game }: { game: ArchivedGame }) {
             </Card>
 
             <Card>
-              <Label bold>Share</Label>
+              <Label bold>{tr('games.replay.share')}</Label>
               <View style={styles.actions}>
                 <View style={styles.flex}>
-                  <Button title={Platform.OS === 'web' ? 'Share / copy PGN' : 'Share PGN'} onPress={share} />
+                  <Button title={Platform.OS === 'web' ? tr('games.replay.shareCopyPgn') : tr('games.replay.sharePgn')} onPress={share} />
                 </View>
                 {canDownload && (
                   <View style={styles.flex}>
-                    <Button variant="secondary" title="Download .pgn" onPress={() => downloadPgn(pgn, pgnFileName(game.white, game.black, game.endedAt))} />
+                    <Button variant="secondary" title={tr('games.replay.download')} onPress={() => downloadPgn(pgn, pgnFileName(game.white, game.black, game.endedAt))} />
                   </View>
                 )}
               </View>
               {Platform.OS === 'web' && (
                 <Button
                   variant="secondary"
-                  title="Copy position (FEN)"
-                  onPress={async () => setNotice((await copyText(fen)) ? 'FEN copied to clipboard.' : 'Copy is not available here.')}
+                  title={tr('games.replay.copyFen')}
+                  onPress={async () => setNotice((await copyText(fen)) ? tr('games.replay.fenCopied') : tr('games.replay.copyUnavailable'))}
                 />
               )}
               {notice && <Label muted>{notice}</Label>}
-              <Label muted>Played {formatDate(game.endedAt)}</Label>
+              <Label muted>{tr('games.replay.played', { date: formatDate(game.endedAt) })}</Label>
               <Button
                 variant={confirmDelete ? 'danger' : 'secondary'}
-                title={confirmDelete ? 'Tap again to delete from this device' : 'Delete game'}
+                title={confirmDelete ? tr('games.replay.confirmDelete') : tr('games.replay.delete')}
                 onPress={async () => {
                   if (!confirmDelete) return setConfirmDelete(true);
                   await deleteGame(game.id);

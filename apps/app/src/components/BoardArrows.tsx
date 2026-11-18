@@ -25,7 +25,7 @@ export function BoardArrows({ arrows, size, orientation }: { arrows: Arrow[]; si
   const headLen = cell * 0.42;
   const headWidth = cell * 0.5;
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { width: size, height: size }]}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { width: size, height: size, direction: 'ltr' }]}>
       {arrows.map((a, i) => {
         if (a.from === a.to) return null;
         const s = center(a.from, orientation, cell);
