@@ -8,6 +8,7 @@ import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
+import { prepareReview } from '@/lib/useEngine';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useCurrentUser } from '@/lib/currentUser';
 import { dirIcon, translate, useT, type TKey } from '@/i18n';
@@ -226,6 +227,10 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   };
   const interaction = useBoardInteraction(view.fen, (c) => c === me && myTurn, play);
   useMoveFeedback(view.history, !!outcome, { startCue: true });
+  // Grade the game on the server as soon as it ends, so Review opens with every badge ready.
+  useEffect(() => {
+    if (outcome) prepareReview(view.history.map((m) => m.uci));
+  }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Takeback: return to the last position where it was the player's turn.
   const plyCount = view.history.length;

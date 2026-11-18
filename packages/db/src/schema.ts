@@ -275,6 +275,26 @@ export const moves = pgTable(
   (t) => [primaryKey({ columns: [t.gameId, t.ply] })],
 );
 
+/**
+ * Finished engine reviews (every move graded, accuracy per side), stored so
+ * opening a game review is a lookup instead of a fresh Stockfish run. Keyed by
+ * content (start position + moves), so a review of the same moves is shared
+ * whether it came from an online game, a computer game or the analysis board.
+ */
+export const gameReviews = pgTable(
+  'game_reviews',
+  {
+    /** sha256 of "<initial fen>|<uci moves>". */
+    key: text('key').primaryKey(),
+    /** The online game it was made for, when there is one (not a foreign key: guest games may not be stored). */
+    gameId: text('game_id'),
+    /** The GameReview from @chessmate/core, as JSON. */
+    review: jsonb('review').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('game_reviews_game_idx').on(t.gameId)],
+);
+
 // ---------------------------------------------------------------- social
 
 /**

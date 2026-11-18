@@ -2,7 +2,7 @@ import { AnalysisService, type AnalysisServiceOptions } from './analysisService'
 import { EnginePool } from './pool';
 import { UciEngine, resolveEngineCommand } from './uciEngine';
 
-export { AnalysisService } from './analysisService';
+export { AnalysisService, reviewKey, type ReviewStore } from './analysisService';
 export { EnginePool } from './pool';
 export { UciEngine, resolveEngineCommand, type Engine, type SearchOptions, type SearchResult } from './uciEngine';
 

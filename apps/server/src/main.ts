@@ -1,4 +1,4 @@
-import { DEFAULT_PGLITE_DIR, abortStaleGames, ensureUser, openDb } from '@chessmate/db';
+import { DEFAULT_PGLITE_DIR, abortStaleGames, ensureUser, getGameReview, openDb, saveGameReview } from '@chessmate/db';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { AuthService, ConsoleMailer, DbAuthStore, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
-import { createAnalysisService } from './engine';
+import { createAnalysisService, type ReviewStore } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
 import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles';
@@ -41,7 +41,12 @@ const coach = new CoachService({
   log: (m) => console.warn(m),
 });
 console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set ANTHROPIC_API_KEY to enable it (rule-based feedback in the meantime)');
-const { service: analysis, engine } = createAnalysisService();
+// Finished game reviews are saved to the database once it is open (see start()).
+const reviewStore: { current?: ReviewStore } = {};
+const { service: analysis, engine } = createAnalysisService(process.env, {
+  precompute: process.env.REVIEW_PRECOMPUTE !== 'off',
+  store: { get: async (k) => reviewStore.current?.get(k), put: async (k, r, g) => reviewStore.current?.put(k, r, g) },
+});
 const puzzleStore = await openPuzzleStore();
 const puzzles = new PuzzleApi({ store: puzzleStore });
 // Ratings are read from memory during play and written to the database after
@@ -82,6 +87,7 @@ async function start() {
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base } = services(new DbAuthStore(db.db));
   const persistence = new DbGamePersistence(db.db);
+  reviewStore.current = { get: (k) => getGameReview(db.db, k), put: (k, r, g) => saveGameReview(db.db, k, r, g) };
   const store = await DbPlayerStore.load(db.db, persistence);
   return {
     server: new ChessServer({

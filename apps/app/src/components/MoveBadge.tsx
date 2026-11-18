@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
-import { PLACE_ORIGIN } from '@/components/boardLayout';
+import { PLACE_ORIGIN, placeAt } from '@/components/boardLayout';
 import { MOVE_CLASS, type BadgeIcon } from '@/constants/analysis';
 
 /**
@@ -286,32 +286,34 @@ function squareBox(sq: Square, orientation: Color, cell: number) {
  */
 export function BoardMoveBadge({ square, cls, size, orientation }: { square: Square; cls: MoveClass; size: number; orientation: Color }) {
   const cell = size / 8;
-  const badge = Math.round(Math.max(20, Math.min(38, cell * 0.52)));
+  const badge = Math.round(Math.max(22, Math.min(48, cell * 0.62)));
   const box = squareBox(square, orientation, cell);
   // Hang the badge over the corner, but keep it inside the board.
-  const left = Math.min(size - badge, box.left + cell - badge * 0.7);
-  const top = Math.max(0, box.top - badge * 0.3);
-  const [scale] = useState(() => new Animated.Value(0));
+  const left = Math.min(size - badge, box.left + cell - badge * 0.72);
+  const top = Math.max(0, box.top - badge * 0.28);
+  // Entrance: drops onto the corner from a little above, overshoots, and settles
+  // with a small coin-like wobble. Replays for every move.
+  const [pop] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    scale.setValue(0.4);
-    Animated.spring(scale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: Platform.OS !== 'web' }).start();
-  }, [square, cls, scale]);
+    pop.setValue(0);
+    Animated.spring(pop, { toValue: 1, friction: 4.5, tension: 140, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [square, cls, pop]);
+  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
+  const lift = pop.interpolate({ inputRange: [0, 1], outputRange: [-badge * 0.6, 0] });
+  const spin = pop.interpolate({ inputRange: [0, 1], outputRange: ['-35deg', '0deg'] });
+  const opacity = pop.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' });
   return (
     // Placed from the board's centre with transforms so it never mirrors (see placeAt).
+    // The position lives on a plain View and only the entrance is animated: with the
+    // native driver, iOS and Android keep the transform from the first render, so a
+    // translate inside the animated transform left the badge on the first move's square.
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN, { width: size, height: size }]}>
-      <Animated.View
-        style={[
-          styles.lift,
-          {
-            position: 'absolute',
-            width: badge,
-            height: badge,
-            borderRadius: badge / 2,
-            transform: [{ translateX: left + badge / 2 - size / 2 }, { translateY: top + badge / 2 - size / 2 }, { scale }],
-          },
-        ]}>
-        <MoveBadge cls={cls} size={badge} />
-      </Animated.View>
+      <View style={placeAt(left, top, badge, badge, size)}>
+        <Animated.View
+          style={[styles.lift, { width: badge, height: badge, borderRadius: badge / 2, opacity, transform: [{ translateY: lift }, { scale }, { rotate: spin }] }]}>
+          <MoveBadge cls={cls} size={badge} />
+        </Animated.View>
+      </View>
     </View>
   );
 }

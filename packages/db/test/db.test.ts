@@ -7,6 +7,8 @@ import {
   findUserByUsername,
   finishGame,
   getGame,
+  getGameReview,
+  saveGameReview,
   getRating,
   getRatings,
   listUserGames,
@@ -62,5 +64,15 @@ describe('db', () => {
     expect(g).toMatchObject({ whiteUserId: w.id, blackUserId: null, blackName: 'Guest', timeCategory: 'blitz', status: 'finished', result: '0-1' });
     expect(g!.moves.map((m) => m.san)).toEqual(['e4']);
     expect((await listUserGames(h.db, w.id)).map((x) => x.id)).toEqual(['g1']);
+  });
+});
+
+describe('game reviews', () => {
+  it('stores a review once and reads it back', async () => {
+    const review = { initialFen: 'start', moves: [], accuracy: { w: 90, b: 80 }, counts: { w: {}, b: {} }, depth: 18 } as never;
+    expect(await getGameReview(h.db, 'k1')).toBeUndefined();
+    await saveGameReview(h.db, 'k1', review, 'game-1');
+    await saveGameReview(h.db, 'k1', { ...(review as object), depth: 1 } as never);
+    expect(await getGameReview(h.db, 'k1')).toMatchObject({ depth: 18, accuracy: { w: 90, b: 80 } });
   });
 });

@@ -1,4 +1,4 @@
-import { decodeServer, encode, type ClientMessage, type ServerMessage, type UciInfo } from '@chessmate/core';
+import { decodeServer, encode, type ClientMessage, type ServerMessage, type GameReview, type UciInfo } from '@chessmate/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { AnalysisService, EnginePool, type Engine, type SearchOptions, type SearchResult } from '../src/engine';
@@ -153,5 +153,72 @@ describe('without an engine', () => {
     expect(await got).toMatchObject({ code: 'engine_unavailable', id: 1 });
     ws.close();
     await bare.close();
+  });
+});
+
+describe('stored reviews', () => {
+  const memoryStore = () => {
+    const rows = new Map<string, { review: GameReview; gameId?: string }>();
+    return {
+      rows,
+      get: async (k: string) => rows.get(k)?.review,
+      put: async (k: string, review: GameReview, gameId?: string) => void rows.set(k, { review, gameId }),
+    };
+  };
+  const collect = () => {
+    const sent: ServerMessage[] = [];
+    return { sent, send: (m: ServerMessage) => void sent.push(m) };
+  };
+  const moves = ['e2e4', 'e7e5', 'g1f3', 'b8c6'];
+  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+  it('reviews finished games in the background and answers Review from the store', async () => {
+    const store = memoryStore();
+    const fake = new FakeEngine();
+    const svc = new AnalysisService(new EnginePool(async () => fake, 2), { store });
+    await svc.precompute({ gameId: 'g1', moves, initialFen: START });
+    expect([...store.rows.values()][0]!.gameId).toBe('g1');
+    expect(fake.searches).toHaveLength(moves.length + 1);
+
+    // A fresh service (a restart) reads it back without touching the engine.
+    const fresh = new FakeEngine();
+    const after = new AnalysisService(new EnginePool(async () => fresh, 1), { store });
+    const { sent, send } = collect();
+    const r = await after.review('p1', { id: 1, moves, initialFen: START }, send);
+    expect(r?.moves.map((m) => m.uci)).toEqual(moves);
+    expect(fresh.searches).toHaveLength(0);
+    expect(sent.map((m) => m.t)).toEqual(['reviewResult']);
+    svc.close();
+    after.close();
+  });
+
+  it('joins a background review that is still running instead of starting again', async () => {
+    const store = memoryStore();
+    const fake = new FakeEngine();
+    const svc = new AnalysisService(new EnginePool(async () => fake, 2), { store });
+    const bg = svc.precompute({ gameId: 'g2', moves, initialFen: START });
+    await new Promise((r) => setTimeout(r, 1));
+    const { sent, send } = collect();
+    const r = await svc.review('p1', { id: 9, moves, initialFen: START, gameId: 'g2' }, send);
+    await bg;
+    expect(r?.moves).toHaveLength(moves.length);
+    expect(fake.searches).toHaveLength(moves.length + 1);
+    expect(sent.at(-1)).toMatchObject({ t: 'reviewResult', id: 9 });
+    expect(sent.some((m) => m.t === 'reviewProgress')).toBe(true);
+    expect(store.rows.size).toBe(1);
+    svc.close();
+  });
+
+  it('keeps a background review going when the player leaves', async () => {
+    const store = memoryStore();
+    const svc = new AnalysisService(new EnginePool(async () => new FakeEngine(), 1), { store });
+    const bg = svc.precompute({ gameId: 'g3', moves, initialFen: START });
+    await new Promise((r) => setTimeout(r, 1));
+    const pending = svc.review('p1', { id: 1, moves, initialFen: START }, () => {});
+    svc.cancel('p1');
+    expect(await pending).toBeNull();
+    await bg;
+    expect(store.rows.size).toBe(1);
+    svc.close();
   });
 });

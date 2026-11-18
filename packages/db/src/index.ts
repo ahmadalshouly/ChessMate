@@ -5,3 +5,4 @@ export * from './repo/users';
 export * from './repo/ratings';
 export * from './repo/games';
 export * from './repo/social';
+export * from './repo/reviews';
