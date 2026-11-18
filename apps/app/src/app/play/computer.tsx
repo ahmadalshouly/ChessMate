@@ -15,11 +15,11 @@ import { dirIcon, translate, useT, type TKey } from '@/i18n';
 import { colorLabel } from '@/i18n/chess';
 import { GameIcon, type GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
-import { MoveList } from '@/components/game/MoveList';
-import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { MatchHeader } from '@/components/game/MatchHeader';
+import { MoveStrip } from '@/components/game/MoveStrip';
+import { ConfirmPanel, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
-import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
-import { Button as UIButton, Modal } from '@/ui';
+import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
@@ -178,9 +178,13 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const [resigned, setResigned] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [takebacks, setTakebacks] = useState(0);
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState<'more' | 'takeback' | 'resign' | 'rematch' | null>(null);
+  const toggle = (p: 'more' | 'takeback' | 'resign' | 'rematch') => setPanel((cur) => (cur === p ? null : p));
+  const confirmThen = (fn: () => void) => () => {
+    setPanel(null);
+    fn();
+  };
   const [hideResult, setHideResult] = useState(false);
-  const [confirmResign, setConfirmResign] = useState(false);
   /** Incremented to cancel a pending bot move (takeback, new game). */
   const epoch = useRef(0);
 
@@ -248,7 +252,6 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     sync();
   };
   const resign = () => {
-    setConfirmResign(false);
     epoch.current++;
     setThinking(false);
     setResigned(true);
@@ -295,11 +298,11 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const actions: GameAction[] = [
     outcome
       ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview, disabled: plyCount === 0 }
-      : { key: 'takeback', icon: 'undo-variant', label: tr('game.action.takeback'), onPress: takeback, disabled: !canTakeback },
-    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => setPanel((p) => !p), active: panel },
+      : { key: 'takeback', icon: 'undo-variant', label: tr('game.action.takeback'), onPress: () => toggle('takeback'), active: panel === 'takeback', disabled: !canTakeback },
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
-      ? { key: 'rematch', icon: 'refresh', label: tr('game.action.rematch'), onPress: rematch }
-      : { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => setConfirmResign(true), disabled: plyCount < 1, danger: true },
+      ? { key: 'rematch', icon: 'refresh', label: tr('game.action.rematch'), onPress: () => toggle('rematch'), active: panel === 'rematch' }
+      : { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => toggle('resign'), active: panel === 'resign', disabled: plyCount < 1, danger: true },
     { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
     { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
   ];
@@ -314,6 +317,14 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   return (
     <>
       <GameLayout
+        header={(h) => (
+          <MatchHeader
+            height={h}
+            me={user.status === 'signedIn' ? { id: 'me', name: user.displayName, rating: 0, provisional: false } : null}
+            bot={{ name: bot.name, level: bot.level, rating: bot.rating, tagline: botTagline(bot) }}
+            refreshKey={outcome ? 'over' : ''}
+          />
+        )}
         top={botOnTop ? botCard : youCard}
         bottom={botOnTop ? youCard : botCard}
         renderBoard={(size) => (
@@ -361,48 +372,20 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
             )}
           </>
         )}
-        dock={
-          <MoveList
-            sans={view.history.map((m) => m.san)}
-            shown={nav.shown}
-            onSelect={nav.goTo}
-            header={
-              !nav.live ? (
-                <DockNotice icon="history" text={tr('game.viewingMove', { move: moveLabel(view.history, nav.shown) })}>
-                  <NoticeButton icon="skip-next" label={tr('game.live')} onPress={nav.toLive} />
-                </DockNotice>
-              ) : null
-            }
-          />
-        }
-        panel={
-          panel ? (
-            <OptionsPanel
-              title={tr('game.more.title')}
-              onClose={() => setPanel(false)}
-              items={moreItems.map((it) => ({
-                ...it,
-                onPress: () => {
-                  setPanel(false);
-                  it.onPress();
-                },
-              }))}
-            />
+        strip={<MoveStrip sans={view.history.map((m) => m.san)} shown={nav.shown} onSelect={nav.goTo} onLive={nav.toLive} />}
+        onDismissPopover={() => setPanel(null)}
+        popover={
+          panel === 'more' ? (
+            <OptionsPanel title={tr('game.more.title')} onClose={() => setPanel(null)} items={moreItems.map((it) => ({ ...it, onPress: confirmThen(it.onPress) }))} />
+          ) : panel === 'takeback' ? (
+            <ConfirmPanel icon="undo-variant" title={tr('game.confirm.takebackTitle')} body={tr('game.confirm.takebackBody')} confirmLabel={tr('game.confirm.takeback')} onConfirm={confirmThen(takeback)} onCancel={() => setPanel(null)} />
+          ) : panel === 'resign' ? (
+            <ConfirmPanel icon="flag-outline" title={tr('game.resign.title')} body={tr('game.resign.body')} confirmLabel={tr('game.resign.confirm')} onConfirm={confirmThen(resign)} onCancel={() => setPanel(null)} danger />
+          ) : panel === 'rematch' ? (
+            <ConfirmPanel icon="refresh" title={tr('game.confirm.rematchTitle')} body={tr('game.confirm.rematchBody', { name: bot.name })} confirmLabel={tr('game.confirm.rematch')} onConfirm={confirmThen(rematch)} onCancel={() => setPanel(null)} />
           ) : null
         }
         actions={actions}
-      />
-      <Modal
-        visible={confirmResign}
-        onClose={() => setConfirmResign(false)}
-        title={tr('game.resign.title')}
-        description={tr('game.resign.body')}
-        actions={
-          <>
-            <UIButton variant="ghost" title={tr('play.keepPlaying')} onPress={() => setConfirmResign(false)} />
-            <UIButton variant="danger" title={tr('game.resign.confirm')} onPress={resign} />
-          </>
-        }
       />
     </>
   );
