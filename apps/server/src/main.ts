@@ -8,11 +8,11 @@ import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
-import { DbGamePersistence, DbPlayerStore } from './persistence';
+import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
 import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, profileRoutes } from './profiles';
 import { PuzzleApi } from './puzzles/api';
 import { openPuzzleStore } from './puzzles/setup';
-import { RatingService } from './ratingService';
+import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
 
@@ -44,7 +44,11 @@ console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set
 const { service: analysis, engine } = createAnalysisService();
 const puzzleStore = await openPuzzleStore();
 const puzzles = new PuzzleApi({ store: puzzleStore });
-const ratings = new RatingService();
+// Ratings are read from memory during play and written to the database after
+// every rated game (DbGamePersistence). The cache is warmed from the database on
+// startup so a restart never resets anyone to 1500.
+const ratingRepo = new MemoryRatingRepository();
+const ratings = new RatingService(ratingRepo);
 
 function services(authStore: AuthStore) {
   const auth = new AuthService({ store: authStore, mailer: new ConsoleMailer(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
@@ -74,7 +78,8 @@ async function start() {
   const db = openDb();
   await db.migrate();
   const stale = await abortStaleGames(db.db);
-  console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}`);
+  const stored = await loadRatingsInto(ratingRepo, db.db);
+  console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base } = services(new DbAuthStore(db.db));
   const persistence = new DbGamePersistence(db.db);
   const store = await DbPlayerStore.load(db.db, persistence);

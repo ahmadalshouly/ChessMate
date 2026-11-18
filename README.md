@@ -75,6 +75,8 @@ pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or pre
 
 The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`. Language support (`expo-localization` and the bundled Arabic font) works in Expo Go, so it needs no new build.
 
+To try rated games and the end-of-game animations: create two accounts (one in a normal browser window, one in a private window, or on two phones), open **Play** in both, keep *Rated* selected and press Play in each. Ratings are stored in `.data/pglite`, so they carry over when you restart `pnpm dev:server`.
+
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
 
 CI, Docker, hosting and every environment variable are documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
@@ -200,11 +202,11 @@ Open **Play** (`/play`, or "Open the lobby" on the home screen):
 
 - **Quick pairing.** Pick a time control (bullet to classical, or a custom minutes + increment), casual or rated, and an opponent rating window. *Auto* starts at ±100 and widens about 20 points a second, then opens to anyone after 45 seconds; ±100/±200/±400 keep it fixed. The search card shows the live window and how many others are searching.
 - **Custom games.** Post a game to the lobby with your side (white, black or random). Everyone in the lobby sees it under *Open games* and can join.
-- **Rated vs casual.** Rated needs an account; guests always play casual.
+- **Rated vs casual.** Signed-in players start on *Rated* (the Mode switch in the lobby turns it to *Casual*); quick pairing from the home screen is rated too. Every finished rated game of two or more moves updates both players' Elo (Glicko-2) right away, and the new rating survives server restarts (it is reloaded from the database on start). Guests always play casual.
 - **Premoves.** While your opponent is thinking, tap a piece and a square to queue a move (tinted blue). It plays instantly if it is legal after their reply; tap anywhere else to cancel.
-- **Sounds** for moves, captures, checks, game start and end (original synthesised set in `apps/app/assets/sounds`).
+- **Sounds** for moves, captures, checks, game start, and a win or loss at the end (original synthesised set in `apps/app/assets/sounds`, regenerate with `node apps/app/scripts/synth-sounds.mjs`).
 - **Reconnect and resume.** One connection serves the whole app and reconnects on its own. Guests get a resume token, so a dropped connection or a page reload puts you back in your game. If your opponent drops, you see a countdown: they forfeit after 60 seconds (or the game is aborted if fewer than two moves were played).
-- **Game over** shows the result, the rating change for rated games, and Rematch (colours swap), New game, and Lobby.
+- **Game over** plays a short animation, then shows the result card: a *Checkmate* stamp when the game ends in mate, monochrome confetti and a fanfare for the winner, and a calm dim with an encouraging line and a **Learn from this game** button for the loser. The card shows your new rating with the +/- change, or says why the game was unrated (casual, guest, too short). Then Rematch (colours swap), New game, and Lobby. Animations follow the system "reduce motion" setting.
 
 To try two players on one computer, open the lobby in two browser windows (one normal, one private), create a game in one and join it from the other.
 
@@ -299,8 +301,7 @@ Accounts made with Apple or Google have no password; **Settings → Set a passwo
 The bell in the header opens the inbox; **Settings** there picks which alerts arrive in the app and as push, plus quiet hours.
 
 - **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running.
-- **Send a test** on the settings screen sends yourself a sample notification (development servers only).
-- **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow, then tap **Send a test**: a system banner appears and the bell badge updates.
+- **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow. To see one arrive, send yourself a friend request or challenge from a second account (another browser tab works): a system banner appears and the bell badge updates. There is no test button in the app; development servers still accept `POST /api/notifications/test` with your access token for scripted checks.
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
 

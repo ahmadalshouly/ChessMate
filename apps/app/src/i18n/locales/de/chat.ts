@@ -5,6 +5,7 @@ export const chat: Messages<typeof en> = {
   title: 'Chat',
   placeholder: 'Nachricht',
   a11y: 'Chatnachricht',
+  quickA11y: 'Schnellnachrichten',
   send: 'Senden',
   unmute: 'Stummschaltung aufheben',
   mute: 'Stummschalten',

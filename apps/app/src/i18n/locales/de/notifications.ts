@@ -78,7 +78,6 @@ export const notifications: Messages<typeof en> = {
     openSettings: 'Einstellungen öffnen',
     turnOff: 'Push ausschalten',
     turnOn: 'Push einschalten',
-    sendTest: 'Test senden',
     whatTitle: 'Worüber ich informiert werde',
     inApp: 'In der App',
     push: 'Push',

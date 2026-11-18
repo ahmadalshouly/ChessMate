@@ -2,6 +2,7 @@ export const chat = {
   title: 'Chat',
   placeholder: 'Message',
   a11y: 'Chat message',
+  quickA11y: 'Quick messages',
   send: 'Send',
   unmute: 'Unmute',
   mute: 'Mute',

@@ -70,5 +70,4 @@ export const notificationsApi = {
   savePrefs: (patch: Partial<NotificationPrefs> | Record<string, unknown>) => call<NotificationPrefs>('PUT', '/api/notifications/prefs', patch),
   registerPushToken: (token: string, platform: string) => call<{ ok: true }>('POST', '/api/push-tokens', { token, platform }),
   unregisterPushToken: (token: string) => call<{ ok: true }>('DELETE', '/api/push-tokens', { token }),
-  sendTest: () => call<unknown>('POST', '/api/notifications/test'),
 };

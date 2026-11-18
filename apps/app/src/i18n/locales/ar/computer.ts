@@ -3,7 +3,7 @@ import type { computer as en } from '../en/computer';
 
 export const computer: Messages<typeof en> = {
   choose: 'اختر خصمك',
-  intro: 'تدريب غير مصنّف. التراجع والتلميحات مسموحة دائمًا.',
+  intro: 'تدريب غير مصنّف. التراجع مسموح دائمًا، ومراجعة المحرك متاحة بعد انتهاء المباراة.',
   playAs: 'العب بـ',
   liveThreats: 'ملاحظات التهديد المباشرة',
   liveThreatsBody: 'يبرز القطع التي قد تخسرها وما يهدد به الكمبيوتر.',

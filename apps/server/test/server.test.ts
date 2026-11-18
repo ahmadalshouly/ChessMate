@@ -64,6 +64,9 @@ describe('ChessServer', () => {
     }
     const over = await white.next('gameOver');
     expect(over.outcome).toMatchObject({ reason: 'checkmate', winner: 'b' });
+    // Casual game: no rating change, and the client is told why.
+    expect(over.ratingChange).toBeUndefined();
+    expect(over.unrated).toBe('casual');
     a.close();
     b.close();
   });

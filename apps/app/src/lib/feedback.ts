@@ -14,9 +14,10 @@ export function gameStartFeedback(): void {
   playSound('start');
 }
 
-export function gameEndFeedback(): void {
-  playSound('end');
-  haptic('end');
+/** End-of-game cue: a fanfare for a win, a soft two-note fall for a loss, the plain end chime otherwise. */
+export function gameEndFeedback(result?: 'win' | 'loss' | 'draw'): void {
+  playSound(result === 'win' ? 'win' : result === 'loss' ? 'lose' : 'end');
+  haptic(result === 'loss' ? 'lose' : 'end');
 }
 
 /**

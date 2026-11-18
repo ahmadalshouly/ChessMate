@@ -16,4 +16,12 @@ export const review: Messages<typeof en> = {
   explore: 'استكشف في رقعة التحليل',
   countA11y: '{label}: الأبيض {w}، الأسود {b}',
   countsLegend: 'الأعداد: الأبيض · الأسود.',
+  white: 'الأبيض',
+  black: 'الأسود',
+  moves: 'النقلات',
+  flip: 'قلب الرقعة',
+  first: 'النقلة الأولى',
+  prev: 'النقلة السابقة',
+  next: 'النقلة التالية',
+  last: 'النقلة الأخيرة',
 };

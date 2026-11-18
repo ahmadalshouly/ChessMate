@@ -4,7 +4,7 @@ import { getSettings } from '@/features/account/settingsStore';
 
 /**
  * Original ChessMate sound set. Every file is synthesised in-house (see
- * scripts/synth-sounds.mjs for castle, promote and low time), so there is
+ * scripts/synth-sounds.mjs for castle, promote, low time, win and lose), so there is
  * nothing to license.
  */
 const SOURCES = {
@@ -17,6 +17,8 @@ const SOURCES = {
   end: require('../../assets/sounds/end.wav'),
   premove: require('../../assets/sounds/premove.wav'),
   lowTime: require('../../assets/sounds/lowtime.wav'),
+  win: require('../../assets/sounds/win.wav'),
+  lose: require('../../assets/sounds/lose.wav'),
 } as const;
 
 export type SoundName = keyof typeof SOURCES;

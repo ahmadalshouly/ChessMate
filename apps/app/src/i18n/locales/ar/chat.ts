@@ -5,6 +5,7 @@ export const chat: Messages<typeof en> = {
   title: 'الدردشة',
   placeholder: 'رسالة',
   a11y: 'رسالة دردشة',
+  quickA11y: 'رسائل سريعة',
   send: 'إرسال',
   unmute: 'إلغاء الكتم',
   mute: 'كتم',

@@ -15,6 +15,7 @@ import { computer } from './computer';
 import { errors } from './errors';
 import { feedback } from './feedback';
 import { friends } from './friends';
+import { game } from './game';
 import { games } from './games';
 import { home } from './home';
 import { leaderboard } from './leaderboard';
@@ -36,4 +37,4 @@ import { social } from './social';
 import { titles } from './titles';
 import { watch } from './watch';
 
-export const ar: Messages<typeof en> = { nav, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, games, board, boardThemes, pieceSets };
+export const ar: Messages<typeof en> = { nav, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };

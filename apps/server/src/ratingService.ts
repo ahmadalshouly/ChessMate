@@ -53,6 +53,11 @@ export class MemoryRatingRepository implements RatingRepository {
     return { ...(this.ratings.get(userId) ?? {}) };
   }
 
+  /** Loads a stored rating (from the database at startup) without writing history. */
+  seed(userId: string, category: RatingCategory, rating: CategoryRating) {
+    this.ratings.set(userId, { ...(this.ratings.get(userId) ?? {}), [category]: rating });
+  }
+
   commit(updates: { userId: string; category: RatingCategory; rating: CategoryRating }[], history: RatingHistoryEntry[]) {
     for (const u of updates) this.ratings.set(u.userId, { ...(this.ratings.get(u.userId) ?? {}), [u.category]: u.rating });
     for (const h of history) {

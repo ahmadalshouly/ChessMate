@@ -1,30 +1,34 @@
-import { Game, analyzePosition, type PlayedMove, type Square } from '@chessmate/core';
+import { Game, START_FEN, type Color, type PlayedMove } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { Board } from '@/components/Board';
-import { Button, Card, Label, Screen } from '@/components/ui';
+import type { GameAction } from '@/components/game/ActionBar';
+import { GameLayout } from '@/components/game/GameLayout';
+import { MoveList } from '@/components/game/MoveList';
+import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { PlayerCard } from '@/components/game/PlayerCard';
+import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
+import { reasonText } from '@/components/play/GameOverCard';
+import { Screen } from '@/components/ui';
 import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
-import { useBoardSize } from '@/lib/useBoardSize';
-import { reasonText } from '@/components/play/GameOverCard';
-import { useT } from '@/i18n';
-import { colorLabel, pieceLabel, threatText } from '@/i18n/chess';
+import { dirIcon, useT } from '@/i18n';
+import { colorLabel } from '@/i18n/chess';
 
 /**
- * Pass-and-play practice board with ChessMate's threat detection. Runs fully
- * on device (no engine) so it works offline; engine review lives server-side.
+ * Pass-and-play practice board. Runs fully on device so it works offline.
+ * Like every game screen, no engine help while playing: the engine review
+ * opens when the game ends.
  */
 export default function LocalPlay() {
   const tr = useT();
   const game = useRef(new Game());
   const [view, setView] = useState<{ fen: string; history: PlayedMove[] }>(() => ({ fen: new Game().fen, history: [] }));
   const [flip, setFlip] = useState(false);
-  const [showThreats, setShowThreats] = useState(true);
-  const size = useBoardSize(320);
+  const [panel, setPanel] = useState(false);
 
   const sync = () => setView({ fen: game.current.fen, history: game.current.history() });
   const play = (uci: string) => {
@@ -38,7 +42,7 @@ export default function LocalPlay() {
   const interaction = useBoardInteraction(view.fen, () => !outcome, play);
   useMoveFeedback(view.history, !!outcome);
   const { history } = view;
-  const last = history[history.length - 1];
+  const nav = useHistoryNav(history.length);
 
   // Practice games are saved to the archive when they end, or on request.
   const session = useRef({ id: `pr_${Date.now().toString(36)}`, startedAt: Date.now() });
@@ -51,95 +55,104 @@ export default function LocalPlay() {
     if (outcome) save();
   }, [outcome]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const insight = useMemo(() => analyzePosition(view.fen, snapshot.turn), [view.fen, snapshot]);
-  const threatened: Square[] = showThreats ? insight.hanging.map((h) => h.square) : [];
+  const undo = () => {
+    game.current.undo();
+    interaction.clear();
+    nav.toLive();
+    sync();
+  };
+  const openReview = () => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w' } });
+
+  const orientation: Color = flip ? 'b' : 'w';
+  const top: Color = orientation === 'w' ? 'b' : 'w';
+  const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
+  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START_FEN);
+  const lastShown = nav.live ? history[history.length - 1] : shownMove;
   const side = colorLabel(snapshot.turn);
+
+  const card = (c: Color) => (
+    <PlayerCard
+      player={{ id: `g_${c}`, name: colorLabel(c), rating: 0, provisional: false }}
+      subtitle={tr('titles.practice')}
+      status={!outcome && snapshot.turn === c ? tr('game.player.toMove') : null}
+      active={!outcome && snapshot.turn === c}
+      pressable={false}
+    />
+  );
+
+  const actions: GameAction[] = [
+    outcome
+      ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview }
+      : { key: 'undo', icon: 'undo-variant', label: tr('practice.undo'), onPress: undo, disabled: history.length === 0 },
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => setPanel((p) => !p), active: panel },
+    { key: 'flip', icon: 'swap-vertical', label: tr('game.action.flip'), onPress: () => setFlip((f) => !f) },
+    { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
+    { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
+  ];
+  const moreItems: OptionItem[] = [
+    ...(!outcome && history.length > 0 ? [{ key: 'save', icon: 'content-save-outline' as const, label: savedId ? tr('practice.updateSaved') : tr('game.more.save'), onPress: save }] : []),
+    ...(savedId ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: savedId } }) }] : []),
+    ...(history.length > 0 ? [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('play.engineReview'), onPress: openReview, disabled: !outcome }] : []),
+  ];
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size, gap: 12 }}>
+      <GameLayout
+        top={card(top)}
+        bottom={card(orientation)}
+        renderBoard={(size) => (
           <Board
-            fen={view.fen}
-            orientation={flip ? 'b' : 'w'}
+            fen={boardFen}
+            orientation={orientation}
             size={size}
-            selected={interaction.selected}
-            targets={interaction.targets}
-            lastMove={last ? { from: last.from, to: last.to } : null}
-            checkSquare={checkSquareOf(view.fen)}
-            threatened={threatened}
-            onSquarePress={interaction.onSquarePress}
-            {...interaction.dragProps}
+            selected={nav.live ? interaction.selected : null}
+            targets={nav.live ? interaction.targets : []}
+            lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
+            checkSquare={checkSquareOf(boardFen)}
+            onSquarePress={nav.live ? interaction.onSquarePress : undefined}
+            {...(nav.live ? interaction.dragProps : {})}
           />
-          <View style={styles.row}>
-            <Button
-              variant="secondary"
-              title={tr('practice.undo')}
-              disabled={history.length === 0}
-              onPress={() => {
-                game.current.undo();
-                interaction.clear();
-                sync();
-              }}
-            />
-            <Button variant="secondary" title={tr('computer.flip')} onPress={() => setFlip((f) => !f)} />
-            <View style={styles.toggle}>
-              <Label muted>{tr('practice.threats')}</Label>
-              <Switch value={showThreats} onValueChange={setShowThreats} />
-            </View>
-          </View>
-
-          <Card>
-            {outcome ? (
-              <Label size={18} bold>
-                {outcome.result} · {reasonText(outcome.reason)}
-              </Label>
-            ) : (
-              <Label bold>
-                {snapshot.inCheck ? tr('practice.toMoveInCheck', { color: side }) : tr('play.toMove', { color: side })}
-              </Label>
-            )}
-            {showThreats && !outcome && (
+        )}
+        dock={
+          <MoveList
+            sans={history.map((m) => m.san)}
+            shown={nav.shown}
+            onSelect={nav.goTo}
+            header={
               <>
-                {insight.hanging.slice(0, 3).map((h) => (
-                  <Label key={h.square} muted>
-                    {`⚠ ${tr('practice.hanging', { color: side, piece: pieceLabel(h.piece), square: h.square })}`}
-                  </Label>
-                ))}
-                {insight.threats.slice(0, 3).map((t) => (
-                  <Label key={`t${t.uci}`} muted>
-                    {`⚔ ${tr('practice.threatens', { threat: threatText(t, view.fen) })}`}
-                  </Label>
-                ))}
-                {insight.opportunities
-                  .filter((o) => o.kind !== 'check')
-                  .slice(0, 3)
-                  .map((o) => (
-                    <Label key={`o${o.uci}`} muted>
-                      {`★ ${tr('computer.chance', { threat: threatText(o, view.fen) })}`}
-                    </Label>
-                  ))}
-                {insight.hanging.length + insight.threats.length + insight.opportunities.filter((o) => o.kind !== 'check').length === 0 && (
-                  <Label muted>{tr('computer.noTactics')}</Label>
+                {outcome ? (
+                  <DockNotice icon="trophy-outline" text={`${outcome.result} · ${reasonText(outcome.reason)}`} strong>
+                    <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} primary />
+                  </DockNotice>
+                ) : snapshot.inCheck ? (
+                  <DockNotice icon="alert-outline" text={tr('practice.toMoveInCheck', { color: side })} />
+                ) : null}
+                {!nav.live && (
+                  <DockNotice icon="history" text={tr('game.viewingMove', { move: moveLabel(history, nav.shown) })}>
+                    <NoticeButton icon="skip-next" label={tr('game.live')} onPress={nav.toLive} />
+                  </DockNotice>
                 )}
               </>
-            )}
-            {history.length > 0 && (
-              <View style={styles.row}>
-                {!outcome && <Button variant="secondary" title={savedId ? tr('practice.updateSaved') : tr('practice.save')} onPress={save} />}
-                {savedId && <Button variant="secondary" title={tr('practice.review')} onPress={() => router.push({ pathname: '/games/[id]', params: { id: savedId } })} />}
-              </View>
-            )}
-            {history.length > 0 && <Label muted>{history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>}
-          </Card>
-        </View>
-      </ScrollView>
+            }
+          />
+        }
+        panel={
+          panel ? (
+            <OptionsPanel
+              title={tr('game.more.title')}
+              onClose={() => setPanel(false)}
+              items={(moreItems.length ? moreItems : [{ key: 'flip', icon: 'swap-vertical' as const, label: tr('game.more.flip'), onPress: () => setFlip((f) => !f) }]).map((it) => ({
+                ...it,
+                onPress: () => {
+                  setPanel(false);
+                  it.onPress();
+                },
+              }))}
+            />
+          ) : null
+        }
+        actions={actions}
+      />
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  page: { padding: 12, alignItems: 'center' },
-  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginStart: 'auto' },
-});

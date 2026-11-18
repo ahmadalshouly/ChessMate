@@ -1,6 +1,6 @@
 export const computer = {
   choose: 'Choose your opponent',
-  intro: 'Unrated practice. Takebacks and hints are always allowed.',
+  intro: 'Unrated practice. Takebacks are always allowed, and the engine review opens when the game ends.',
   playAs: 'Play as',
   liveThreats: 'Live threat feedback',
   liveThreatsBody: 'Highlights pieces you could lose and what the computer is threatening.',

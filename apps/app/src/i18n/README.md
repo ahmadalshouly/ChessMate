@@ -38,7 +38,7 @@ const tr = useT(); // `tr`, because `t` is the theme in most screens
 ## Right-to-left (Arabic)
 
 - Layout mirrors automatically: rows flip, `marginStart`/`paddingEnd` follow the language. Use `start`/`end` instead of `left`/`right` for spacing.
-- The chessboard never mirrors. `Board`, `BoardArrows`, eval graphs and move navigation set `direction: 'ltr'`. Do the same for anything with a fixed left-to-right meaning (a timeline, a1 to h8).
+- The chessboard never mirrors. Board squares, pieces and move badges are placed with `placeAt` (`src/components/boardLayout.ts`), and engine arrows are SVG, because `left` flips in Arabic and `direction: 'ltr'` is not honoured the same way on every platform, while touches are never flipped. Eval graphs and move navigation set `direction: 'ltr'` (inline, since `StyleSheet.create` rejects it on the web). Do the same for anything with a fixed left-to-right meaning (a timeline, a1 to h8).
 - Arrows that mean "forward" use `dirIcon('arrow-forward')`, which points left in Arabic.
 - On native, switching between Arabic and another language restarts the app once (React Native applies direction at launch). Settings says so before you switch.
 

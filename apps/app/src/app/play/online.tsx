@@ -1,27 +1,35 @@
 import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
-import { PlayerBar, useTicker } from '@/components/PlayerBar';
-import { GameOverCard } from '@/components/play/GameOverCard';
+import { useTicker } from '@/components/PlayerBar';
+import type { GameAction } from '@/components/game/ActionBar';
+import { GameLayout } from '@/components/game/GameLayout';
+import { MoveList } from '@/components/game/MoveList';
+import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { PlayerCard } from '@/components/game/PlayerCard';
+import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
+import { GameEndCelebration } from '@/components/play/GameEndCelebration';
+import { GameOverCard, endResult } from '@/components/play/GameOverCard';
 import { Pill, Row } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { serverText } from '@/i18n/serverMessages';
 import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
-import { clockRemaining, playClient, usePlay } from '@/lib/playClient';
+import { clockRemaining, isGuest, playClient, usePlay } from '@/lib/playClient';
 import { useRecordOnlineGame } from '@/lib/recordGame';
 import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
-import { useT } from '@/i18n';
+import { dirIcon, useT } from '@/i18n';
+import { Button as UIButton, Modal } from '@/ui';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
@@ -85,31 +93,44 @@ export default function OnlinePlay() {
     else router.replace('/play');
   };
 
-  return (
-    <Screen>
-      <Stack.Screen
-        options={{ title: view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline') }}
-      />
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size, gap: 8 }}>
-          {s.closedReason ? (
-            <Card>
-              <Label bold>{serverText(s.closedReason)}</Label>
-            </Card>
-          ) : (
-            s.connection !== 'online' && (
-              <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
-                <Text style={{ color: t.text, fontWeight: '600' }}>
-                  {s.connection === 'connecting' ? tr('play.online.connectingServer') : tr('play.online.reconnecting')}
-                </Text>
-                {live && <Text style={{ color: t.muted }}>{tr('play.online.keptForYou')}</Text>}
-              </View>
-            )
-          )}
+  const nav = useHistoryNav(history.length);
+  const [panel, setPanel] = useState<'chat' | 'more' | null>(null);
+  const [flipped, setFlipped] = useState(false);
+  const [chatSeen, setChatSeen] = useState(0);
+  useEffect(() => {
+    setPanel(null);
+    setFlipped(false);
+  }, [gameId]);
+  const lastLine = chat.lines[chat.lines.length - 1];
+  const unread = panel !== 'chat' && chat.lines.length > chatSeen && !!lastLine && lastLine.playerId !== me?.id;
+  const toggle = (p: 'chat' | 'more') => {
+    if (p === 'chat' || panel === 'chat') setChatSeen(chat.lines.length);
+    setPanel(panel === p ? null : p);
+  };
 
-          {!live && incoming.map((c) => <IncomingChallenge key={c.id} challenge={c} actions={playClient} />)}
+  const title = view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
-          {!view && (
+  const connectionNotice = s.closedReason ? (
+    <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
+      <Text style={{ color: t.text, fontWeight: '600' }}>{serverText(s.closedReason)}</Text>
+    </View>
+  ) : s.connection !== 'online' ? (
+    <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
+      <Text style={{ color: t.text, fontWeight: '600' }}>{s.connection === 'connecting' ? tr('play.online.connectingServer') : tr('play.online.reconnecting')}</Text>
+      {live && <Text style={{ color: t.muted }}>{tr('play.online.keptForYou')}</Text>}
+    </View>
+  ) : null;
+
+  if (!view || !players) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title }} />
+        <ScrollView contentContainerStyle={styles.page}>
+          <View style={{ width: Math.min(size, 480), gap: 8 }}>
+            {connectionNotice}
+            {incoming.map((c) => (
+              <IncomingChallenge key={c.id} challenge={c} actions={playClient} />
+            ))}
             <Card>
               {inviteId ? (
                 <InviteDetails
@@ -143,129 +164,185 @@ export default function OnlinePlay() {
                 <Button
                   title={tr('play.online.findGame', { tc: formatTimeControl(quickTc) })}
                   disabled={s.connection !== 'online'}
-                  onPress={() => playClient.seek({ timeControl: quickTc, rated: false })}
+                  onPress={() => playClient.seek({ timeControl: quickTc, rated: !isGuest(me) })}
                 />
               ) : (
                 <Label muted>{tr('play.online.noGame')}</Label>
               )}
               {!inviteId && mode !== 'friend' && <Button variant="secondary" title={tr('home.online.cta')} onPress={() => router.replace('/play')} />}
             </Card>
-          )}
+          </View>
+        </ScrollView>
+      </Screen>
+    );
+  }
 
-          {view && players && (
-            <>
-              <PlayerBar player={players[opp]} ms={ms(opp)} active={view.clock.running === opp} offline={!view.opponentConnected} />
-              {!view.opponentConnected && live && (
-                <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
-                  <Text style={{ color: t.text, fontWeight: '600' }}>
-                    {history.length < 2
-                      ? tr('play.online.oppGoneEarly')
-                      : abandonIn !== null
-                        ? tr('play.online.oppGoneWin', { n: abandonIn })
-                        : tr('play.online.oppGoneWait')}
-                  </Text>
-                </View>
-              )}
-              <View>
-                <Board
-                  fen={view.fen}
-                  orientation={you}
-                  size={size}
-                  selected={board.selected}
-                  targets={board.targets}
-                  premove={view.premove}
-                  lastMove={last ? { from: last.from, to: last.to } : null}
-                  checkSquare={checkSquareOf(view.fen)}
-                  onSquarePress={board.onSquarePress}
-                  {...board.dragProps}
+  // ---------------------------------------------------------------- the game
+  const over = !!view.outcome;
+  const orientation: Color = flipped ? opp : you;
+  const top: Color = orientation === 'w' ? 'b' : 'w';
+  const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
+  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
+  const boardLast = nav.live ? last : shownMove;
+  const oppOfferedRematch = view.rematchBy === opp;
+  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
+
+  const openReview = () =>
+    router.push({
+      pathname: '/review',
+      params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
+    });
+  const resign = () => {
+    if (prefs.requestResign()) playClient.resign();
+  };
+
+  const actions: GameAction[] = [
+    { key: 'chat', icon: 'chat-outline', label: tr('game.action.chat'), onPress: () => toggle('chat'), active: panel === 'chat', dot: unread },
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
+    ...(!over
+      ? history.length < 2
+        ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: playClient.abort }]
+        : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: playClient.offerDraw, disabled: view.drawOfferBy === you, dot: view.drawOfferBy === opp }]
+      : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), onPress: openReview, disabled: !reviewable }]),
+    !over
+      ? { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: resign, disabled: history.length < 2, danger: true }
+      : {
+          key: 'rematch',
+          icon: 'refresh',
+          label: tr('game.action.rematch'),
+          onPress: () => playClient.rematch(),
+          dot: oppOfferedRematch,
+          disabled: !oppOfferedRematch && (view.rematchBy === you || view.rematchDeclined || !view.opponentConnected),
+        },
+    { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
+    { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
+  ];
+
+  const moreItems: OptionItem[] = [
+    { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlipped((f) => !f) },
+    ...(view.premove ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.setPremove(null) }] : []),
+    ...(over
+      ? [
+          ...(hideResult ? [{ key: 'result', icon: 'trophy-outline' as const, label: tr('game.over.showResult'), onPress: () => { setHideResult(false); setPanel(null); } }] : []),
+          { key: 'new', icon: 'plus-circle-outline' as const, label: tr('game.more.newGame', { tc: formatTimeControl(view.timeControl) }), onPress: newGame },
+          ...(view.outcome!.reason !== 'aborted'
+            ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } }) }]
+            : []),
+          { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
+        ]
+      : []),
+  ];
+
+  const dockHeader = (
+    <>
+      {!nav.live && (
+        <DockNotice icon="history" text={tr('game.viewingMove', { move: moveLabel(history, nav.shown) })}>
+          <NoticeButton icon="skip-next" label={tr('game.live')} onPress={nav.toLive} />
+        </DockNotice>
+      )}
+      {live && prefs.pending && (
+        <DockNotice icon="help-circle-outline" text={tr('play.confirmMoveQ', { san: prefs.pending.san })} strong>
+          <NoticeButton icon="close" label={tr('common.cancel')} onPress={prefs.cancel} />
+          <NoticeButton icon="check" label={tr('play.confirmMove')} onPress={prefs.confirm} primary />
+        </DockNotice>
+      )}
+      {live && view.drawOfferBy === opp && (
+        <DockNotice icon="handshake-outline" text={tr('play.online.drawOffered')} strong>
+          <NoticeButton icon="close" label={tr('common.decline')} onPress={playClient.declineDraw} />
+          <NoticeButton icon="check" label={tr('common.accept')} onPress={playClient.acceptDraw} primary />
+        </DockNotice>
+      )}
+      {live && view.drawOfferBy === you && <DockNotice icon="handshake-outline" text={`${tr('game.draw.offered')}. ${tr('game.draw.offeredBody')}`} />}
+      {!view.opponentConnected && live && (
+        <DockNotice
+          icon="wifi-off"
+          text={history.length < 2 ? tr('play.online.oppGoneEarly') : abandonIn !== null ? tr('play.online.oppGoneWin', { n: abandonIn }) : tr('play.online.oppGoneWait')}
+        />
+      )}
+      {s.error && <DockNotice icon="alert-circle-outline" text={serverText(s.error)} />}
+    </>
+  );
+
+  return (
+    <Screen>
+      <Stack.Screen options={{ title }} />
+      <GameLayout
+        notice={connectionNotice}
+        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} />}
+        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} />}
+        renderBoard={(boardSize) => (
+          <>
+            <Board
+              fen={boardFen}
+              orientation={orientation}
+              size={boardSize}
+              selected={nav.live ? board.selected : null}
+              targets={nav.live ? board.targets : []}
+              premove={nav.live ? view.premove : null}
+              lastMove={boardLast ? { from: boardLast.from, to: boardLast.to } : null}
+              checkSquare={checkSquareOf(boardFen)}
+              onSquarePress={nav.live ? board.onSquarePress : undefined}
+              {...(nav.live ? board.dragProps : {})}
+            />
+            {over && !hideResult && (
+              <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
+                <GameOverCard
+                  view={view}
+                  onRematch={() => playClient.rematch()}
+                  onDeclineRematch={() => playClient.declineRematch()}
+                  onNewGame={newGame}
+                  onLobby={toLobby}
+                  onReview={reviewable ? openReview : undefined}
+                  onClose={() => setHideResult(true)}
                 />
-                {view.outcome && !hideResult && (
-                  <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
-                    <GameOverCard
-                      view={view}
-                      onRematch={() => playClient.rematch()}
-                      onDeclineRematch={() => playClient.declineRematch()}
-                      onNewGame={newGame}
-                      onLobby={toLobby}
-                    />
-                    <Pressable accessibilityRole="button" onPress={() => setHideResult(true)} style={styles.viewBoard}>
-                      <Text style={{ color: t.text, fontWeight: '600' }}>{tr('play.online.viewBoard')}</Text>
-                    </Pressable>
-                  </View>
-                )}
               </View>
-              <PlayerBar player={players[you]} ms={ms(you)} active={view.clock.running === you} />
-
-              <Card>
-                {live && (
-                  <View style={styles.actions}>
-                    {history.length < 2 ? (
-                      <Button variant="secondary" title={tr('play.abort')} onPress={playClient.abort} />
-                    ) : (
-                      <Button variant="secondary" title={tr('play.offerDraw')} onPress={playClient.offerDraw} disabled={view.drawOfferBy === you} />
-                    )}
-                    <Button variant="danger" title={prefs.resignAsked ? tr('play.confirmResign') : tr('play.resign')} onPress={() => prefs.requestResign() && playClient.resign()} />
-                    {prefs.resignAsked && <Button variant="secondary" title={tr('play.keepPlaying')} onPress={prefs.cancelResign} />}
-                    {view.premove && <Button variant="secondary" title={tr('play.cancelPremove')} onPress={() => playClient.setPremove(null)} />}
-                  </View>
-                )}
-                {live && prefs.pending && (
-                  <View style={styles.actions}>
-                    <Label>{tr('play.confirmMoveQ', { san: prefs.pending.san })}</Label>
-                    <Button title={tr('play.confirmMove')} onPress={prefs.confirm} />
-                    <Button variant="secondary" title={tr('common.cancel')} onPress={prefs.cancel} />
-                  </View>
-                )}
-                {live && view.drawOfferBy === opp && (
-                  <View style={styles.actions}>
-                    <Label>{tr('play.online.drawOffered')}</Label>
-                    <Button title={tr('common.accept')} onPress={playClient.acceptDraw} />
-                    <Button variant="secondary" title={tr('common.decline')} onPress={playClient.declineDraw} />
-                  </View>
-                )}
-                {live && !board.myTurn && <Label muted>{board.canPremove ? tr('play.online.premoveHint') : tr('play.online.opponentToMove')}</Label>}
-                {view.outcome && hideResult && <Button title={tr('play.online.showResult')} onPress={() => setHideResult(false)} />}
-                {view.outcome && view.outcome.reason !== 'aborted' && (
-                  <View style={styles.actions}>
-                    <Button
-                      variant="secondary"
-                      title={tr('play.online.reviewHistory')}
-                      onPress={() => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } })}
-                    />
-                    {history.length > 0 && (
-                      <Button
-                        variant="secondary"
-                        title={tr('play.engineReview')}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/review',
-                            params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you },
-                          })
-                        }
-                      />
-                    )}
-                  </View>
-                )}
-                {s.error && <Label muted>{serverText(s.error)}</Label>}
-                {history.length > 0 ? (
-                  <Label muted>{history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>
-                ) : (
-                  live && <Label muted>{you === 'w' ? tr('play.online.firstMoveWhite') : tr('play.online.firstMoveBlack')}</Label>
-                )}
-              </Card>
-              <ChatPanel chat={chat} me={me} opponent={players[opp]} canChat />
-            </>
-          )}
-        </View>
-      </ScrollView>
+            )}
+            {/* Drawn above the result card; touches pass through. */}
+            {over && endResult(view) && (
+              <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={boardSize} height={boardSize} />
+            )}
+          </>
+        )}
+        dock={
+          <MoveList
+            sans={history.map((m) => m.san)}
+            shown={nav.shown}
+            onSelect={nav.goTo}
+            header={dockHeader}
+            empty={live ? (you === 'w' ? tr('play.online.firstMoveWhite') : tr('play.online.firstMoveBlack')) : undefined}
+          />
+        }
+        panel={
+          panel === 'chat' ? (
+            <ChatPanel chat={chat} me={me} opponent={players[opp]} canChat fill onClose={() => setPanel(null)} />
+          ) : panel === 'more' ? (
+            <OptionsPanel
+              title={tr('game.more.title')}
+              onClose={() => setPanel(null)}
+              items={moreItems.map((it) => ({ ...it, onPress: () => { setPanel(null); it.onPress(); } }))}
+            />
+          ) : null
+        }
+        actions={actions}
+      />
+      <Modal
+        visible={prefs.resignAsked}
+        onClose={prefs.cancelResign}
+        title={tr('game.resign.title')}
+        description={tr('game.resign.body')}
+        actions={
+          <>
+            <UIButton variant="ghost" title={tr('play.keepPlaying')} onPress={prefs.cancelResign} />
+            <UIButton variant="danger" title={tr('game.resign.confirm')} onPress={resign} />
+          </>
+        }
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
-  actions: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6, gap: 8 },
-  viewBoard: { paddingVertical: 6, paddingHorizontal: 12 },
+  banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
 });

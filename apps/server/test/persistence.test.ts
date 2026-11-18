@@ -2,7 +2,8 @@ import { decodeServer, encode, type ClientMessage, type ServerMessage } from '@c
 import { getGame, getRatings, openDb, type DbHandle } from '@chessmate/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { DbGamePersistence, DbPlayerStore } from '../src/persistence';
+import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from '../src/persistence';
+import { MemoryRatingRepository, RatingService } from '../src/ratingService';
 import { ChessServer } from '../src/server';
 
 let h: DbHandle;
@@ -91,6 +92,13 @@ describe('game persistence', () => {
     // A restarted server sees the saved rating.
     const reloaded = await DbPlayerStore.load(h.db, persistence);
     expect(reloaded.get(blackId)?.ratings.blitz?.rating).toBeCloseTo(r!.rating);
+    // ...and so does the rating service used for pairing, profiles and the next game.
+    const repo = new MemoryRatingRepository();
+    expect(await loadRatingsInto(repo, h.db)).toBeGreaterThanOrEqual(2);
+    const svc = new RatingService(repo);
+    const warm = svc.get(blackId, 'blitz', Date.now());
+    expect(warm.rating).toBeCloseTo(r!.rating);
+    expect(warm).toMatchObject({ games: 1, wins: 1 });
     a.close();
     b.close();
   });

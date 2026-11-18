@@ -144,7 +144,7 @@ export default function Analysis() {
     <Screen>
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
-          <View style={styles.boardRow}>
+          <View style={[styles.boardRow, { direction: 'ltr' }]}>
             <EvalBar score={engineOn ? (top?.score ?? null) : null} orientation={orientation} height={size} width={EVAL_BAR} />
             <View style={{ width: size, height: size }}>
               <Board
@@ -369,7 +369,8 @@ function clampPly(n: number, max: number) {
 
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
-  boardRow: { flexDirection: 'row', gap: 6, direction: 'ltr' },
+  // `direction` goes inline: StyleSheet.create rejects it on the web.
+  boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginStart: 'auto' },
   pvRow: { flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth },
