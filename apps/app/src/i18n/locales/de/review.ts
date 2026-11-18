@@ -16,4 +16,12 @@ export const review: Messages<typeof en> = {
   explore: 'Auf dem Analysebrett erkunden',
   countA11y: '{label}: Weiß {w}, Schwarz {b}',
   countsLegend: 'Zahlen: Weiß · Schwarz.',
+  white: 'Weiß',
+  black: 'Schwarz',
+  moves: 'Züge',
+  flip: 'Brett drehen',
+  first: 'Erster Zug',
+  prev: 'Vorheriger Zug',
+  next: 'Nächster Zug',
+  last: 'Letzter Zug',
 };

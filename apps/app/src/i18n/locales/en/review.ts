@@ -13,4 +13,12 @@ export const review = {
   explore: 'Explore in analysis board',
   countA11y: '{label}: White {w}, Black {b}',
   countsLegend: 'Counts are White · Black.',
+  white: 'White',
+  black: 'Black',
+  moves: 'Moves',
+  flip: 'Flip board',
+  first: 'First move',
+  prev: 'Previous move',
+  next: 'Next move',
+  last: 'Last move',
 };

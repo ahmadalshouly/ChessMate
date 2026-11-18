@@ -11,7 +11,8 @@ import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { BEST_MOVE_ARROW, MOVE_CLASS, REVIEW_ORDER, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
-import { useT } from '@/i18n';
+import { dirIcon, useT } from '@/i18n';
+import { ActionBar } from '@/components/game/ActionBar';
 import { moveFeedbackText } from '@/i18n/chess';
 import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
@@ -33,7 +34,7 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
  */
 export default function Review() {
   const tr = useT();
-  const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string }>();
+  const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string }>();
   const engine = useEngine();
   const t = useTheme();
   const size = useBoardSize(300) - EVAL_BAR - 6;
@@ -136,13 +137,15 @@ export default function Review() {
 
           {review && (
             <>
-              <View style={[styles.row, { direction: 'ltr' }]}>
-                <NavButton label="⏮" onPress={() => setPly(0)} disabled={ply === 0} />
-                <NavButton label="◀" onPress={() => setPly(ply - 1)} disabled={ply === 0} />
-                <NavButton label="▶" onPress={() => setPly(ply + 1)} disabled={ply >= moves.length} />
-                <NavButton label="⏭" onPress={() => setPly(moves.length)} disabled={ply >= moves.length} />
-                <NavButton label="⇅" onPress={() => setFlip((f) => !f)} />
-              </View>
+              <ActionBar
+                actions={[
+                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setPly(0), disabled: ply === 0 },
+                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setPly((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
+                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setPly((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
+                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setPly(moves.length), disabled: ply >= moves.length },
+                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+                ]}
+              />
 
               <Card>
                 {current ? (
@@ -173,30 +176,45 @@ export default function Review() {
               </Card>
 
               <Card>
-                <View style={styles.summaryHead}>
-                  <View style={{ flex: 1 }} />
-                  <View style={styles.summaryCell}>
-                    <Label muted>{tr('play.white')}</Label>
+                <View style={styles.sides}>
+                  <SideName color="w" name={params.white || tr('review.white')} />
+                  <SideName color="b" name={params.black || tr('review.black')} end />
+                </View>
+                <View style={styles.statRow}>
+                  <Text style={[styles.accuracy, { color: t.text }]}>{review.accuracy.w}</Text>
+                  <View style={styles.statMid}>
+                    <Label muted size={13}>
+                      {tr('review.accuracy')}
+                    </Label>
                   </View>
-                  <View style={styles.summaryCell}>
-                    <Label muted>{tr('play.black')}</Label>
+                  <Text style={[styles.accuracy, styles.end, { color: t.text }]}>{review.accuracy.b}</Text>
+                </View>
+                <View style={[styles.accTrack, { backgroundColor: t.border }]}>
+                  <View style={[styles.accHalf, { alignItems: 'flex-end' }]}>
+                    <View style={{ width: `${review.accuracy.w}%`, height: '100%', backgroundColor: t.text, borderRadius: 3 }} />
+                  </View>
+                  <View style={styles.accHalf}>
+                    <View style={{ width: `${review.accuracy.b}%`, height: '100%', backgroundColor: t.muted, borderRadius: 3 }} />
                   </View>
                 </View>
-                <SummaryRow label={tr('review.accuracy')} w={`${review.accuracy.w}`} b={`${review.accuracy.b}`} strong />
-                <View style={styles.medalGrid}>
-                  {REVIEW_ORDER.filter((c) => ALWAYS_LISTED.has(c) || (review.counts.w[c] ?? 0) + (review.counts.b[c] ?? 0) > 0).map((c) => (
-                    <View
-                      key={c}
-                      style={styles.medalTile}
-                      accessibilityLabel={tr('review.countA11y', { label: MOVE_CLASS[c].label, w: review.counts.w[c] ?? 0, b: review.counts.b[c] ?? 0 })}>
-                      <MoveBadge cls={c} size={68} variant="full" />
-                      <Label muted size={12}>
-                        {review.counts.w[c] ?? 0} · {review.counts.b[c] ?? 0}
-                      </Label>
-                    </View>
-                  ))}
+                <View style={{ gap: 2 }}>
+                  {REVIEW_ORDER.filter((c) => ALWAYS_LISTED.has(c) || (review.counts.w[c] ?? 0) + (review.counts.b[c] ?? 0) > 0).map((c) => {
+                    const w = review.counts.w[c] ?? 0;
+                    const b = review.counts.b[c] ?? 0;
+                    return (
+                      <View key={c} style={styles.statRow} accessible accessibilityLabel={tr('review.countA11y', { label: MOVE_CLASS[c].label, w, b })}>
+                        <Text style={[styles.count, { color: w ? MOVE_CLASS[c].color : t.textTertiary }]}>{w}</Text>
+                        <View style={styles.statMid}>
+                          <MoveBadge cls={c} size={30} />
+                          <Text style={[styles.classLabel, { color: t.text }]} numberOfLines={1}>
+                            {MOVE_CLASS[c].label}
+                          </Text>
+                        </View>
+                        <Text style={[styles.count, styles.end, { color: b ? MOVE_CLASS[c].color : t.textTertiary }]}>{b}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
-                <Label muted size={12}>{tr('review.countsLegend')}</Label>
                 <Label muted size={12}>{tr('review.depth', { n: review.depth })}</Label>
               </Card>
 
@@ -241,18 +259,15 @@ function moveNumber(m: ReviewedMove) {
   return m.color === 'w' ? `${full}.` : `${full}…`;
 }
 
-function SummaryRow({ label, w, b, strong }: { label: string; w: string; b: string; strong?: boolean }) {
+/** A side's name with its colour dot, for the split stats header. */
+function SideName({ color, name, end }: { color: 'w' | 'b'; name: string; end?: boolean }) {
+  const t = useTheme();
   return (
-    <View style={styles.summaryRow}>
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Label bold={strong}>{label}</Label>
-      </View>
-      <View style={styles.summaryCell}>
-        <Label bold={strong}>{w}</Label>
-      </View>
-      <View style={styles.summaryCell}>
-        <Label bold={strong}>{b}</Label>
-      </View>
+    <View style={[styles.side, end && { flexDirection: 'row-reverse' }]}>
+      <View style={[styles.sideDot, { backgroundColor: color === 'w' ? '#FFFFFF' : '#15171B', borderColor: t.borderStrong }]} />
+      <Text style={[styles.sideName, { color: t.text, textAlign: end ? 'right' : 'left' }]} numberOfLines={1}>
+        {name}
+      </Text>
     </View>
   );
 }
@@ -280,25 +295,24 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
   );
 }
 
-function NavButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <View style={{ flex: 1 }}>
-      <Button variant="secondary" title={label} onPress={onPress} disabled={disabled} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
-  summaryHead: { flexDirection: 'row', gap: 8 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  summaryCell: { width: 52, alignItems: 'flex-end' },
-  medalGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, paddingVertical: 6 },
-  medalTile: { alignItems: 'center', gap: 2, width: 74 },
+  sides: { flexDirection: 'row', gap: 12 },
+  side: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  sideDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1 },
+  sideName: { flex: 1, fontSize: 15, fontWeight: '700' },
+  statRow: { flexDirection: 'row', alignItems: 'center', minHeight: 38 },
+  statMid: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  end: { textAlign: 'right' },
+  accuracy: { width: 72, fontSize: 30, fontWeight: '800', fontVariant: ['tabular-nums'], letterSpacing: -1 },
+  accTrack: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', gap: 2 },
+  accHalf: { flex: 1 },
+  count: { width: 56, fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  classLabel: { fontSize: 14, fontWeight: '600', flexShrink: 1 },
   moveList: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   moveChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   graph: { flexDirection: 'row', borderRadius: 6, overflow: 'hidden' },

@@ -102,9 +102,13 @@ const MIRRORED: Record<string, string> = {
   'chevron-back': 'chevron-forward',
   'caret-forward': 'caret-back',
   'caret-back': 'caret-forward',
+  'chevron-left': 'chevron-right',
+  'chevron-right': 'chevron-left',
+  'page-first': 'page-last',
+  'page-last': 'page-first',
 };
 
-/** Direction-aware Ionicons name: "forward" arrows point left in Arabic. Leaves other icons alone. */
+/** Direction-aware icon name (Ionicons or MaterialCommunityIcons): "forward" arrows point left in Arabic. Leaves other icons alone. */
 export function dirIcon<T extends string>(name: T): T {
   return (isRTL(i18nStore.get().lang) ? (MIRRORED[name] ?? name) : name) as T;
 }

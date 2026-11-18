@@ -3,7 +3,7 @@ import type { computer as en } from '../en/computer';
 
 export const computer: Messages<typeof en> = {
   choose: 'Wähle deinen Gegner',
-  intro: 'Ungewertetes Training. Zurücknehmen und Tipps sind immer erlaubt.',
+  intro: 'Ungewertetes Training. Zurücknehmen ist immer erlaubt, die Engine-Analyse gibt es nach der Partie.',
   playAs: 'Spielen als',
   liveThreats: 'Live-Drohungshinweise',
   liveThreatsBody: 'Zeigt Figuren, die du verlieren könntest, und was der Computer droht.',

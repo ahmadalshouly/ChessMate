@@ -1,18 +1,7 @@
-import {
-  BOTS,
-  Game,
-  analyzePosition,
-  chooseBotMove,
-  suggestMove,
-  type BotProfile,
-  type Color,
-  type GameOutcome,
-  type PlayedMove,
-  type Square,
-} from '@chessmate/core';
-import { Stack } from 'expo-router';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { BOTS, Game, START_FEN, chooseBotMove, type BotProfile, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
+import { Stack, router } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -20,9 +9,16 @@ import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
-import { translate, useT, type TKey } from '@/i18n';
-import { colorLabel, pieceLabel, threatText } from '@/i18n/chess';
+import { useCurrentUser } from '@/lib/currentUser';
+import { dirIcon, translate, useT, type TKey } from '@/i18n';
+import { colorLabel } from '@/i18n/chess';
+import { GameIcon, type GameAction } from '@/components/game/ActionBar';
+import { GameLayout } from '@/components/game/GameLayout';
+import { MoveList } from '@/components/game/MoveList';
+import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { PlayerCard } from '@/components/game/PlayerCard';
+import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
+import { Button as UIButton, Modal } from '@/ui';
 import { reasonText } from '@/components/play/GameOverCard';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
@@ -33,7 +29,6 @@ type ColorChoice = 'w' | 'random' | 'b';
 interface Setup {
   bot: BotProfile;
   color: Color;
-  threats: boolean;
 }
 
 /**
@@ -63,12 +58,11 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const tr = useT();
   const [botId, setBotId] = useState(BOTS[2]!.id);
   const [color, setColor] = useState<ColorChoice>('w');
-  const [threats, setThreats] = useState(true);
   const bot = BOTS.find((b) => b.id === botId)!;
 
   const start = () => {
     const c: Color = color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : color;
-    onStart({ bot, color: c, threats });
+    onStart({ bot, color: c });
   };
 
   return (
@@ -130,14 +124,6 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
             ]}
           />
 
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Label bold>{tr('computer.liveThreats')}</Label>
-              <Label muted>{tr('computer.liveThreatsBody')}</Label>
-            </View>
-            <Switch value={threats} onValueChange={setThreats} trackColor={{ true: t.accent, false: t.border }} thumbColor={t.surfaceSolid} />
-          </View>
-
           <Button title={tr('computer.playBot', { name: bot.name })} onPress={start} />
         </Card>
       </View>
@@ -183,19 +169,19 @@ const nextFrame = (fn: () => void, delay = 0) => setTimeout(fn, delay);
 function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () => void; onRematch: (s: Setup) => void }) {
   const t = useTheme();
   const tr = useT();
+  const user = useCurrentUser();
   const { bot, color: me } = setup;
   const game = useRef(new Game());
   const [view, setView] = useState<GameView>(() => ({ fen: game.current.fen, history: [] }));
   const [flip, setFlip] = useState(me === 'b');
-  const [showThreats, setShowThreats] = useState(setup.threats);
   const [resigned, setResigned] = useState(false);
   const [thinking, setThinking] = useState(false);
-  const [hint, setHint] = useState<{ from: Square; to: Square; san: string } | null>(null);
-  const [hintBusy, setHintBusy] = useState(false);
-  const [stats, setStats] = useState({ takebacks: 0, hints: 0 });
+  const [takebacks, setTakebacks] = useState(0);
+  const [panel, setPanel] = useState(false);
+  const [hideResult, setHideResult] = useState(false);
+  const [confirmResign, setConfirmResign] = useState(false);
   /** Incremented to cancel a pending bot move (takeback, new game). */
   const epoch = useRef(0);
-  const size = useBoardSize(300);
 
   const sync = () => setView({ fen: game.current.fen, history: game.current.history() });
 
@@ -206,6 +192,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   );
   const outcome: GameOutcome | null = boardOutcome ?? (resigned ? { result: me === 'w' ? '0-1' : '1-0', reason: 'resignation', winner: me === 'w' ? 'b' : 'w' } : null);
   const myTurn = snapshot.turn === me && !outcome;
+  const nav = useHistoryNav(view.history.length);
 
   // Bot's turn: think after a short pause so the player's move is visible.
   useEffect(() => {
@@ -234,10 +221,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const play = (uci: string) => {
     if (!myTurn) return false;
     const ok = !!game.current.move(uci);
-    if (ok) {
-      setHint(null);
-      sync();
-    }
+    if (ok) sync();
     return ok;
   };
   const interaction = useBoardInteraction(view.fen, (c) => c === me && myTurn, play);
@@ -250,187 +234,172 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     epoch.current++;
     setThinking(false);
     setResigned(false);
-    setHint(null);
+    setHideResult(false);
     interaction.clear();
     game.current.undo();
     if (game.current.turn !== me) game.current.undo();
-    setStats((s) => ({ ...s, takebacks: s.takebacks + 1 }));
+    setTakebacks((n) => n + 1);
+    nav.toLive();
     sync();
   };
-
-  const askHint = () => {
-    if (!myTurn || hintBusy) return;
-    setHintBusy(true);
-    const moves = game.current.uciHistory();
-    nextFrame(() => {
-      const r = suggestMove({ moves, timeMs: 700 });
-      const from = r.best.slice(0, 2) as Square;
-      const to = r.best.slice(2, 4) as Square;
-      const san = snapshot.legalMoves(from).find((m) => m.to === to)?.san ?? r.best;
-      setHint({ from, to, san });
-      setHintBusy(false);
-      setStats((s) => ({ ...s, hints: s.hints + 1 }));
-    }, 30);
+  const resign = () => {
+    setConfirmResign(false);
+    epoch.current++;
+    setThinking(false);
+    setResigned(true);
   };
+  const rematch = () => onRematch({ ...setup, color: me === 'w' ? 'b' : 'w' });
 
-  const insight = useMemo(() => analyzePosition(view.fen, me), [view.fen, me]);
-  const threatened: Square[] = showThreats && !outcome ? insight.hanging.map((h) => h.square) : [];
-  const last = view.history[view.history.length - 1];
-
-  const selected = hint ? hint.from : interaction.selected;
-  const targets = hint && !interaction.selected ? [hint.to] : interaction.targets;
-
+  const shownMove = nav.shown > 0 ? view.history[nav.shown - 1] : undefined;
+  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START_FEN);
   const verdict = outcome ? resultText(outcome, me) : null;
   const botColor: Color = me === 'w' ? 'b' : 'w';
+  const orientation: Color = flip ? 'b' : 'w';
+  const botOnTop = orientation === me;
+  const openReview = () =>
+    router.push({
+      pathname: '/review',
+      params: {
+        moves: view.history.map((m) => m.uci).join(','),
+        orientation: me,
+        white: me === 'w' ? user.displayName : bot.name,
+        black: me === 'b' ? user.displayName : bot.name,
+      },
+    });
 
-  return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <View style={{ width: size, gap: 10 }}>
-        <PlayerRow
-          title={bot.name}
-          subtitle={tr('computer.levelRating', { level: bot.level, rating: bot.rating })}
-          avatar={<Avatar bot={bot} size={36} />}
-          status={thinking ? tr('computer.thinking') : !outcome && snapshot.turn === botColor ? tr('computer.botToMove') : null}
-        />
-        <Board
-          fen={view.fen}
-          orientation={flip ? 'b' : 'w'}
-          size={size}
-          selected={selected}
-          targets={targets}
-          lastMove={last ? { from: last.from, to: last.to } : null}
-          checkSquare={checkSquareOf(view.fen)}
-          threatened={threatened}
-          onSquarePress={(sq) => {
-            setHint(null);
-            interaction.onSquarePress(sq);
-          }}
-          {...interaction.dragProps}
-          onPieceDrop={(from, to) => {
-            setHint(null);
-            interaction.dragProps.onPieceDrop(from, to);
-          }}
-        />
-        <PlayerRow
-          title={tr('computer.you')}
-          subtitle={tr('computer.youSubtitle', { color: colorLabel(me) })}
-          avatar={
-            <View style={[styles.youDot, { borderColor: t.text, backgroundColor: me === 'w' ? '#FFFFFF' : '#15171B' }]} />
-          }
-          status={myTurn ? tr('computer.yourMove') : null}
-        />
-
-        <View style={styles.controls}>
-          <View style={styles.controlCell}>
-            <Button variant="secondary" title={tr('computer.takeback')} disabled={!canTakeback} onPress={takeback} />
-          </View>
-          <View style={styles.controlCell}>
-            <Button variant="secondary" title={hintBusy ? tr('computer.hintBusy') : tr('computer.hint')} disabled={!myTurn || hintBusy} onPress={askHint} />
-          </View>
-          <View style={styles.controlCell}>
-            <Button variant="secondary" title={tr('computer.flip')} onPress={() => setFlip((f) => !f)} />
-          </View>
-          <View style={styles.controlCell}>
-            {outcome ? (
-              <Button variant="secondary" title={tr('computer.new')} onPress={onExit} />
-            ) : (
-              <Button
-                variant="danger"
-                title={tr('play.resign')}
-                disabled={plyCount < 1}
-                onPress={() => {
-                  epoch.current++;
-                  setThinking(false);
-                  setResigned(true);
-                }}
-              />
-            )}
-          </View>
-        </View>
-
-        {verdict && (
-          <Card>
-            <Label size={20} bold>
-              {verdict.title}
-            </Label>
-            <Label muted>
-              {verdict.detail} · {tr('computer.unrated')}
-              {stats.takebacks ? ` · ${tr('computer.takebacks', { count: stats.takebacks })}` : ''}
-              {stats.hints ? ` · ${tr('computer.hints', { count: stats.hints })}` : ''}
-            </Label>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Button title={tr('play.over.rematch')} onPress={() => onRematch({ ...setup, color: me === 'w' ? 'b' : 'w', threats: showThreats })} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button variant="secondary" title={tr('computer.changeOpponent')} onPress={onExit} />
-              </View>
-            </View>
-          </Card>
-        )}
-
-        <Card>
-          <View style={styles.row}>
-            <Label bold>{tr('computer.threatFeedback')}</Label>
-            <View style={{ marginStart: 'auto' }}>
-              <Switch value={showThreats} onValueChange={setShowThreats} trackColor={{ true: t.accent, false: t.border }} thumbColor={t.surfaceSolid} />
-            </View>
-          </View>
-          {hint && <Label>{tr('computer.hintText', { san: hint.san })}</Label>}
-          {showThreats && !outcome && (
-            <>
-              {insight.hanging.slice(0, 3).map((h) => (
-                <Label key={h.square} muted>
-                  {`⚠ ${tr('computer.hanging', { piece: pieceLabel(h.piece), square: h.square })}`}
-                </Label>
-              ))}
-              {snapshot.turn === me &&
-                insight.threats.slice(0, 3).map((th) => (
-                  <Label key={`t${th.uci}`} muted>
-                    {`⚔ ${tr('computer.threatens', { name: bot.name, threat: threatText(th, view.fen) })}`}
-                  </Label>
-                ))}
-              {snapshot.turn === me &&
-                insight.opportunities
-                  .filter((o) => o.kind !== 'check')
-                  .slice(0, 3)
-                  .map((o) => (
-                    <Label key={`o${o.uci}`} muted>
-                      {`★ ${tr('computer.chance', { threat: threatText(o, view.fen) })}`}
-                    </Label>
-                  ))}
-              {insight.hanging.length === 0 &&
-                (snapshot.turn !== me || insight.threats.length + insight.opportunities.filter((o) => o.kind !== 'check').length === 0) && (
-                  <Label muted>{tr('computer.noTactics')}</Label>
-                )}
-            </>
-          )}
-          {view.history.length > 0 && (
-            <Label muted>{view.history.map((m, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${m.san}` : m.san)).join(' ')}</Label>
-          )}
-        </Card>
-      </View>
-    </ScrollView>
+  const botCard = (
+    <PlayerCard
+      player={{ id: `bot_${bot.id}`, name: bot.name, rating: bot.rating, provisional: false }}
+      avatar={<Avatar bot={bot} size={36} />}
+      subtitle={tr('computer.levelRating', { level: bot.level, rating: bot.rating })}
+      status={thinking ? tr('computer.thinking') : null}
+      active={!outcome && snapshot.turn === botColor}
+      pressable={false}
+    />
   );
-}
+  const youCard = (
+    <PlayerCard
+      player={{ id: user.status === 'signedIn' ? 'me' : 'g_me', name: user.displayName || tr('computer.you'), rating: 0, provisional: false }}
+      subtitle={tr('computer.youSubtitle', { color: colorLabel(me) })}
+      status={myTurn ? tr('computer.yourMove') : null}
+      active={myTurn}
+      pressable={user.status === 'signedIn'}
+    />
+  );
 
-function PlayerRow({ title, subtitle, avatar, status }: { title: string; subtitle: string; avatar: ReactNode; status: string | null }) {
-  const t = useTheme();
+  const actions: GameAction[] = [
+    outcome
+      ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview, disabled: plyCount === 0 }
+      : { key: 'takeback', icon: 'undo-variant', label: tr('game.action.takeback'), onPress: takeback, disabled: !canTakeback },
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => setPanel((p) => !p), active: panel },
+    outcome
+      ? { key: 'rematch', icon: 'refresh', label: tr('game.action.rematch'), onPress: rematch }
+      : { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => setConfirmResign(true), disabled: plyCount < 1, danger: true },
+    { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
+    { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
+  ];
+  const moreItems: OptionItem[] = [
+    { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlip((f) => !f) },
+    ...(outcome && hideResult ? [{ key: 'result', icon: 'trophy-outline' as const, label: tr('game.over.showResult'), onPress: () => setHideResult(false) }] : []),
+    { key: 'change', icon: 'account-switch-outline', label: tr('game.more.changeOpponent'), onPress: onExit },
+  ];
+
+  const lastShown = nav.live ? view.history[view.history.length - 1] : shownMove;
+
   return (
-    <View style={styles.playerRow}>
-      {avatar}
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.playerName, { color: t.text }]} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={{ color: t.muted, fontSize: 13 }}>{subtitle}</Text>
-      </View>
-      {status && (
-        <View style={[styles.pill, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
-          <Text style={{ color: t.text, fontSize: 13, fontWeight: '600' }}>{status}</Text>
-        </View>
-      )}
-    </View>
+    <>
+      <GameLayout
+        top={botOnTop ? botCard : youCard}
+        bottom={botOnTop ? youCard : botCard}
+        renderBoard={(size) => (
+          <>
+            <Board
+              fen={boardFen}
+              orientation={orientation}
+              size={size}
+              selected={nav.live ? interaction.selected : null}
+              targets={nav.live ? interaction.targets : []}
+              lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
+              checkSquare={checkSquareOf(boardFen)}
+              onSquarePress={nav.live ? interaction.onSquarePress : undefined}
+              {...(nav.live ? interaction.dragProps : {})}
+            />
+            {verdict && !hideResult && (
+              <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
+                <View style={[styles.result, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }]}>
+                  <View style={styles.row}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Label size={24} bold>
+                        {verdict.title}
+                      </Label>
+                      <Label muted>
+                        {verdict.detail} · {tr('computer.unrated')}
+                        {takebacks ? ` · ${tr('computer.takebacks', { count: takebacks })}` : ''}
+                      </Label>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={tr('game.over.close')}
+                      onPress={() => setHideResult(true)}
+                      hitSlop={8}
+                      style={[styles.close, { backgroundColor: t.surfaceSunken }]}>
+                      <GameIcon name="close" size={18} color={t.text} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.resultButtons}>
+                    <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary />
+                    {plyCount > 0 && <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} />}
+                    <NoticeButton icon="account-switch-outline" label={tr('game.action.newGame')} onPress={onExit} />
+                  </View>
+                </View>
+              </View>
+            )}
+          </>
+        )}
+        dock={
+          <MoveList
+            sans={view.history.map((m) => m.san)}
+            shown={nav.shown}
+            onSelect={nav.goTo}
+            header={
+              !nav.live ? (
+                <DockNotice icon="history" text={tr('game.viewingMove', { move: moveLabel(view.history, nav.shown) })}>
+                  <NoticeButton icon="skip-next" label={tr('game.live')} onPress={nav.toLive} />
+                </DockNotice>
+              ) : null
+            }
+          />
+        }
+        panel={
+          panel ? (
+            <OptionsPanel
+              title={tr('game.more.title')}
+              onClose={() => setPanel(false)}
+              items={moreItems.map((it) => ({
+                ...it,
+                onPress: () => {
+                  setPanel(false);
+                  it.onPress();
+                },
+              }))}
+            />
+          ) : null
+        }
+        actions={actions}
+      />
+      <Modal
+        visible={confirmResign}
+        onClose={() => setConfirmResign(false)}
+        title={tr('game.resign.title')}
+        description={tr('game.resign.body')}
+        actions={
+          <>
+            <UIButton variant="ghost" title={tr('play.keepPlaying')} onPress={() => setConfirmResign(false)} />
+            <UIButton variant="danger" title={tr('game.resign.confirm')} onPress={resign} />
+          </>
+        }
+      />
+    </>
   );
 }
 
@@ -451,10 +420,8 @@ const styles = StyleSheet.create({
   botMeta: { fontSize: 13 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
-  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  playerName: { fontSize: 16, fontWeight: '700' },
-  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
-  youDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 2 },
-  controls: { flexDirection: 'row', marginHorizontal: -4 },
-  controlCell: { flex: 1, paddingHorizontal: 4 },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
+  result: { width: '100%', maxWidth: 400, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
+  resultButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
 });
