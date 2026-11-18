@@ -15,6 +15,7 @@ import { dirIcon, translate, useT, type TKey } from '@/i18n';
 import { colorLabel } from '@/i18n/chess';
 import { GameIcon, type GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
+import { MatchHeader } from '@/components/game/MatchHeader';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { ConfirmPanel, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
@@ -316,6 +317,14 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   return (
     <>
       <GameLayout
+        header={(h) => (
+          <MatchHeader
+            height={h}
+            me={user.status === 'signedIn' ? { id: 'me', name: user.displayName, rating: 0, provisional: false } : null}
+            bot={{ name: bot.name, level: bot.level, rating: bot.rating, tagline: botTagline(bot) }}
+            refreshKey={outcome ? 'over' : ''}
+          />
+        )}
         top={botOnTop ? botCard : youCard}
         bottom={botOnTop ? youCard : botCard}
         renderBoard={(size) => (

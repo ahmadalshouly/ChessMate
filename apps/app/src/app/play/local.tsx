@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Board } from '@/components/Board';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
+import { MatchHeader } from '@/components/game/MatchHeader';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
@@ -106,6 +107,7 @@ export default function LocalPlay() {
   return (
     <Screen>
       <GameLayout
+        header={(h) => <MatchHeader height={h} me={null} caption={tr('game.header.passAndPlay')} />}
         top={card(top)}
         bottom={card(orientation)}
         renderBoard={(size) => (
