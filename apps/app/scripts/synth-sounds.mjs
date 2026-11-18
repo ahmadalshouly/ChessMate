@@ -83,4 +83,40 @@ write('lowtime', 0.42, (b) => {
   bell(b, 0, 1320, 0.12, 0.8);
   bell(b, 0.2, 1320, 0.12, 0.8);
 });
-console.log('wrote castle.wav, promote.wav, lowtime.wav to', out);
+
+/** Applause-like crowd: many tiny filtered claps scattered over time with a swell and fade. */
+function cheer(buf, at, dur, gain = 1) {
+  const start = Math.round(at * RATE);
+  const claps = Math.round(dur * 140);
+  for (let c = 0; c < claps; c++) {
+    const when = Math.abs(noise()) * dur;
+    const swell = Math.sin(Math.PI * Math.min(1, when / dur)) ** 0.6;
+    const s0 = start + Math.round(when * RATE);
+    const len = Math.round(0.018 * RATE);
+    let hp = 0;
+    let prev = 0;
+    for (let i = 0; i < len && s0 + i < buf.length; i++) {
+      const n = noise();
+      hp = 0.6 * (hp + n - prev);
+      prev = n;
+      buf[s0 + i] += gain * 0.22 * swell * hp * Math.exp(-(i / RATE) * 260);
+    }
+  }
+}
+
+// Win: a bright rising fanfare over a short burst of applause.
+write('win', 1.6, (b) => {
+  bell(b, 0, 523, 0.5, 0.55);
+  bell(b, 0.1, 659, 0.5, 0.55);
+  bell(b, 0.2, 784, 0.55, 0.6);
+  bell(b, 0.32, 1047, 0.9, 0.75);
+  bell(b, 0.32, 1319, 0.9, 0.35);
+  cheer(b, 0.15, 1.4, 1);
+});
+// Loss: two warm, low notes stepping gently down. Calm, not a buzzer.
+write('lose', 1.1, (b) => {
+  bell(b, 0, 440, 0.8, 0.6);
+  bell(b, 0.28, 349, 0.9, 0.6);
+  bell(b, 0.28, 220, 0.9, 0.25);
+});
+console.log('wrote castle.wav, promote.wav, lowtime.wav, win.wav, lose.wav to', out);

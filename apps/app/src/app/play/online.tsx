@@ -8,13 +8,14 @@ import { Board } from '@/components/Board';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
-import { GameOverCard } from '@/components/play/GameOverCard';
+import { GameEndCelebration } from '@/components/play/GameEndCelebration';
+import { GameOverCard, endResult } from '@/components/play/GameOverCard';
 import { Pill, Row } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { serverText } from '@/i18n/serverMessages';
 import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
-import { clockRemaining, playClient, usePlay } from '@/lib/playClient';
+import { clockRemaining, isGuest, playClient, usePlay } from '@/lib/playClient';
 import { useRecordOnlineGame } from '@/lib/recordGame';
 import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
@@ -143,7 +144,7 @@ export default function OnlinePlay() {
                 <Button
                   title={tr('play.online.findGame', { tc: formatTimeControl(quickTc) })}
                   disabled={s.connection !== 'online'}
-                  onPress={() => playClient.seek({ timeControl: quickTc, rated: false })}
+                  onPress={() => playClient.seek({ timeControl: quickTc, rated: !isGuest(me) })}
                 />
               ) : (
                 <Label muted>{tr('play.online.noGame')}</Label>
@@ -187,11 +188,20 @@ export default function OnlinePlay() {
                       onDeclineRematch={() => playClient.declineRematch()}
                       onNewGame={newGame}
                       onLobby={toLobby}
+                      onReview={
+                        history.length > 0
+                          ? () => router.push({ pathname: '/review', params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you } })
+                          : undefined
+                      }
                     />
                     <Pressable accessibilityRole="button" onPress={() => setHideResult(true)} style={styles.viewBoard}>
                       <Text style={{ color: t.text, fontWeight: '600' }}>{tr('play.online.viewBoard')}</Text>
                     </Pressable>
                   </View>
+                )}
+                {/* Drawn above the result card; touches pass through. */}
+                {view.outcome && endResult(view) && (
+                  <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome.reason === 'checkmate'} seed={view.gameId} width={size} height={size} />
                 )}
               </View>
               <PlayerBar player={players[you]} ms={ms(you)} active={view.clock.running === you} />

@@ -73,3 +73,8 @@ export async function saveRating(db: Database, u: RatingUpdate): Promise<void> {
     });
   });
 }
+
+/** Every stored rating row with its counters, for warming the server's rating cache at startup. */
+export async function loadAllRatings(db: Database): Promise<RatingRow[]> {
+  return db.select().from(ratings);
+}

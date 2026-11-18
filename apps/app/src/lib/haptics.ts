@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 import { getSettings } from '@/features/account/settingsStore';
 
-export type HapticKind = 'pickup' | 'move' | 'capture' | 'check' | 'premove' | 'illegal' | 'lowTime' | 'end';
+export type HapticKind = 'pickup' | 'move' | 'capture' | 'check' | 'premove' | 'illegal' | 'lowTime' | 'end' | 'lose';
 
 /**
  * Light vibration cues for phones. expo-haptics ships in Expo Go, so this
@@ -32,6 +32,9 @@ export function haptic(kind: HapticKind): void {
         break;
       case 'end':
         p = Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        break;
+      case 'lose':
+        p = Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
         break;
     }
     void p.catch(() => {});

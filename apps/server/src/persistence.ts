@@ -5,6 +5,7 @@ import {
   ensureUser,
   finishGame,
   getRatingsFor,
+  loadAllRatings,
   saveRating,
   users,
   type Database,
@@ -12,6 +13,7 @@ import {
 import { isNull } from 'drizzle-orm';
 import type { GameRoom } from './gameRoom';
 import type { Player, PlayerStore } from './players';
+import type { MemoryRatingRepository } from './ratingService';
 
 export type RatingChange = Record<Color, { before: Rating; after: Rating }>;
 
@@ -173,4 +175,26 @@ export class DbPlayerStore implements PlayerStore {
       this.queue.push(`ensure user ${p.id}`, () => ensureUser(this.db, { id: p.id, username: p.id, displayName: p.name }));
     }
   }
+}
+
+/**
+ * Warms the rating cache from the database so a server restart keeps everyone's
+ * Elo (and game counts) instead of resetting to 1500. Returns the rows loaded.
+ */
+export async function loadRatingsInto(repo: MemoryRatingRepository, db: Database): Promise<number> {
+  const rows = await loadAllRatings(db);
+  for (const r of rows) {
+    repo.seed(r.userId, r.category, {
+      rating: r.rating,
+      rd: r.rd,
+      volatility: r.volatility,
+      games: r.games,
+      wins: r.wins,
+      losses: r.losses,
+      draws: r.draws,
+      peak: r.peak,
+      lastRatedAt: r.games > 0 ? r.updatedAt.getTime() : null,
+    });
+  }
+  return rows.length;
 }

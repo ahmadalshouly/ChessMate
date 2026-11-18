@@ -4,6 +4,7 @@ import {
   decodeServer,
   encode,
   remaining,
+  timeCategory,
   type Challenge,
   type ChallengeColor,
   type ChallengeEndReason,
@@ -67,6 +68,8 @@ export interface GameView {
   clockOffset: number;
   outcome: GameOutcome | null;
   ratingChange?: Record<Color, { before: Rating; after: Rating }>;
+  /** Why the result did not change ratings ('casual', 'guest', 'too_short', ...). */
+  unrated?: string;
   drawOfferBy: Color | null;
   opponentConnected: boolean;
   /** Server time at which the absent opponent forfeits. */
@@ -157,6 +160,13 @@ class PlayClient {
 
   private patchGame(patch: Partial<GameView>) {
     if (this.state.game) this.set({ game: { ...this.state.game, ...patch } });
+  }
+
+  /** The header shows the blitz rating sent on connect; keep it current after a rated blitz game. */
+  private applyMyRating(after: number | undefined) {
+    const g = this.state.game;
+    if (after === undefined || !g || !this.state.me || timeCategory(g.timeControl) !== 'blitz') return;
+    this.set({ me: { ...this.state.me, rating: after, provisional: this.state.me.provisional } });
   }
 
   // ---- connection ----
@@ -292,10 +302,12 @@ class PlayClient {
         return this.patchGame({ opponentConnected: m.connected, opponentAbandonAt: m.connected ? null : (m.abandonAt ?? null) });
       case 'gameOver':
         if (this.state.game?.gameId !== m.gameId) return;
-        gameEndFeedback();
+        gameEndFeedback(m.outcome.winner === null ? 'draw' : m.outcome.winner === this.state.game.you ? 'win' : 'loss');
+        this.applyMyRating(m.ratingChange?.[this.state.game.you]?.after.rating);
         return this.patchGame({
           outcome: m.outcome,
           ratingChange: m.ratingChange,
+          unrated: m.unrated,
           drawOfferBy: null,
           premove: null,
           opponentAbandonAt: null,
@@ -340,6 +352,7 @@ class PlayClient {
         opponentConnected: prev?.opponentConnected ?? true,
         opponentAbandonAt: prev?.opponentAbandonAt ?? null,
         ratingChange: prev?.ratingChange,
+        unrated: prev?.unrated,
         rematchBy: null,
         rematchDeclined: false,
         premove: prev?.premove ?? null,
