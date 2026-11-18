@@ -6,6 +6,8 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTicker } from '@/components/PlayerBar';
+import { RestrictionBanner } from '@/components/account/RestrictionBanner';
+import { useAccountRestriction } from '@/lib/accountRestriction';
 import { Pill, Segmented, Stepper, Tile } from '@/components/play/Controls';
 import { Glass } from '@/components/shell/Glass';
 import { isGuest, playClient, usePlay } from '@/lib/playClient';
@@ -66,7 +68,8 @@ export default function Lobby() {
   const seeking = s.seek !== null;
   const busy = seeking || s.openGame !== null;
   const online = s.connection === 'online';
-  const canStart = !busy && !liveGameId && online;
+  const restricted = !!useAccountRestriction();
+  const canStart = !busy && !liveGameId && online && !restricted;
 
   const poolCount = (key: string) => {
     const tc = parseTimeControl(key);
@@ -240,6 +243,7 @@ export default function Lobby() {
               {s.lobby ? <Pill text={tr('play.lobby.playing', { count: s.lobby.playing, n: formatNumber(s.lobby.playing) })} /> : null}
             </View>
           </View>
+          <RestrictionBanner compact />
 
           {wide ? (
             <View style={styles.columns}>
@@ -351,6 +355,7 @@ function OpenGamesList() {
   const tr = useT();
   const c = t.colors;
   const s = usePlay();
+  const restricted = !!useAccountRestriction();
   const games = s.lobby?.openGames ?? [];
   const myRating = s.me?.rating ?? 1500;
   const sideText = (g: OpenGame) => (g.color === 'random' ? tr('play.random') : g.color === 'w' ? tr('play.lobby.youBlack') : tr('play.lobby.youWhite'));
@@ -398,7 +403,7 @@ function OpenGamesList() {
                 <Button
                   size="sm"
                   title={needsAccount ? tr('auth.signIn') : outOfRange ? tr('play.lobby.outOfRange') : tr('play.lobby.join')}
-                  disabled={needsAccount || outOfRange || !!(s.game && !s.game.outcome)}
+                  disabled={needsAccount || outOfRange || restricted || !!(s.game && !s.game.outcome)}
                   onPress={() => playClient.joinOpenGame(g.id)}
                 />
               )}

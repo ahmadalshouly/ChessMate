@@ -5,7 +5,8 @@ import { networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import { AdminService, DbModerationStore } from './admin';
 import { DbFairPlayStore } from './fairplay';
-import { AuthService, ConsoleMailer, DbAuthStore, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
+import { emailSenderFromEnv } from './email';
+import { AuthService, ConsoleMailer, EmailMailer, DbAuthStore, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService, type ReviewStore } from './engine';
@@ -58,8 +59,12 @@ const puzzles = new PuzzleApi({ store: puzzleStore });
 const ratingRepo = new MemoryRatingRepository();
 const ratings = new RatingService(ratingRepo);
 
+// Outgoing email (fair-play and moderation notices, password resets). Printed to the console unless EMAIL_PROVIDER is set.
+const email = emailSenderFromEnv();
+
 function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number) => Promise<FinishedGame[]>) {
-  const auth = new AuthService({ store: authStore, mailer: new ConsoleMailer(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
+  const mailer = email.name === 'log' ? new ConsoleMailer() : new EmailMailer(email);
+  const auth = new AuthService({ store: authStore, mailer, secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
   const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend(), gamesOf);
   const profiles = profileRoutes(profileDeps, new MemoryProfileStore());
@@ -90,7 +95,7 @@ async function start() {
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base, profileDeps } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
   // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
-  const admin = new AdminService({ db: db.db, auth });
+  const admin = new AdminService({ db: db.db, auth, email });
   await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));
   profileDeps.titles = admin.titles;
   const persistence = new DbGamePersistence(db.db);

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { AdminService } from '../src/admin';
 import { AuthService, ConsoleMailer, DbAuthStore, authRoutes } from '../src/auth';
+import { LogEmailSender } from '../src/email';
 import { ChessServer } from '../src/server';
 
 const SECRET = 'test-secret-test-secret-test-secret!';
@@ -14,6 +15,7 @@ let auth: AuthService;
 let admin: AdminService;
 let server: ChessServer;
 let base: string;
+const email = new LogEmailSender(() => {});
 const tokens: Record<string, string> = {};
 const ids: Record<string, string> = {};
 
@@ -37,7 +39,7 @@ beforeAll(async () => {
   await h.migrate();
   auth = new AuthService({ store: new DbAuthStore(h.db), mailer: new ConsoleMailer(), secret: SECRET });
   for (const u of ['owner', 'mod', 'alice', 'bob']) await signup(u);
-  admin = new AdminService({ db: h.db, auth, log: () => {} });
+  admin = new AdminService({ db: h.db, auth, email, log: () => {} });
   await admin.load(['owner', 'nobody_yet']);
   server = new ChessServer({
     port: 0,
@@ -171,11 +173,64 @@ describe('admin console', () => {
     expect(file.body.player.fairPlay).toBe('banned');
   });
 
+  it('tells players about warnings and closures in the app and by email; fair-play closures can still sign in', async () => {
+    // bob was closed for fair play above.
+    const closedMail = email.sent.find((m) => m.to === 'bob@example.com');
+    expect(closedMail?.subject).toMatch(/fair play/i);
+    expect(closedMail?.text).toMatch(/online play is now turned off/i);
+    const inApp = server.notifications.store.list(ids.bob!);
+    expect(inApp[0]).toMatchObject({ kind: 'system', title: 'Account restricted for fair play' });
+    expect(inApp[0]!.data).toMatchObject({ category: 'fair_play', action: 'closed' });
+
+    // Sign-in still works, with the restriction on the account.
+    const login = await auth.login({ login: 'bob', password: PASSWORD });
+    expect(login.user.restriction).toEqual({ reason: 'fair_play', since: expect.any(String) });
+    expect(auth.verifyAccessToken(login.tokens.accessToken)?.userId).toBe(ids.bob);
+    const me = await fetch(`${base}/api/auth/me`, { headers: { authorization: `Bearer ${login.tokens.accessToken}` } });
+    expect(((await me.json()) as { user: { restriction: unknown } }).user.restriction).toMatchObject({ reason: 'fair_play' });
+
+    // Connected, but online play is refused.
+    const ws = new WebSocket(`${base.replace('http', 'ws')}/ws`);
+    const inbox: { t: string; [k: string]: unknown }[] = [];
+    ws.on('message', (d) => inbox.push(decodeServer(String(d)) as never));
+    await new Promise((r) => ws.on('open', r));
+    ws.send(encode({ t: 'hello', v: 1, token: login.tokens.accessToken } as ClientMessage));
+    const next = async (t: string) => {
+      for (let i = 0; i < 200; i++) {
+        const idx = inbox.findIndex((m) => m.t === t);
+        if (idx >= 0) return inbox.splice(idx, 1)[0]!;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      throw new Error(`timed out waiting for ${t}`);
+    };
+    expect((await next('welcome')).restriction).toEqual({ reason: 'fair_play' });
+    ws.send(encode({ t: 'seek', timeControl: { initialMs: 180_000, incrementMs: 0 }, rated: true } as ClientMessage));
+    expect((await next('error')).code).toBe('account_restricted');
+
+    // A fair-play warning reaches the player by email too.
+    expect((await call('owner', 'POST', `/players/${ids.alice}/warn`, { category: 'cheating', message: 'Do not use an engine' })).status).toBe(200);
+    const warnMail = [...email.sent].reverse().find((m) => m.to === 'alice@example.com');
+    expect(warnMail?.subject).toMatch(/fair play warning/i);
+    expect(warnMail?.text).toContain('Do not use an engine');
+    expect(server.notifications.store.list(ids.alice!)[0]).toMatchObject({ title: 'Fair play warning', body: 'Do not use an engine' });
+
+    // With a Messages inbox wired, staff notices go there instead of a bare notification.
+    const inbox2: { userId: string; title: string; category: string }[] = [];
+    admin.systemMessages = { send: (userId, m) => void inbox2.push({ userId, title: m.title, category: m.category }) };
+    expect((await call('owner', 'POST', `/players/${ids.bob}/reopen`, { note: 'appeal upheld' })).status).toBe(200);
+    admin.systemMessages = null;
+    expect(inbox2).toEqual([{ userId: ids.bob, title: 'Fair play restriction lifted', category: 'fair_play' }]);
+    expect((await next('restriction')).restriction).toBeNull();
+    expect([...email.sent].reverse().find((m) => m.to === 'bob@example.com')?.subject).toMatch(/can play again/i);
+    expect((await auth.login({ login: 'bob', password: PASSWORD })).user.restriction).toBeNull();
+    ws.close();
+  });
+
   it('shows dashboard numbers', async () => {
     const d = await call('mod', 'GET', '/dashboard');
     expect(d.status).toBe(200);
     expect(d.body.accounts.total).toBe(5);
-    expect(d.body.accounts.closed).toBe(1);
+    expect(d.body.accounts.closed).toBe(0);
     expect(d.body.accounts.staff).toBe(2);
     expect(d.body.daily).toHaveLength(14);
     expect(d.body.recent.length).toBeGreaterThan(0);

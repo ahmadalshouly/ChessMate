@@ -22,6 +22,7 @@ import {
   type ServerMessage,
   canSeekRated,
   sanitizeRatingRange,
+  type PlayRestriction,
 } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
@@ -116,8 +117,14 @@ interface Connection {
   watching: Set<string>;
 }
 
-/** Close code sent to an account closed for fair-play violations. */
+/**
+ * Close code older servers sent to accounts closed for fair-play violations.
+ * Such accounts now stay connected with online play turned off ({ t: 'restriction' }).
+ */
 export const CLOSE_FAIR_PLAY_BAN = 4010;
+
+/** Messages that start or join a game; refused for restricted accounts. */
+const PLAY_MESSAGES: ReadonlySet<string> = new Set(['seek', 'createOpenGame', 'joinOpenGame', 'rematch', 'challengeCreate', 'challengeAccept']);
 /** Close code for clients that keep ignoring rate limits. */
 export const CLOSE_RATE_LIMITED = 4008;
 
@@ -187,7 +194,7 @@ export class ChessServer {
       refund: fp.refund ?? ((r) => void this.adjustRating(r.playerId, r.category, r.points, `refund:${r.gameId}`)),
     });
     this.fairPlay.onBan = (id) => {
-      this.kickBanned(id);
+      this.setRestricted(id, true);
       opts.admin?.onFairPlayBan(id);
     };
     const admin = createAdminHandler(this.fairPlay, fp.adminToken ?? process.env.FAIRPLAY_ADMIN_TOKEN);
@@ -328,8 +335,9 @@ export class ChessServer {
             ? this.store.get(resumed)
             : undefined;
       if (!player) return ws.close(4003, 'unauthorized');
-      if (this.fairPlay.isBanned(player.id)) return ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
-      if (this.opts.admin?.isClosed(player.id)) return ws.close(CLOSE_ACCOUNT_CLOSED, 'account closed');
+      // Fair-play closures stay connected (notifications, messages, spectating) with online play turned off.
+      const closedFor = this.opts.admin?.closedReason(player.id);
+      if (closedFor && closedFor !== 'fair_play') return ws.close(CLOSE_ACCOUNT_CLOSED, 'account closed');
       conn.player = player;
       const set = this.sockets.get(player.id) ?? new Set();
       const wasOnline = set.size > 0;
@@ -344,6 +352,7 @@ export class ChessServer {
         v: PROTOCOL_VERSION,
         player: playerInfo(player, this.ratings.get(player.id, 'blitz', this.now())),
         resumeToken: isGuest(player) ? this.guests.issue(player.id) : undefined,
+        restriction: this.restrictionOf(player.id),
       });
       this.resume(ws, player.id, !wasOnline);
       const now = this.now();
@@ -355,6 +364,9 @@ export class ChessServer {
     const player = conn.player;
     if (!player) return this.send(ws, err('unauthorized', 'Say hello first'));
     const now = this.now();
+    if (PLAY_MESSAGES.has(msg.t) && this.isRestricted(player.id)) {
+      return this.send(ws, err('account_restricted', 'Online play is turned off for this account because it was closed for a fair play violation'));
+    }
 
     switch (msg.t) {
       case 'ping':
@@ -634,6 +646,7 @@ export class ChessServer {
       },
       isOnline: (id) => this.sockets.has(id),
       liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
+      setRestricted: (id, restricted) => this.setRestricted(id, restricted),
       disconnect: (id, code, reason) => {
         this.matchmaker.remove(id);
         if (this.openGames.removeBy(id)) this.markLobbyDirty();
@@ -647,11 +660,35 @@ export class ChessServer {
     };
   }
 
-  /** Disconnects a banned account and forfeits its live game. */
-  private kickBanned(playerId: string) {
-    this.matchmaker.remove(playerId);
-    this.activeRoomOf(playerId)?.resign(playerId, this.now());
-    for (const ws of this.sockets.get(playerId) ?? []) ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
+  /** True when online play is turned off for the account (closed for a fair-play violation). */
+  isRestricted(playerId: string): boolean {
+    return this.fairPlay.isBanned(playerId) || this.opts.admin?.closedReason(playerId) === 'fair_play';
+  }
+
+  private restrictionOf(playerId: string): PlayRestriction | null {
+    return this.isRestricted(playerId) ? { reason: 'fair_play' } : null;
+  }
+
+  /**
+   * Turns online play off for an account closed for fair play (or back on
+   * after an appeal). The account stays signed in: its live game is forfeited,
+   * its seeks, open games and challenges are withdrawn, and its open apps are
+   * told so they can show the restriction.
+   */
+  setRestricted(playerId: string, restricted: boolean) {
+    const now = this.now();
+    if (restricted) {
+      if (this.matchmaker.remove(playerId)) this.toPlayer(playerId, { t: 'seekCancelled' });
+      if (this.openGames.removeBy(playerId)) this.toPlayer(playerId, { t: 'openGameCancelled' });
+      this.markLobbyDirty();
+      this.activeRoomOf(playerId)?.resign(playerId, now);
+      for (const c of this.challenges.cancelAllFrom(playerId)) this.notifyChallengeGone(c, 'cancelled');
+      for (const c of this.challenges.incoming(playerId)) {
+        const d = this.challenges.decline(c.id, playerId, now);
+        if (typeof d !== 'string') this.notifyChallengeGone(d, 'declined');
+      }
+    }
+    this.sendToPlayer(playerId, { t: 'restriction', restriction: restricted ? { reason: 'fair_play' } : null });
   }
 
   private cancelGrace(playerId: string) {
@@ -761,6 +798,7 @@ export class ChessServer {
       if (msg.to !== undefined) {
         to = typeof msg.to === 'string' ? (this.store.get(msg.to) ?? null) : null;
         if (!to) return this.send(ws, err('not_found', 'No such player'));
+        if (this.isRestricted(to.id)) return this.send(ws, err('forbidden', `${to.name} cannot play online right now`));
       }
       const created = this.challenges.create(
         {

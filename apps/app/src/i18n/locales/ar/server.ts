@@ -2,6 +2,12 @@ import type { Messages } from '../../core';
 import type { server as en } from '../en/server';
 
 export const server: Messages<typeof en> = {
+  restriction: {
+    badge: 'اللعب النظيف',
+    title: 'اللعب عبر الإنترنت متوقف لهذا الحساب',
+    body: 'أُغلق حسابك بسبب مخالفة قواعد اللعب النظيف. ما زال بإمكانك مراجعة مبارياتك وحل الألغاز واللعب ضد الكمبيوتر. اضغط لمعرفة السبب.',
+    playDisabled: 'اللعب عبر الإنترنت متوقف لهذا الحساب لأنه أُغلق بسبب مخالفة قواعد اللعب النظيف.',
+  },
   actionNotAllowed: 'هذا الإجراء غير مسموح الآن.',
   alreadyInGame: 'أنت في مباراة بالفعل.',
   gameInProgress: 'المباراة ما زالت جارية.',

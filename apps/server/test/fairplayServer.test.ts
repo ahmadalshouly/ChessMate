@@ -1,7 +1,7 @@
 import { decodeServer, encode, type ClientMessage, type ServerMessage } from '@chessmate/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { CLOSE_FAIR_PLAY_BAN, ChessServer } from '../src/server';
+import { ChessServer } from '../src/server';
 
 const TOKEN = 'test-admin-token';
 let server: ChessServer;
@@ -86,7 +86,7 @@ describe('fair play on the game server', () => {
     expect((await admin('/queue')).status).toBe(200);
   });
 
-  it('report, review, ban over HTTP closes the account', async () => {
+  it('report, review, ban over HTTP restricts the account to no online play', async () => {
     const c = await client('dev:fp-cheat:Cheater');
     await c.next('welcome');
     expect((await admin('/players/fp-cheat/report', { method: 'POST', body: JSON.stringify({ note: 'suspicious' }) })).status).toBe(200);
@@ -94,10 +94,21 @@ describe('fair play on the game server', () => {
     expect(queue.cases.map((x) => x.playerId)).toContain('fp-cheat');
     expect((await admin('/players/fp-cheat/ban', { method: 'POST', body: '{}' })).status).toBe(400);
     expect((await admin('/players/fp-cheat/ban', { method: 'POST', body: JSON.stringify({ reason: 'engine use' }) })).status).toBe(200);
-    expect(await c.closed).toBe(CLOSE_FAIR_PLAY_BAN);
+    // Still connected, told that online play is off, and refused when it tries to play.
+    expect((await c.next('restriction')).restriction).toEqual({ reason: 'fair_play' });
+    c.send({ t: 'seek', timeControl: { initialMs: 180_000, incrementMs: 0 }, rated: true });
+    expect((await c.next('error')).code).toBe('account_restricted');
 
     const again = await client('dev:fp-cheat:Cheater');
-    expect(await again.closed).toBe(CLOSE_FAIR_PLAY_BAN);
+    expect((await again.next('welcome')).restriction).toEqual({ reason: 'fair_play' });
+    again.send({ t: 'createOpenGame', timeControl: { initialMs: 180_000, incrementMs: 0 }, rated: false, color: 'random' });
+    expect((await again.next('error')).code).toBe('account_restricted');
+
+    // Nobody can challenge a restricted account either.
+    const other = await client('dev:fp-other:Other');
+    await other.next('welcome');
+    other.send({ t: 'challengeCreate', to: 'fp-cheat', timeControl: { initialMs: 180_000, incrementMs: 0 }, rated: false, color: 'random' });
+    expect((await other.next('error')).code).toBe('forbidden');
 
     const file = (await (await admin('/players/fp-cheat')).json()) as { ban: { reason: string }; case: { status: string } };
     expect(file.ban.reason).toBe('engine use');

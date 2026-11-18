@@ -1,4 +1,10 @@
 export const server = {
+  restriction: {
+    badge: 'Fair play',
+    title: 'Online play is turned off for this account',
+    body: 'Your account was closed for a fair play violation. You can still review your games, solve puzzles and play the computer. Tap to read why.',
+    playDisabled: 'Online play is turned off for this account because it was closed for a fair play violation.',
+  },
   actionNotAllowed: 'That action isn\'t allowed right now.',
   alreadyInGame: 'You\'re already in a game.',
   gameInProgress: 'The game is still in progress.',
