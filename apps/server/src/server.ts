@@ -499,6 +499,13 @@ export class ChessServer {
       case 'analyzeStop':
       case 'review':
         return this.onAnalysisMessage(player, ws, msg);
+      case 'prepareReview': {
+        // Only for games played off the server; nothing is sent back, and Review is still locked during live games.
+        if (!Array.isArray(msg.moves) || !msg.moves.every((m) => typeof m === 'string')) return;
+        if (this.activeRoomOf(player.id)) return;
+        void this.opts.analysis?.precompute({ moves: msg.moves, initialFen: typeof msg.initialFen === 'string' ? msg.initialFen : START_FEN });
+        return;
+      }
       default:
         return this.send(ws, err('bad_request', 'Unknown message'));
     }
@@ -541,7 +548,7 @@ export class ChessServer {
     if (!Array.isArray(moves) || !moves.every((m) => typeof m === 'string') || typeof initialFen !== 'string') {
       return this.send(ws, { ...err('bad_request', 'Invalid move list'), id });
     }
-    void analysis.review(player.id, { id, moves, initialFen }, send);
+    void analysis.review(player.id, { id, moves, initialFen, gameId: msg.gameId ? String(msg.gameId) : undefined }, send);
   }
 
   private isLivePosition(fen: string): boolean {
@@ -814,6 +821,8 @@ export class ChessServer {
         const { change: ratingChange, unrated } = this.applyRatings(r);
         this.opts.persistence?.gameEnded(r, outcome, ratingChange);
         if (outcome.reason !== 'aborted') {
+          // Grade every move now so Review opens with the badges already there.
+          void this.opts.analysis?.precompute({ gameId: r.id, moves: r.game.uciHistory(), initialFen: r.initialFen });
           this.fairPlay.gameFinished({
             gameId: r.id,
             initialFen: r.initialFen,

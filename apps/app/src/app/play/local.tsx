@@ -12,6 +12,7 @@ import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
 import { Screen } from '@/components/ui';
 import { useMoveFeedback } from '@/lib/feedback';
+import { prepareReview } from '@/lib/useEngine';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
@@ -52,7 +53,9 @@ export default function LocalPlay() {
     setSavedId(session.current.id);
   };
   useEffect(() => {
-    if (outcome) save();
+    if (!outcome) return;
+    save();
+    prepareReview(history.map((m) => m.uci));
   }, [outcome]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const undo = () => {

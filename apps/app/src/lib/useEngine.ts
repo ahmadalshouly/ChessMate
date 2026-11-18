@@ -123,3 +123,27 @@ export function useEngine(token?: string) {
 
   return { state, analyze, stop, review };
 }
+
+/**
+ * Asks the server to grade a game that was played on the device (against the
+ * computer or pass-and-play) as soon as it ends, so Review opens with every move
+ * already graded. Fire and forget: failures only mean Review computes it later.
+ */
+export function prepareReview(moves: string[], initialFen?: string) {
+  if (moves.length < 2) return;
+  try {
+    const sock = new WebSocket(SERVER_URL);
+    const done = setTimeout(() => sock.close(), 10_000);
+    sock.onopen = () => sock.send(encode({ t: 'hello', v: PROTOCOL_VERSION, token: `guest:Review${Math.floor(Math.random() * 9000 + 1000)}` }));
+    sock.onmessage = (ev) => {
+      if (decodeServer(String(ev.data))?.t !== 'welcome') return;
+      sock.send(encode({ t: 'prepareReview', moves, initialFen }));
+      clearTimeout(done);
+      // Give the message time to leave before closing.
+      setTimeout(() => sock.close(), 500);
+    };
+    sock.onerror = () => {};
+  } catch {
+    // No connection: Review will grade the game when it is opened.
+  }
+}

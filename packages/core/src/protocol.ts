@@ -102,6 +102,8 @@ export type ClientMessage =
   | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number }
   | { t: 'analyzeStop'; id: number }
   | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string }
+  /** A game just ended on the device (computer or local play): grade it now so Review opens instantly. No reply. */
+  | { t: 'prepareReview'; moves: string[]; initialFen?: string }
   /** Spectate a live game: the server then sends gameState and every later game event. */
   | { t: 'watch'; gameId: string }
   | { t: 'unwatch'; gameId: string };

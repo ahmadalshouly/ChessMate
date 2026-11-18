@@ -160,6 +160,8 @@ The game server runs Stockfish as separate processes (UCI over stdin/stdout) and
 - **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move. Every move you play or step through gets a badge on the moved piece once the engine has seen the position before and after it (depth 12+).
 - **Game review** (after an online game → Review game, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
 
+Reviews are graded ahead of time and saved. When an online game ends the server grades it in the background (one game at a time, on one engine), and games against the computer or pass-and-play are sent to the server for grading as soon as they end. Finished reviews are stored in the database (`game_reviews` table, keyed by start position and moves), so tapping **Review game** just fetches them, even after a server restart. If you open Review before grading has finished, it joins the running job and speeds it up with every engine. Set `REVIEW_PRECOMPUTE=off` to grade only when Review is opened.
+
 Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visuals in `apps/app/src/components/MoveBadge.tsx`):
 
 | Badge | Meaning |

@@ -15,6 +15,13 @@
       "when": 1794866447648,
       "tag": "0001_social",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794985920645,
+      "tag": "0002_game_reviews",
+      "breakpoints": true
     }
   ]
 }
