@@ -5,9 +5,10 @@ import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
+import type { SecretQueenInfo, SecretReveal, Variant } from './secretQueen';
 import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
-import type { Color } from './types';
+import type { Color, Square } from './types';
 
 /** Wire protocol between clients and the realtime game server (JSON over WebSocket). */
 export const PROTOCOL_VERSION = 1;
@@ -32,6 +33,10 @@ export interface GameSnapshot {
   serverNow: number;
   drawOfferBy: Color | null;
   outcome: GameOutcome | null;
+  /** Omitted for standard chess. */
+  variant?: Variant;
+  /** Secret Queen games only. Each player's own hidden queen is in `yours`; nobody else ever gets it. */
+  secretQueen?: SecretQueenInfo;
 }
 
 /** Colour a custom game's creator wants to play. */
@@ -47,6 +52,8 @@ export interface OpenGame {
   /** Only players within this many rating points of the creator may join. */
   range?: number;
   createdAt: number;
+  /** Omitted for standard chess. */
+  variant?: Variant;
 }
 
 /** Players waiting in one quick-pairing pool. */
@@ -54,6 +61,8 @@ export interface PoolStat {
   timeControl: TimeControl;
   rated: boolean;
   seeking: number;
+  /** Omitted for standard chess. */
+  variant?: Variant;
 }
 
 export interface LobbyState {
@@ -73,17 +82,21 @@ export type ClientMessage =
       ratingRange?: [number, number];
       /** Fixed rating window (± points). Omit to let the window widen while waiting. */
       range?: number;
+      /** Omit for standard chess. Variant games are always casual. */
+      variant?: Variant;
     }
   | { t: 'cancelSeek' }
   | { t: 'lobbySub' }
   | { t: 'lobbyUnsub' }
-  | { t: 'createOpenGame'; timeControl: TimeControl; rated: boolean; color: ColorChoice; range?: number }
+  | { t: 'createOpenGame'; timeControl: TimeControl; rated: boolean; color: ColorChoice; range?: number; variant?: Variant }
   | { t: 'cancelOpenGame' }
   | { t: 'joinOpenGame'; id: string }
   | { t: 'rematch'; gameId: string }
   | { t: 'declineRematch'; gameId: string }
   | { t: 'join'; gameId: string }
   | { t: 'move'; gameId: string; uci: string; ply: number }
+  /** Secret Queen: choose your hidden queen (one of your pawns) before your first move. */
+  | { t: 'secretPick'; gameId: string; square: Square }
   | { t: 'resign'; gameId: string }
   | { t: 'offerDraw'; gameId: string }
   | { t: 'acceptDraw'; gameId: string }
@@ -128,7 +141,21 @@ export type ServerMessage =
   | { t: 'rematchDeclined'; gameId: string }
   | { t: 'gameStart'; game: GameSnapshot; you: Color }
   | { t: 'gameState'; game: GameSnapshot }
-  | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
+  | {
+      t: 'moved';
+      gameId: string;
+      uci: string;
+      san: string;
+      ply: number;
+      clock: ClockState;
+      serverNow: number;
+      /** Secret Queen: hidden queens this move exposed (before it, or after it at `ply`). */
+      reveals?: SecretReveal[];
+    }
+  /** Secret Queen: a player chose their hidden queen. `square` is only sent to that player. */
+  | { t: 'secretPicked'; gameId: string; color: Color; square?: Square }
+  /** Secret Queen: a hidden queen was exposed outside a move (it blocked an illegal move, or the game ended). */
+  | { t: 'secretReveal'; gameId: string; reveals: SecretReveal[] }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
   | {
@@ -177,7 +204,11 @@ export type ErrorCode =
   | 'chat_restricted'
   | 'engine_locked'
   | 'engine_unavailable'
-  | 'forbidden';
+  | 'forbidden'
+  /** Secret Queen: pick your hidden queen first. */
+  | 'secret_required'
+  /** Secret Queen: the move was refused because the opponent's hidden queen controls it (it is now revealed). */
+  | 'secret_blocked';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

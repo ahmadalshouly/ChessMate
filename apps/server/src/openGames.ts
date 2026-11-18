@@ -1,14 +1,15 @@
-import type { ColorChoice, OpenGame, PlayerInfo, TimeControl } from '@chessmate/core';
+import type { ColorChoice, OpenGame, PlayerInfo, TimeControl, Variant } from '@chessmate/core';
 import { randomUUID } from 'node:crypto';
 
 /** Custom games posted to the lobby, one per player, waiting for someone to join. */
 export class OpenGames {
   private byId = new Map<string, OpenGame>();
 
-  create(by: PlayerInfo, timeControl: TimeControl, rated: boolean, color: ColorChoice, now: number, range?: number): OpenGame {
+  create(by: PlayerInfo, timeControl: TimeControl, rated: boolean, color: ColorChoice, now: number, range?: number, variant: Variant = 'standard'): OpenGame {
     this.removeBy(by.id);
     const game: OpenGame = { id: randomUUID().slice(0, 8), by, timeControl, rated, color, createdAt: now };
     if (range !== undefined) game.range = range;
+    if (variant !== 'standard') game.variant = variant;
     this.byId.set(game.id, game);
     return game;
   }

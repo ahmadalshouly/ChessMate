@@ -1,4 +1,4 @@
-import { DEFAULT_RANGE_OPTIONS, formatTimeControl, matchmakingGap, type RatingRangeOptions, type TimeControl } from '@chessmate/core';
+import { DEFAULT_RANGE_OPTIONS, formatTimeControl, matchmakingGap, type RatingRangeOptions, type TimeControl, type Variant } from '@chessmate/core';
 
 export interface Seek {
   playerId: string;
@@ -12,6 +12,8 @@ export interface Seek {
   ratingRange?: [number, number];
   /** Fixed ± window chosen by the player; it never widens past this. */
   range?: number;
+  /** Omitted for standard chess; players only meet others seeking the same variant. */
+  variant?: Variant;
 }
 
 export interface MatchOptions extends RatingRangeOptions {
@@ -41,8 +43,9 @@ export class Matchmaker {
     this.opts = { ...DEFAULT_MATCH_OPTIONS, ...opts };
   }
 
-  private key(s: Pick<Seek, 'timeControl' | 'rated'>) {
-    return `${formatTimeControl(s.timeControl)}:${s.rated ? 'r' : 'c'}`;
+  private key(s: Pick<Seek, 'timeControl' | 'rated' | 'variant'>) {
+    const v = s.variant && s.variant !== 'standard' ? `:${s.variant}` : '';
+    return `${formatTimeControl(s.timeControl)}:${s.rated ? 'r' : 'c'}${v}`;
   }
 
   add(seek: Seek): void {
@@ -93,10 +96,13 @@ export class Matchmaker {
     return this.pools.get(this.key(seek))?.length ?? 0;
   }
 
-  stats(): { timeControl: Seek['timeControl']; rated: boolean; seeking: number }[] {
+  stats(): { timeControl: Seek['timeControl']; rated: boolean; seeking: number; variant?: Variant }[] {
     return [...this.pools.values()]
       .filter((p) => p.length > 0)
-      .map((p) => ({ timeControl: p[0]!.timeControl, rated: p[0]!.rated, seeking: p.length }));
+      .map((p) => {
+        const v = p[0]!.variant;
+        return { timeControl: p[0]!.timeControl, rated: p[0]!.rated, seeking: p.length, ...(v && v !== 'standard' ? { variant: v } : {}) };
+      });
   }
 
   /** Current ± rating window for a seek; Infinity once the window is fully open. */

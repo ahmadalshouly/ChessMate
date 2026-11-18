@@ -26,3 +26,4 @@ export * from './premove';
 export * from './social';
 export * from './admin';
 export * from './titles';
+export * from './secretQueen';

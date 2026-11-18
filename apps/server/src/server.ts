@@ -6,6 +6,8 @@ import {
   encode,
   positionKey,
   START_FEN,
+  isVariant,
+  type Variant,
   timeCategory,
   type Challenge,
   type ChallengeEndReason,
@@ -121,7 +123,7 @@ export const CLOSE_FAIR_PLAY_BAN = 4010;
 /** Close code for clients that keep ignoring rate limits. */
 export const CLOSE_RATE_LIMITED = 4008;
 
-const LIMIT_KIND: Partial<Record<ClientMessage['t'], LimitKind>> = { move: 'moves', seek: 'seeks', cancelSeek: 'seeks' };
+const LIMIT_KIND: Partial<Record<ClientMessage['t'], LimitKind>> = { move: 'moves', secretPick: 'moves', seek: 'seeks', cancelSeek: 'seeks' };
 
 /** Accepts "dev:<id>:<name>" bearer tokens outside production. */
 export const devResolveUser = (token: string): string | null => {
@@ -369,10 +371,11 @@ export class ChessServer {
           rating: r.rating,
           rd: r.rd,
           timeControl: tc,
-          rated: !!msg.rated && canSeekRated(isGuest(player)),
+          rated: !!msg.rated && canSeekRated(isGuest(player)) && variantOf(msg.variant) === 'standard',
           createdAt: now,
           ratingRange: sanitizeRatingRange(msg.ratingRange, r.rating) ?? undefined,
           range: validWindow(msg.range),
+          variant: variantOf(msg.variant),
         });
         this.markLobbyDirty();
         this.toPlayer(player.id, { t: 'seeking', timeControl: tc });
@@ -393,8 +396,9 @@ export class ChessServer {
         const tc = msg.timeControl;
         if (!validTimeControl(tc)) return this.send(ws, err('bad_request', 'Invalid time control'));
         const color: ColorChoice = msg.color === 'w' || msg.color === 'b' ? msg.color : 'random';
-        const rated = !!msg.rated && canSeekRated(isGuest(player));
-        const game = this.openGames.create(playerInfo(player, this.ratings.forTimeControl(player.id, tc, now)), tc, rated, color, now, validWindow(msg.range));
+        const variant = variantOf(msg.variant);
+        const rated = !!msg.rated && canSeekRated(isGuest(player)) && variant === 'standard';
+        const game = this.openGames.create(playerInfo(player, this.ratings.forTimeControl(player.id, tc, now)), tc, rated, color, now, validWindow(msg.range), variant);
         this.markLobbyDirty();
         return this.toPlayer(player.id, { t: 'openGameCreated', game });
       }
@@ -417,7 +421,7 @@ export class ChessServer {
         }
         const creatorWhite = open.color === 'w' || (open.color === 'random' && Math.random() < 0.5);
         const [white, black] = creatorWhite ? [creator, player] : [player, creator];
-        this.createGame(white, black, open.timeControl, open.rated, now);
+        this.createGame(white, black, open.timeControl, open.rated, now, variantOf(open.variant));
         return;
       }
       case 'rematch':
@@ -433,7 +437,7 @@ export class ChessServer {
         if (!room) return this.send(ws, err('not_found', 'No such game'));
         const color = room.colorOf(player.id);
         if (color) {
-          this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+          this.send(ws, { t: 'gameStart', game: room.snapshot(now, color), you: color });
           return this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
         }
         return this.send(ws, { t: 'gameState', game: room.snapshot(now) });
@@ -445,7 +449,15 @@ export class ChessServer {
         if (typeof res === 'string') {
           // Re-sync the client so its board matches the server.
           this.send(ws, err(res as MoveError, moveErrorText(res)));
-          this.send(ws, { t: 'gameState', game: room.snapshot(now) });
+          this.send(ws, { t: 'gameState', game: room.snapshot(now, room.colorOf(player.id)) });
+        }
+        return;
+      }
+      case 'secretPick': {
+        const room = this.rooms.get(String(msg.gameId));
+        if (!room) return this.send(ws, err('not_found', 'No such game'));
+        if (typeof msg.square !== 'string' || !room.pickSecret(player.id, msg.square)) {
+          return this.send(ws, err('bad_request', 'You cannot pick that pawn'));
         }
         return;
       }
@@ -453,7 +465,7 @@ export class ChessServer {
         const room = this.rooms.get(String(msg.gameId));
         if (!room) return this.send(ws, err('not_found', 'No such game'));
         const color = room.colorOf(player.id);
-        if (color) return this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+        if (color) return this.send(ws, { t: 'gameStart', game: room.snapshot(now, color), you: color });
         const allowed = this.social ? this.social.canWatch(player.id, room.white.id, room.black.id) : Promise.resolve(true);
         return void allowed.then((ok) => {
           if (!ok) return this.send(ws, err('forbidden', 'You cannot watch this game'));
@@ -667,7 +679,7 @@ export class ChessServer {
     const room = this.activeRoomOf(playerId);
     if (room) {
       const color = room.colorOf(playerId)!;
-      this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+      this.send(ws, { t: 'gameStart', game: room.snapshot(now, color), you: color });
       this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
       const oppId = color === 'w' ? room.black.id : room.white.id;
       if (!this.sockets.has(oppId)) {
@@ -695,7 +707,7 @@ export class ChessServer {
       const white = this.store.get(room.black.id);
       const black = this.store.get(room.white.id);
       if (!white || !black) return this.send(ws, err('not_found', 'Player not found'));
-      this.createGame(white, black, room.timeControl, room.rated, now);
+      this.createGame(white, black, room.timeControl, room.rated, now, room.variant);
       return;
     }
     this.rematchOffers.set(room.id, color);
@@ -839,11 +851,13 @@ export class ChessServer {
       const pb = this.store.get(b.playerId);
       if (!pa || !pb) continue;
       const [white, black] = Math.random() < 0.5 ? [pa, pb] : [pb, pa];
-      this.createGame(white, black, a.timeControl, a.rated && b.rated, now);
+      this.createGame(white, black, a.timeControl, a.rated && b.rated, now, variantOf(a.variant));
     }
   }
 
-  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number): GameRoom {
+  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number, variant: Variant = 'standard'): GameRoom {
+    // Variant games are always casual: ratings measure standard chess.
+    if (variant !== 'standard') rated = false;
     const id = randomUUID().slice(0, 8);
     for (const p of [white, black]) {
       this.matchmaker.remove(p.id);
@@ -858,18 +872,27 @@ export class ChessServer {
       rated,
       now,
       {
-      onMove: (r, m) => {
+      onMove: (r, m, reveals) => {
         const t = this.now();
-        this.opts.persistence?.moveMade(r, m);
-        this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
+        if (!r.secret) this.opts.persistence?.moveMade(r, m);
+        this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t, ...(reveals?.length ? { reveals } : {}) });
         this.schedule(r);
         this.notifyTurnIfAway(r, m.san);
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
+      // The square goes to the picker only; the opponent and spectators just learn that a pick happened.
+      onSecretPick: (r, color, square) => {
+        const id = color === 'w' ? r.white.id : r.black.id;
+        this.toPlayer(id, { t: 'secretPicked', gameId: r.id, color, square });
+        this.broadcast(r, { t: 'secretPicked', gameId: r.id, color }, id);
+      },
+      onReveal: (r, reveals) => this.broadcast(r, { t: 'secretReveal', gameId: r.id, reveals }),
       onEnd: (r, outcome) => {
         const { change: ratingChange, unrated } = this.applyRatings(r);
-        this.opts.persistence?.gameEnded(r, outcome, ratingChange);
-        if (outcome.reason !== 'aborted') {
+        // Secret Queen games are not stored or engine-checked yet: the archive, review and fair-play
+        // analysis all replay standard chess, and an engine cannot judge play with hidden pieces.
+        if (!r.secret) this.opts.persistence?.gameEnded(r, outcome, ratingChange);
+        if (outcome.reason !== 'aborted' && !r.secret) {
           // Grade every move now so Review opens with the badges already there.
           void this.opts.analysis?.precompute({ gameId: r.id, moves: r.game.uciHistory(), initialFen: r.initialFen });
           this.fairPlay.gameFinished({
@@ -902,9 +925,12 @@ export class ChessServer {
           this.moderation.forgetGame(r.id);
         }, 5 * 60_000).unref();
       },
-    });
+      },
+      START_FEN,
+      variant,
+    );
     this.rooms.set(id, room);
-    this.opts.persistence?.gameStarted(room);
+    if (!room.secret) this.opts.persistence?.gameStarted(room);
     // No engine help once a live game starts.
     this.opts.analysis?.cancel(white.id);
     this.opts.analysis?.cancel(black.id);
@@ -912,7 +938,7 @@ export class ChessServer {
       [white, 'w'],
       [black, 'b'],
     ] as const) {
-      for (const ws of this.sockets.get(p.id) ?? []) this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+      for (const ws of this.sockets.get(p.id) ?? []) this.send(ws, { t: 'gameStart', game: room.snapshot(now, color), you: color });
     }
     this.schedule(room);
     this.pushPresence(white.id);
@@ -1085,7 +1111,18 @@ function challengeErr(e: ChallengeError): ServerMessage {
 }
 
 function moveErrorText(e: MoveError): string {
-  return { not_your_turn: 'Not your turn', illegal_move: 'Illegal move', stale_ply: 'Out of sync', game_over: 'Game is over' }[e];
+  return {
+    not_your_turn: 'Not your turn',
+    illegal_move: 'Illegal move',
+    stale_ply: 'Out of sync',
+    game_over: 'Game is over',
+    secret_required: 'Pick your secret queen first',
+    secret_blocked: "Your opponent's secret queen stops that move",
+  }[e];
+}
+
+function variantOf(v: unknown): Variant {
+  return isVariant(v) ? v : 'standard';
 }
 
 /** Guests play casual games only until they have an account. */
