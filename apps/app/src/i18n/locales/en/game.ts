@@ -49,18 +49,6 @@ export const game = {
     undoTitle: 'Undo the last move?',
     undo: 'Undo',
   },
-  header: {
-    streak: 'Your streak',
-    streakPill: { one: '{count} win in a row', other: '{count} wins in a row' },
-    noStreak: 'Start a streak',
-    h2h: 'Vs them',
-    winRate: 'Their wins',
-    games: 'Games',
-    rating: 'Rating',
-    level: 'Level',
-    form: '{name}’s last games',
-    passAndPlay: 'Pass and play',
-  },
   resign: {
     title: 'Resign this game?',
     body: 'Your opponent wins the game.',

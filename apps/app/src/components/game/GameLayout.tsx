@@ -1,23 +1,25 @@
+import { Stack } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
-import { useAppTheme } from '@/ui';
+import { Logo } from '@/components/shell/Logo';
+import { Text, useAppTheme } from '@/ui';
 
 import { ActionBar, type GameAction } from './ActionBar';
 import { PLAYER_CARD_HEIGHT } from './PlayerCard';
 
 const GAP = 6;
 const PAD = 8;
+/** Space beside the board: small, so the board is as wide as the screen allows. */
+const EDGE = 4;
 const BAR = 62;
 export const STRIP_HEIGHT = 38;
 /** Popovers (chat, options, confirmations) are never taller than this. */
 const POPOVER_MAX = 420;
 
 export interface GameLayoutProps {
-  /** Fills the space left above the moves row (logo, streak, opponent stats); gets that height. */
-  header?: (height: number) => ReactNode;
   /** Moves in one row, above the players and board. */
   strip: ReactNode;
   /** Opponent card, above the board. */
@@ -37,18 +39,17 @@ export interface GameLayoutProps {
 }
 
 /**
- * The game screen: a header filling whatever room is left at the top, then
- * the moves row, the players and the board (as large as the screen allows)
- * sitting right on the action bar. Whatever a button opens pops up above the
- * bar and closes again, so the board never moves.
+ * The game screen: a thin logo bar on top, then the moves row, the players
+ * and the board (as large as the screen allows) centred above the action
+ * bar. Whatever a button opens pops up above the bar and closes again, so the
+ * board never moves.
  */
-export function GameLayout({ header, strip, top, bottom, renderBoard, notices, popover, onDismissPopover, notice, actions }: GameLayoutProps) {
+export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, onDismissPopover, notice, actions }: GameLayoutProps) {
   const tr = useT();
   const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const [box, setBox] = useState<{ w: number; h: number; windowH: number } | null>(null);
   const [noticeH, setNoticeH] = useState(0);
-  const [headerH, setHeaderH] = useState(0);
   const keyboard = useKeyboardVisible();
 
   // The keyboard (Android resize) shrinks the screen but not the window: keep the board where it is.
@@ -63,20 +64,19 @@ export function GameLayout({ header, strip, top, bottom, renderBoard, notices, p
   if (box) {
     const h = box.h - noticeH;
     const fit = h - PAD - STRIP_HEIGHT - PLAYER_CARD_HEIGHT * 2 - GAP * 4 - BAR - bottomSpace;
-    size = Math.max(200, Math.min(box.w - PAD * 2, fit, 760));
+    size = Math.max(200, Math.min(box.w - EDGE * 2, fit, 760));
     size = Math.floor(size / 8) * 8;
   }
-  const column = Math.max(size, Math.min(box?.w ?? 0, 520) - PAD * 2);
+  const column = Math.max(size, Math.min(box?.w ?? 0, 520) - EDGE * 2);
 
   return (
     <View style={styles.root} onLayout={onLayout}>
+      <Stack.Screen options={{ headerTitle: ({ children }) => <GameTitle text={children} /> }} />
       {box && (
         <>
           <View onLayout={(e) => setNoticeH(e.nativeEvent.layout.height)}>{notice}</View>
           <View style={[styles.column, { width: column, paddingBottom: bottomSpace }]}>
-            <View style={styles.header} onLayout={(e) => setHeaderH(Math.floor(e.nativeEvent.layout.height))}>
-              {header && headerH > 0 ? header(headerH) : null}
-            </View>
+            <View style={styles.spacer} />
             <View style={{ height: STRIP_HEIGHT }}>{strip}</View>
             <View style={{ width: size, alignSelf: 'center' }}>
               {top}
@@ -90,6 +90,7 @@ export function GameLayout({ header, strip, top, bottom, renderBoard, notices, p
               </View>
               {bottom}
             </View>
+            <View style={styles.spacer} />
             <ActionBar actions={actions} />
           </View>
           {popover ? (
@@ -108,6 +109,19 @@ export function GameLayout({ header, strip, top, bottom, renderBoard, notices, p
   );
 }
 
+/** The header title during a game: the logo, with the game ("5+0 · Rated") beside it. */
+function GameTitle({ text }: { text: string }) {
+  return (
+    <View style={styles.title}>
+      <Logo size={22} />
+      <View style={{ flex: 1 }} />
+      <Text variant="label" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 function useKeyboardVisible() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -122,7 +136,8 @@ function useKeyboardVisible() {
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
   column: { flex: 1, alignSelf: 'center', paddingTop: PAD, gap: GAP },
-  header: { flex: 1, minHeight: 0, overflow: 'hidden' },
+  spacer: { flex: 1, minHeight: 0 },
+  title: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   notices: { position: 'absolute', top: 8, left: 8, right: 8, gap: 6 },
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.18)' },
   popover: { alignSelf: 'center', borderRadius: 30, overflow: 'hidden' },

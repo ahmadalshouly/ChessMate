@@ -33,9 +33,13 @@ export function StackHeader({ navigation, options, route, back, insetTop }: Nati
             <Ionicons name={rtl ? 'chevron-forward' : 'chevron-back'} size={20} color={t.text} />
           </Pressable>
         ) : null}
-        <Text numberOfLines={1} style={[styles.title, { color: t.text }]} accessibilityRole="header">
-          {title}
-        </Text>
+        {typeof options.headerTitle === 'function' ? (
+          <View style={styles.custom}>{options.headerTitle({ children: title, tintColor: t.text })}</View>
+        ) : (
+          <Text numberOfLines={1} style={[styles.title, { color: t.text }]} accessibilityRole="header">
+            {title}
+          </Text>
+        )}
         {options.headerRight ? <View style={styles.right}>{options.headerRight({ tintColor: t.text, canGoBack: !!back })}</View> : null}
       </View>
     </Glass>
@@ -52,5 +56,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 38 },
   back: { width: 36, height: 36, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, fontFamily: fonts.display, fontSize: 17, lineHeight: 22, letterSpacing: -0.3 },
+  custom: { flex: 1, minWidth: 0 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });
