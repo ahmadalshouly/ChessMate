@@ -1,6 +1,7 @@
 // Arabic. Same keys as en/ (the type checker enforces it). Plurals use zero/one/two/few/many/other.
 import type { Messages } from '../../core';
 import type { en } from '../en';
+import { admin } from './admin';
 import { analysis } from './analysis';
 import { auth } from './auth';
 import { board } from './board';
@@ -35,6 +36,7 @@ import { server } from './server';
 import { settings } from './settings';
 import { social } from './social';
 import { titles } from './titles';
+import { chessTitle } from './chessTitle';
 import { watch } from './watch';
 
-export const ar: Messages<typeof en> = { nav, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const ar: Messages<typeof en> = { nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };

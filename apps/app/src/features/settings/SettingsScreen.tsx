@@ -30,6 +30,8 @@ export function SettingsScreen() {
   const t = useTheme();
   const { tr } = useI18n();
   const session = useAccountSession();
+  const { user: account } = useAuth();
+  const staffRole = account?.role === 'moderator' || account?.role === 'admin' ? account.role : null;
   const { settings: s, update } = useSettingsSync(session);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -128,6 +130,21 @@ export function SettingsScreen() {
             <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.messageWho')}</Text>
             <Segmented value={s.privacy.messages} options={AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(messages) => set({ privacy: { messages } })} />
           </Section>
+
+          {session.signedIn && (
+            <Section title={tr('chessTitle.screen')}>
+              <Row title={tr('chessTitle.apply')} detail={tr('chessTitle.settingsDetail')}>
+                <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/title')} />
+              </Row>
+            </Section>
+          )}
+
+          {staffRole && (
+            <Section title={tr('admin.staffSection')}>
+              <Text style={[styles.label, { color: t.muted }]}>{tr('admin.staffDetail', { role: tr(`admin.roles.${staffRole}`) })}</Text>
+              <Button variant="secondary" title={tr('admin.open')} onPress={() => router.push('/admin')} />
+            </Section>
+          )}
 
           {session.signedIn && (
             <>

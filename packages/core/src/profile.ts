@@ -1,3 +1,4 @@
+import type { ChessTitle } from './titles';
 import type { TimeCategory } from './timeControl';
 import type { GameEndReason, GameResult } from './types';
 
@@ -238,6 +239,8 @@ export interface RecentGame {
 export interface PublicProfile {
   id: string;
   username: string;
+  /** Verified chess title (GM, IM, ...), granted by staff after an application. */
+  title?: ChessTitle | null;
   displayName: string;
   avatar: Avatar;
   bio: string | null;

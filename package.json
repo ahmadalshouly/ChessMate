@@ -15,7 +15,8 @@
     "build:server": "pnpm --filter @chessmate/server build",
     "build:web": "pnpm --filter @chessmate/app export:web",
     "start:server": "pnpm --filter @chessmate/server start",
-    "puzzles:import": "pnpm --filter @chessmate/server puzzles:import"
+    "puzzles:import": "pnpm --filter @chessmate/server puzzles:import",
+    "admin:grant": "pnpm --filter @chessmate/server admin:grant"
   },
   "devDependencies": {
     "eslint": "^9.39.5",

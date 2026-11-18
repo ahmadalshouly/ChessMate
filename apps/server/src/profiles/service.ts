@@ -72,6 +72,7 @@ export class ProfileService {
     const online = isMe || privacy.showOnline ? (this.deps.isOnline?.(user.id) ?? null) : null;
     return {
       id: user.id,
+      title: this.deps.titleOf?.(user.id) ?? null,
       username: user.username,
       displayName: rec.displayName ?? user.username,
       avatar: rec.avatar,

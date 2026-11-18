@@ -1,4 +1,4 @@
-import type { Avatar, GameEndReason, GameResult, TimeCategory, UserSettings } from '@chessmate/core';
+import type { Avatar, ChessTitle, GameEndReason, GameResult, TimeCategory, UserSettings } from '@chessmate/core';
 import type { IncomingMessage } from 'node:http';
 
 /** A signed-in account, as the auth service knows it. */
@@ -58,6 +58,8 @@ export interface ProfileDeps {
   games(userId: string, limit: number): Promise<FinishedGame[]> | FinishedGame[];
   changePassword(userId: string, current: string, next: string): Promise<AccountResult>;
   deleteAccount(userId: string, password: string): Promise<AccountResult>;
+  /** Verified chess title, when titles are on (database mode). */
+  titleOf?(userId: string): ChessTitle | null;
   isOnline?(userId: string): boolean;
 }
 

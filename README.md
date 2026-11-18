@@ -266,19 +266,42 @@ A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws
 
 Chat appears under the board once a game starts: quick messages, free text (profanity is masked by the server), Mute and Report for the opponent, and a Chat on/off switch.
 
-The moderation queue lives at `/admin` in the app (on web: http://localhost:8081/admin). It is protected by a token you choose when starting the server:
+Reports, mutes and every other staff tool live in the admin console (next section). To try chat and reports alone, open two browser windows on Play online, start a game, and chat or report between them.
 
-```powershell
-# Windows PowerShell
-$env:ADMIN_TOKEN = "pick-a-long-secret"; pnpm dev:server
-```
+### Admin console
 
-```bash
-# macOS / Linux
-ADMIN_TOKEN=pick-a-long-secret pnpm dev:server
-```
+Staff accounts manage ChessMate at `/admin` in the app (on web: http://localhost:8081/admin). Signed-in staff also get an **Admin console** link in the sidebar and in Settings. There are two staff roles:
 
-Then open `/admin`, enter the same token, and review reports (with the game's chat and moves), dismiss, warn, or mute a player's chat for 24 hours or 7 days. Without `ADMIN_TOKEN` the admin API is off. To try it alone, open two browser windows on Play online, start a game, and chat or report between them.
+- **Moderator**: dashboard, player search and records, warnings, chat mutes, renames, staff notes, the reports queue, fair-play reviews (open and dismiss cases), title applications, game lookup and the audit log.
+- **Admin**: everything a moderator can do, plus emails, closing and reopening accounts, closing for fair play (which refunds the cheater's opponents and removes their title), rating adjustments, setting or removing titles, aborting live games, signing a player out everywhere, and giving or taking away staff roles.
+
+Every staff action is written to the audit log with who did it and why.
+
+**Make your own account an admin.** Pick one of these:
+
+1. Put your username in `.env` at the repository root (create it from `.env.example`) and restart the server:
+
+   ```
+   ADMIN_USERNAMES=ahmad
+   ```
+
+   Several names are comma-separated. The account becomes an admin when the server starts, or the moment it signs up if it does not exist yet.
+
+2. Or run the grant command once. With the built-in database (`.data/pglite`), stop `pnpm dev:server` first, because only one process can open that database:
+
+   ```bash
+   pnpm admin:grant ahmad          # admin
+   pnpm admin:grant leo moderator  # moderator
+   pnpm admin:grant leo user       # back to a normal account
+   ```
+
+Then sign in to the app with that account and open `/admin`. If you were already signed in, sign out and back in once so the app picks up the new role.
+
+**Verified titles.** Players apply for a FIDE title (GM, IM, FM, CM, WGM, WIM, WFM, WCM) in **Settings → Verified title**, with up to three proof files (PDF, PNG, JPEG or WebP, 3 MB each). Staff review them under **Titles** in the console: open the files, check the FIDE profile, then approve or reject with a reason the player reads. Approved titles show next to the player's name on their profile and in the console. Admins can also set or remove a title from a player's record (for example after a fair-play violation), and closing an account for fair play removes its title automatically. Proof files are stored in the database and open only through short-lived links from the console.
+
+Account closures, warnings, mutes, reports, titles and fair-play cases are all kept in the database, so they survive a server restart.
+
+The older token-only APIs still work for scripts: `ADMIN_TOKEN` for the reports API under `/admin/` and `FAIRPLAY_ADMIN_TOKEN` for `/admin/fairplay/*` (see [docs/fair-play.md](docs/fair-play.md)).
 ### Accounts and sign-in
 
 `pnpm dev:server` also serves the accounts API (`/api/auth/*`) on the same port, and the app finds it automatically the same way it finds the game server. To point the app at a different API host, set `EXPO_PUBLIC_API_URL` (for example `http://192.168.1.20:8787`), alongside `EXPO_PUBLIC_SERVER_URL` when using a tunnel.

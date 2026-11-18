@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -33,6 +34,10 @@ const id = () =>
     .$defaultFn(() => randomUUID());
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const ts = (name: string) => timestamp(name, { withTimezone: true });
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => 'bytea',
+  fromDriver: (v) => (Buffer.isBuffer(v) ? v : Buffer.from(v)),
+});
 
 // ---------------------------------------------------------------- enums
 
@@ -97,6 +102,19 @@ export const users = pgTable(
     lastSeenAt: ts('last_seen_at'),
     /** Soft delete: keeps game history intact. */
     deletedAt: ts('deleted_at'),
+    /**
+     * Closed by staff (fair play, abuse, on request). A closed account cannot
+     * sign in or play; reopening clears these columns. Unlike deletedAt the
+     * account and its username stay reserved.
+     */
+    closedAt: ts('closed_at'),
+    /** fair_play | abuse | multiple_accounts | requested | other */
+    closedReason: text('closed_reason'),
+    closedNote: text('closed_note'),
+    closedBy: text('closed_by'),
+    /** Verified chess title (GM, IM, FM, ...), granted by staff. */
+    title: text('title'),
+    titleGrantedAt: ts('title_granted_at'),
   },
   (t) => [
     uniqueIndex('users_username_lower_idx').on(sql`lower(${t.username})`),
@@ -423,10 +441,143 @@ export const puzzleAttempts = pgTable(
   (t) => [index('puzzle_attempts_user_idx').on(t.userId, t.createdAt), index('puzzle_attempts_puzzle_idx').on(t.puzzleId)],
 );
 
+// ---------------------------------------------------------------- administration
+
+/**
+ * Every staff action, append-only. Actor and target names are copied so the
+ * log stays readable after renames or deletions (no foreign keys on purpose).
+ */
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: id(),
+    /** User id of the staff member, or "system" for automatic actions. */
+    actorId: text('actor_id').notNull(),
+    actorName: text('actor_name').notNull(),
+    /** e.g. "account.close", "chat.mute", "rating.adjust", "fairplay.dismiss". */
+    action: text('action').notNull(),
+    /** "user", "report", "game" or "case". */
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    targetName: text('target_name'),
+    reason: text('reason'),
+    details: jsonb('details').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('admin_audit_created_idx').on(t.createdAt),
+    index('admin_audit_target_idx').on(t.targetId, t.createdAt),
+    index('admin_audit_actor_idx').on(t.actorId, t.createdAt),
+  ],
+);
+
+/** Formal warnings a player has received; shown to staff as their record. */
+export const playerWarnings = pgTable(
+  'player_warnings',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Same categories as player reports (abusive_chat, unsporting...). */
+    category: text('category').notNull(),
+    message: text('message').notNull(),
+    issuedBy: text('issued_by').notNull(),
+    issuedByName: text('issued_by_name').notNull(),
+    reportId: text('report_id'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('player_warnings_user_idx').on(t.userId, t.createdAt)],
+);
+
+/** Player reports (chat abuse, cheating...) with the evidence captured at report time. */
+export const moderationReports = pgTable(
+  'moderation_reports',
+  {
+    id: text('id').primaryKey(),
+    targetId: text('target_id').notNull(),
+    reporterId: text('reporter_id').notNull(),
+    status: text('status').notNull(),
+    /** The whole report as the moderation module sees it (chat, moves, resolution). */
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    createdAt: ts('created_at').notNull(),
+  },
+  (t) => [index('moderation_reports_status_idx').on(t.status, t.createdAt), index('moderation_reports_target_idx').on(t.targetId)],
+);
+
+/** Active chat mutes. */
+export const chatBans = pgTable('chat_bans', {
+  playerId: text('player_id').primaryKey(),
+  until: ts('until').notNull(),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+});
+
+/**
+ * Fair-play data (engine reports, cases, bans, rated-game deltas for refunds,
+ * case log), one JSON document per row so the service's shapes can evolve
+ * without migrations. Loaded into memory at boot and written through.
+ */
+export const fairPlayRecords = pgTable(
+  'fair_play_records',
+  {
+    /** report | case | ban | game | log */
+    kind: text('kind').notNull(),
+    /** Unique within a kind: player id for cases and bans, game id for games, a random id otherwise. */
+    key: text('key').notNull(),
+    playerId: text('player_id'),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.key] }), index('fair_play_player_idx').on(t.playerId)],
+);
+
+/** A player's request for a verified title, with the proof they attached. */
+export const titleApplications = pgTable(
+  'title_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    fullName: text('full_name').notNull(),
+    fideId: text('fide_id'),
+    federation: text('federation'),
+    note: text('note'),
+    /** pending | approved | rejected | withdrawn */
+    status: text('status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedByName: text('reviewed_by_name'),
+    reviewNote: text('review_note'),
+    reviewedAt: ts('reviewed_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('title_app_user_idx').on(t.userId, t.createdAt), index('title_app_status_idx').on(t.status, t.createdAt)],
+);
+
+/** Certificates and letters attached to a title application. Kept in the database so a single server needs no file storage. */
+export const titleDocuments = pgTable(
+  'title_documents',
+  {
+    id: id(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => titleApplications.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mime: text('mime').notNull(),
+    size: integer('size').notNull(),
+    data: bytea('data').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('title_doc_app_idx').on(t.applicationId)],
+);
+
 // ---------------------------------------------------------------- row types
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type TitleApplicationRow = typeof titleApplications.$inferSelect;
+export type TitleDocumentRow = typeof titleDocuments.$inferSelect;
 export type RefreshSession = typeof refreshSessions.$inferSelect;
 export type NewRefreshSession = typeof refreshSessions.$inferInsert;
 export type PasswordReset = typeof passwordResets.$inferSelect;
@@ -441,3 +592,6 @@ export type Follow = typeof follows.$inferSelect;
 export type ActivityRow = typeof activity.$inferSelect;
 export type Puzzle = typeof puzzles.$inferSelect;
 export type PuzzleAttempt = typeof puzzleAttempts.$inferSelect;
+export type UserRole = (typeof userRole.enumValues)[number];
+export type AdminAuditRow = typeof adminAuditLog.$inferSelect;
+export type PlayerWarningRow = typeof playerWarnings.$inferSelect;

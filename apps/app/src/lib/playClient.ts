@@ -229,6 +229,10 @@ class PlayClient {
       if (ev.code === 4010) {
         return this.set({ connection: 'offline', closedReason: translate('server.closedFairPlay') });
       }
+      // 4011: account closed by staff.
+      if (ev.code === 4011) {
+        return this.set({ connection: 'offline', closedReason: translate('server.accountClosed') });
+      }
       if (ev.code === 4003 && !this.accountToken) {
         // Resume token expired (server restarted): start over as a new guest.
         this.token = freshGuestToken();

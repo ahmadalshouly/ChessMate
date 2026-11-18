@@ -5,4 +5,5 @@ export * from './jobQueue';
 export * from './rateLimit';
 export * from './service';
 export * from './store';
+export * from './dbStore';
 export * from './validation';

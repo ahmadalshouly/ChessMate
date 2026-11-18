@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ModAction, Moderation, ReportStatus } from './moderation';
+import type { ModAction, Moderation, ReportStatus } from '../moderation';
 
 /**
  * Moderation HTTP API under /admin. Protected by a bearer token from the

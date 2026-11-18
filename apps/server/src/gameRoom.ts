@@ -132,6 +132,13 @@ export class GameRoom {
     return true;
   }
 
+  /** Staff ends the game with no result and no rating change (abuse, server trouble). */
+  terminate(now: number): boolean {
+    if (this.outcome) return false;
+    this.finish(outcomeFor('aborted', null), now);
+    return true;
+  }
+
   offerDraw(playerId: string): boolean {
     const color = this.colorOf(playerId);
     if (!color || this.outcome || this.drawOfferBy === color) return false;

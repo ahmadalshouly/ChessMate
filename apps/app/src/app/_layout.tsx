@@ -107,6 +107,8 @@ function RootStack() {
         <Stack.Screen name="analysis" options={{ title: tr('titles.analysis') }} />
         <Stack.Screen name="review" options={{ title: tr('titles.review') }} />
         <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
+        {/* Staff console: its own layout (side rail on wide screens). */}
+        <Stack.Screen name="admin" options={{ headerShown: false, title: tr('admin.title') }} />
       </Stack>
       {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}
       {status === 'loading' || mustWelcome ? (

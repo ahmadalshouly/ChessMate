@@ -22,6 +22,20 @@
       "when": 1794985920645,
       "tag": "0002_game_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794986854834,
+      "tag": "0003_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794989448032,
+      "tag": "0004_titles_fairplay",
+      "breakpoints": true
     }
   ]
 }

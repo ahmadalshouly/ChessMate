@@ -24,3 +24,5 @@ export * from './profile';
 export * from './puzzle';
 export * from './premove';
 export * from './social';
+export * from './admin';
+export * from './titles';

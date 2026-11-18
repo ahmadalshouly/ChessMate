@@ -6,3 +6,5 @@ export * from './repo/ratings';
 export * from './repo/games';
 export * from './repo/social';
 export * from './repo/reviews';
+export * from './repo/admin';
+export * from './repo/titles';
