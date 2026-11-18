@@ -42,14 +42,13 @@ export default function Lobby() {
   const guest = isGuest(s.me);
   const [tcKey, setTcKey] = useState('5+0');
   const [custom, setCustom] = useState({ min: 7, inc: 2 });
-  const [rated, setRated] = useState(false);
+  // Signed-in players default to rated so every game counts toward their Elo; casual stays one tap away.
+  const [ratedPref, setRated] = useState(true);
+  const rated = ratedPref && !guest;
   const [window, setWindow] = useState<Window>(0);
   const [color, setColor] = useState<ColorChoice>('random');
 
   useEffect(() => playClient.lobbySub(), []);
-  useEffect(() => {
-    if (guest) setRated(false);
-  }, [guest]);
 
   // A game started (quick pairing, open game joined, or resumed): go play it.
   const liveGameId = s.game && !s.game.outcome ? s.game.gameId : null;

@@ -1,6 +1,7 @@
 import { DEFAULT_RATING } from '@chessmate/core';
 
 import { useAuth } from '@/lib/auth';
+import { isGuest, usePlay } from '@/lib/playClient';
 import { translate } from '@/i18n';
 
 /**
@@ -19,14 +20,23 @@ export type CurrentUser = {
 };
 
 /**
- * Backed by the auth session. Ratings come from the rating service once it is
- * wired in; until then everyone shows the provisional starting rating.
+ * Backed by the auth session. The rating is the blitz rating the game server
+ * sends on connect (and updates after each rated blitz game); before the
+ * server answers it shows the provisional starting rating.
  */
 export function useCurrentUser(): CurrentUser {
   const { status, user, guestName } = useAuth();
+  const { me } = usePlay();
   if (status === 'loading') return { status: 'loading', displayName: '', rating: null, provisional: true, avatarUrl: null };
   if (status === 'signedIn' && user) {
-    return { status: 'signedIn', displayName: user.username, rating: Math.round(DEFAULT_RATING.rating), provisional: true, avatarUrl: null };
+    const live = me && !isGuest(me) ? me : null;
+    return {
+      status: 'signedIn',
+      displayName: user.username,
+      rating: Math.round(live?.rating ?? DEFAULT_RATING.rating),
+      provisional: live?.provisional ?? true,
+      avatarUrl: null,
+    };
   }
   return { status: 'guest', displayName: guestName ?? translate('common.guest'), rating: null, provisional: true, avatarUrl: null };
 }

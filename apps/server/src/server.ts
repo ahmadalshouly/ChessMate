@@ -811,7 +811,7 @@ export class ChessServer {
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
-        const ratingChange = this.applyRatings(r);
+        const { change: ratingChange, unrated } = this.applyRatings(r);
         this.opts.persistence?.gameEnded(r, outcome, ratingChange);
         if (outcome.reason !== 'aborted') {
           this.fairPlay.gameFinished({
@@ -830,7 +830,7 @@ export class ChessServer {
             },
           });
         }
-        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange });
+        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
         for (const id of [r.white.id, r.black.id]) this.cancelGrace(id);
@@ -919,8 +919,8 @@ export class ChessServer {
     if (room) this.broadcast(room, { t: 'watching', gameId, spectators: set.size });
   }
 
-  private applyRatings(room: GameRoom): Record<Color, { before: Rating; after: Rating; delta: number }> | undefined {
-    if (!room.outcome) return undefined;
+  private applyRatings(room: GameRoom): { change?: Record<Color, { before: Rating; after: Rating; delta: number }>; unrated?: string } {
+    if (!room.outcome) return { unrated: 'no_result' };
     const w = this.store.get(room.white.id);
     const b = this.store.get(room.black.id);
     const res = this.ratings.applyGame({
@@ -936,10 +936,12 @@ export class ChessServer {
       plies: room.game.ply,
       endedAt: this.now(),
     });
-    if (!res.rated) return undefined;
+    if (!res.rated) return { unrated: res.reason };
     return {
-      w: { before: res.w.before, after: res.w.after, delta: res.w.delta },
-      b: { before: res.b.before, after: res.b.after, delta: res.b.delta },
+      change: {
+        w: { before: res.w.before, after: res.w.after, delta: res.w.delta },
+        b: { before: res.b.before, after: res.b.after, delta: res.b.delta },
+      },
     };
   }
 

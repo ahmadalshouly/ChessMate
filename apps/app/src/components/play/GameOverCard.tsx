@@ -1,9 +1,12 @@
 import { formatTimeControl, type Color } from '@chessmate/core';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import type { ComponentProps } from 'react';
+import { useEffect, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Text } from '@/ui/primitives';
 
+import { pickIndex, type EndResult } from '@/components/play/GameEndCelebration';
 import { Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { translate, useT, type TKey } from '@/i18n';
@@ -37,6 +40,35 @@ export function resultHeadline(view: GameView): { title: string; detail: string 
   return { title, detail };
 }
 
+/** Win, loss or draw from the viewer's side; null for an aborted game. */
+export function endResult(view: GameView): EndResult | null {
+  const o = view.outcome;
+  if (!o || o.reason === 'aborted') return null;
+  return o.winner === null ? 'draw' : o.winner === view.you ? 'win' : 'loss';
+}
+
+const LINES = ['a', 'b', 'c', 'd'] as const;
+
+/** A cheer for the winner, a comforting word for the loser. Stable per game. */
+export function endLine(result: EndResult, gameId: string): string {
+  if (result === 'draw') return translate('play.over.drawLine');
+  const k = LINES[pickIndex(gameId, LINES.length)]!;
+  return translate(result === 'win' ? `play.over.cheer.${k}` : `play.over.comfort.${k}`);
+}
+
+/** Why ratings did not move, in words. */
+export function unratedText(reason: string | undefined): string {
+  switch (reason) {
+    case 'casual':
+    case 'guest':
+    case 'too_short':
+    case 'aborted':
+      return translate(`play.over.unrated.${reason}`);
+    default:
+      return translate('play.over.unrated.other');
+  }
+}
+
 /** Result, rating change and next steps, shown over the board when a game ends. */
 export function GameOverCard({
   view,
@@ -52,14 +84,17 @@ export function GameOverCard({
   onDeclineRematch: () => void;
   onNewGame: () => void;
   onLobby: () => void;
-  /** Opens the engine review; hidden for aborted games. */
+  /** Opens the engine review; hidden for aborted games. The loser gets it as the main action. */
   onReview?: () => void;
   /** Hides the card to look at the final position. */
   onClose?: () => void;
 }) {
   const t = useTheme();
   const tr = useT();
+  const reduced = useReducedMotion();
   const { title, detail } = resultHeadline(view);
+  const result = endResult(view);
+  const checkmate = view.outcome!.reason === 'checkmate';
   const opp: Color = view.you === 'w' ? 'b' : 'w';
   const change = view.ratingChange?.[view.you];
   const delta = change ? Math.round(change.after.rating) - Math.round(change.before.rating) : null;
@@ -68,10 +103,20 @@ export function GameOverCard({
   const tc = formatTimeControl(view.timeControl);
   const opponent = view.you === 'w' ? view.black : view.white;
   const canReview = !!onReview && view.outcome!.reason !== 'aborted';
+  const learnFirst = result === 'loss' && canReview;
+
+  // Enter after the checkmate stamp has had its moment.
+  const enter = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (!reduced) enter.value = withDelay(checkmate ? 1450 : 250, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
+  }, [reduced, checkmate, enter]);
+  const enterStyle = useAnimatedStyle(() => ({ opacity: enter.value, transform: [{ translateY: (1 - enter.value) * 18 }] }));
+  const icon = result === 'win' ? 'trophy' : result === 'loss' ? 'heart' : result === 'draw' ? 'git-compare-outline' : 'close-circle-outline';
 
   return (
-    <View style={[styles.solid, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }]}>
+    <Animated.View style={[styles.solid, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }, enterStyle]}>
       <View style={styles.head}>
+        <Medallion icon={icon} bounce={result === 'win' && !reduced} delay={checkmate ? 1700 : 450} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
             {title}
@@ -86,24 +131,33 @@ export function GameOverCard({
           </Pressable>
         )}
       </View>
-      <View style={styles.meta}>
-        <View style={{ flex: 1 }}>
-          <Label muted size={13}>
-            {tr('play.over.vs', { tc, mode: view.rated ? tr('play.rated') : tr('play.casual'), name: opponent.name })}
-          </Label>
-        </View>
-        {change && delta !== null && (
-          <View style={[styles.delta, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]}>
-            <Text style={[styles.deltaText, { color: t.text }]}>
-              {Math.round(change.after.rating)} ({delta >= 0 ? '+' : ''}
-              {delta})
+      {result && <Text style={[styles.line, { color: t.text }]}>{endLine(result, view.gameId)}</Text>}
+      <Label muted size={13}>
+        {tr('play.over.vs', { tc, mode: view.rated ? tr('play.rated') : tr('play.casual'), name: opponent.name })}
+      </Label>
+      {change && delta !== null ? (
+        <View style={[styles.rating, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]}>
+          <Text style={{ color: t.muted, fontSize: 13 }}>{tr('play.over.newRating')}</Text>
+          <Text style={[styles.ratingValue, { color: t.text }]}>{Math.round(change.after.rating)}</Text>
+          <View style={[styles.delta, { backgroundColor: delta > 0 ? t.successSoft : delta < 0 ? t.dangerSoft : t.surface }]}>
+            <Ionicons name={delta > 0 ? 'caret-up' : delta < 0 ? 'caret-down' : 'remove'} size={12} color={delta > 0 ? t.success : delta < 0 ? t.danger : t.muted} />
+            <Text style={[styles.deltaText, { color: delta > 0 ? t.success : delta < 0 ? t.danger : t.muted }]}>
+              {delta > 0 ? '+' : ''}
+              {delta}
             </Text>
           </View>
-        )}
-      </View>
+        </View>
+      ) : (
+        result && <Label muted>{unratedText(view.unrated ?? (view.rated ? undefined : 'casual'))}</Label>
+      )}
       {oppOffered && <Label bold>{tr('play.over.wantsRematch', { name: opponent.name })}</Label>}
       {iOffered && <Label muted>{tr('play.over.rematchWaiting', { name: opponent.name })}</Label>}
       {view.rematchDeclined && <Label muted>{tr('play.over.declined')}</Label>}
+      {learnFirst && (
+        <View style={styles.buttons}>
+          <CardButton icon="school-outline" label={tr('play.over.review')} onPress={onReview!} primary />
+        </View>
+      )}
       <View style={styles.buttons}>
         {oppOffered ? (
           <>
@@ -116,16 +170,34 @@ export function GameOverCard({
             label={iOffered ? tr('play.over.rematchOffered') : tr('play.over.rematch')}
             disabled={iOffered || view.rematchDeclined || !view.opponentConnected}
             onPress={onRematch}
-            primary
+            primary={!learnFirst}
           />
         )}
-        {canReview && <CardButton icon="chart-box-outline" label={tr('game.action.review')} onPress={onReview!} />}
+        {canReview && !learnFirst && <CardButton icon="chart-box-outline" label={tr('game.action.review')} onPress={onReview!} />}
       </View>
       <View style={styles.buttons}>
         <CardButton icon="plus-circle-outline" label={tr('play.over.newGame', { tc })} onPress={onNewGame} />
         <CardButton icon="home-outline" label={tr('play.over.lobby')} onPress={onLobby} />
       </View>
-    </View>
+    </Animated.View>
+  );
+}
+
+/** Glass coin with the result icon; a winner's trophy pops and wiggles. */
+function Medallion({ icon, bounce, delay }: { icon: keyof typeof Ionicons.glyphMap; bounce: boolean; delay: number }) {
+  const t = useTheme();
+  const s = useSharedValue(bounce ? 0.4 : 1);
+  const r = useSharedValue(0);
+  useEffect(() => {
+    if (!bounce) return;
+    s.value = withDelay(delay, withSpring(1, { damping: 7, stiffness: 160 }));
+    r.value = withDelay(delay + 120, withSequence(withTiming(-14, { duration: 110 }), withTiming(12, { duration: 140 }), withTiming(-6, { duration: 120 }), withTiming(0, { duration: 120 })));
+  }, [bounce, delay, s, r]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: s.value }, { rotate: `${r.value}deg` }] }));
+  return (
+    <Animated.View style={[styles.medal, { borderColor: t.glassBorder, backgroundColor: t.surfaceStrong }, style]}>
+      <Ionicons name={icon} size={24} color={t.text} />
+    </Animated.View>
   );
 }
 
@@ -153,11 +225,14 @@ function CardButton({ icon, label, onPress, primary, disabled }: { icon: Compone
 
 const styles = StyleSheet.create({
   solid: { width: '100%', maxWidth: 400, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  medal: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  delta: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  line: { fontSize: 16, fontWeight: '600', lineHeight: 22 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
+  ratingValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'], marginStart: 'auto' },
+  delta: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   deltaText: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
   buttons: { flexDirection: 'row', gap: 8 },
   btn: { flex: 1, height: 44, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10 },

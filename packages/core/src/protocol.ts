@@ -129,7 +129,14 @@ export type ServerMessage =
   | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
-  | { t: 'gameOver'; gameId: string; outcome: GameOutcome; ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }> }
+  | {
+      t: 'gameOver';
+      gameId: string;
+      outcome: GameOutcome;
+      ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }>;
+      /** Why ratings did not change, when they didn't ('casual', 'guest', 'too_short', ...). */
+      unrated?: string;
+    }
   | {
       t: 'opponentConnection';
       gameId: string;

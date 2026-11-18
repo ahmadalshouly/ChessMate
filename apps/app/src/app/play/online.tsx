@@ -14,13 +14,14 @@ import { MoveList } from '@/components/game/MoveList';
 import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
 import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
-import { GameOverCard } from '@/components/play/GameOverCard';
+import { GameEndCelebration } from '@/components/play/GameEndCelebration';
+import { GameOverCard, endResult } from '@/components/play/GameOverCard';
 import { Pill, Row } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { serverText } from '@/i18n/serverMessages';
 import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
-import { clockRemaining, playClient, usePlay } from '@/lib/playClient';
+import { clockRemaining, isGuest, playClient, usePlay } from '@/lib/playClient';
 import { useRecordOnlineGame } from '@/lib/recordGame';
 import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
@@ -163,7 +164,7 @@ export default function OnlinePlay() {
                 <Button
                   title={tr('play.online.findGame', { tc: formatTimeControl(quickTc) })}
                   disabled={s.connection !== 'online'}
-                  onPress={() => playClient.seek({ timeControl: quickTc, rated: false })}
+                  onPress={() => playClient.seek({ timeControl: quickTc, rated: !isGuest(me) })}
                 />
               ) : (
                 <Label muted>{tr('play.online.noGame')}</Label>
@@ -295,6 +296,10 @@ export default function OnlinePlay() {
                   onClose={() => setHideResult(true)}
                 />
               </View>
+            )}
+            {/* Drawn above the result card; touches pass through. */}
+            {over && endResult(view) && (
+              <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={boardSize} height={boardSize} />
             )}
           </>
         )}
