@@ -51,8 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const acceptSession = useCallback(async ({ user: u, tokens: t }: AuthResponse) => {
     tokens.current = t;
-    await storage.saveSignedIn(t, u);
-    await storage.saveGuestName(null);
+    // A keychain write can fail (locked device, Expo Go quirks). The player is still signed in
+    // for this session; they just sign in again after a restart.
+    await storage.saveSignedIn(t, u).catch((e: unknown) => console.warn('Could not save the session', e));
+    await storage.saveGuestName(null).catch(() => undefined);
     setGuestName(null);
     setUser(u);
     setStatus('signedIn');

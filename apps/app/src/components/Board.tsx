@@ -7,6 +7,7 @@ import { Text } from '@/ui/primitives';
 
 import { useBoardAppearance } from '@/features/account/boardThemes';
 import { pieceImage } from '@/features/board/pieceSets';
+import { PLACE_ORIGIN, placeAt } from '@/components/boardLayout';
 import { haptic } from '@/lib/haptics';
 import { useBoardTheme, type BoardTheme } from '@/ui';
 
@@ -88,9 +89,9 @@ function squareFill(theme: BoardTheme, sq: Square): string {
 const Surface = memo(function Surface({ theme, orientation, size }: { theme: BoardTheme; orientation: Color; size: number }) {
   const cell = size / 8;
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN]}>
       {ORDER[orientation].map((sq, i) => (
-        <View key={sq} style={{ position: 'absolute', left: (i % 8) * cell, top: Math.floor(i / 8) * cell, width: cell + 0.5, height: cell + 0.5, backgroundColor: squareFill(theme, sq) }} />
+        <View key={sq} style={[placeAt((i % 8) * cell, Math.floor(i / 8) * cell, cell + 0.5, cell + 0.5, size), { backgroundColor: squareFill(theme, sq) }]} />
       ))}
       {theme.finish !== 'flat' && (
         <LinearGradient
@@ -122,8 +123,8 @@ export const Board = memo(function Board(props: BoardProps) {
   const threatSet = new Set(threatened);
 
   return (
-    // The board never mirrors: files run a to h left to right in every language.
-    <View style={[styles.board, { width: size, height: size, borderRadius: Math.max(4, size * 0.012), direction: 'ltr' }]} accessibilityRole="grid">
+    // The board never mirrors: files run a to h left to right in every language (see placeAt).
+    <View style={[styles.board, PLACE_ORIGIN, { width: size, height: size, borderRadius: Math.max(4, size * 0.012), direction: 'ltr' }]} accessibilityRole="grid">
       <Surface theme={colors} orientation={orientation} size={size} />
       {ORDER[orientation].map((sq, i) => {
         const fileIdx = sq.charCodeAt(0) - 97;
@@ -139,19 +140,25 @@ export const Board = memo(function Board(props: BoardProps) {
         if (selected === sq) overlays.push(colors.selected);
         if (checkSquare === sq) overlays.push(colors.check);
         const coordColor = isLight ? colors.coordOnLight : colors.coordOnDark;
+        const coordSize = Math.max(8, cell * 0.17);
+        const coordBox = Math.ceil(coordSize * 1.3);
         return (
           <Pressable
             key={sq}
             onPress={() => onSquarePress?.(sq)}
             disabled={!onSquarePress}
             accessibilityLabel={`${sq}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`}
-            style={{ position: 'absolute', left: col * cell, top: row * cell, width: cell, height: cell }}>
+            style={[placeAt(col * cell, row * cell, cell, cell, size), PLACE_ORIGIN]}>
             {overlays.map((c, k) => (
               <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
             ))}
-            {coordinates && col === 0 && <Text style={[styles.coord, { color: coordColor, top: cell * 0.03, left: cell * 0.06, fontSize: Math.max(8, cell * 0.17) }]}>{rank}</Text>}
+            {coordinates && col === 0 && (
+              <Text style={[styles.coord, placeAt(cell * 0.02, 0, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>{rank}</Text>
+            )}
             {coordinates && row === 7 && (
-              <Text style={[styles.coord, { color: coordColor, bottom: cell * 0.02, right: cell * 0.06, fontSize: Math.max(8, cell * 0.17) }]}>{FILES[fileIdx]}</Text>
+              <Text style={[styles.coord, placeAt(cell - coordBox - cell * 0.02, cell - coordBox, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>
+                {FILES[fileIdx]}
+              </Text>
             )}
             {piece && (
               <View style={dragging?.from === sq ? styles.lifted : undefined}>
@@ -176,7 +183,10 @@ export const Board = memo(function Board(props: BoardProps) {
       })}
       {dragEnabled && <View ref={dragRef} collapsable={false} style={[StyleSheet.absoluteFill, WEB_NO_GESTURES]} {...dragHandlers} />}
       {dragging?.moved && (
-        <Animated.View pointerEvents="none" style={[styles.floating, { width: cell, height: cell, transform: [...dragOffset.getTranslateTransform(), { scale: 1.12 }] }]}>
+        <Animated.View
+          pointerEvents="none"
+          // Centred like the squares (see placeAt), then moved by the drag offset.
+          style={[styles.floating, { width: cell, height: cell, transform: [{ translateX: (cell - size) / 2 }, { translateY: (cell - size) / 2 }, ...dragOffset.getTranslateTransform(), { scale: 1.12 }] }]}>
           <PieceView piece={dragging.piece} cell={cell} set={set} />
         </Animated.View>
       )}
@@ -308,7 +318,7 @@ function useDrag(p: {
 const styles = StyleSheet.create({
   board: { overflow: 'hidden' },
   edge: { borderWidth: StyleSheet.hairlineWidth * 2 },
-  coord: { position: 'absolute', fontWeight: '700', letterSpacing: 0.2 },
+  coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
   lifted: { opacity: 0.3 },
-  floating: { position: 'absolute', left: 0, top: 0, zIndex: 10 },
+  floating: { position: 'absolute', zIndex: 10 },
 });

@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
+import { PLACE_ORIGIN } from '@/components/boardLayout';
 import { MOVE_CLASS, type BadgeIcon } from '@/constants/analysis';
 
 /**
@@ -296,8 +297,19 @@ export function BoardMoveBadge({ square, cls, size, orientation }: { square: Squ
     Animated.spring(scale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: Platform.OS !== 'web' }).start();
   }, [square, cls, scale]);
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { width: size, height: size }]}>
-      <Animated.View style={[styles.lift, { position: 'absolute', left, top, borderRadius: badge / 2, transform: [{ scale }] }]}>
+    // Placed from the board's centre with transforms so it never mirrors (see placeAt).
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN, { width: size, height: size }]}>
+      <Animated.View
+        style={[
+          styles.lift,
+          {
+            position: 'absolute',
+            width: badge,
+            height: badge,
+            borderRadius: badge / 2,
+            transform: [{ translateX: left + badge / 2 - size / 2 }, { translateY: top + badge / 2 - size / 2 }, { scale }],
+          },
+        ]}>
         <MoveBadge cls={cls} size={badge} />
       </Animated.View>
     </View>

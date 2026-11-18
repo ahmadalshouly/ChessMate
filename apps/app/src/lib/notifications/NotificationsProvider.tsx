@@ -2,7 +2,7 @@ import type { AppNotification, NotificationPrefs } from '@chessmate/core';
 import * as Notifications from 'expo-notifications';
 import { router, type Href } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 
 import { notificationsApi } from './api';
 import { currentPushStatus, disablePush, enablePush, pushSupported, type PushStatus } from './push';
@@ -30,7 +30,6 @@ export interface NotificationsContextValue {
   push: PushStatus;
   turnOnPush: () => Promise<void>;
   turnOffPush: () => Promise<void>;
-  sendTest: () => Promise<void>;
 }
 
 const Ctx = createContext<NotificationsContextValue | null>(null);
@@ -186,11 +185,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       turnOffPush: async () => {
         if (push.state === 'enabled') await disablePush(push.token);
         setPush({ state: 'unknown' });
-      },
-      sendTest: async () => {
-        await notificationsApi.sendTest().catch(() => undefined);
-        // Push arrives through Expo; the in-app copy shows on the next refresh.
-        setTimeout(() => void refresh(), Platform.OS === 'web' ? 0 : 800);
       },
     }),
     [items, unread, loading, offline, incoming, refresh, loadMore, hasMore, open, markRead, remove, prefs, updatePrefs, push],

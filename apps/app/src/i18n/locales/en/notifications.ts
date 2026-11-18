@@ -75,7 +75,6 @@ export const notifications = {
     openSettings: 'Open settings',
     turnOff: 'Turn off push',
     turnOn: 'Turn on push',
-    sendTest: 'Send a test',
     whatTitle: 'What to notify me about',
     inApp: 'In app',
     push: 'Push',
