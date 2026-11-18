@@ -76,7 +76,7 @@ export default function Lobby() {
   };
 
   const step = (list: number[], cur: number, dir: 1 | -1) => list[Math.max(0, Math.min(list.length - 1, list.indexOf(cur) + dir))]!;
-  const play = () => playClient.seek({ timeControl, rated, range });
+  const play = () => playClient.seek({ timeControl, rated, range, color });
   const create = () => playClient.createOpenGame(timeControl, rated, color, range);
 
   const status = online ? tr('play.lobby.online', { count: s.lobby?.online ?? 0, n: formatNumber(s.lobby?.online ?? 0) }) : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');

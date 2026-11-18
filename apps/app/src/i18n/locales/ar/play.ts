@@ -5,6 +5,14 @@ export const play: Messages<typeof en> = {
   casual: 'ودية',
   rated: 'مصنّفة',
   connecting: 'جارٍ الاتصال…',
+  seek: {
+    title: 'مباراة {tc} جديدة',
+    find: 'ابحث عن خصم',
+    mode: 'نمط اللعب',
+  },
+  modes: {
+    standard: { title: 'قياسي', body: 'قواعد الشطرنج الكلاسيكية.' },
+  },
   lobby: {
     waiting: { other: 'بانتظار لاعب: {count}' },
     auto: 'تلقائي',
@@ -22,7 +30,7 @@ export const play: Messages<typeof en> = {
     autoHint: 'يبدأ قريبًا من تصنيفك ويتّسع كلما انتظرت.',
     windowHint: 'ضمن {n} نقطة من تصنيفك.',
     yourSide: 'لونك',
-    yourSideHint: 'يُستخدم عند نشر مباراة مفتوحة.',
+    yourSideHint: 'اللعب السريع يجمعك بمن يمكنه أخذ اللون الآخر.',
     gameInProgress: 'مباراة جارية',
     stillRunning: 'مباراتك ما زالت جارية.',
     posted: 'نُشرت المباراة المفتوحة',
@@ -76,6 +84,8 @@ export const play: Messages<typeof en> = {
     oppGoneWait: 'انقطع اتصال الخصم. بانتظار عودته.',
     firstMoveWhite: 'تلعب بالأبيض. ابدأ بنقلتك الأولى.',
     firstMoveBlack: 'تلعب بالأسود. بانتظار النقلة الأولى للأبيض.',
+    firstMoveYou: 'العب نقلتك الأولى: تبقّى {n} ث، وإلا تُلغى المباراة.',
+    firstMoveOpp: 'بانتظار النقلة الأولى لخصمك: تبقّى {n} ث، وإلا تُلغى المباراة.',
     opponentToMove: 'دور الخصم.',
     premoveHint: 'دور الخصم. اضغط على قطعة أو اسحبها لتجهيز نقلة مسبقة.',
   },
@@ -123,6 +133,8 @@ export const play: Messages<typeof en> = {
   },
   reason: {
     checkmate: 'بكش مات',
+    youNoFirstMove: 'لم تلعب نقلتك الأولى في الوقت المحدد',
+    oppNoFirstMove: 'لم يلعب خصمك نقلته الأولى في الوقت المحدد',
     resignation: 'بالاستسلام',
     timeout: 'بانتهاء الوقت',
     timeout_vs_insufficient: 'انتهاء الوقت مقابل عدم كفاية القطع',

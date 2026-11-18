@@ -2,6 +2,14 @@ export const play = {
   casual: 'Casual',
   rated: 'Rated',
   connecting: 'Connecting…',
+  seek: {
+    title: 'New {tc} game',
+    find: 'Find opponent',
+    mode: 'Game mode',
+  },
+  modes: {
+    standard: { title: 'Standard', body: 'Classic chess rules.' },
+  },
   lobby: {
     waiting: { one: '{count} waiting', other: '{count} waiting' },
     auto: 'Auto',
@@ -19,7 +27,7 @@ export const play = {
     autoHint: 'Starts near your rating, widens while you wait.',
     windowHint: 'Within {n} points of your rating.',
     yourSide: 'Your side',
-    yourSideHint: 'Used when you post an open game.',
+    yourSideHint: 'Quick play pairs you with someone who can take the other side.',
     gameInProgress: 'Game in progress',
     stillRunning: 'Your game is still running.',
     posted: 'Open game posted',
@@ -66,6 +74,8 @@ export const play = {
     oppGoneWait: 'Opponent disconnected. Waiting for them to return.',
     firstMoveWhite: 'You play white. Make your first move.',
     firstMoveBlack: 'You play black. Waiting for white’s first move.',
+    firstMoveYou: 'Make your first move: {n}s left, or the game is aborted.',
+    firstMoveOpp: 'Waiting for your opponent’s first move: {n}s left, or the game is aborted.',
     opponentToMove: 'Opponent to move.',
     premoveHint: 'Opponent to move. Tap or drag a piece to queue a premove.',
   },
@@ -113,6 +123,8 @@ export const play = {
   },
   reason: {
     checkmate: 'by checkmate',
+    youNoFirstMove: 'you did not make your first move in time',
+    oppNoFirstMove: 'your opponent did not make their first move in time',
     resignation: 'by resignation',
     timeout: 'on time',
     timeout_vs_insufficient: 'timeout vs insufficient material',

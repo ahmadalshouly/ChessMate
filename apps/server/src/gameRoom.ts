@@ -38,6 +38,8 @@ export class GameRoom {
   clock: ClockState;
   outcome: GameOutcome | null = null;
   drawOfferBy: Color | null = null;
+  /** Side that let the first-move timer run out, when that aborted the game. */
+  noFirstMove: Color | null = null;
   readonly createdAt: number;
   /** Server-measured think time per ply (ms), for fair-play timing analysis. */
   readonly thinkMs: number[] = [];
@@ -175,8 +177,8 @@ export class GameRoom {
   checkTime(now: number): boolean {
     if (this.outcome) return true;
     if (this.abortable) {
-      const since = this.clock.startedAt ?? this.createdAt;
-      if (now - since > FIRST_MOVE_TIMEOUT_MS) {
+      if (now > this.firstMoveDeadline!) {
+        this.noFirstMove = this.game.turn;
         this.finish(outcomeFor('aborted', null), now);
         return true;
       }
@@ -190,10 +192,20 @@ export class GameRoom {
     return false;
   }
 
+  /**
+   * When the side to move must have made its first move: 30 seconds from the
+   * start for white, 30 seconds from white's first move for black. Null once
+   * both have moved (the clocks take over).
+   */
+  get firstMoveDeadline(): number | null {
+    if (!this.abortable) return null;
+    return (this.clock.startedAt ?? this.createdAt) + FIRST_MOVE_TIMEOUT_MS;
+  }
+
   /** Milliseconds until the next time-based event, for scheduling a timer. */
   msUntilNextDeadline(now: number): number | null {
     if (this.outcome) return null;
-    if (this.abortable) return Math.max(0, (this.clock.startedAt ?? this.createdAt) + FIRST_MOVE_TIMEOUT_MS - now);
+    if (this.abortable) return Math.max(0, this.firstMoveDeadline! + 1 - now);
     if (!this.clock.running) return null;
     return remaining(this.clock, this.clock.running, now);
   }
@@ -226,6 +238,7 @@ export class GameRoom {
       serverNow: now,
       drawOfferBy: this.drawOfferBy,
       outcome: this.outcome,
+      firstMoveDeadline: this.firstMoveDeadline,
     };
   }
 }

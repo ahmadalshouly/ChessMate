@@ -37,7 +37,7 @@ import { GameRoom, type MoveError } from './gameRoom';
 import type { HttpRoute } from './auth/http';
 import type { AuthService } from './auth/service';
 import { GuestSessions } from './guestSessions';
-import { Matchmaker, type MatchOptions } from './matchmaker';
+import { Matchmaker, pairingColors, type MatchOptions } from './matchmaker';
 import { OpenGames } from './openGames';
 import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
@@ -373,6 +373,7 @@ export class ChessServer {
           createdAt: now,
           ratingRange: sanitizeRatingRange(msg.ratingRange, r.rating) ?? undefined,
           range: validWindow(msg.range),
+          color: msg.color === 'w' || msg.color === 'b' ? msg.color : undefined,
         });
         this.markLobbyDirty();
         this.toPlayer(player.id, { t: 'seeking', timeControl: tc });
@@ -838,7 +839,7 @@ export class ChessServer {
       const pa = this.store.get(a.playerId);
       const pb = this.store.get(b.playerId);
       if (!pa || !pb) continue;
-      const [white, black] = Math.random() < 0.5 ? [pa, pb] : [pb, pa];
+      const [white, black] = pairingColors(a, b, pa, pb);
       this.createGame(white, black, a.timeControl, a.rated && b.rated, now);
     }
   }
@@ -861,7 +862,7 @@ export class ChessServer {
       onMove: (r, m) => {
         const t = this.now();
         this.opts.persistence?.moveMade(r, m);
-        this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
+        this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t, firstMoveDeadline: r.firstMoveDeadline });
         this.schedule(r);
         this.notifyTurnIfAway(r, m.san);
       },
@@ -888,7 +889,7 @@ export class ChessServer {
             },
           });
         }
-        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated });
+        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated, ...(r.noFirstMove ? { noFirstMove: r.noFirstMove } : {}) });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
         for (const id of [r.white.id, r.black.id]) this.cancelGrace(id);

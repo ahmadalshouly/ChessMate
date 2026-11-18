@@ -1,4 +1,4 @@
-import { DEFAULT_RANGE_OPTIONS, formatTimeControl, matchmakingGap, type RatingRangeOptions, type TimeControl } from '@chessmate/core';
+import { DEFAULT_RANGE_OPTIONS, type Color, type ColorChoice, formatTimeControl, matchmakingGap, type RatingRangeOptions, type TimeControl } from '@chessmate/core';
 
 export interface Seek {
   playerId: string;
@@ -12,6 +12,8 @@ export interface Seek {
   ratingRange?: [number, number];
   /** Fixed ± window chosen by the player; it never widens past this. */
   range?: number;
+  /** Side the player asked for; undefined or 'random' takes either. */
+  color?: ColorChoice;
 }
 
 export interface MatchOptions extends RatingRangeOptions {
@@ -111,6 +113,8 @@ export class Matchmaker {
 
   private compatible(a: Seek, b: Seek, now: number): boolean {
     if (a.playerId === b.playerId) return false;
+    // Two players who both insist on the same side cannot play each other.
+    if (fixedColor(a) && fixedColor(a) === fixedColor(b)) return false;
     const gap = Math.abs(a.rating - b.rating);
     if (gap > Math.min(this.allowedGap(a, now), this.allowedGap(b, now))) return false;
     const inRange = (s: Seek, r: number) => !s.ratingRange || (r >= s.ratingRange[0] && r <= s.ratingRange[1]);
@@ -147,4 +151,20 @@ export class Matchmaker {
     }
     return pairings;
   }
+}
+
+function fixedColor(s: Seek): Color | null {
+  return s.color === 'w' || s.color === 'b' ? s.color : null;
+}
+
+/**
+ * Who plays white in a pairing: a player who asked for a side gets it,
+ * otherwise it is a coin flip (`random` is injectable for tests).
+ */
+export function pairingColors<T>(a: Seek, b: Seek, pa: T, pb: T, random: () => number = Math.random): [white: T, black: T] {
+  const ca = fixedColor(a);
+  const cb = fixedColor(b);
+  if (ca) return ca === 'w' ? [pa, pb] : [pb, pa];
+  if (cb) return cb === 'w' ? [pb, pa] : [pa, pb];
+  return random() < 0.5 ? [pa, pb] : [pb, pa];
 }

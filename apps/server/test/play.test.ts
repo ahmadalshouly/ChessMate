@@ -80,6 +80,28 @@ describe('lobby and open games', () => {
     b.close();
   });
 
+  it('quick-pairs with the requested colour and sends the first-move deadline', async () => {
+    const a = await client('guest:WantsBlack');
+    const b = await client('guest:AnySide');
+    await Promise.all([a.next('welcome'), b.next('welcome')]);
+    const quick = { initialMs: 180_000, incrementMs: 2_000 };
+    a.send({ t: 'seek', timeControl: quick, rated: false, color: 'b' });
+    b.send({ t: 'seek', timeControl: quick, rated: false, color: 'random' });
+    const [sa, sb] = await Promise.all([a.next('gameStart'), b.next('gameStart')]);
+    expect(sa.you).toBe('b');
+    expect(sb.you).toBe('w');
+    expect(sa.game.firstMoveDeadline).toBeGreaterThan(sa.game.serverNow);
+    b.send({ t: 'move', gameId: sb.game.gameId, uci: 'e2e4', ply: 0 });
+    const moved = await a.next('moved');
+    expect(moved.firstMoveDeadline).toBeGreaterThanOrEqual(moved.serverNow);
+    a.send({ t: 'move', gameId: sa.game.gameId, uci: 'e7e5', ply: 1 });
+    expect((await b.next('moved', (m) => m.ply === 2)).firstMoveDeadline).toBeNull();
+    a.send({ t: 'resign', gameId: sa.game.gameId });
+    await a.next('gameOver');
+    a.close();
+    b.close();
+  });
+
   it('reports the widening rating window while seeking', async () => {
     const a = await client('guest:Seeker');
     await a.next('welcome');

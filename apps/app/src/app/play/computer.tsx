@@ -329,6 +329,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
               lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
               checkSquare={checkSquareOf(boardFen)}
               onSquarePress={nav.live ? interaction.onSquarePress : undefined}
+              promotion={nav.live ? interaction.promotion : null}
               {...(nav.live ? interaction.dragProps : {})}
             />
             {verdict && !hideResult && (

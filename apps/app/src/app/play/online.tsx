@@ -1,4 +1,4 @@
-import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
+import { formatTimeControl, parseTimeControl, timeCategory, type Color, type TimeControl } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -17,11 +17,12 @@ import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { GameOverCard, endResult } from '@/components/play/GameOverCard';
 import { Pill, Row } from '@/components/play/Controls';
+import { SeekSheet } from '@/components/play/SeekSheet';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { serverText } from '@/i18n/serverMessages';
 import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
-import { clockRemaining, isGuest, playClient, usePlay } from '@/lib/playClient';
+import { clockRemaining, playClient, usePlay } from '@/lib/playClient';
 import { useRecordOnlineGame } from '@/lib/recordGame';
 import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
@@ -65,6 +66,7 @@ export default function OnlinePlay() {
   const chat = useGameChat(view?.gameId ?? null, s.me?.id ?? null, playClient.send, playClient.onServerMessage);
 
   const [hideResult, setHideResult] = useState(false);
+  const [seekTc, setSeekTc] = useState<TimeControl | null>(null);
   const gameId = view?.gameId;
   useEffect(() => setHideResult(false), [gameId]);
 
@@ -162,11 +164,7 @@ export default function OnlinePlay() {
                   <Button variant="secondary" title={tr('common.cancel')} onPress={() => playClient.cancelSeek()} />
                 </>
               ) : quickTc ? (
-                <Button
-                  title={tr('play.online.findGame', { tc: formatTimeControl(quickTc) })}
-                  disabled={s.connection !== 'online'}
-                  onPress={() => playClient.seek({ timeControl: quickTc, rated: !isGuest(me) })}
-                />
+                <Button title={tr('play.online.findGame', { tc: formatTimeControl(quickTc) })} disabled={s.connection !== 'online'} onPress={() => setSeekTc(quickTc)} />
               ) : (
                 <Label muted>{tr('play.online.noGame')}</Label>
               )}
@@ -174,6 +172,7 @@ export default function OnlinePlay() {
             </Card>
           </View>
         </ScrollView>
+        <SeekSheet timeControl={seekTc} onClose={() => setSeekTc(null)} />
       </Screen>
     );
   }
@@ -183,7 +182,12 @@ export default function OnlinePlay() {
   const orientation: Color = flipped ? opp : you;
   const top: Color = orientation === 'w' ? 'b' : 'w';
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
-  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
+  const realFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
+  // Queued premoves are drawn as if played, so the next one can start from there.
+  const boardFen = nav.live ? (board.displayFen ?? view.fen) : realFen;
+  // First move: each side has 30 seconds, or the game is aborted.
+  const firstMoveIn = live && view.firstMoveDeadline ? Math.max(0, Math.ceil((view.firstMoveDeadline - (Date.now() + view.clockOffset)) / 1000)) : null;
+  const toMove: Color = history.length % 2 === 0 ? 'w' : 'b';
   const boardLast = nav.live ? last : shownMove;
   const oppOfferedRematch = view.rematchBy === opp;
   const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
@@ -223,7 +227,7 @@ export default function OnlinePlay() {
 
   const moreItems: OptionItem[] = [
     { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlipped((f) => !f) },
-    ...(view.premove ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.setPremove(null) }] : []),
+    ...(view.premoves.length ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: playClient.clearPremoves }] : []),
     ...(over
       ? [
           ...(hideResult ? [{ key: 'result', icon: 'trophy-outline' as const, label: tr('game.over.showResult'), onPress: () => { setHideResult(false); setPanel(null); } }] : []),
@@ -238,6 +242,13 @@ export default function OnlinePlay() {
 
   const notices = (
     <>
+      {firstMoveIn !== null && (
+        <BoardNotice
+          icon="timer-outline"
+          text={toMove === you ? tr('play.online.firstMoveYou', { n: firstMoveIn }) : tr('play.online.firstMoveOpp', { n: firstMoveIn })}
+          strong={toMove === you}
+        />
+      )}
       {live && prefs.pending && (
         <BoardNotice icon="help-circle-outline" text={tr('play.confirmMoveQ', { san: prefs.pending.san })} strong>
           <NoticeButton icon="close" label={tr('common.cancel')} onPress={prefs.cancel} />
@@ -260,7 +271,7 @@ export default function OnlinePlay() {
       {s.error && <BoardNotice icon="alert-circle-outline" text={serverText(s.error)} />}
     </>
   );
-  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected)) || !!s.error;
+  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected)) || firstMoveIn !== null || !!s.error;
   const oppName = players[opp].name;
 
   const popover =
@@ -302,9 +313,10 @@ export default function OnlinePlay() {
               size={boardSize}
               selected={nav.live ? board.selected : null}
               targets={nav.live ? board.targets : []}
-              premove={nav.live ? view.premove : null}
+              premoves={nav.live ? view.premoves : undefined}
+              promotion={nav.live ? board.promotion : null}
               lastMove={boardLast ? { from: boardLast.from, to: boardLast.to } : null}
-              checkSquare={checkSquareOf(boardFen)}
+              checkSquare={checkSquareOf(realFen)}
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />

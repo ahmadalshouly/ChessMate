@@ -77,6 +77,13 @@ The app opens on a welcome screen: create an account, sign in, or tap **Continue
 
 To try rated games and the end-of-game animations: create two accounts (one in a normal browser window, one in a private window, or on two phones), open **Play** in both, keep *Rated* selected and press Play in each. Ratings are stored in `.data/pglite`, so they carry over when you restart `pnpm dev:server`.
 
+To try the game start, promotion and premoves (two browser windows again):
+
+- **New-game popup:** tap a time control on the home screen. Pick the game mode, rated or casual, your side (white, black or random) and the rating range, then **Find opponent**. Two players who both ask for the same side are never paired.
+- **First-move timer:** once the game starts, white has 30 seconds to move, then black has 30 seconds from white's move. A countdown shows over the board; if it runs out the game is aborted with no rating change.
+- **Promotion:** push a pawn to the last rank and choose queen, knight, rook or bishop. Turn on **Settings → Gameplay → Always promote to a queen** to skip the choice. Puzzles always ask.
+- **Premoves:** while your opponent is thinking, make moves on your board. On the web you can queue as many as you like (they show on the board and play one per opponent move; if one becomes illegal the rest are dropped). Phones keep one. Tap an empty square or right-click to cancel the queue.
+
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.
 
 CI, Docker, hosting and every environment variable are documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

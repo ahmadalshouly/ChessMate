@@ -118,6 +118,7 @@ export default function LocalPlay() {
             lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
             checkSquare={checkSquareOf(boardFen)}
             onSquarePress={nav.live ? interaction.onSquarePress : undefined}
+            promotion={nav.live ? interaction.promotion : null}
             {...(nav.live ? interaction.dragProps : {})}
           />
         )}

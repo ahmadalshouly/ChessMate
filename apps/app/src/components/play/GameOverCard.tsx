@@ -36,7 +36,12 @@ export function resultHeadline(view: GameView): { title: string; detail: string 
   const youLeft = o.reason === 'abandoned' && o.winner !== view.you;
   const title =
     o.reason === 'aborted' ? translate('play.result.aborted') : o.winner === null ? translate('play.result.draw') : o.winner === view.you ? translate('play.result.won') : translate('play.result.lost');
-  const detail = youLeft ? translate('play.reason.youLeft') : reasonText(o.reason);
+  const noShow = o.reason === 'aborted' ? view.noFirstMove : undefined;
+  const detail = youLeft
+    ? translate('play.reason.youLeft')
+    : noShow
+      ? translate(noShow === view.you ? 'play.reason.youNoFirstMove' : 'play.reason.oppNoFirstMove')
+      : reasonText(o.reason);
   return { title, detail };
 }
 

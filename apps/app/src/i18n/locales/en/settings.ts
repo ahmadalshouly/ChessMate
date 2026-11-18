@@ -23,13 +23,15 @@ export const settings = {
   },
   gameplay: {
     title: 'Gameplay',
+    autoQueen: 'Always promote to a queen',
+    autoQueenDetail: 'Off: choose queen, rook, bishop or knight each time a pawn promotes.',
     confirmMoves: 'Confirm moves before sending',
     never: 'Never',
     daily: 'Daily only',
     always: 'Always',
     confirmResign: 'Confirm before resigning',
     premoves: 'Premoves',
-    premovesDetail: 'Queue your next move while your opponent is thinking. Tap elsewhere or right-click to cancel.',
+    premovesDetail: 'Queue moves while your opponent is thinking: as many as you like on the web, one on phones. Tap elsewhere or right-click to cancel.',
   },
   notifications: {
     title: 'Notifications',

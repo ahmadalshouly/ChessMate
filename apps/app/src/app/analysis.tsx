@@ -156,6 +156,7 @@ export default function Analysis() {
                 lastMove={last ? { from: last.from, to: last.to } : null}
                 checkSquare={checkSquareOf(fen)}
                 onSquarePress={interaction.onSquarePress}
+                promotion={interaction.promotion}
                 {...interaction.dragProps}
               />
               {engineOn && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}

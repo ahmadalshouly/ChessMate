@@ -18,12 +18,13 @@ import {
   type OpenGame,
   type PlayedMove,
   type PlayerInfo,
+  type Premove,
   type Rating,
   type ServerMessage,
-  type Square,
   type TimeControl,
 } from '@chessmate/core';
 import { useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 
 import { SERVER_URL } from './config';
 import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
@@ -44,6 +45,8 @@ export interface SeekRequest {
   rated: boolean;
   /** Fixed ± rating window; undefined widens automatically. */
   range?: number;
+  /** Side wanted; undefined or 'random' takes either. */
+  color?: ColorChoice;
 }
 
 export interface SeekStatus {
@@ -76,8 +79,16 @@ export interface GameView {
   opponentAbandonAt: number | null;
   rematchBy: Color | null;
   rematchDeclined: boolean;
-  premove: { from: string; to: string } | null;
+  /** Moves queued while the opponent thinks, played in order (see MAX_PREMOVES). */
+  premoves: Premove[];
+  /** Server time by which the side to move must make its first move, or the game is aborted. */
+  firstMoveDeadline: number | null;
+  /** Side whose first-move timer ran out, when that aborted the game. */
+  noFirstMove?: Color;
 }
+
+/** The web queues as many premoves as you like; phones keep one, replaced by the next. */
+export const MAX_PREMOVES = Platform.OS === 'web' ? Infinity : 1;
 
 export interface PlayState {
   connection: ConnectionStatus;
@@ -312,8 +323,10 @@ class PlayClient {
           outcome: m.outcome,
           ratingChange: m.ratingChange,
           unrated: m.unrated,
+          noFirstMove: m.noFirstMove,
           drawOfferBy: null,
-          premove: null,
+          premoves: [],
+          firstMoveDeadline: null,
           opponentAbandonAt: null,
           clock: { ...this.state.game.clock, running: null, startedAt: null },
         });
@@ -359,7 +372,9 @@ class PlayClient {
         unrated: prev?.unrated,
         rematchBy: null,
         rematchDeclined: false,
-        premove: prev?.premove ?? null,
+        premoves: prev?.premoves ?? [],
+        firstMoveDeadline: s.firstMoveDeadline ?? null,
+        noFirstMove: prev?.noFirstMove,
       },
       error: null,
     });
@@ -383,13 +398,16 @@ class PlayClient {
       drawOfferBy: null,
       fen: g.fen,
       history: g.history(),
+      ...(m.firstMoveDeadline !== undefined ? { firstMoveDeadline: m.firstMoveDeadline } : g.ply >= 2 ? { firstMoveDeadline: null } : {}),
     });
-    // Opponent just moved: fire the queued premove if it is legal now.
-    const pm = this.state.game?.premove;
+    // Opponent just moved: play the first queued premove if it is legal now.
+    // An illegal one drops the whole queue, since the rest was planned around it.
+    const [pm, ...rest] = this.state.game?.premoves ?? [];
     if (mover && mover !== view.you && pm) {
-      this.patchGame({ premove: null });
-      const legal = g.legalMoves(pm.from as Square).find((x) => x.to === pm.to);
-      if (legal) this.move(`${pm.from}${pm.to}${legal.promotion ? 'q' : ''}`);
+      const legal = g.legalMoves(pm.from).find((x) => x.to === pm.to);
+      this.patchGame({ premoves: legal ? rest : [] });
+      if (legal) this.move(`${pm.from}${pm.to}${legal.promotion ? (pm.promotion ?? 'q') : ''}`);
+      else if (rest.length) haptic('illegal');
     }
   }
 
@@ -445,13 +463,17 @@ class PlayClient {
     return true;
   }
 
-  setPremove(premove: GameView['premove']) {
-    if (premove) {
-      playSound('premove');
-      haptic('premove');
-    }
-    this.patchGame({ premove });
+  /** Queues a premove (on phones it replaces the queued one). */
+  addPremove(premove: Premove) {
+    const queued = this.state.game?.premoves ?? [];
+    playSound('premove');
+    haptic('premove');
+    this.patchGame({ premoves: MAX_PREMOVES > queued.length ? [...queued, premove] : [premove] });
   }
+
+  clearPremoves = () => {
+    if (this.state.game?.premoves.length) this.patchGame({ premoves: [] });
+  };
 
   private gameAction(t: 'resign' | 'abort' | 'offerDraw' | 'acceptDraw' | 'declineDraw' | 'rematch' | 'declineRematch') {
     const id = this.state.game?.gameId;

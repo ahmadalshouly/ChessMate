@@ -5,6 +5,14 @@ export const play: Messages<typeof en> = {
   casual: 'Ungewertet',
   rated: 'Gewertet',
   connecting: 'Verbinde…',
+  seek: {
+    title: 'Neue {tc}-Partie',
+    find: 'Gegner suchen',
+    mode: 'Spielmodus',
+  },
+  modes: {
+    standard: { title: 'Standard', body: 'Klassische Schachregeln.' },
+  },
   lobby: {
     waiting: { one: '{count} wartet', other: '{count} warten' },
     auto: 'Auto',
@@ -22,7 +30,7 @@ export const play: Messages<typeof en> = {
     autoHint: 'Startet nahe deiner Wertung und wird beim Warten breiter.',
     windowHint: 'Innerhalb von {n} Punkten deiner Wertung.',
     yourSide: 'Deine Farbe',
-    yourSideHint: 'Gilt, wenn du eine offene Partie erstellst.',
+    yourSideHint: 'Schnelles Spiel paart dich mit jemandem, der die andere Farbe nimmt.',
     gameInProgress: 'Partie läuft',
     stillRunning: 'Deine Partie läuft noch.',
     posted: 'Offene Partie erstellt',
@@ -69,6 +77,8 @@ export const play: Messages<typeof en> = {
     oppGoneWait: 'Gegner getrennt. Warte auf seine Rückkehr.',
     firstMoveWhite: 'Du spielst Weiß. Mach deinen ersten Zug.',
     firstMoveBlack: 'Du spielst Schwarz. Warte auf den ersten Zug von Weiß.',
+    firstMoveYou: 'Mach deinen ersten Zug: noch {n} s, sonst wird die Partie abgebrochen.',
+    firstMoveOpp: 'Warte auf den ersten Zug deines Gegners: noch {n} s, sonst wird die Partie abgebrochen.',
     opponentToMove: 'Der Gegner ist am Zug.',
     premoveHint: 'Der Gegner ist am Zug. Tippe oder ziehe eine Figur für einen Vorauszug.',
   },
@@ -116,6 +126,8 @@ export const play: Messages<typeof en> = {
   },
   reason: {
     checkmate: 'durch Schachmatt',
+    youNoFirstMove: 'du hast deinen ersten Zug nicht rechtzeitig gemacht',
+    oppNoFirstMove: 'dein Gegner hat seinen ersten Zug nicht rechtzeitig gemacht',
     resignation: 'durch Aufgabe',
     timeout: 'auf Zeit',
     timeout_vs_insufficient: 'Zeitüberschreitung bei ungenügendem Material',

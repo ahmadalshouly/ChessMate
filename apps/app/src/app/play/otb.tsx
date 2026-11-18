@@ -201,6 +201,7 @@ export default function OverTheBoard() {
                 lastMove={last ? { from: last.from, to: last.to } : null}
                 checkSquare={checkSquareOf(view.fen)}
                 onSquarePress={interaction.onSquarePress}
+                promotion={interaction.promotion}
                 {...interaction.dragProps}
               />
               {bar(bottom, false)}

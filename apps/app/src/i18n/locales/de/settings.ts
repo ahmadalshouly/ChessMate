@@ -26,13 +26,15 @@ export const settings: Messages<typeof en> = {
   },
   gameplay: {
     title: 'Spiel',
+    autoQueen: 'Immer in eine Dame umwandeln',
+    autoQueenDetail: 'Aus: Bei jeder Umwandlung Dame, Turm, Läufer oder Springer wählen.',
     confirmMoves: 'Züge vor dem Senden bestätigen',
     never: 'Nie',
     daily: 'Nur Fernschach',
     always: 'Immer',
     confirmResign: 'Vor dem Aufgeben bestätigen',
     premoves: 'Vorauszüge',
-    premovesDetail: 'Plane deinen nächsten Zug, während dein Gegner nachdenkt. Tippe woanders hin oder klicke rechts, um abzubrechen.',
+    premovesDetail: 'Plane Züge, während dein Gegner nachdenkt: im Web beliebig viele, auf dem Handy einen. Tippe woanders hin oder klicke rechts, um abzubrechen.',
   },
   notifications: {
     title: 'Benachrichtigungen',

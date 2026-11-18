@@ -110,6 +110,12 @@ export function SettingsScreen() {
               value={s.gameplay.premoves}
               onChange={(v) => set({ gameplay: { premoves: v } })}
             />
+            <ToggleRow
+              title={tr('settings.gameplay.autoQueen')}
+              detail={tr('settings.gameplay.autoQueenDetail')}
+              value={s.gameplay.autoQueen}
+              onChange={(v) => set({ gameplay: { autoQueen: v } })}
+            />
             <ToggleRow title={tr('settings.gameplay.confirmResign')} value={s.gameplay.confirmResign} onChange={(v) => set({ gameplay: { confirmResign: v } })} />
           </Section>
 

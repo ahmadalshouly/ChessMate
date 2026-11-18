@@ -32,6 +32,11 @@ export interface GameSnapshot {
   serverNow: number;
   drawOfferBy: Color | null;
   outcome: GameOutcome | null;
+  /**
+   * Server time by which the side to move must make its first move, or the
+   * game is aborted. Null once both sides have moved. Missing from old servers.
+   */
+  firstMoveDeadline?: number | null;
 }
 
 /** Colour a custom game's creator wants to play. */
@@ -73,6 +78,8 @@ export type ClientMessage =
       ratingRange?: [number, number];
       /** Fixed rating window (± points). Omit to let the window widen while waiting. */
       range?: number;
+      /** Side the player wants. Omit (or 'random') to take either. */
+      color?: ColorChoice;
     }
   | { t: 'cancelSeek' }
   | { t: 'lobbySub' }
@@ -128,7 +135,17 @@ export type ServerMessage =
   | { t: 'rematchDeclined'; gameId: string }
   | { t: 'gameStart'; game: GameSnapshot; you: Color }
   | { t: 'gameState'; game: GameSnapshot }
-  | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
+  | {
+      t: 'moved';
+      gameId: string;
+      uci: string;
+      san: string;
+      ply: number;
+      clock: ClockState;
+      serverNow: number;
+      /** See GameSnapshot.firstMoveDeadline: black's deadline after white's first move, then null. */
+      firstMoveDeadline?: number | null;
+    }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
   | {
@@ -138,6 +155,8 @@ export type ServerMessage =
       ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }>;
       /** Why ratings did not change, when they didn't ('casual', 'guest', 'too_short', ...). */
       unrated?: string;
+      /** Set when the game was aborted because this side did not make its first move in time. */
+      noFirstMove?: Color;
     }
   | {
       t: 'opponentConnection';

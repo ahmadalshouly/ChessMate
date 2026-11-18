@@ -1,4 +1,4 @@
-import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
+import { ALL_SQUARES, FILES, Game, PROMOTION_PIECES, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Animated, Image, PanResponder, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
@@ -9,6 +9,7 @@ import { useBoardAppearance } from '@/features/account/boardThemes';
 import { pieceImage } from '@/features/board/pieceSets';
 import { PLACE_ORIGIN, placeAt } from '@/components/boardLayout';
 import { haptic } from '@/lib/haptics';
+import type { PromotionPrompt } from '@/lib/usePromotion';
 import { useBoardTheme, type BoardTheme } from '@/ui';
 
 const PREMOVE_TINT = 'rgba(64, 104, 168, 0.42)';
@@ -24,8 +25,10 @@ export interface BoardProps {
   checkSquare?: Square | null;
   /** Squares to tint as under threat (feedback mode only). */
   threatened?: Square[];
-  /** Queued premove, tinted until it plays or is cancelled. */
-  premove?: { from: string; to: string } | null;
+  /** Queued premoves, tinted until they play or are cancelled. */
+  premoves?: readonly { from: string; to: string }[];
+  /** Open the promotion picker over this square (see usePromotion). */
+  promotion?: PromotionPrompt | null;
   onSquarePress?: (square: Square) => void;
   /** Whether the piece on a square can be picked up and dragged. Omit to allow taps only. */
   canDrag?: (square: Square) => boolean;
@@ -108,7 +111,7 @@ const Surface = memo(function Surface({ theme, orientation, size }: { theme: Boa
 });
 
 export const Board = memo(function Board(props: BoardProps) {
-  const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], premove, onSquarePress } = props;
+  const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], premoves = NO_PREMOVES, promotion, onSquarePress } = props;
   const { boardTheme } = useBoardTheme();
   const colors = props.theme ?? boardTheme;
   const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
@@ -120,6 +123,7 @@ export const Board = memo(function Board(props: BoardProps) {
   const coordinates = look.coordinates && !props.hideCoordinates && cell >= 24;
   const { enabled: dragEnabled, state: dragging, offset: dragOffset, ref: dragRef, handlers: dragHandlers } = useDrag({ ...props, position, cell, onSquarePress });
   const targetSet = new Set(targets);
+  const premoveSet = new Set(premoves.flatMap((p) => [p.from, p.to]));
   const threatSet = new Set(threatened);
 
   return (
@@ -136,7 +140,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const overlays: string[] = [];
         if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
         if (threatSet.has(sq)) overlays.push(colors.threat);
-        if (premove && (premove.from === sq || premove.to === sq)) overlays.push(PREMOVE_TINT);
+        if (premoveSet.has(sq)) overlays.push(PREMOVE_TINT);
         if (selected === sq) overlays.push(colors.selected);
         if (checkSquare === sq) overlays.push(colors.check);
         const coordColor = isLight ? colors.coordOnLight : colors.coordOnDark;
@@ -190,11 +194,49 @@ export const Board = memo(function Board(props: BoardProps) {
           <PieceView piece={dragging.piece} cell={cell} set={set} />
         </Animated.View>
       )}
+      {promotion && <PromotionPicker prompt={promotion} orientation={orientation} cell={cell} size={size} set={set} />}
       {/* Glass edge: a hairline highlight that sits on top of everything. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.edge, { borderColor: colors.frame, borderRadius: Math.max(4, size * 0.012) }]} />
     </View>
   );
 });
+
+const NO_PREMOVES: readonly { from: string; to: string }[] = [];
+
+/**
+ * Queen, knight, rook and bishop stacked on the promotion file, starting on the
+ * promotion square and running toward the middle of the board. Tapping
+ * anywhere else, or right-clicking, dismisses it and the pawn stays put.
+ */
+function PromotionPicker({ prompt, orientation, cell, size, set }: { prompt: PromotionPrompt; orientation: Color; cell: number; size: number; set: PieceSet }) {
+  const file = prompt.square.charCodeAt(0) - 97;
+  const rank = Number(prompt.square[1]);
+  const col = orientation === 'w' ? file : 7 - file;
+  const row = orientation === 'w' ? 8 - rank : rank - 1;
+  const down = row < 4;
+  return (
+    <View style={[StyleSheet.absoluteFill, PLACE_ORIGIN, { zIndex: 20 }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cancel promotion" onPress={() => prompt.onPick(null)} style={[StyleSheet.absoluteFill, styles.promoBackdrop]} />
+      {PROMOTION_PIECES.map((type, i) => (
+        <Pressable
+          key={type}
+          accessibilityRole="button"
+          accessibilityLabel={`Promote to ${{ q: 'queen', n: 'knight', r: 'rook', b: 'bishop' }[type]}`}
+          onPress={() => {
+            haptic('pickup');
+            prompt.onPick(type);
+          }}
+          style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
+            placeAt(col * cell, (down ? row + i : row - i) * cell, cell, cell, size),
+            styles.promoCell,
+            { borderRadius: cell / 2, backgroundColor: hovered ? 'rgba(255,255,255,0.98)' : 'rgba(245,245,247,0.92)' },
+          ]}>
+          <PieceView piece={{ color: prompt.color, type }} cell={cell * 0.86} set={set} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
 
 function PieceView({ piece, cell, set }: { piece: Piece; cell: number; set: PieceSet }) {
   return <Image source={pieceImage(set, piece.color, piece.type)} style={{ width: cell, height: cell }} resizeMode="contain" accessibilityIgnoresInvertColors />;
@@ -321,4 +363,16 @@ const styles = StyleSheet.create({
   coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
   lifted: { opacity: 0.3 },
   floating: { position: 'absolute', zIndex: 10 },
+  promoBackdrop: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  promoCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
 });

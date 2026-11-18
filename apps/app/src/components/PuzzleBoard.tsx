@@ -42,7 +42,7 @@ export function PuzzleBoard({
 }) {
   const t = useTheme();
   const tr = useT();
-  const interaction = useBoardInteraction(view.fen, (c) => view.canMove && c === view.solver, view.play);
+  const interaction = useBoardInteraction(view.fen, (c) => view.canMove && c === view.solver, view.play, { alwaysAskPromotion: true });
   const side = colorLabel(view.solver);
   const tone = view.feedback === 'wrong' || view.feedback === 'failed' ? t.danger : view.feedback === 'solved' || view.feedback === 'correct' ? SUCCESS[t.scheme] : t.text;
   const over = view.feedback === 'solved' || view.feedback === 'failed';
@@ -59,6 +59,7 @@ export function PuzzleBoard({
         lastMove={view.lastMove}
         checkSquare={checkSquareOf(view.fen)}
         onSquarePress={interaction.onSquarePress}
+        promotion={interaction.promotion}
         {...interaction.dragProps}
       />
       <Card>
