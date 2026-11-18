@@ -16,6 +16,8 @@ export function useRecordOnlineGame(view: GameView | null) {
     if (!view?.outcome || saved.current === view.gameId) return;
     const { outcome, white, black, timeControl } = view;
     if (outcome.reason === 'aborted') return;
+    // The archive replays standard chess; Secret Queen games are not saved yet.
+    if (view.variant !== 'standard') return;
     saved.current = view.gameId;
     const delta = (c: 'w' | 'b') => {
       const rc = view.ratingChange?.[c];

@@ -16,6 +16,7 @@ export const play: Messages<typeof en> = {
     customTitle: 'Eigene Bedenkzeit',
     options: 'Optionen',
     mode: 'Modus',
+    standardHint: 'Klassische Schachregeln.',
     ratedHint: 'Deine Wertung ändert sich nach der Partie.',
     casualHint: 'Keine Wertungsänderung.',
     opponent: 'Gegner',

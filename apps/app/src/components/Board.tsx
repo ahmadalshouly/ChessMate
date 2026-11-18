@@ -1,4 +1,5 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Animated, Image, PanResponder, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
@@ -39,6 +40,11 @@ export interface BoardProps {
   pieces?: PieceSet;
   /** Hide coordinates regardless of settings (thumbnails). */
   hideCoordinates?: boolean;
+  /**
+   * Secret Queen: crown badges on pawns that are really queens. `mine` is your
+   * own hidden queen (only you see it); `shown` is one exposed when the game ended.
+   */
+  secretMarks?: { square: Square; kind: 'mine' | 'shown' }[];
 }
 
 /** How far a press can wander (px) and still count as a tap. */
@@ -121,6 +127,7 @@ export const Board = memo(function Board(props: BoardProps) {
   const { enabled: dragEnabled, state: dragging, offset: dragOffset, ref: dragRef, handlers: dragHandlers } = useDrag({ ...props, position, cell, onSquarePress });
   const targetSet = new Set(targets);
   const threatSet = new Set(threatened);
+  const marks = new Map((props.secretMarks ?? []).map((m) => [m.square, m.kind]));
 
   return (
     // The board never mirrors: files run a to h left to right in every language (see placeAt).
@@ -165,6 +172,7 @@ export const Board = memo(function Board(props: BoardProps) {
                 <PieceView piece={piece} cell={cell} set={set} />
               </View>
             )}
+            {piece && marks.has(sq) && dragging?.from !== sq && <SecretBadge cell={cell} kind={marks.get(sq)!} />}
             {dragging?.over === sq && dragging.over !== dragging.from && (
               <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: Math.max(2, cell * 0.06), borderColor: colors.hint }]} />
             )}
@@ -195,6 +203,31 @@ export const Board = memo(function Board(props: BoardProps) {
     </View>
   );
 });
+
+/** Small glass crown in the corner of a square: this pawn is a queen in disguise. */
+function SecretBadge({ cell, kind }: { cell: number; kind: 'mine' | 'shown' }) {
+  const d = Math.max(14, cell * 0.34);
+  return (
+    <View
+      pointerEvents="none"
+      accessibilityLabel={kind === 'mine' ? 'your secret queen' : 'secret queen'}
+      style={[
+        styles.badge,
+        {
+          width: d,
+          height: d,
+          borderRadius: d / 2,
+          right: cell * 0.04,
+          top: cell * 0.04,
+          backgroundColor: kind === 'mine' ? 'rgba(10,10,12,0.78)' : 'rgba(255,255,255,0.82)',
+          borderColor: kind === 'mine' ? 'rgba(255,255,255,0.7)' : 'rgba(10,10,12,0.55)',
+          borderStyle: kind === 'mine' ? 'solid' : 'dashed',
+        },
+      ]}>
+      <MaterialCommunityIcons name="crown" size={d * 0.66} color={kind === 'mine' ? '#fff' : '#0a0a0c'} />
+    </View>
+  );
+}
 
 function PieceView({ piece, cell, set }: { piece: Piece; cell: number; set: PieceSet }) {
   return <Image source={pieceImage(set, piece.color, piece.type)} style={{ width: cell, height: cell }} resizeMode="contain" accessibilityIgnoresInvertColors />;
@@ -321,4 +354,15 @@ const styles = StyleSheet.create({
   coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
   lifted: { opacity: 0.3 },
   floating: { position: 'absolute', zIndex: 10 },
+  badge: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
+  },
 });

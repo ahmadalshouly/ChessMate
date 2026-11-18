@@ -33,4 +33,7 @@ export const server: Messages<typeof en> = {
   notOnline: '{name} غير متصل الآن.',
   inAnotherGame: '{name} في مباراة أخرى.',
   chatRestricted: { other: 'الدردشة معطّلة لحسابك لمدة {count} دقيقة أخرى.' },
+  secretRequired: "اختر ملكتك السرية أولاً",
+  secretBlocked: "الملكة السرية لخصمك تمنع هذه النقلة",
+  secretBadPick: "لا يمكنك اختيار هذا البيدق",
 };

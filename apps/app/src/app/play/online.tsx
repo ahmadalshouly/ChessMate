@@ -1,4 +1,4 @@
-import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
+import { formatTimeControl, parseTimeControl, timeCategory, type Color, type SecretReveal, type Square } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -30,7 +30,7 @@ import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
 
-type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch';
+type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'secretRules';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
@@ -60,7 +60,7 @@ export default function OnlinePlay() {
   useRecordOnlineGame(view);
 
   // Move and resign confirmation follow the user's gameplay settings.
-  const prefs = useGameplayPrefs(view?.fen ?? START, timeCategory(view?.timeControl ?? quickTc ?? DEFAULT_TC), (uci) => playClient.move(uci));
+  const prefs = useGameplayPrefs(view?.moveFen ?? START, timeCategory(view?.timeControl ?? quickTc ?? DEFAULT_TC), (uci) => playClient.move(uci));
   const board = usePlayBoard(view, prefs.move);
   const chat = useGameChat(view?.gameId ?? null, s.me?.id ?? null, playClient.send, playClient.onServerMessage);
 
@@ -86,7 +86,7 @@ export default function OnlinePlay() {
 
   const newGame = () => {
     if (!view) return;
-    playClient.seek({ timeControl: view.timeControl, rated: view.rated });
+    playClient.seek({ timeControl: view.timeControl, rated: view.rated, ...(view.variant !== 'standard' ? { variant: view.variant } : {}) });
   };
   const toLobby = () => {
     playClient.dismissFinished();
@@ -109,7 +109,8 @@ export default function OnlinePlay() {
     setPanel(panel === p ? null : p);
   };
 
-  const title = view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
+  const title = view
+    ? `${formatTimeControl(view.timeControl)} · ${view.variant === 'secretQueen' ? tr('secretQueen.name') : view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
   const connectionNotice = s.closedReason ? (
     <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
@@ -186,7 +187,23 @@ export default function OnlinePlay() {
   const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
   const boardLast = nav.live ? last : shownMove;
   const oppOfferedRematch = view.rematchBy === opp;
-  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
+  // Review and the archive replay standard chess, so Secret Queen games skip them for now.
+  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0 && view.variant === 'standard';
+  const secret = view.secret;
+  const revealText = (r: SecretReveal) => {
+    const who = r.color === you ? 'Your' : 'Their';
+    return tr(`secretQueen.revealed.${r.cause}`, { queen: tr(`secretQueen.side${who}`), queenLower: tr(`secretQueen.side${who}Lower`), square: r.square });
+  };
+  const secretMarks: { square: Square; kind: 'mine' | 'shown' }[] = !secret || !nav.live
+    ? []
+    : [
+        ...(secret.yours && !over ? [{ square: secret.yours, kind: 'mine' as const }] : []),
+        ...secret.reveals.filter((r) => r.cause === 'gameEnd').map((r) => ({ square: r.square, kind: 'shown' as const })),
+      ];
+  const picking = live && board.picking;
+  const oppPicking = live && !!secret && !secret.picked[opp];
+  // Announce a reveal until the next move is played (end-of-game reveals stay with the result).
+  const reveal = secret?.lastReveal && (secret.lastReveal.cause === 'gameEnd' || secret.lastReveal.ply >= history.length) ? secret.lastReveal : null;
 
   const openReview = () =>
     router.push({
@@ -223,12 +240,13 @@ export default function OnlinePlay() {
 
   const moreItems: OptionItem[] = [
     { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlipped((f) => !f) },
+    ...(secret ? [{ key: 'secretRules', icon: 'crown-outline' as const, label: tr('secretQueen.rulesTitle'), onPress: () => setPanel('secretRules') }] : []),
     ...(view.premove ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.setPremove(null) }] : []),
     ...(over
       ? [
           ...(hideResult ? [{ key: 'result', icon: 'trophy-outline' as const, label: tr('game.over.showResult'), onPress: () => { setHideResult(false); setPanel(null); } }] : []),
           { key: 'new', icon: 'plus-circle-outline' as const, label: tr('game.more.newGame', { tc: formatTimeControl(view.timeControl) }), onPress: newGame },
-          ...(view.outcome!.reason !== 'aborted'
+          ...(view.outcome!.reason !== 'aborted' && view.variant === 'standard'
             ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } }) }]
             : []),
           { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
@@ -238,6 +256,13 @@ export default function OnlinePlay() {
 
   const notices = (
     <>
+      {picking && (
+        <BoardNotice icon="crown" text={tr('secretQueen.pickTitle')} strong>
+          <NoticeButton icon="help-circle-outline" label={tr('secretQueen.rulesTitle')} onPress={() => setPanel('secretRules')} />
+        </BoardNotice>
+      )}
+      {live && !picking && oppPicking && <BoardNotice icon="crown-outline" text={tr('secretQueen.oppPicking')} />}
+      {reveal && <BoardNotice icon="crown" text={revealText(reveal)} strong={reveal.color !== you} />}
       {live && prefs.pending && (
         <BoardNotice icon="help-circle-outline" text={tr('play.confirmMoveQ', { san: prefs.pending.san })} strong>
           <NoticeButton icon="close" label={tr('common.cancel')} onPress={prefs.cancel} />
@@ -260,7 +285,7 @@ export default function OnlinePlay() {
       {s.error && <BoardNotice icon="alert-circle-outline" text={serverText(s.error)} />}
     </>
   );
-  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected)) || !!s.error;
+  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || picking || oppPicking)) || !!reveal || !!s.error;
   const oppName = players[opp].name;
 
   const popover =
@@ -270,6 +295,8 @@ export default function OnlinePlay() {
       </View>
     ) : panel === 'more' ? (
       <OptionsPanel title={tr('game.more.title')} onClose={() => setPanel(null)} items={moreItems.map((it) => ({ ...it, onPress: confirmThen(it.onPress) }))} />
+    ) : panel === 'secretRules' ? (
+      <ConfirmPanel icon="crown" title={tr('secretQueen.rulesTitle')} body={`${tr('secretQueen.rules')}${over ? '' : `\n\n${tr('secretQueen.noReview')}`}`} confirmLabel={tr('common.close')} onConfirm={() => setPanel(null)} onCancel={() => setPanel(null)} />
     ) : panel === 'draw' ? (
       <ConfirmPanel icon="handshake-outline" title={tr('game.confirm.drawTitle')} body={tr('game.confirm.drawBody')} confirmLabel={tr('game.confirm.draw')} onConfirm={confirmThen(playClient.offerDraw)} onCancel={() => setPanel(null)} />
     ) : panel === 'abort' ? (
@@ -305,6 +332,7 @@ export default function OnlinePlay() {
               premove={nav.live ? view.premove : null}
               lastMove={boardLast ? { from: boardLast.from, to: boardLast.to } : null}
               checkSquare={checkSquareOf(boardFen)}
+              secretMarks={secretMarks}
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />

@@ -36,4 +36,7 @@ export const server: Messages<typeof en> = {
     one: 'Der Chat ist für dein Konto noch {count} Minute gesperrt.',
     other: 'Der Chat ist für dein Konto noch {count} Minuten gesperrt.',
   },
+  secretRequired: "Wähle zuerst deine geheime Dame",
+  secretBlocked: "Die geheime Dame deines Gegners verhindert diesen Zug",
+  secretBadPick: "Diesen Bauern kannst du nicht wählen",
 };

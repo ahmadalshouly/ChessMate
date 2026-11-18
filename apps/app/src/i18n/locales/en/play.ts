@@ -13,6 +13,7 @@ export const play = {
     customTitle: 'Custom time control',
     options: 'Options',
     mode: 'Mode',
+    standardHint: 'Classic chess rules.',
     ratedHint: 'Your rating changes after the game.',
     casualHint: 'No rating change.',
     opponent: 'Opponent',

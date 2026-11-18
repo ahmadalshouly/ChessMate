@@ -1,6 +1,7 @@
 import {
   Game,
   PROTOCOL_VERSION,
+  SecretQueenGame,
   decodeServer,
   encode,
   remaining,
@@ -19,9 +20,11 @@ import {
   type PlayedMove,
   type PlayerInfo,
   type Rating,
+  type SecretReveal,
   type ServerMessage,
   type Square,
   type TimeControl,
+  type Variant,
 } from '@chessmate/core';
 import { useSyncExternalStore } from 'react';
 
@@ -44,6 +47,20 @@ export interface SeekRequest {
   rated: boolean;
   /** Fixed ± rating window; undefined widens automatically. */
   range?: number;
+  /** Omitted for standard chess. */
+  variant?: Variant;
+}
+
+/** Secret Queen state as this player sees it. */
+export interface SecretView {
+  /** Your hidden queen's square, while it is hidden. */
+  yours: Square | null;
+  picked: Record<Color, boolean>;
+  /** Squares you may still pick (your pawns, before your first move). */
+  pickable: Square[];
+  reveals: SecretReveal[];
+  /** The newest reveal, to announce it. */
+  lastReveal: SecretReveal | null;
 }
 
 export interface SeekStatus {
@@ -61,7 +78,12 @@ export interface GameView {
   black: PlayerInfo;
   timeControl: TimeControl;
   rated: boolean;
+  variant: Variant;
   fen: string;
+  /** Position to generate your moves from: `fen` with your hidden queen shown as a queen. */
+  moveFen: string;
+  /** Secret Queen games only. */
+  secret: SecretView | null;
   history: PlayedMove[];
   clock: ClockState;
   /** Add to Date.now() to get server time. */
@@ -130,7 +152,7 @@ class PlayClient {
   /** Supplies the signed-in player's access token (refreshed as needed); null for guests. */
   private tokenProvider: (() => Promise<string | null>) | null = null;
   private ws: WebSocket | null = null;
-  private game = new Game();
+  private game: Game | SecretQueenGame = new Game();
   private retry = 0;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private lobbySubs = 0;
@@ -259,7 +281,7 @@ class PlayClient {
     if (g && !g.outcome) return; // the server resumes the game itself
     if (this.state.seek) this.send({ t: 'seek', ...this.state.seek });
     const og = this.state.openGame;
-    if (og) this.send({ t: 'createOpenGame', timeControl: og.timeControl, rated: og.rated, color: og.color, range: og.range });
+    if (og) this.send({ t: 'createOpenGame', timeControl: og.timeControl, rated: og.rated, color: og.color, range: og.range, variant: og.variant });
   }
 
   // ---- server messages ----
@@ -298,6 +320,19 @@ class PlayClient {
         return;
       case 'moved':
         return this.onMoved(m);
+      case 'secretPicked': {
+        const g = this.game;
+        if (this.state.game?.gameId !== m.gameId || !(g instanceof SecretQueenGame)) return;
+        if (m.square) g.pick(m.color, m.square);
+        else g.markPicked(m.color);
+        return this.patchGame(this.boardPatch());
+      }
+      case 'secretReveal': {
+        const g = this.game;
+        if (this.state.game?.gameId !== m.gameId || !(g instanceof SecretQueenGame)) return;
+        for (const r of m.reveals) g.applyReveal(r);
+        return this.patchGame(this.boardPatch(m.reveals[m.reveals.length - 1]));
+      }
       case 'drawOffered':
         return this.patchGame({ drawOfferBy: m.by });
       case 'drawDeclined':
@@ -336,9 +371,32 @@ class PlayClient {
     }
   }
 
+  /** Board fields of the view, from the current game. */
+  private boardPatch(lastReveal?: SecretReveal): Pick<GameView, 'fen' | 'moveFen' | 'history' | 'secret'> {
+    const g = this.game;
+    const you = this.state.game?.you ?? 'w';
+    if (!(g instanceof SecretQueenGame)) return { fen: g.fen, moveFen: g.fen, history: g.history(), secret: null };
+    const info = g.info(you);
+    return {
+      fen: g.fen,
+      moveFen: g.fenFor(you),
+      history: g.history(),
+      secret: { ...info, pickable: g.pickable(you), lastReveal: lastReveal ?? this.state.game?.secret?.lastReveal ?? null },
+    };
+  }
+
   private load(s: GameSnapshot, you: Color) {
-    this.game = Game.fromUciMoves(s.moves, s.initialFen);
+    const variant: Variant = s.variant ?? 'standard';
+    this.game =
+      variant === 'secretQueen' && s.secretQueen
+        ? SecretQueenGame.replay(s.initialFen, s.moves, s.secretQueen, you)
+        : Game.fromUciMoves(s.moves, s.initialFen);
     const prev = this.state.game?.gameId === s.gameId ? this.state.game : null;
+    const g = this.game;
+    const secret: SecretView | null =
+      g instanceof SecretQueenGame
+        ? { ...g.info(you), pickable: g.pickable(you), lastReveal: prev?.secret?.lastReveal ?? g.reveals[g.reveals.length - 1] ?? null }
+        : null;
     this.set({
       game: {
         gameId: s.gameId,
@@ -347,8 +405,11 @@ class PlayClient {
         black: s.black,
         timeControl: s.timeControl,
         rated: s.rated,
-        fen: this.game.fen,
-        history: this.game.history(),
+        variant,
+        fen: g.fen,
+        moveFen: g instanceof SecretQueenGame ? g.fenFor(you) : g.fen,
+        secret,
+        history: g.history(),
         clock: s.clock,
         clockOffset: s.serverNow - Date.now(),
         outcome: s.outcome,
@@ -369,20 +430,24 @@ class PlayClient {
     const view = this.state.game;
     if (!view || view.gameId !== m.gameId) return;
     const g = this.game;
+    const reveals = m.reveals ?? [];
     let mover: Color | null = null;
     if (g.ply === m.ply - 1) {
-      const played = g.move(m.uci);
-      mover = played?.color ?? null;
-      if (played) moveFeedback(played.san);
+      const played = g instanceof SecretQueenGame ? g.applyRemote(m.uci, reveals) : g.move(m.uci);
+      if (!played) return this.send({ t: 'join', gameId: m.gameId });
+      mover = played.color;
+      moveFeedback(played.san);
     } else if (g.ply !== m.ply) {
       return this.send({ t: 'join', gameId: m.gameId });
+    } else if (g instanceof SecretQueenGame) {
+      // Our own move coming back: pick up what we could not know (we took their hidden queen).
+      for (const r of reveals) g.applyReveal(r);
     }
     this.patchGame({
       clock: m.clock,
       clockOffset: m.serverNow - Date.now(),
       drawOfferBy: null,
-      fen: g.fen,
-      history: g.history(),
+      ...this.boardPatch(reveals[reveals.length - 1]),
     });
     // Opponent just moved: fire the queued premove if it is legal now.
     const pm = this.state.game?.premove;
@@ -406,9 +471,9 @@ class PlayClient {
     this.send({ t: 'cancelSeek' });
   }
 
-  createOpenGame(timeControl: TimeControl, rated: boolean, color: ColorChoice, range?: number) {
+  createOpenGame(timeControl: TimeControl, rated: boolean, color: ColorChoice, range?: number, variant?: Variant) {
     this.dismissFinished();
-    this.send({ t: 'createOpenGame', timeControl, rated, color, range });
+    this.send({ t: 'createOpenGame', timeControl, rated, color, range, ...(variant && variant !== 'standard' ? { variant } : {}) });
   }
 
   cancelOpenGame() {
@@ -437,11 +502,29 @@ class PlayClient {
     const g = this.game;
     if (!view || view.outcome || g.turn !== view.you) return false;
     const ply = g.ply;
-    const played = g.move(uci);
+    let played: PlayedMove | null;
+    let reveals: SecretReveal[] = [];
+    if (g instanceof SecretQueenGame) {
+      const res = g.move(view.you, uci);
+      if (!('played' in res)) return false;
+      played = res.played;
+      reveals = res.reveals;
+    } else played = g.move(uci);
     if (!played) return false;
     moveFeedback(played.san);
-    this.patchGame({ fen: g.fen, history: g.history() });
+    this.patchGame(this.boardPatch(reveals[reveals.length - 1]));
     this.send({ t: 'move', gameId: view.gameId, uci, ply });
+    return true;
+  }
+
+  /** Secret Queen: choose one of your pawns as your hidden queen. Shown right away; the server confirms. */
+  pickSecret(square: Square): boolean {
+    const view = this.state.game;
+    const g = this.game;
+    if (!view || view.outcome || !(g instanceof SecretQueenGame) || !g.pick(view.you, square)) return false;
+    haptic('premove');
+    this.patchGame(this.boardPatch());
+    this.send({ t: 'secretPick', gameId: view.gameId, square });
     return true;
   }
 

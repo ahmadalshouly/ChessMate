@@ -33,4 +33,7 @@ export const server = {
     one: 'Chat is disabled for your account for {count} more minute.',
     other: 'Chat is disabled for your account for {count} more minutes.',
   },
+  secretRequired: "Pick your secret queen first",
+  secretBlocked: "Your opponent's secret queen stops that move",
+  secretBadPick: "You cannot pick that pawn",
 };

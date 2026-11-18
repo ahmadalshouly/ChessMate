@@ -15,12 +15,16 @@ import { playClient, type GameView } from './playClient';
 export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boolean = (uci) => playClient.move(uci)) {
   const [selected, setSelected] = useState<Square | null>(null);
   const premovesOn = useSettings().gameplay.premoves;
-  const fen = view?.fen;
+  // Your own hidden queen (Secret Queen) moves as a queen, so moves come from `moveFen`.
+  const fen = view?.moveFen ?? view?.fen;
   const game = useMemo(() => (fen ? new Game(fen) : null), [fen]);
   const live = !!view && !view.outcome && !!game;
   const myTurn = live && game!.turn === view!.you;
   const canPremove = live && !myTurn && premovesOn;
   const queued = view?.premove ?? null;
+  // Secret Queen: before your first move, tapping one of your pawns makes it your hidden queen.
+  const picking = live && !!view!.secret && !view!.secret.picked[view!.you];
+  const pickable = picking ? view!.secret!.pickable : [];
 
   // Turning premoves off drops anything already queued.
   useEffect(() => {
@@ -28,12 +32,12 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
   }, [premovesOn, queued]);
 
   const destsFrom = (from: Square): Square[] =>
-    !live ? [] : myTurn ? game!.legalMoves(from).map((m) => m.to) : canPremove ? premoveDests(view!.fen, view!.you, from) : [];
-  const targets: Square[] = selected ? destsFrom(selected) : [];
+    !live ? [] : myTurn ? game!.legalMoves(from).map((m) => m.to) : canPremove ? premoveDests(fen!, view!.you, from) : [];
+  const targets: Square[] = picking ? pickable : selected ? destsFrom(selected) : [];
 
   const movable = (sq: Square) => {
     const piece = game?.raw.get(sq);
-    return !!piece && !!view && piece.color === view.you && (myTurn || canPremove);
+    return !picking && !!piece && !!view && piece.color === view.you && (myTurn || canPremove);
   };
 
   const commit = (from: Square, to: Square): boolean => {
@@ -48,6 +52,11 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
 
   const onSquarePress = (sq: Square) => {
     if (!live || !view || !game) return;
+    if (picking) {
+      if (pickable.includes(sq)) playClient.pickSecret(sq);
+      else haptic('illegal');
+      return;
+    }
     if (selected && targets.includes(sq)) {
       commit(selected, sq);
       setSelected(null);
@@ -69,5 +78,5 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
     if (queued) playClient.setPremove(null);
   };
 
-  return { selected, targets, onSquarePress, myTurn, canPremove, cancel, dragProps: { canDrag: movable, onPieceDrop, onCancel: cancel } };
+  return { selected, targets, onSquarePress, myTurn, canPremove, cancel, picking, dragProps: { canDrag: movable, onPieceDrop, onCancel: cancel } };
 }

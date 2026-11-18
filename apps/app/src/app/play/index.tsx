@@ -1,4 +1,4 @@
-import { formatTimeControl, parseTimeControl, timeCategory, type ColorChoice, type OpenGame, type TimeControl } from '@chessmate/core';
+import { formatTimeControl, parseTimeControl, timeCategory, type ColorChoice, type OpenGame, type TimeControl, type Variant } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -44,7 +44,10 @@ export default function Lobby() {
   const [custom, setCustom] = useState({ min: 7, inc: 2 });
   // Signed-in players default to rated so every game counts toward their Elo; casual stays one tap away.
   const [ratedPref, setRated] = useState(true);
-  const rated = ratedPref && !guest;
+  const [variant, setVariant] = useState<Variant>('standard');
+  // Variants are always casual: ratings measure standard chess.
+  const rated = ratedPref && !guest && variant === 'standard';
+  const modeLabel = variant === 'secretQueen' ? tr('secretQueen.name') : rated ? tr('play.rated') : tr('play.casual');
   const [window, setWindow] = useState<Window>(0);
   const [color, setColor] = useState<ColorChoice>('random');
 
@@ -71,13 +74,14 @@ export default function Lobby() {
   const poolCount = (key: string) => {
     const tc = parseTimeControl(key);
     return (s.lobby?.pools ?? [])
-      .filter((p) => p.timeControl.initialMs === tc.initialMs && p.timeControl.incrementMs === tc.incrementMs)
+      .filter((p) => p.timeControl.initialMs === tc.initialMs && p.timeControl.incrementMs === tc.incrementMs && (p.variant ?? 'standard') === variant)
       .reduce((n, p) => n + p.seeking, 0);
   };
 
   const step = (list: number[], cur: number, dir: 1 | -1) => list[Math.max(0, Math.min(list.length - 1, list.indexOf(cur) + dir))]!;
-  const play = () => playClient.seek({ timeControl, rated, range });
-  const create = () => playClient.createOpenGame(timeControl, rated, color, range);
+  const variantOpt = variant === 'standard' ? {} : { variant };
+  const play = () => playClient.seek({ timeControl, rated, range, ...variantOpt });
+  const create = () => playClient.createOpenGame(timeControl, rated, color, range, variant);
 
   const status = online ? tr('play.lobby.online', { count: s.lobby?.online ?? 0, n: formatNumber(s.lobby?.online ?? 0) }) : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');
 
@@ -147,14 +151,26 @@ export default function Lobby() {
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={2} title={tr('play.lobby.options')} />
         <GlassView radius="xl" style={styles.options}>
-          <OptionRow label={tr('play.lobby.mode')} hint={guest ? tr('server.signInRated') : rated ? tr('play.lobby.ratedHint') : tr('play.lobby.casualHint')}>
+          <OptionRow label={tr('secretQueen.variant')} hint={variant === 'secretQueen' ? tr('secretQueen.variantHint') : tr('play.lobby.standardHint')}>
+            <Segmented<Variant>
+              size="sm"
+              value={variant}
+              onChange={setVariant}
+              options={[
+                { value: 'standard', label: tr('secretQueen.standard') },
+                { value: 'secretQueen', label: tr('secretQueen.name') },
+              ]}
+            />
+          </OptionRow>
+          <View style={[styles.rule, { backgroundColor: c.border }]} />
+          <OptionRow label={tr('play.lobby.mode')} hint={variant !== 'standard' ? tr('secretQueen.variantHint') : guest ? tr('server.signInRated') : rated ? tr('play.lobby.ratedHint') : tr('play.lobby.casualHint')}>
             <Segmented
               size="sm"
               value={rated ? 'rated' : 'casual'}
               onChange={(v) => setRated(v === 'rated')}
               options={[
                 { value: 'casual', label: tr('play.casual') },
-                { value: 'rated', label: tr('play.rated'), disabled: guest },
+                { value: 'rated', label: tr('play.rated'), disabled: guest || variant !== 'standard' },
               ]}
             />
           </OptionRow>
@@ -188,7 +204,7 @@ export default function Lobby() {
         </GlassView>
       </View>
 
-      {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} onPlay={play} onCreate={create} />}
+      {wide && <ActionPanel tcLabel={tcLabel} category={category} modeLabel={modeLabel} canStart={canStart} onPlay={play} onCreate={create} />}
     </View>
   );
 
@@ -265,7 +281,7 @@ export default function Lobby() {
                   {tcLabel}
                 </Text>
                 <Text variant="overline" tone="muted">
-                  {category} · {rated ? tr('play.rated') : tr('play.casual')}
+                  {category} · {modeLabel}
                 </Text>
               </View>
               <Button title={tr('play.lobby.createShort')} variant="ghost" size="md" disabled={!canStart} onPress={create} />
@@ -294,7 +310,7 @@ function OptionRow({ label, hint, children }: { label: string; hint: string; chi
 }
 
 /** Wide screens: summary of the chosen game and the two actions. */
-function ActionPanel({ tcLabel, category, rated, canStart, onPlay, onCreate }: { tcLabel: string; category: string; rated: boolean; canStart: boolean; onPlay: () => void; onCreate: () => void }) {
+function ActionPanel({ tcLabel, category, modeLabel, canStart, onPlay, onCreate }: { tcLabel: string; category: string; modeLabel: string; canStart: boolean; onPlay: () => void; onCreate: () => void }) {
   const t = useAppTheme();
   const tr = useT();
   const c = t.colors;
@@ -307,7 +323,7 @@ function ActionPanel({ tcLabel, category, rated, canStart, onPlay, onCreate }: {
         <Text variant="figure" style={{ fontSize: 30, lineHeight: 34 }}>
           {tcLabel}{' '}
           <Text variant="body" tone="muted">
-            {category} · {rated ? tr('play.rated') : tr('play.casual')}
+            {category} · {modeLabel}
           </Text>
         </Text>
       </View>
@@ -337,6 +353,7 @@ function SeekingCard() {
       <Text variant="title" style={{ fontSize: 28, lineHeight: 32 }}>
         {tr(s.seek.rated ? 'play.lobby.findingRated' : 'play.lobby.findingCasual', { tc: formatTimeControl(s.seek.timeControl) })}
       </Text>
+      {s.seek.variant === 'secretQueen' && <Pill text={tr('secretQueen.name')} />}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {st && <Pill text={st.window === null ? tr('play.lobby.anyRating') : tr('play.lobby.ratingWindow', { n: st.window })} />}
         {st && <Pill text={tr('play.lobby.othersSearching', { count: st.poolSize })} />}
@@ -385,7 +402,7 @@ function OpenGamesList() {
                   </Text>
                 </Text>
                 <Text variant="caption" tone="tertiary" numberOfLines={1}>
-                  {g.rated ? tr('play.rated') : tr('play.casual')} · {mine ? tr('play.lobby.yourGame') : sideText(g)}
+                  {g.variant === 'secretQueen' ? tr('secretQueen.lobbyTag') : g.rated ? tr('play.rated') : tr('play.casual')} · {mine ? tr('play.lobby.yourGame') : sideText(g)}
                   {g.range ? ` · ±${g.range}` : ''}
                 </Text>
               </View>

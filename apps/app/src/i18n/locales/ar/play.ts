@@ -16,6 +16,7 @@ export const play: Messages<typeof en> = {
     customTitle: 'وقت مخصص',
     options: 'الخيارات',
     mode: 'النمط',
+    standardHint: 'قواعد الشطرنج الكلاسيكية.',
     ratedHint: 'يتغير تصنيفك بعد المباراة.',
     casualHint: 'لا يتغير التصنيف.',
     opponent: 'الخصم',
