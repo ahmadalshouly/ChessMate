@@ -14,6 +14,7 @@ import {
   type ColorChoice,
   type GameOutcome,
   type GameSnapshot,
+  type GameTournamentRef,
   type LobbyState,
   type OpenGame,
   type PlayedMove,
@@ -77,6 +78,8 @@ export interface GameView {
   rematchBy: Color | null;
   rematchDeclined: boolean;
   premove: { from: string; to: string } | null;
+  /** Set for tournament games: no aborts or rematches, and a way back to the tournament. */
+  tournament: GameTournamentRef | null;
 }
 
 export interface PlayState {
@@ -360,6 +363,7 @@ class PlayClient {
         rematchBy: null,
         rematchDeclined: false,
         premove: prev?.premove ?? null,
+        tournament: s.tournament ?? null,
       },
       error: null,
     });

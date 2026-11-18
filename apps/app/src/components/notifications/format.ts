@@ -21,5 +21,6 @@ export const KIND_GLYPH: Record<NotificationKind, string> = {
   friend_accepted: '✓',
   your_turn: '♞',
   review_ready: '★',
+  tournament: '♛',
   system: 'i',
 };

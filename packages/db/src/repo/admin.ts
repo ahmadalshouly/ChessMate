@@ -82,7 +82,7 @@ export interface AuditInput {
   actorId: string;
   actorName: string;
   action: string;
-  targetType: 'user' | 'report' | 'game' | 'case' | 'system';
+  targetType: 'user' | 'report' | 'game' | 'case' | 'tournament' | 'system';
   targetId?: string | null;
   targetName?: string | null;
   reason?: string | null;

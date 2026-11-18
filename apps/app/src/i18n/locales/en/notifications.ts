@@ -59,6 +59,10 @@ export const notifications = {
       label: 'Game review ready',
       description: 'The coach finished reviewing your game',
     },
+    tournament: {
+      label: 'Tournaments',
+      description: 'Tournaments you joined are starting, and your final place',
+    },
     system: {
       label: 'Account and security',
       description: 'Important account messages',

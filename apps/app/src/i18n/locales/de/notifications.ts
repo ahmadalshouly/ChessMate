@@ -62,6 +62,10 @@ export const notifications: Messages<typeof en> = {
       label: 'Partieanalyse fertig',
       description: 'Der Coach hat deine Partie analysiert',
     },
+    tournament: {
+      label: 'Turniere',
+      description: 'Deine Turniere beginnen, und deine Endplatzierung',
+    },
     system: {
       label: 'Konto und Sicherheit',
       description: 'Wichtige Kontonachrichten',

@@ -7,6 +7,7 @@ import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
 import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
+import type { GameTournamentRef } from './tournament';
 import type { Color } from './types';
 
 /** Wire protocol between clients and the realtime game server (JSON over WebSocket). */
@@ -32,6 +33,8 @@ export interface GameSnapshot {
   serverNow: number;
   drawOfferBy: Color | null;
   outcome: GameOutcome | null;
+  /** Set when the game is part of a tournament. */
+  tournament?: GameTournamentRef;
 }
 
 /** Colour a custom game's creator wants to play. */

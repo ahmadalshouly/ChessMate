@@ -11,6 +11,7 @@ import {
   type Color,
   type GameOutcome,
   type GameSnapshot,
+  type GameTournamentRef,
   type PlayedMove,
   type PlayerInfo,
   type TimeControl,
@@ -42,6 +43,10 @@ export class GameRoom {
   /** Server-measured think time per ply (ms), for fair-play timing analysis. */
   readonly thinkMs: number[] = [];
   private lastMoveAt: number;
+  /** Set when the game belongs to a tournament: no aborts and no rematches. */
+  tournament: GameTournamentRef | undefined;
+  /** True when staff (or a cancelled tournament) ended the game with no result. */
+  terminated = false;
   /** Rejected move attempts per color (illegal, wrong turn, stale). */
   readonly rejectedMoves: Record<Color, number> = { w: 0, b: 0 };
 
@@ -127,7 +132,7 @@ export class GameRoom {
   }
 
   abort(playerId: string, now: number): boolean {
-    if (!this.colorOf(playerId) || !this.abortable) return false;
+    if (!this.colorOf(playerId) || !this.abortable || this.tournament) return false;
     this.finish(outcomeFor('aborted', null), now);
     return true;
   }
@@ -135,6 +140,7 @@ export class GameRoom {
   /** Staff ends the game with no result and no rating change (abuse, server trouble). */
   terminate(now: number): boolean {
     if (this.outcome) return false;
+    this.terminated = true;
     this.finish(outcomeFor('aborted', null), now);
     return true;
   }
@@ -226,6 +232,7 @@ export class GameRoom {
       serverNow: now,
       drawOfferBy: this.drawOfferBy,
       outcome: this.outcome,
+      ...(this.tournament ? { tournament: this.tournament } : {}),
     };
   }
 }

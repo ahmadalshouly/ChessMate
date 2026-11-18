@@ -41,6 +41,8 @@ export const ADMIN_PERMISSIONS = [
   'titles.review',
   /** Grant or take away a title directly, e.g. after a fair-play closure. */
   'titles.revoke',
+  /** Create, schedule, run and cancel tournaments, set prize pools and mark prizes paid. */
+  'tournaments.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -153,7 +155,7 @@ export interface AdminAuditEntry {
   actorName: string;
   /** e.g. account.close, chat.mute, rating.adjust, fairplay.dismiss, role.change. */
   action: string;
-  targetType: 'user' | 'report' | 'game' | 'case' | 'system';
+  targetType: 'user' | 'report' | 'game' | 'case' | 'tournament' | 'system';
   targetId: string | null;
   targetName: string | null;
   reason: string | null;

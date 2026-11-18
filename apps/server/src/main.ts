@@ -18,6 +18,7 @@ import { Moderation } from './moderation';
 import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
+import { DbTournamentStore, TournamentService } from './tournaments';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -90,7 +91,9 @@ async function start() {
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base, profileDeps } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
   // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
-  const admin = new AdminService({ db: db.db, auth });
+  const tournaments = new TournamentService({ store: new DbTournamentStore(db.db) });
+  await tournaments.load();
+  const admin = new AdminService({ db: db.db, auth, tournaments });
   await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));
   profileDeps.titles = admin.titles;
   const persistence = new DbGamePersistence(db.db);
@@ -100,6 +103,7 @@ async function start() {
     server: new ChessServer({
       ...base,
       admin,
+      tournaments,
       moderation: new Moderation(await DbModerationStore.load(db.db)),
       fairPlay: { store: await DbFairPlayStore.load(db.db) },
       store,

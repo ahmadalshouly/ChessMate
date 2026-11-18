@@ -14,6 +14,7 @@ import {
   type ColorChoice,
   type ErrorCode,
   type GameAnalyzer,
+  type GameTournamentRef,
   type LobbyState,
   type LiveGameEntry,
   type Presence,
@@ -30,6 +31,7 @@ import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './chal
 import { handleAdmin } from './admin/tokenApi';
 import { CLOSE_ACCOUNT_CLOSED, adminRoutes, type AdminBridge, type AdminService } from './admin';
 import { titleRoutes } from './titles';
+import { TournamentService, tournamentRoutes, type TournamentBridge } from './tournaments';
 import { CoachService } from './coach/coachService';
 import { createCoachHttpHandler } from './coach/http';
 import type { AnalysisService } from './engine/analysisService';
@@ -103,6 +105,8 @@ export interface ServerOptions {
   resolveUser?: ResolveUser;
   /** Staff console (/api/admin): roles, account closure, audit log. Needs `auth` and the database. */
   admin?: AdminService;
+  /** Tournaments; in memory when left out. Share the same instance with AdminService. */
+  tournaments?: TournamentService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -163,6 +167,7 @@ export class ChessServer {
   private readonly limits: RateLimitConfig;
   private readonly ipLimiter: IpLimiter;
   readonly notifications: NotificationService;
+  readonly tournaments: TournamentService;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
@@ -214,6 +219,15 @@ export class ChessServer {
     const httpAuth: HttpAuth = opts.httpAuth ?? ((t) => accountAuth?.(t) ?? devHttpAuth(t));
     this.social = opts.social;
     const routes = [...(opts.http ?? [])];
+    this.tournaments = opts.tournaments ?? new TournamentService({ now: this.now });
+    this.tournaments.attach(this.tournamentBridge());
+    routes.push(
+      tournamentRoutes(this.tournaments, (token) => {
+        const id = httpAuth(token);
+        if (!id) return null;
+        return { userId: id, username: this.store.get(id)?.name ?? opts.auth?.verifyAccessToken(token)?.username ?? id };
+      }),
+    );
     if (opts.admin && opts.auth) {
       opts.admin.attach(this.adminBridge(fp.analyzer === undefined ? !!process.env.STOCKFISH_PATH : !!fp.analyzer));
       routes.push(adminRoutes(opts.admin, opts.auth));
@@ -286,6 +300,7 @@ export class ChessServer {
     await new Promise<void>((r) => this.wss.close(() => r()));
     await new Promise<void>((r) => this.http.close(() => r()));
     await this.opts.persistence?.flush();
+    await this.tournaments.flush();
   }
 
   // ---- connection handling ----
@@ -620,6 +635,26 @@ export class ChessServer {
     return res;
   }
 
+  /** What the tournament service uses to seat players and reach them. */
+  private tournamentBridge(): TournamentBridge {
+    return {
+      startGame: (ref, tc, rated, whiteId, blackId) => {
+        const white = this.store.get(whiteId);
+        const black = this.store.get(blackId);
+        if (!white || !black) return null;
+        const room = this.createGame(white, black, tc, rated, this.now(), ref);
+        const p = (i: GameRoom['white']) => ({ id: i.id, username: i.name, rating: i.rating });
+        return { gameId: room.id, white: p(room.white), black: p(room.black) };
+      },
+      isOnline: (id) => this.sockets.has(id),
+      busy: (id) => !!this.activeRoomOf(id),
+      rating: (id, tc) => this.ratings.forTimeControl(id, tc, this.now()).rating,
+      canPlay: (id) => !this.fairPlay.isBanned(id) && !this.opts.admin?.isClosed(id),
+      terminate: (gameId) => void this.rooms.get(gameId)?.terminate(this.now()),
+      notify: (userId, n) => void this.notifications.notify(userId, n),
+    };
+  }
+
   /** What the staff console reads and controls on the live server. */
   private adminBridge(analysisEnabled: boolean): AdminBridge {
     return {
@@ -685,6 +720,7 @@ export class ChessServer {
     const color = room?.colorOf(player.id);
     if (!room || !color) return this.send(ws, err('not_found', 'No such game'));
     if (!room.outcome) return this.send(ws, err('bad_request', 'Game still in progress'));
+    if (room.tournament) return this.send(ws, err('bad_request', 'No rematches in tournaments'));
     const oppId = color === 'w' ? room.black.id : room.white.id;
     if (!this.sockets.has(oppId)) return this.send(ws, err('bad_request', 'Your opponent has left'));
     if (this.activeRoomOf(player.id) || this.activeRoomOf(oppId)) return this.send(ws, err('bad_request', 'Already in a game'));
@@ -737,6 +773,7 @@ export class ChessServer {
   private tick() {
     const now = this.now();
     this.runMatching(now);
+    this.tournaments.tick(now);
     if (now - this.lastSeekStatus >= SEEK_STATUS_INTERVAL_MS) {
       this.lastSeekStatus = now;
       for (const s of this.matchmaker.all()) this.sendSeekStatus(s.playerId, now);
@@ -843,7 +880,7 @@ export class ChessServer {
     }
   }
 
-  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number): GameRoom {
+  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number, tournament?: GameTournamentRef): GameRoom {
     const id = randomUUID().slice(0, 8);
     for (const p of [white, black]) {
       this.matchmaker.remove(p.id);
@@ -868,6 +905,7 @@ export class ChessServer {
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
         const { change: ratingChange, unrated } = this.applyRatings(r);
+        if (r.tournament) this.tournaments.gameEnded(r.id, { outcome, plies: r.game.ply, terminated: r.terminated });
         this.opts.persistence?.gameEnded(r, outcome, ratingChange);
         if (outcome.reason !== 'aborted') {
           // Grade every move now so Review opens with the badges already there.
@@ -903,6 +941,7 @@ export class ChessServer {
         }, 5 * 60_000).unref();
       },
     });
+    room.tournament = tournament;
     this.rooms.set(id, room);
     this.opts.persistence?.gameStarted(room);
     // No engine help once a live game starts.

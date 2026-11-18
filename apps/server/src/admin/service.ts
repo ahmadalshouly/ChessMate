@@ -22,6 +22,7 @@ import {
   type AdminPlayerSummary,
   type AdminReport,
   type AdminTitleApplication,
+  type AdminTournament,
   type ChessTitle,
   type TitleDocumentLink,
   type CategoryRating,
@@ -67,6 +68,7 @@ import type { Moderation, Report } from '../moderation';
 import type { NotificationService } from '../notifications';
 import type { RatingService } from '../ratingService';
 import { TitleService, toApplication } from '../titles/service';
+import { TournamentError, type TournamentService } from '../tournaments/service';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
 
@@ -114,6 +116,8 @@ export interface AdminServiceOptions {
   auth: AuthService;
   /** Verified titles. Created on the same database when left out. */
   titles?: TitleService;
+  /** Tournaments, shared with the game server. Tournament tools are unavailable without it. */
+  tournaments?: TournamentService;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -133,6 +137,7 @@ export class AdminService {
   readonly db: Database;
   private readonly auth: AuthService;
   readonly titles: TitleService;
+  readonly tournaments: TournamentService | undefined;
   private readonly now: () => number;
   private readonly log: (msg: string) => void;
   private bridge: AdminBridge | null = null;
@@ -145,6 +150,7 @@ export class AdminService {
     this.auth = opts.auth;
     this.now = opts.now ?? Date.now;
     this.titles = opts.titles ?? new TitleService({ db: opts.db, now: this.now });
+    this.tournaments = opts.tournaments;
     this.log = opts.log ?? ((m) => console.log(`[admin] ${m}`));
     this.auth.accountGuard = (id) => {
       const reason = this.closed.get(id);
@@ -680,6 +686,99 @@ export class AdminService {
     for (const a of await listTitleApplications(this.db, { userId: id, status: 'pending' })) {
       await reviewTitleApplication(this.db, a.id, { status: 'rejected', by: actor.id, byName: actor.username, note: 'Account closed for fair play', at: new Date(this.now()) });
     }
+  }
+
+  // ---------------------------------------------------------------- tournaments
+
+  private tour(actor: Actor): TournamentService {
+    this.require(actor, 'tournaments.manage');
+    if (!this.tournaments) throw new AdminError('unavailable', 'Tournaments are not running on this server');
+    return this.tournaments;
+  }
+
+  /** Runs a tournament action, turning its errors into admin errors. */
+  private async tourAction<T>(fn: () => T | Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof TournamentError) {
+        const err = new AdminError(e.code === 'unauthorized' ? 'forbidden' : e.code, e.message);
+        throw Object.assign(err, { field: e.field });
+      }
+      throw e;
+    }
+  }
+
+  tournamentList(actor: Actor, status: string): AdminTournament[] {
+    return this.tour(actor).adminList(status || 'all');
+  }
+
+  async tournament(actor: Actor, id: string): Promise<AdminTournament> {
+    const t = this.tour(actor);
+    return this.tourAction(() => t.adminView(id));
+  }
+
+  async createTournament(actor: Actor, input: Record<string, unknown>): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const t = await this.tourAction(() => svc.create(input, { userId: actor.id, username: actor.username }));
+    await this.audit(actor, 'tournament.create', { type: 'tournament', id: t.id, name: t.name }, null, {
+      format: t.format,
+      startsAt: t.startsAt,
+      timeControl: t.timeControl,
+      prizePool: t.prizePool,
+    });
+    return svc.adminView(t.id);
+  }
+
+  async updateTournament(actor: Actor, id: string, input: Record<string, unknown>): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const { tournament: t, changed } = await this.tourAction(() => svc.update(id, input));
+    if (changed.length) await this.audit(actor, 'tournament.update', { type: 'tournament', id: t.id, name: t.name }, null, { changed, prizePool: changed.includes('prizePool') ? t.prizePool : undefined });
+    return svc.adminView(t.id);
+  }
+
+  async startTournament(actor: Actor, id: string): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const t = await this.tourAction(() => svc.startNow(id));
+    await this.audit(actor, 'tournament.start', { type: 'tournament', id: t.id, name: t.name }, 'Started early');
+    return svc.adminView(t.id);
+  }
+
+  async cancelTournament(actor: Actor, id: string, input: { reason?: unknown }): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const reason = text(input.reason, 300);
+    if (!reason) throw new AdminError('invalid_input', 'Say why, players see it');
+    const t = await this.tourAction(() => svc.cancel(id, reason));
+    await this.audit(actor, 'tournament.cancel', { type: 'tournament', id: t.id, name: t.name }, reason);
+    return svc.adminView(t.id);
+  }
+
+  async finishTournament(actor: Actor, id: string): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const t = await this.tourAction(() => svc.finishNow(id));
+    await this.audit(actor, 'tournament.finish', { type: 'tournament', id: t.id, name: t.name }, 'Ended early', { winnerId: t.winnerId });
+    return svc.adminView(t.id);
+  }
+
+  async removeTournamentPlayer(actor: Actor, id: string, input: { userId?: unknown; reason?: unknown }): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const reason = text(input.reason, 300);
+    if (!reason) throw new AdminError('invalid_input', 'Say why, the player sees it');
+    const { tournament: t, entry } = await this.tourAction(() => svc.removePlayer(id, String(input.userId ?? ''), reason));
+    await this.audit(actor, 'tournament.remove_player', { type: 'user', id: entry.userId, name: entry.username }, reason, { tournamentId: t.id, tournament: t.name });
+    return svc.adminView(t.id);
+  }
+
+  async setTournamentPrizePaid(actor: Actor, id: string, input: { userId?: unknown; paid?: unknown; note?: unknown }): Promise<AdminTournament> {
+    const svc = this.tour(actor);
+    const paid = input.paid !== false;
+    const { tournament: t, entry } = await this.tourAction(() => svc.setPrizePaid(id, String(input.userId ?? ''), paid));
+    await this.audit(actor, paid ? 'tournament.prize_paid' : 'tournament.prize_unpaid', { type: 'user', id: entry.userId, name: entry.username }, text(input.note, 300) || null, {
+      tournamentId: t.id,
+      tournament: t.name,
+      prize: entry.prize,
+    });
+    return svc.adminView(t.id);
   }
 
   // ---------------------------------------------------------------- reports

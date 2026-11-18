@@ -34,7 +34,8 @@ import { server } from './server';
 import { settings } from './settings';
 import { social } from './social';
 import { titles } from './titles';
+import { tournaments } from './tournaments';
 import { chessTitle } from './chessTitle';
 import { watch } from './watch';
 
-export const en = { nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const en = { nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets, tournaments };

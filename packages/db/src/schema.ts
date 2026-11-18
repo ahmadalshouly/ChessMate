@@ -595,3 +595,97 @@ export type PuzzleAttempt = typeof puzzleAttempts.$inferSelect;
 export type UserRole = (typeof userRole.enumValues)[number];
 export type AdminAuditRow = typeof adminAuditLog.$inferSelect;
 export type PlayerWarningRow = typeof playerWarnings.$inferSelect;
+
+// ---------------------------------------------------------------- tournaments
+
+/** Arena and swiss tournaments created by staff. Loaded into memory at boot and written through. */
+export const tournaments = pgTable(
+  'tournaments',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** arena | swiss */
+    format: text('format').notNull(),
+    initialMs: integer('initial_ms').notNull(),
+    incrementMs: integer('increment_ms').notNull(),
+    rated: boolean('rated').notNull().default(true),
+    startsAt: ts('starts_at').notNull(),
+    durationMinutes: integer('duration_minutes'),
+    rounds: integer('rounds'),
+    maxPlayers: integer('max_players'),
+    minRating: integer('min_rating'),
+    maxRating: integer('max_rating'),
+    /** { currency, places: [{ place, amount, label }], note }; a record only, no payments. */
+    prizePool: jsonb('prize_pool').$type<Record<string, unknown> | null>(),
+    /** scheduled | running | finished | cancelled */
+    status: text('status').notNull().default('scheduled'),
+    currentRound: integer('current_round').notNull().default(0),
+    cancelReason: text('cancel_reason'),
+    reminded: boolean('reminded').notNull().default(false),
+    winnerId: text('winner_id'),
+    createdBy: text('created_by').notNull(),
+    createdByName: text('created_by_name').notNull(),
+    startedAt: ts('started_at'),
+    endedAt: ts('ended_at'),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('tournaments_status_idx').on(t.status, t.startsAt)],
+);
+
+/** A player's entry and running score in one tournament. */
+export const tournamentPlayers = pgTable(
+  'tournament_players',
+  {
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    rating: integer('rating').notNull(),
+    score: real('score').notNull().default(0),
+    games: integer('games').notNull().default(0),
+    wins: integer('wins').notNull().default(0),
+    draws: integer('draws').notNull().default(0),
+    losses: integer('losses').notNull().default(0),
+    streak: integer('streak').notNull().default(0),
+    colorBalance: integer('color_balance').notNull().default(0),
+    lastColor: text('last_color'),
+    hadBye: boolean('had_bye').notNull().default(false),
+    opponents: jsonb('opponents').$type<string[]>().notNull().default([]),
+    /** active | paused | withdrawn | removed */
+    status: text('status').notNull().default('active'),
+    /** { place, amount, currency, label, paidAt } once the tournament has finished. */
+    prize: jsonb('prize').$type<Record<string, unknown> | null>(),
+    joinedAt: ts('joined_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.userId] }), index('tournament_players_user_idx').on(t.userId)],
+);
+
+/** Every pairing in a tournament (byes too, with no black player). */
+export const tournamentGames = pgTable(
+  'tournament_games',
+  {
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    gameId: text('game_id').notNull(),
+    round: integer('round').notNull(),
+    whiteId: text('white_id').notNull(),
+    whiteName: text('white_name').notNull(),
+    whiteRating: integer('white_rating').notNull(),
+    blackId: text('black_id'),
+    blackName: text('black_name'),
+    blackRating: integer('black_rating'),
+    /** 1-0 | 0-1 | 1/2-1/2 | +- | -+ | bye | * */
+    result: text('result').notNull().default('*'),
+    startedAt: ts('started_at').notNull(),
+    endedAt: ts('ended_at'),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.gameId] })],
+);
+
+export type TournamentRow = typeof tournaments.$inferSelect;
+export type TournamentPlayerRow = typeof tournamentPlayers.$inferSelect;
+export type TournamentGameRow = typeof tournamentGames.$inferSelect;

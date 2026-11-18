@@ -36,6 +36,13 @@
       "when": 1794989448032,
       "tag": "0004_titles_fairplay",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795021622697,
+      "tag": "0005_tournaments",
+      "breakpoints": true
     }
   ]
 }

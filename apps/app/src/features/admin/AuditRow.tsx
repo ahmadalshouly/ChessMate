@@ -42,7 +42,7 @@ export function AuditRow({ e, last, compact }: { e: AdminAuditEntry; last?: bool
   const verb = translateOr(`admin.audit.actions.${e.action.replace('.', '_')}`, e.action);
   const actor = e.actorId === 'system' ? tr('admin.audit.system') : e.actorName;
   const detail = detailLine(e);
-  const open = e.targetType === 'user' || e.targetType === 'case' ? `/admin/players/${encodeURIComponent(e.targetId ?? '')}` : e.targetType === 'game' ? `/admin/games/${encodeURIComponent(e.targetId ?? '')}` : null;
+  const open = e.targetType === 'user' || e.targetType === 'case' ? `/admin/players/${encodeURIComponent(e.targetId ?? '')}` : e.targetType === 'game' ? `/admin/games/${encodeURIComponent(e.targetId ?? '')}` : e.targetType === 'tournament' ? `/admin/tournaments/${encodeURIComponent(e.targetId ?? '')}` : null;
   return (
     <Pressable
       disabled={!open || !e.targetId}

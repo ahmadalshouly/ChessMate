@@ -49,6 +49,15 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /titles/:id/reject           { note }   shown to the player
  *   GET  /documents/:id               { url, expiresAt }: a 10-minute link that opens a proof file
  *   POST /players/:id/title           { title, note } grants; { title: null, reason, note? } takes it away
+ *   GET  /tournaments?status=scheduled|running|finished|cancelled|all
+ *   POST /tournaments                 { name, description, format, timeControl, rated, startsAt, durationMinutes|rounds, maxPlayers?, minRating?, maxRating?, prizePool? }
+ *   GET  /tournaments/:id             standings, pairings, prizes
+ *   POST /tournaments/:id/update      same fields; after the start only name, description and prizePool
+ *   POST /tournaments/:id/start       start now (needs 2 players)
+ *   POST /tournaments/:id/finish      end a running tournament now
+ *   POST /tournaments/:id/cancel      { reason }
+ *   POST /tournaments/:id/remove      { userId, reason }
+ *   POST /tournaments/:id/prize       { userId, paid, note? }   records that a prize was paid outside the app
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -127,6 +136,24 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.titleDocumentLink(actor, id!, publicBaseUrl(req)));
         case 'POST players/:id/title':
           return ok(await admin.setPlayerTitle(actor, id!, await body()));
+        case 'GET tournaments':
+          return ok({ tournaments: admin.tournamentList(actor, q.get('status') ?? 'all') });
+        case 'POST tournaments':
+          return ok({ tournament: await admin.createTournament(actor, await body()) });
+        case 'GET tournaments/:id':
+          return ok({ tournament: await admin.tournament(actor, id!) });
+        case 'POST tournaments/:id/update':
+          return ok({ tournament: await admin.updateTournament(actor, id!, await body()) });
+        case 'POST tournaments/:id/start':
+          return ok({ tournament: await admin.startTournament(actor, id!) });
+        case 'POST tournaments/:id/finish':
+          return ok({ tournament: await admin.finishTournament(actor, id!) });
+        case 'POST tournaments/:id/cancel':
+          return ok({ tournament: await admin.cancelTournament(actor, id!, await body()) });
+        case 'POST tournaments/:id/remove':
+          return ok({ tournament: await admin.removeTournamentPlayer(actor, id!, await body()) });
+        case 'POST tournaments/:id/prize':
+          return ok({ tournament: await admin.setTournamentPrizePaid(actor, id!, await body()) });
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),
@@ -136,7 +163,10 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return true;
       }
     } catch (e) {
-      if (e instanceof AdminError) sendJson(res, STATUS[e.code], { error: { code: e.code, message: e.message } });
+      if (e instanceof AdminError) {
+        const field = (e as AdminError & { field?: string }).field;
+        sendJson(res, STATUS[e.code], { error: { code: e.code, message: e.message, ...(field ? { field } : {}) } });
+      }
       else if (e instanceof AuthError) sendJson(res, 400, { error: { code: e.code, message: e.message } });
       else {
         console.error('[admin]', e);

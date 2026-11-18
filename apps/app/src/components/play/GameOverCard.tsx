@@ -78,6 +78,7 @@ export function GameOverCard({
   onLobby,
   onReview,
   onClose,
+  onTournament,
 }: {
   view: GameView;
   onRematch: () => void;
@@ -88,6 +89,8 @@ export function GameOverCard({
   onReview?: () => void;
   /** Hides the card to look at the final position. */
   onClose?: () => void;
+  /** Tournament games: back to the standings instead of a rematch or a new game. */
+  onTournament?: () => void;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -158,6 +161,12 @@ export function GameOverCard({
           <CardButton icon="school-outline" label={tr('play.over.review')} onPress={onReview!} primary />
         </View>
       )}
+      {onTournament ? (
+        <View style={styles.buttons}>
+          <CardButton icon="trophy-outline" label={tr('tournaments.game.back')} onPress={onTournament} primary={!learnFirst} />
+          {canReview && !learnFirst && <CardButton icon="chart-box-outline" label={tr('game.action.review')} onPress={onReview!} />}
+        </View>
+      ) : (
       <View style={styles.buttons}>
         {oppOffered ? (
           <>
@@ -175,10 +184,13 @@ export function GameOverCard({
         )}
         {canReview && !learnFirst && <CardButton icon="chart-box-outline" label={tr('game.action.review')} onPress={onReview!} />}
       </View>
-      <View style={styles.buttons}>
-        <CardButton icon="plus-circle-outline" label={tr('play.over.newGame', { tc })} onPress={onNewGame} />
-        <CardButton icon="home-outline" label={tr('play.over.lobby')} onPress={onLobby} />
-      </View>
+      )}
+      {!onTournament && (
+        <View style={styles.buttons}>
+          <CardButton icon="plus-circle-outline" label={tr('play.over.newGame', { tc })} onPress={onNewGame} />
+          <CardButton icon="home-outline" label={tr('play.over.lobby')} onPress={onLobby} />
+        </View>
+      )}
     </Animated.View>
   );
 }

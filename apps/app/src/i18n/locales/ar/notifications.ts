@@ -62,6 +62,10 @@ export const notifications: Messages<typeof en> = {
       label: 'مراجعة المباراة جاهزة',
       description: 'أنهى المدرب مراجعة مباراتك',
     },
+    tournament: {
+      label: 'البطولات',
+      description: 'بدء البطولات التي انضممت إليها، وترتيبك النهائي',
+    },
     system: {
       label: 'الحساب والأمان',
       description: 'رسائل مهمة عن الحساب',

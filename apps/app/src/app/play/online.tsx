@@ -193,6 +193,8 @@ export default function OnlinePlay() {
       pathname: '/review',
       params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
     });
+  const tournament = view.tournament;
+  const toTournament = tournament ? () => router.push({ pathname: '/tournaments/[id]', params: { id: tournament.id } }) : undefined;
   const confirmThen = (fn: () => void) => () => {
     setPanel(null);
     fn();
@@ -202,13 +204,15 @@ export default function OnlinePlay() {
     { key: 'chat', icon: 'chat-outline', label: tr('game.action.chat'), onPress: () => toggle('chat'), active: panel === 'chat', dot: unread },
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     ...(!over
-      ? history.length < 2
+      ? history.length < 2 && !tournament
         ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: () => toggle('abort'), active: panel === 'abort' }]
         : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: () => toggle('draw'), active: panel === 'draw', disabled: view.drawOfferBy === you || view.drawOfferBy === opp, dot: view.drawOfferBy === opp }]
       : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), onPress: openReview, disabled: !reviewable }]),
     !over
       ? { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => toggle('resign'), active: panel === 'resign', disabled: history.length < 2, danger: true }
-      : {
+      : toTournament
+        ? { key: 'tournament', icon: 'trophy-outline', label: tr('tournaments.game.short'), onPress: toTournament }
+        : {
           key: 'rematch',
           icon: 'refresh',
           label: tr('game.action.rematch'),
@@ -318,6 +322,7 @@ export default function OnlinePlay() {
                   onLobby={toLobby}
                   onReview={reviewable ? openReview : undefined}
                   onClose={() => setHideResult(true)}
+                  onTournament={toTournament}
                 />
               </View>
             )}
