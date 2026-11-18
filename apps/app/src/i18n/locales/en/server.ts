@@ -26,6 +26,7 @@ export const server = {
   coachFailed: 'The coach couldn\'t answer. Try again.',
   noSuchAccount: 'No such account.',
   closedFairPlay: 'This account has been closed for a fair play violation.',
+  accountClosed: 'This account has been closed by ChessMate staff.',
   notOnline: '{name} is not online right now.',
   inAnotherGame: '{name} is in another game.',
   chatRestricted: {

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
 import { dirIcon, useT } from '@/i18n';
+import { useAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/lib/currentUser';
 import { SIDEBAR_WIDTH, TABS } from '@/navigation/tabs';
 import { fonts } from '@/ui';
@@ -22,6 +23,8 @@ export function Sidebar() {
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const tr = useT();
+  const { user: account } = useAuth();
+  const staff = account?.role === 'moderator' || account?.role === 'admin';
   return (
     <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingStart: insets.left + 14 }]}>
       <View style={styles.logo}>
@@ -33,6 +36,15 @@ export function Sidebar() {
           <NavItem key={tab.name} tab={tab} variant="side" index={i} />
         ))}
       </View>
+      {staff && (
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => router.navigate('/admin')}
+          style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [styles.admin, { borderColor: t.border }, hovered && { backgroundColor: t.surfaceSunken }]}>
+          <Ionicons name="shield-half-outline" size={16} color={t.text} />
+          <Text style={[styles.adminText, { color: t.text }]}>{tr('admin.title')}</Text>
+        </Pressable>
+      )}
       <View style={[styles.userCard, { borderColor: t.border }]}>
         <Pressable onPress={() => router.navigate('/profile')} style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [styles.userRow, hovered && { backgroundColor: t.surfaceSunken }]} accessibilityRole="button">
           <Avatar name={user.displayName} url={user.avatarUrl} size={36} />
@@ -71,4 +83,6 @@ const styles = StyleSheet.create({
   userMeta: { fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: 0.6, marginTop: 2 },
   signIn: { height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   signInText: { fontFamily: fonts.sansSemiBold, fontSize: 13 },
+  admin: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 40, paddingHorizontal: 14, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, marginBottom: 12 },
+  adminText: { fontFamily: fonts.sansMedium, fontSize: 13.5 },
 });

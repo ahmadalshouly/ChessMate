@@ -69,6 +69,13 @@ describe('admin console', () => {
     expect(((await res.json()) as { user: { role: string } }).user.role).toBe('admin');
   });
 
+  it('makes an ADMIN_USERNAMES account admin as soon as it signs up', async () => {
+    await signup('nobody_yet');
+    expect(admin.roleOf(ids.nobody_yet!)).toBe('admin');
+    expect((await call('nobody_yet', 'GET', '/me')).body.role).toBe('admin');
+    await call('owner', 'POST', `/players/${ids.nobody_yet}/role`, { role: 'user' });
+  });
+
   it('gives moderators their own, smaller set of tools', async () => {
     expect((await call('owner', 'POST', `/players/${ids.mod}/role`, { role: 'moderator', reason: 'new mod' })).status).toBe(200);
     expect((await call('owner', 'POST', `/players/${ids.owner}/role`, { role: 'user' })).status).toBe(403);
@@ -167,7 +174,7 @@ describe('admin console', () => {
   it('shows dashboard numbers', async () => {
     const d = await call('mod', 'GET', '/dashboard');
     expect(d.status).toBe(200);
-    expect(d.body.accounts.total).toBe(4);
+    expect(d.body.accounts.total).toBe(5);
     expect(d.body.accounts.closed).toBe(1);
     expect(d.body.accounts.staff).toBe(2);
     expect(d.body.daily).toHaveLength(14);

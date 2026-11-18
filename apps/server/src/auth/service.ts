@@ -137,6 +137,8 @@ export class AuthService {
   private dummyHash: Promise<string> | null = null;
   /** Set by the admin service so closures take effect at once, without a store read per request. */
   accountGuard: AccountGuard | null = null;
+  /** Called after an account is created; may return a staff role it was given (ADMIN_USERNAMES). */
+  onAccountCreated: ((u: { id: string; username: string }) => Promise<StaffRole | null>) | null = null;
 
   constructor(opts: AuthServiceOptions) {
     if (opts.secret.length < 32) throw new Error('Auth secret must be at least 32 characters');
@@ -191,6 +193,7 @@ export class AuthService {
       }
       await this.store.linkOAuth(provider, id.subject, user.id);
       created = true;
+      user.role = (await this.onAccountCreated?.(user)) ?? user.role;
     }
     this.assertOpen(user);
     return { user: toPublicUser(user), tokens: await this.startSession(user), created };
@@ -210,6 +213,7 @@ export class AuthService {
       if (e instanceof UniqueViolation) throw taken(e.field);
       throw e;
     }
+    user.role = (await this.onAccountCreated?.(user)) ?? user.role;
     return { user: toPublicUser(user), tokens: await this.startSession(user) };
   }
 

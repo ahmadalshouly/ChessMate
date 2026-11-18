@@ -10,7 +10,8 @@
     "start:dev": "tsx --env-file-if-exists=../../.env src/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "puzzles:import": "tsx src/puzzles/import.ts"
+    "puzzles:import": "tsx src/puzzles/import.ts",
+    "admin:grant": "tsx --env-file-if-exists=../../.env src/admin/grant.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

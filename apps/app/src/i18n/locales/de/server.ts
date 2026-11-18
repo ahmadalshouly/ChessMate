@@ -29,6 +29,7 @@ export const server: Messages<typeof en> = {
   coachFailed: 'Der Coach konnte nicht antworten. Versuch es erneut.',
   noSuchAccount: 'Konto nicht gefunden.',
   closedFairPlay: 'Dieses Konto wurde wegen eines Fair-Play-Verstoßes geschlossen.',
+  accountClosed: 'Dieses Konto wurde vom ChessMate-Team geschlossen.',
   notOnline: '{name} ist gerade nicht online.',
   inAnotherGame: '{name} ist in einer anderen Partie.',
   chatRestricted: {

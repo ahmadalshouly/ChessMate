@@ -124,6 +124,7 @@ export class AdminService {
   private bridge: AdminBridge | null = null;
   private readonly roles = new Map<string, StaffRole>();
   private readonly closed = new Map<string, string>();
+  private bootstrap = new Set<string>();
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -133,6 +134,12 @@ export class AdminService {
     this.auth.accountGuard = (id) => {
       const reason = this.closed.get(id);
       return reason ? { reason } : null;
+    };
+    // An ADMIN_USERNAMES account signed up while the server runs becomes admin right away.
+    this.auth.onAccountCreated = async (u) => {
+      if (!this.bootstrap.has(u.username.toLowerCase())) return null;
+      await this.promoteBootstrap(u.id, u.username, 'user');
+      return 'admin';
     };
   }
 
@@ -144,18 +151,23 @@ export class AdminService {
   async load(bootstrapAdmins: string[] = []): Promise<void> {
     for (const s of await listStaff(this.db)) this.roles.set(s.id, s.role);
     for (const c of await listClosedUsers(this.db)) this.closed.set(c.id, c.reason ?? 'other');
-    for (const name of bootstrapAdmins.map((n) => n.trim()).filter(Boolean)) {
+    const names = bootstrapAdmins.map((n) => n.trim()).filter(Boolean);
+    this.bootstrap = new Set(names.map((n) => n.toLowerCase()));
+    for (const name of names) {
       const u = await findUserByUsername(this.db, name);
       if (!u) {
-        this.log(`ADMIN_USERNAMES: no account named "${name}" yet. Sign up with that username, then restart the server`);
+        this.log(`ADMIN_USERNAMES: no account named "${name}" yet. It becomes an admin as soon as it signs up`);
         continue;
       }
-      if (u.role === 'admin') continue;
-      await setUserRole(this.db, u.id, 'admin');
-      this.roles.set(u.id, 'admin');
-      await this.audit(SYSTEM, 'role.change', { type: 'user', id: u.id, name: u.username }, 'ADMIN_USERNAMES on server start', { from: u.role, to: 'admin' });
-      this.log(`${u.username} is now an admin (ADMIN_USERNAMES)`);
+      if (u.role !== 'admin') await this.promoteBootstrap(u.id, u.username, u.role);
     }
+  }
+
+  private async promoteBootstrap(id: string, username: string, from: StaffRole) {
+    await setUserRole(this.db, id, 'admin');
+    this.roles.set(id, 'admin');
+    await this.audit(SYSTEM, 'role.change', { type: 'user', id, name: username }, 'ADMIN_USERNAMES', { from, to: 'admin' });
+    this.log(`${username} is now an admin (ADMIN_USERNAMES)`);
   }
 
   attach(bridge: AdminBridge) {

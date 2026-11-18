@@ -29,6 +29,7 @@ export const server: Messages<typeof en> = {
   coachFailed: 'تعذّر على المدرب الإجابة. حاول مرة أخرى.',
   noSuchAccount: 'الحساب غير موجود.',
   closedFairPlay: 'أُغلق هذا الحساب بسبب مخالفة قواعد اللعب النظيف.',
+  accountClosed: 'أغلق فريق ChessMate هذا الحساب.',
   notOnline: '{name} غير متصل الآن.',
   inAnotherGame: '{name} في مباراة أخرى.',
   chatRestricted: { other: 'الدردشة معطّلة لحسابك لمدة {count} دقيقة أخرى.' },

@@ -1,51 +1,78 @@
-import type { ChatLine, ReportReason } from '@chessmate/core';
+import type {
+  AccountCloseReason,
+  AdminAuditEntry,
+  AdminDashboard,
+  AdminFairPlayCase,
+  AdminFairPlayFile,
+  AdminGameDetail,
+  AdminGameSummary,
+  AdminMe,
+  AdminPlayerDetail,
+  AdminPlayerSummary,
+  AdminReport,
+  RatingCategory,
+  ReportAction,
+  StaffRole,
+} from '@chessmate/core';
+import { useMemo } from 'react';
 
-import { SERVER_URL } from './config';
+import { useAuth } from '@/lib/auth';
 
-/** HTTP base of the game server, derived from its WebSocket URL (ws://host:8787/ws -> http://host:8787). */
-export const API_BASE = SERVER_URL.replace(/^ws(s?):/, 'http$1:').replace(/\/ws\/?$/, '');
+export type PlayerFilter = 'all' | 'active' | 'closed' | 'muted' | 'staff';
 
-export type ModAction = 'dismiss' | 'warn' | 'chat_ban' | 'unban';
-
-export interface AdminReport {
-  id: string;
-  reporterId: string;
-  reporterName: string;
-  targetId: string;
-  targetName: string;
-  gameId: string | null;
-  reason: ReportReason;
-  note: string;
-  chat: ChatLine[];
-  moves: string[];
-  createdAt: number;
-  status: 'open' | 'dismissed' | 'actioned';
-  resolution?: { action: ModAction; note: string; by: string; at: number };
-  targetReportCount?: number;
-  targetChatBan?: { until: number } | null;
-}
-
-export interface AdminChatBan {
-  playerId: string;
-  name: string;
-  until: number;
-  reason: string;
-}
-
-async function call<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}/admin${path}`, {
-    ...init,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-  });
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
-  return body;
-}
-
-export const adminApi = {
-  reports: (token: string, status: 'open' | 'all') => call<{ reports: AdminReport[] }>(token, `/reports?status=${status}`).then((r) => r.reports),
-  resolve: (token: string, id: string, action: ModAction, durationHours?: number, note?: string) =>
-    call<{ report: AdminReport }>(token, `/reports/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ action, durationHours, note }) }),
-  bans: (token: string) => call<{ bans: AdminChatBan[] }>(token, '/chat-bans').then((r) => r.bans),
-  unban: (token: string, playerId: string) => call<{ ok: true }>(token, `/chat-bans/${encodeURIComponent(playerId)}`, { method: 'DELETE' }),
+const qs = (params: Record<string, string | number | undefined | null>) => {
+  const p = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`);
+  return p.length ? `?${p.join('&')}` : '';
 };
+const id = (s: string) => encodeURIComponent(s);
+
+/**
+ * Staff API (/api/admin) with the signed-in account's token. The server
+ * checks the role's permissions on every call; the app only hides what the
+ * role cannot do.
+ */
+export function useAdminApi() {
+  const { apiFetch } = useAuth();
+  return useMemo(() => {
+    const get = <T,>(path: string) => apiFetch<T>(`/api/admin${path}`);
+    const post = <T,>(path: string, body: Record<string, unknown> = {}) => apiFetch<T>(`/api/admin${path}`, { method: 'POST', body: JSON.stringify(body) });
+    return {
+      me: () => get<AdminMe>('/me'),
+      dashboard: () => get<AdminDashboard>('/dashboard'),
+      players: (q: string, filter: PlayerFilter, offset = 0) =>
+        get<{ players: AdminPlayerSummary[]; total: number }>(
+          `/players${qs({ q, offset, status: filter === 'active' || filter === 'closed' || filter === 'muted' ? filter : undefined, role: filter === 'staff' ? 'staff' : undefined })}`,
+        ),
+      player: (playerId: string) => get<{ player: AdminPlayerDetail }>(`/players/${id(playerId)}`).then((r) => r.player),
+      warn: (playerId: string, category: string, message: string) => post(`/players/${id(playerId)}/warn`, { category, message }),
+      mute: (playerId: string, hours: number, reason: string) => post<{ until: number }>(`/players/${id(playerId)}/mute`, { hours, reason }),
+      unmute: (playerId: string, reason: string) => post(`/players/${id(playerId)}/unmute`, { reason }),
+      note: (playerId: string, note: string) => post(`/players/${id(playerId)}/note`, { note }),
+      rename: (playerId: string, username: string, reason: string) => post(`/players/${id(playerId)}/rename`, { username, reason }),
+      signOut: (playerId: string, reason: string) => post(`/players/${id(playerId)}/signout`, { reason }),
+      setRole: (playerId: string, role: StaffRole, reason: string) => post(`/players/${id(playerId)}/role`, { role, reason }),
+      adjustRating: (playerId: string, category: RatingCategory, delta: number, reason: string) =>
+        post<{ before: number; after: number }>(`/players/${id(playerId)}/rating`, { category, delta, reason }),
+      close: (playerId: string, reason: AccountCloseReason, note: string) =>
+        post<{ refunds: { playerId: string; points: number }[] }>(`/players/${id(playerId)}/close`, { reason, note }),
+      reopen: (playerId: string, note: string) => post(`/players/${id(playerId)}/reopen`, { note }),
+      reports: (status: string) => get<{ reports: AdminReport[] }>(`/reports${qs({ status })}`).then((r) => r.reports),
+      resolveReport: (reportId: string, action: ReportAction, opts: { note?: string; hours?: number; message?: string } = {}) =>
+        post(`/reports/${id(reportId)}`, { action, ...opts }),
+      fairPlay: (status: string) => get<{ cases: AdminFairPlayCase[] }>(`/fairplay${qs({ status })}`).then((r) => r.cases),
+      fairPlayFile: (playerId: string) => get<AdminFairPlayFile>(`/fairplay/${id(playerId)}`),
+      openCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/open`, { note }),
+      dismissCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/dismiss`, { note }),
+      banFairPlay: (playerId: string, note: string) => post<{ refunds: { playerId: string; points: number }[] }>(`/fairplay/${id(playerId)}/ban`, { note }),
+      games: (player?: string, before?: number) => get<{ games: AdminGameSummary[] }>(`/games${qs({ player, before })}`).then((r) => r.games),
+      game: (gameId: string) => get<{ game: AdminGameDetail }>(`/games/${id(gameId)}`).then((r) => r.game),
+      abortGame: (gameId: string, reason: string) => post(`/games/${id(gameId)}/abort`, { reason }),
+      audit: (q: { target?: string; actor?: string; action?: string; before?: number } = {}) =>
+        get<{ entries: AdminAuditEntry[] }>(`/audit${qs(q)}`).then((r) => r.entries),
+    };
+  }, [apiFetch]);
+}
+
+export type AdminApi = ReturnType<typeof useAdminApi>;
