@@ -91,7 +91,8 @@ describe('Matchmaker', () => {
     const [p] = m.tick(0);
     expect(p).toBeDefined();
     expect(whiteOf(p!).color).toBe('w');
-    expect(whiteOf({ a: { ...p!.a, color: undefined }, b: { ...p!.b, color: 'b' } }, () => false)).toBe(p!.a);
+    // b asked for black, so a plays white whatever the coin says.
+    expect(whiteOf({ a: { ...p!.a, color: undefined }, b: { ...p!.b, color: 'b' } }, () => false).playerId).toBe(p!.a.playerId);
   });
 
   it('does not pair different time controls', () => {
