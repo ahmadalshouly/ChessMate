@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
+import { useGameLock } from '@/lib/useGameLock';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
 import { ReportDialog } from '@/components/ReportDialog';
@@ -60,6 +61,8 @@ export default function OnlinePlay() {
   const view = s.game;
   const size = useBoardSize(300);
   const live = !!view && !view.outcome;
+  // No way back out mid-game (no back button, swipe or Android back); it returns when the game ends.
+  const lockOptions = useGameLock(live);
   useTicker(live || (!!view?.opponentAbandonAt && !view.opponentConnected) || s.seek !== null);
   useRecordOnlineGame(view);
 
@@ -141,7 +144,7 @@ export default function OnlinePlay() {
   if (!view || !players) {
     return (
       <Screen>
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{ title, ...lockOptions }} />
         <ScrollView contentContainerStyle={styles.page}>
           <View style={{ width: Math.min(size, 480), gap: 8 }}>
             {connectionNotice}
@@ -333,7 +336,7 @@ export default function OnlinePlay() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{ title, ...lockOptions }} />
       <GameLayout
         notice={
           <>

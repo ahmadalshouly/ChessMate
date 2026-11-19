@@ -2,6 +2,7 @@ import { BOTS, Game, START_FEN, chooseBotMove, type BotProfile, type Color, type
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useGameLock } from '@/lib/useGameLock';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -196,6 +197,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   );
   const outcome: GameOutcome | null = boardOutcome ?? (resigned ? { result: me === 'w' ? '0-1' : '1-0', reason: 'resignation', winner: me === 'w' ? 'b' : 'w' } : null);
   const myTurn = snapshot.turn === me && !outcome;
+  const lockOptions = useGameLock(!outcome && view.history.length > 0);
   const nav = useHistoryNav(view.history.length);
 
   // Bot's turn: think after a short pause so the player's move is visible.
@@ -315,6 +317,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
 
   return (
     <>
+      <Stack.Screen options={lockOptions} />
       <GameLayout
         top={botOnTop ? botCard : youCard}
         bottom={botOnTop ? youCard : botCard}
