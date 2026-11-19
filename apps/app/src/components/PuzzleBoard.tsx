@@ -1,6 +1,6 @@
 import { Game, type PuzzleDto, type Square } from '@chessmate/core';
-import { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -26,19 +26,28 @@ const FEEDBACK: Record<PuzzleView['feedback'], (side: string) => string> = {
 /** Success is a game signal, so it gets colour like check and danger do. */
 const SUCCESS = { light: '#1F8A4C', dark: '#4CC27F' };
 
-/** Board plus status line and hint controls for one puzzle. */
+/**
+ * Board plus status line and hint controls for one puzzle. Fills the screen:
+ * the board (and `above`, e.g. a score bar) stays in place while the status,
+ * hints and `below` (e.g. the result) scroll underneath, so the board never
+ * moves while solving.
+ */
 export function PuzzleBoard({
   view,
   puzzle,
   size,
   showHints = true,
   showRating = true,
+  above,
+  below,
 }: {
   view: PuzzleView;
   puzzle: PuzzleDto | null;
   size: number;
   showHints?: boolean;
   showRating?: boolean;
+  above?: ReactNode;
+  below?: ReactNode;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -49,8 +58,10 @@ export function PuzzleBoard({
   usePuzzleSounds(view.fen, view.lastMove, over);
 
   return (
-    <View style={{ width: size, gap: 12 }}>
-      <Board
+    <View style={styles.screen}>
+      <View style={[styles.fixed, { width: size }]}>
+        {above}
+        <Board
         fen={view.fen}
         orientation={view.solver}
         size={size}
@@ -60,31 +71,37 @@ export function PuzzleBoard({
         checkSquare={checkSquareOf(view.fen)}
         onSquarePress={interaction.onSquarePress}
         {...interaction.dragProps}
-      />
-      <Card>
-        <View style={styles.status}>
-          <View style={[styles.dot, { backgroundColor: view.solver === 'w' ? '#FFFFFF' : '#15171B', borderColor: t.border }]} />
-          <Text style={[styles.statusText, { color: tone }]}>{FEEDBACK[view.feedback](side)}</Text>
+        />
+      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={{ width: size, gap: 12 }}>
+          <Card>
+            <View style={styles.status}>
+              <View style={[styles.dot, { backgroundColor: view.solver === 'w' ? '#FFFFFF' : '#15171B', borderColor: t.border }]} />
+              <Text style={[styles.statusText, { color: tone }]}>{FEEDBACK[view.feedback](side)}</Text>
+            </View>
+            {view.hint && <Label muted>{tr('puzzles.hint', { text: puzzleHintText(view.hint, view.fen) })}</Label>}
+            {puzzle && showRating && (
+              <Label muted>
+                {tr('puzzles.ratingLabel', { rating: puzzle.rating })}
+                {over && puzzle.themes.length > 0 ? ` · ${puzzle.themes.slice(0, 4).map(puzzleThemeLabel).join(tr('chess.listSep'))}` : ''}
+              </Label>
+            )}
+            {showHints && !over && (
+              <View style={styles.row}>
+                <View style={styles.flex}>
+                  <Button variant="secondary" title={view.hintsUsed >= 1 ? tr('puzzles.showMove') : tr('computer.hint')} disabled={!view.canMove || view.hintsUsed >= 2} onPress={view.askHint} />
+                </View>
+                <View style={styles.flex}>
+                  <Button variant="secondary" title={tr('puzzles.solution')} disabled={!view.canMove} onPress={view.reveal} />
+                </View>
+              </View>
+            )}
+            {showHints && !over && <Label muted>{tr('puzzles.hintsCount')}</Label>}
+          </Card>
+          {below}
         </View>
-        {view.hint && <Label muted>{tr('puzzles.hint', { text: puzzleHintText(view.hint, view.fen) })}</Label>}
-        {puzzle && showRating && (
-          <Label muted>
-            {tr('puzzles.ratingLabel', { rating: puzzle.rating })}
-            {over && puzzle.themes.length > 0 ? ` · ${puzzle.themes.slice(0, 4).map(puzzleThemeLabel).join(tr('chess.listSep'))}` : ''}
-          </Label>
-        )}
-        {showHints && !over && (
-          <View style={styles.row}>
-            <View style={styles.flex}>
-              <Button variant="secondary" title={view.hintsUsed >= 1 ? tr('puzzles.showMove') : tr('computer.hint')} disabled={!view.canMove || view.hintsUsed >= 2} onPress={view.askHint} />
-            </View>
-            <View style={styles.flex}>
-              <Button variant="secondary" title={tr('puzzles.solution')} disabled={!view.canMove} onPress={view.reveal} />
-            </View>
-          </View>
-        )}
-        {showHints && !over && <Label muted>{tr('puzzles.hintsCount')}</Label>}
-      </Card>
+      </ScrollView>
     </View>
   );
 }
@@ -116,6 +133,10 @@ function usePuzzleSounds(fen: string, lastMove: { from: string; to: string } | n
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, alignItems: 'center' },
+  fixed: { gap: 12, paddingTop: 12 },
+  scroll: { flex: 1, alignSelf: 'stretch' },
+  scrollContent: { alignItems: 'center', paddingTop: 12, paddingHorizontal: 12, paddingBottom: 32 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1 },
   statusText: { fontSize: 17, fontWeight: '700', flexShrink: 1 },

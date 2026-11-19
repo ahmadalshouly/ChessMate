@@ -8,7 +8,8 @@ import { Board } from '@/components/Board';
 import { SideDot, formatDate, gameMeta, playerLabel } from '@/components/archive';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
-import { translate, translateOr, useT } from '@/i18n';
+import { dirIcon, translate, translateOr, useT } from '@/i18n';
+import { ActionBar } from '@/components/game/ActionBar';
 import { deleteGame } from '@/lib/archive';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
@@ -157,22 +158,26 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
                 <Text style={{ color: t.muted }}>{delta(orientation)}</Text>
               </Text>
             </View>
-            <View style={[styles.controls, { direction: 'ltr' }]}>
-              <Ctl label="⏮" a11y={tr('common.nav.first')} disabled={ply === 0} onPress={() => (setAutoplay(false), go(0))} />
-              <Ctl label="◀" a11y={tr('common.nav.previous')} disabled={ply === 0} onPress={() => (setAutoplay(false), go(ply - 1))} />
-              <Ctl
-                label={autoplay ? '❚❚' : '▶︎▶︎'}
-                a11y={autoplay ? tr('common.nav.pause') : tr('common.nav.playThrough')}
-                disabled={history.length === 0}
-                onPress={() => {
-                  if (!autoplay && ply >= history.length) setPly(0);
-                  setAutoplay((a) => !a);
-                }}
-              />
-              <Ctl label="▶" a11y={tr('common.nav.next')} disabled={ply >= history.length} onPress={() => (setAutoplay(false), go(ply + 1))} />
-              <Ctl label="⏭" a11y={tr('common.nav.last')} disabled={ply >= history.length} onPress={() => (setAutoplay(false), go(history.length))} />
-              <Ctl label="⇅" a11y={tr('common.flipBoard')} onPress={() => setOrientation((o) => (o === 'w' ? 'b' : 'w'))} />
-            </View>
+            <ActionBar
+              actions={[
+                { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => (setAutoplay(false), go(0)), disabled: ply === 0 },
+                { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => (setAutoplay(false), go(ply - 1)), disabled: ply === 0, repeat: true },
+                {
+                  key: 'play',
+                  icon: autoplay ? 'pause' : 'play',
+                  label: autoplay ? tr('review.pause') : tr('review.play'),
+                  active: autoplay,
+                  disabled: history.length === 0,
+                  onPress: () => {
+                    if (!autoplay && ply >= history.length) setPly(0);
+                    setAutoplay((a) => !a);
+                  },
+                },
+                { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => (setAutoplay(false), go(ply + 1)), disabled: ply >= history.length, repeat: true },
+                { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => (setAutoplay(false), go(history.length)), disabled: ply >= history.length },
+                { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setOrientation((o) => (o === 'w' ? 'b' : 'w')) },
+              ]}
+            />
           </View>
 
           <View style={styles.side}>
@@ -263,32 +268,12 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
   );
 }
 
-function Ctl({ label, a11y, onPress, disabled }: { label: string; a11y: string; onPress: () => void; disabled?: boolean }) {
-  const t = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={a11y}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.ctl,
-        { backgroundColor: t.surface, borderColor: t.glassBorder, opacity: disabled ? 0.35 : pressed ? 0.7 : 1 },
-      ]}>
-      <Text style={[styles.ctlText, { color: t.text }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center', paddingBottom: 48 },
   layout: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' },
   side: { flexGrow: 1, flexBasis: 300, maxWidth: 640, gap: 12 },
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   player: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
-  controls: { flexDirection: 'row', gap: 6 },
-  ctl: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
-  ctlText: { fontSize: 16, fontWeight: '700' },
   moveHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   moveList: { maxHeight: 280 },
   moveRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1 },

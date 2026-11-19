@@ -135,20 +135,13 @@ export default function PuzzleRun() {
   return (
     <Screen>
       <Stack.Screen options={{ title: tr(COPY[mode].title) }} />
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size, gap: 12 }}>
-          {phase === 'ready' && (
-            <Card>
-              <Label size={22} bold>
-                {tr(COPY[mode].title)}
-              </Label>
-              <Label muted>{tr(COPY[mode].rules, RULE_PARAMS)}</Label>
-              {error && <Label muted>{error}</Label>}
-              <Button title={tr('puzzles.run.start')} onPress={start} />
-            </Card>
-          )}
-
-          {phase === 'playing' && (
+      {phase === 'playing' ? (
+        <PuzzleBoard
+          view={view}
+          puzzle={puzzle}
+          size={size}
+          showHints={false}
+          above={
             <>
               <View style={styles.hud}>
                 <Text style={[styles.score, { color: t.text }]}>{score}</Text>
@@ -160,20 +153,34 @@ export default function PuzzleRun() {
                 {deadline !== null && <Text style={[styles.clock, { color: left < 20_000 ? t.danger : t.text }]}>{clock}</Text>}
               </View>
               {error && <Label muted>{error}</Label>}
-              <PuzzleBoard view={view} puzzle={puzzle} size={size} showHints={false} />
             </>
-          )}
+          }
+        />
+      ) : (
+        <ScrollView contentContainerStyle={styles.page}>
+          <View style={{ width: size, gap: 12 }}>
+            {phase === 'ready' && (
+              <Card>
+                <Label size={22} bold>
+                  {tr(COPY[mode].title)}
+                </Label>
+                <Label muted>{tr(COPY[mode].rules, RULE_PARAMS)}</Label>
+                {error && <Label muted>{error}</Label>}
+                <Button title={tr('puzzles.run.start')} onPress={start} />
+              </Card>
+            )}
 
-          {phase === 'over' && (
-            <Card>
-              <Label muted>{mode === 'rush' ? (left === 0 ? tr('puzzles.run.timeUp') : tr('puzzles.run.outOfLives')) : tr('puzzles.run.streakOver')}</Label>
-              <Text style={[styles.final, { color: t.text }]}>{score}</Text>
-              <Label muted>{best ? (best.newBest ? tr('puzzles.run.newBest') : tr('puzzles.run.best', { n: best.best })) : tr('common.saving')}</Label>
-              <Button title={tr('puzzles.run.again')} onPress={start} />
-            </Card>
-          )}
-        </View>
-      </ScrollView>
+            {phase === 'over' && (
+              <Card>
+                <Label muted>{mode === 'rush' ? (left === 0 ? tr('puzzles.run.timeUp') : tr('puzzles.run.outOfLives')) : tr('puzzles.run.streakOver')}</Label>
+                <Text style={[styles.final, { color: t.text }]}>{score}</Text>
+                <Label muted>{best ? (best.newBest ? tr('puzzles.run.newBest') : tr('puzzles.run.best', { n: best.best })) : tr('common.saving')}</Label>
+                <Button title={tr('puzzles.run.again')} onPress={start} />
+              </Card>
+            )}
+          </View>
+        </ScrollView>
+      )}
     </Screen>
   );
 }

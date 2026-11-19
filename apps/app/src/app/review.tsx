@@ -39,6 +39,8 @@ export default function Review() {
   const t = useTheme();
   const size = useBoardSize(300) - EVAL_BAR - 6;
   const [ply, setPly] = useState(0);
+  // Play: steps through the game a move at a time, pieces sliding as if it were being played.
+  const [autoplay, setAutoplay] = useState(false);
   const [flip, setFlip] = useState(params.orientation === 'b');
   const request = useMemo(
     () => ({
@@ -71,6 +73,16 @@ export default function Review() {
     return () => window.removeEventListener('keydown', onKey);
   }, [moves.length]);
 
+  useEffect(() => {
+    if (!autoplay) return;
+    if (ply >= moves.length) {
+      setAutoplay(false);
+      return;
+    }
+    const id = setTimeout(() => setPly((p) => p + 1), 900);
+    return () => clearTimeout(id);
+  }, [autoplay, ply, moves.length]);
+
   // Show what the engine preferred when the played move was not the best.
   const arrows: Arrow[] = [];
   if (current && current.bestMove !== current.uci && !NO_ARROW.has(current.judgement.classification)) {
@@ -92,6 +104,10 @@ export default function Review() {
   }
 
   const progress = engine.state.reviewProgress;
+  const step = (fn: (p: number) => number) => {
+    setAutoplay(false);
+    setPly(fn);
+  };
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.page}>
@@ -139,10 +155,21 @@ export default function Review() {
             <>
               <ActionBar
                 actions={[
-                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setPly(0), disabled: ply === 0 },
-                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setPly((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
-                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setPly((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
-                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setPly(moves.length), disabled: ply >= moves.length },
+                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => step(() => 0), disabled: ply === 0 },
+                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => step((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
+                  {
+                    key: 'play',
+                    icon: autoplay ? 'pause' : 'play',
+                    label: autoplay ? tr('review.pause') : tr('review.play'),
+                    active: autoplay,
+                    disabled: moves.length === 0,
+                    onPress: () => {
+                      if (!autoplay && ply >= moves.length) setPly(0);
+                      setAutoplay((a) => !a);
+                    },
+                  },
+                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => step((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
+                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => step(() => moves.length), disabled: ply >= moves.length },
                   { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
                 ]}
               />

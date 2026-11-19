@@ -59,17 +59,21 @@ export default function PuzzleTrainer() {
   return (
     <Screen>
       <Stack.Screen options={{ title }} />
-      <ScrollView contentContainerStyle={styles.page}>
-        {error ? (
+      {error ? (
+        <ScrollView contentContainerStyle={styles.page}>
           <Card style={{ width: size }}>
             <Label bold>{tr('puzzles.train.couldNotLoad')}</Label>
             <Label muted>{error}</Label>
             <Button title={tr('common.tryAgain')} onPress={load} />
           </Card>
-        ) : (
-          <View style={{ width: size, gap: 12 }}>
-            <PuzzleBoard view={view} puzzle={puzzle} size={size} />
-            {result && (
+        </ScrollView>
+      ) : (
+        <PuzzleBoard
+          view={view}
+          puzzle={puzzle}
+          size={size}
+          below={
+            result && (
               <Card>
                 <Label size={18} bold>
                   {result.solved ? tr('puzzles.train.nice') : tr('puzzles.train.keepAtIt')}
@@ -82,10 +86,10 @@ export default function PuzzleTrainer() {
                 <Button title={tr('puzzles.train.next')} onPress={load} />
                 {daily && <Button variant="secondary" title={tr('puzzles.train.back')} onPress={() => router.back()} />}
               </Card>
-            )}
-          </View>
-        )}
-      </ScrollView>
+            )
+          }
+        />
+      )}
     </Screen>
   );
 }

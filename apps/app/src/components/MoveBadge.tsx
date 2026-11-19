@@ -24,8 +24,11 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
   const ink = shade(c.color, -0.42);
   const relief = shade(c.color, 0.32);
   const full = variant === 'full';
-  // On the board a symbol reads better than an icon; the Masterpiece keeps its crown.
-  const miniUsesSymbol = !full && !!c.glyph && cls !== 'masterpiece';
+  // On the board a symbol reads better than an icon.
+  const miniUsesSymbol = !full && !!c.glyph;
+  // A Masterpiece can be made by any piece (a rook sacrifice that forces mate),
+  // so it shows "!!!" rather than a piece-like icon, on the full coin too.
+  const symbolOnly = cls === 'masterpiece';
 
   return (
     <View accessibilityRole="image" accessibilityLabel={c.label} style={{ width: size, height: size }}>
@@ -59,12 +62,22 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
             <Embossed ink={relief} relief={ink} depth={-0.9}>
               {(fill) => <ArcLabel text={c.label.toUpperCase()} fill={fill} />}
             </Embossed>
-            <G transform={c.glyph ? 'translate(50 50) scale(0.74)' : 'translate(50 56) scale(0.88)'}>
-              <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.4)} depth={1.8}>
-                {(fill) => <Icon name={c.icon} fill={fill} />}
+            {symbolOnly ? (
+              <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.5)} depth={1.8}>
+                {(fill) => (
+                  <SvgText x="50" y="66" fill={fill} fontSize="34" fontWeight="700" fontFamily="Montserrat_700Bold" letterSpacing={-2} textAnchor="middle">
+                    {c.glyph}
+                  </SvgText>
+                )}
               </Embossed>
-            </G>
-            {c.glyph && (
+            ) : (
+              <G transform={c.glyph ? 'translate(50 50) scale(0.74)' : 'translate(50 56) scale(0.88)'}>
+                <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.4)} depth={1.8}>
+                  {(fill) => <Icon name={c.icon} fill={fill} />}
+                </Embossed>
+              </G>
+            )}
+            {c.glyph && !symbolOnly && (
               <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.5)} depth={1.4}>
                 {(fill) => (
                   <SvgText x="50" y="87" fill={fill} fontSize={c.glyph!.length > 2 ? 17 : 19} fontWeight="700" fontFamily="Montserrat_700Bold" textAnchor="middle">

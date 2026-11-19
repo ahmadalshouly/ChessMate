@@ -23,7 +23,8 @@ import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { ARROW_COLORS, MOVE_CLASS, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
-import { translate, useT } from '@/i18n';
+import { dirIcon, translate, useT } from '@/i18n';
+import { ActionBar } from '@/components/game/ActionBar';
 import { serverText } from '@/i18n/serverMessages';
 import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
@@ -172,13 +173,15 @@ export default function Analysis() {
       </View>
 
       {/* Move navigation follows the board, which stays left-to-right in every language. */}
-      <View style={[styles.row, { direction: 'ltr', flexWrap: 'nowrap' }]}>
-        <NavButton label="⏮" onPress={() => setCursor(0)} disabled={cursor === 0} />
-        <NavButton label="◀" onPress={() => setCursor(cursor - 1)} disabled={cursor === 0} />
-        <NavButton label="▶" onPress={() => setCursor(cursor + 1)} disabled={cursor >= line.length} />
-        <NavButton label="⏭" onPress={() => setCursor(line.length)} disabled={cursor >= line.length} />
-        <NavButton label="⇅" onPress={() => setFlip((f) => !f)} />
-      </View>
+      <ActionBar
+        actions={[
+          { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setCursor(0), disabled: cursor === 0 },
+          { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setCursor((c) => Math.max(0, c - 1)), disabled: cursor === 0, repeat: true },
+          { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setCursor((c) => Math.min(line.length, c + 1)), disabled: cursor >= line.length, repeat: true },
+          { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setCursor(line.length), disabled: cursor >= line.length },
+          { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+        ]}
+      />
     </View>
   );
 
@@ -346,14 +349,6 @@ function gradeLine(
     );
   });
   return out;
-}
-
-function NavButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <View style={{ flex: 1 }}>
-      <Button variant="secondary" title={label} onPress={onPress} disabled={disabled} />
-    </View>
-  );
 }
 
 function formatLine(san: string[], ply: number): string {

@@ -1,7 +1,7 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Animated, Image, PanResponder, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Animated, Easing, Image, PanResponder, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/ui/primitives';
 
@@ -170,6 +170,97 @@ function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
   return position[8 - rank]?.[file] ?? null;
 }
 
+/** How long a piece takes to slide to its new square. */
+const SLIDE_MS = 180;
+/** More changed squares than this (a new game, a jump through the moves) shows the position straight away. */
+const MAX_SLIDE_CHANGES = 6;
+
+interface Slide {
+  piece: Piece;
+  from: Square;
+  to: Square;
+  /** What stood on `to` before (a capture), shown until the slide lands. */
+  captured: Piece | null;
+}
+
+/**
+ * The pieces that moved between two positions: each piece that appeared on a
+ * square is matched to a vanished piece of the same colour and type (or a pawn
+ * of that colour, for a promotion), closest first. Covers normal moves,
+ * captures, castling (two slides), en passant and stepping backwards.
+ */
+function slidesBetween(prev: (Piece | null)[][], next: (Piece | null)[][]): Slide[] {
+  const removed: { sq: Square; piece: Piece }[] = [];
+  const added: { sq: Square; piece: Piece }[] = [];
+  let changes = 0;
+  for (const sq of ALL_SQUARES) {
+    const a = pieceAt(prev, sq);
+    const b = pieceAt(next, sq);
+    if (a?.type === b?.type && a?.color === b?.color) continue;
+    changes++;
+    if (a) removed.push({ sq, piece: a });
+    if (b) added.push({ sq, piece: b });
+  }
+  if (changes === 0 || changes > MAX_SLIDE_CHANGES) return [];
+  const dist = (x: Square, y: Square) => Math.abs(x.charCodeAt(0) - y.charCodeAt(0)) + Math.abs(Number(x[1]) - Number(y[1]));
+  const slides: Slide[] = [];
+  const pool = [...removed];
+  for (const a of added) {
+    const same = pool.filter((r) => r.piece.color === a.piece.color && r.piece.type === a.piece.type);
+    const candidates = same.length ? same : pool.filter((r) => r.piece.color === a.piece.color && (r.piece.type === 'p' || a.piece.type === 'p'));
+    if (!candidates.length) continue;
+    const from = candidates.reduce((best, r) => (dist(r.sq, a.sq) < dist(best.sq, a.sq) ? r : best));
+    pool.splice(pool.indexOf(from), 1);
+    const before = pieceAt(prev, a.sq);
+    slides.push({ piece: a.piece, from: from.sq, to: a.sq, captured: before && before.color !== a.piece.color ? before : null });
+  }
+  return slides;
+}
+
+/** Top-left of a square's cell for an orientation. */
+function cellOrigin(sq: Square, orientation: Color, cell: number) {
+  const f = sq.charCodeAt(0) - 97;
+  const r = Number(sq[1]);
+  return { x: (orientation === 'w' ? f : 7 - f) * cell, y: (orientation === 'w' ? 8 - r : r - 1) * cell };
+}
+
+/**
+ * Slides pieces to their new squares when the position changes by a move,
+ * instead of making them vanish and reappear. A piece just dropped by drag is
+ * already where it belongs and is not slid again.
+ */
+function useSlides(fen: string, position: (Piece | null)[][], orientation: Color, size: number) {
+  const [prev, setPrev] = useState({ fen, position, orientation, size });
+  const [run, setRun] = useState<{ key: string; slides: Slide[]; progress: Animated.Value } | null>(null);
+  // The last drag-and-drop, on the position it was made from.
+  const [dropped, setDropped] = useState<{ from: Square; to: Square; fen: string } | null>(null);
+
+  if (prev.fen !== fen || prev.orientation !== orientation || prev.size !== size) {
+    // Same board turned or resized: just show it. A new position: work out what moved.
+    const moved = prev.fen !== fen && prev.orientation === orientation && prev.size === size;
+    setPrev({ fen, position, orientation, size });
+    const drop = dropped?.fen === prev.fen ? dropped : null;
+    const slides = moved ? slidesBetween(prev.position, position).filter((s) => !(drop && s.from === drop.from && s.to === drop.to)) : [];
+    if (dropped) setDropped(null);
+    setRun(slides.length ? { key: fen, slides, progress: new Animated.Value(0) } : null);
+  }
+
+  useEffect(() => {
+    if (!run) return;
+    const anim = Animated.timing(run.progress, {
+      toValue: 1,
+      duration: SLIDE_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    anim.start(({ finished }) => finished && setRun((r) => (r === run ? null : r)));
+    return () => anim.stop();
+  }, [run]);
+
+  const markDropped = (from: Square, to: Square) => setDropped({ from, to, fen });
+  return { run, hidden: new Set(run?.slides.map((sl) => sl.to) ?? []), markDropped };
+}
+
 /** Square order for an orientation, top-left first. */
 const ORDER: Record<Color, Square[]> = {
   w: [...ALL_SQUARES].sort((a, b) => Number(b[1]) - Number(a[1]) || a.charCodeAt(0) - b.charCodeAt(0)),
@@ -228,7 +319,14 @@ export const Board = memo(function Board(props: BoardProps) {
   const set = props.pieces ?? look.pieces;
   // Thumbnails are too small for readable coordinates.
   const coordinates = look.coordinates && !props.hideCoordinates && cell >= 24;
-  const { enabled: dragEnabled, state: dragging, offset: dragOffset, ref: dragRef, handlers: dragHandlers } = useDrag({ ...props, position, cell, onSquarePress });
+  const slide = useSlides(fen, position, orientation, size);
+  const { enabled: dragEnabled, state: dragging, offset: dragOffset, ref: dragRef, handlers: dragHandlers } = useDrag({
+    ...props,
+    position,
+    cell,
+    onSquarePress,
+    onDropped: slide.markDropped,
+  });
   const drawn = useDrawnShapes(props.drawable ?? !!onSquarePress, fen, cell, orientation);
   const allArrows = props.arrows ? [...props.arrows, ...drawn.arrows] : drawn.arrows;
   const targetSet = new Set(targets);
@@ -277,7 +375,7 @@ export const Board = memo(function Board(props: BoardProps) {
                 {FILES[fileIdx]}
               </Text>
             )}
-            {piece && (
+            {piece && !slide.hidden.has(sq) && (
               <View style={dragging?.from === sq ? styles.lifted : undefined}>
                 <PieceView piece={piece} cell={cell} set={set} />
               </View>
@@ -306,6 +404,35 @@ export const Board = memo(function Board(props: BoardProps) {
               />
             )}
           </Pressable>
+        );
+      })}
+      {slide.run?.slides.map((sl) => {
+        const a = cellOrigin(sl.from, orientation, cell);
+        const b = cellOrigin(sl.to, orientation, cell);
+        const centre = (v: number) => v + cell / 2 - size / 2;
+        const p = slide.run!.progress;
+        return (
+          <View key={`slide-${slide.run!.key}-${sl.from}-${sl.to}`} pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN]}>
+            {sl.captured && (
+              <Animated.View style={[placeAt(b.x, b.y, cell, cell, size), { opacity: p.interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] }) }]}>
+                <PieceView piece={sl.captured} cell={cell} set={set} />
+              </Animated.View>
+            )}
+            <Animated.View
+              style={[
+                styles.floating,
+                {
+                  width: cell,
+                  height: cell,
+                  transform: [
+                    { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [centre(a.x), centre(b.x)] }) },
+                    { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [centre(a.y), centre(b.y)] }) },
+                  ],
+                },
+              ]}>
+              <PieceView piece={sl.piece} cell={cell} set={set} />
+            </Animated.View>
+          </View>
         );
       })}
       {dragEnabled && <View ref={dragRef} collapsable={false} style={[StyleSheet.absoluteFill, WEB_NO_GESTURES]} {...dragHandlers} />}
@@ -410,6 +537,8 @@ function useDrag(p: {
   canDrag?: (square: Square) => boolean;
   onPieceDrop?: (from: Square, to: Square) => void;
   onCancel?: () => void;
+  /** Told about a drop before onPieceDrop, so the board doesn't slide that piece again. */
+  onDropped?: (from: Square, to: Square) => void;
 }) {
   const [state, setState] = useState<DragState | null>(null);
   const [offset] = useState(() => new Animated.ValueXY());
@@ -474,7 +603,10 @@ function useDrag(p: {
           if (cur.moved) {
             const to = squareAtPoint(cur.x + g.dx, cur.y + g.dy, cell, orientation);
             // Dropped back on its square or off the board: keep it selected for a tap move.
-            if (to && to !== cur.sq) onPieceDrop?.(cur.sq, to);
+            if (to && to !== cur.sq) {
+              latest.current.onDropped?.(cur.sq, to);
+              onPieceDrop?.(cur.sq, to);
+            }
             return;
           }
           // A tap. Movable pieces were already selected on press; tapping the selected one again clears it.
