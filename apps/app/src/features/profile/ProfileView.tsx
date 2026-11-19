@@ -215,7 +215,7 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
 function HeroStat({ value, label }: { value: string; label: string }) {
   return (
     <View style={{ flex: 1, gap: 2 }}>
-      <Text variant="numeric" style={{ fontSize: 20 }}>
+      <Text variant="numeric" style={{ fontSize: 20, lineHeight: 26 }}>
         {value}
       </Text>
       <Text variant="caption" tone="muted" numberOfLines={1}>

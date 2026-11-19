@@ -53,7 +53,7 @@ export function HeadToHeadCard({ userId, name }: { userId: string; name: string 
   return (
     <GlassView radius="xl" padding="lg" style={{ gap: 14 }}>
       <View style={styles.head}>
-        <Text variant="heading" style={{ flex: 1 }} numberOfLines={1}>
+        <Text variant="heading" style={styles.title} numberOfLines={2}>
           {tr('h2h.title', { name })}
         </Text>
         <Button
@@ -103,25 +103,27 @@ export function HeadToHeadCard({ userId, name }: { userId: string; name: string 
                 </Pressable>
               );
             })}
-            {h2h.lastPlayedAt && (
-              <Text variant="caption" tone="muted" style={{ marginStart: 4 }}>
-                {tr('h2h.last', { date: formatDate(h2h.lastPlayedAt, { day: 'numeric', month: 'short', year: 'numeric' }) })}
-              </Text>
-            )}
           </View>
+          {h2h.lastPlayedAt && (
+            <Text variant="caption" tone="muted">
+              {tr('h2h.last', { date: formatDate(h2h.lastPlayedAt, { day: 'numeric', month: 'short', year: 'numeric' }) })}
+            </Text>
+          )}
         </>
       )}
     </GlassView>
   );
 }
 
+/** One number in an equal-width tile; the line height fits the figure so it is never clipped. */
 function Stat({ value, label }: { value: number; label: string }) {
+  const c = useAppTheme().colors;
   return (
-    <View style={{ flex: 1, gap: 2 }}>
-      <Text variant="numeric" style={{ fontSize: 22 }}>
+    <View style={[styles.stat, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
+      <Text variant="numeric" style={styles.statValue}>
         {value}
       </Text>
-      <Text variant="caption" tone="muted" numberOfLines={1}>
+      <Text variant="caption" tone="muted" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
         {label}
       </Text>
     </View>
@@ -129,8 +131,11 @@ function Stat({ value, label }: { value: number; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stats: { flexDirection: 'row', gap: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  title: { flexGrow: 1, flexShrink: 1, flexBasis: 160 },
+  stats: { flexDirection: 'row', gap: 8 },
+  stat: { flex: 1, minWidth: 0, alignItems: 'center', gap: 2, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth },
+  statValue: { fontSize: 22, lineHeight: 28 },
   bar: { height: 8, borderRadius: 4, overflow: 'hidden', flexDirection: 'row' },
   recent: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   chip: { width: 30, height: 30, borderRadius: 9, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

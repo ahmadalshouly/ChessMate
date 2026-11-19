@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  accuracy: { fontSize: 18 },
+  accuracy: { fontSize: 18, lineHeight: 24 },
   counts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 6 },
   count: { flexDirection: 'row', alignItems: 'center', gap: 5 },
 });

@@ -193,7 +193,7 @@ function PagerArrow({ icon, label, disabled, onPress }: { icon: 'chevron-back' |
 
 function LiveGame({ game, wide, boardSize, onDone }: { game: FeaturedGame; wide: boolean; boardSize: number; onDone: () => void }) {
   const s = useSpectate(game.gameId);
-  useTicker(s.status === 'live' && !!s.clock?.running);
+  const now = useTicker(s.status === 'live' && !!s.clock?.running);
 
   const over = s.status === 'finished';
   const failed = s.status === 'error';
@@ -215,7 +215,7 @@ function LiveGame({ game, wide, boardSize, onDone }: { game: FeaturedGame; wide:
       fen={s.status === 'connecting' && game.fen ? game.fen : s.fen}
       white={s.white ?? game.white}
       black={s.black ?? game.black}
-      ms={(col) => (s.clock ? clockRemaining(s.clock, col, s.clockOffset) : null)}
+      ms={(col) => (s.clock ? clockRemaining(s.clock, col, s.clockOffset, now) : null)}
       running={s.clock?.running ?? null}
       last={s.history[s.history.length - 1]}
       recent={recent}

@@ -1,7 +1,7 @@
 import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -21,6 +21,7 @@ import { PlayerCard } from '@/components/game/PlayerCard';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { GameOverCard, endResult } from '@/components/play/GameOverCard';
+import { ResultPopup } from '@/components/play/ResultPopup';
 import { Pill, Row } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { serverText } from '@/i18n/serverMessages';
@@ -48,6 +49,7 @@ const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
  */
 export default function OnlinePlay() {
   const t = useTheme();
+  const { width: winW, height: winH } = useWindowDimensions();
   const tr = useT();
   const { tc: tcParam, mode, to, challenge: inviteId } = useLocalSearchParams<{ tc?: string; mode?: string; to?: string; challenge?: string }>();
   const quickTc = useMemo(() => {
@@ -63,7 +65,7 @@ export default function OnlinePlay() {
   const live = !!view && !view.outcome;
   // No way back out mid-game (no back button, swipe or Android back); it returns when the game ends.
   const lockOptions = useGameLock(live);
-  useTicker(live || (!!view?.opponentAbandonAt && !view.opponentConnected) || s.seek !== null);
+  const now = useTicker(live || (!!view?.opponentAbandonAt && !view.opponentConnected) || s.seek !== null);
   useRecordOnlineGame(view);
 
   // Move and resign confirmation follow the user's gameplay settings.
@@ -78,13 +80,13 @@ export default function OnlinePlay() {
   const you: Color = view?.you ?? 'w';
   const opp: Color = you === 'w' ? 'b' : 'w';
   const players = view ? { w: view.white, b: view.black } : null;
-  const ms = (c: Color) => (view ? clockRemaining(view.clock, c, view.clockOffset) : null);
+  const ms = (c: Color) => (view ? clockRemaining(view.clock, c, view.clockOffset, now) : null);
   const history = view?.history ?? [];
   const last = prefs.pending ?? history[history.length - 1];
   useLowTimeWarning(view?.gameId ?? null, live, ms(you), view?.timeControl.initialMs ?? 0);
-  const abandonIn = view?.opponentAbandonAt ? Math.max(0, Math.ceil((view.opponentAbandonAt - (Date.now() + view.clockOffset)) / 1000)) : null;
+  const abandonIn = view?.opponentAbandonAt ? Math.max(0, Math.ceil((view.opponentAbandonAt - (now + view.clockOffset)) / 1000)) : null;
   // Each side has 30 seconds for its first move; the server aborts the game after that.
-  const firstMoveIn = live && view?.firstMoveDeadline ? Math.max(0, Math.ceil((view.firstMoveDeadline - (Date.now() + view.clockOffset)) / 1000)) : null;
+  const firstMoveIn = live && view?.firstMoveDeadline ? Math.max(0, Math.ceil((view.firstMoveDeadline - (now + view.clockOffset)) / 1000)) : null;
   const toMove: Color = view?.fen.split(' ')[1] === 'b' ? 'b' : 'w';
 
   const me = s.me;
@@ -366,26 +368,7 @@ export default function OnlinePlay() {
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />
-            {over && !hideResult && (
-              <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
-                <ScrollView style={styles.overlayScroll} contentContainerStyle={styles.overlayContent} showsVerticalScrollIndicator={false}>
-                <GameOverCard
-                  view={view}
-                  onRematch={() => playClient.rematch()}
-                  onDeclineRematch={() => playClient.declineRematch()}
-                  onNewGame={newGame}
-                  onLobby={toLobby}
-                  onReview={reviewable ? openReview : undefined}
-                  onClose={() => setHideResult(true)}
-                  moves={history.map((m) => m.uci)}
-                />
-                </ScrollView>
-              </View>
-            )}
-            {/* Drawn above the result card; touches pass through. */}
-            {over && endResult(view) && (
-              <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={boardSize} height={boardSize} />
-            )}
+            {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}
         strip={
@@ -414,6 +397,21 @@ export default function OnlinePlay() {
           }}
         />
       )}
+      <ResultPopup visible={over && !hideResult} onClose={() => setHideResult(true)}>
+        <GameOverCard
+          view={view}
+          onRematch={() => playClient.rematch()}
+          onDeclineRematch={() => playClient.declineRematch()}
+          onNewGame={newGame}
+          onLobby={toLobby}
+          onReview={reviewable ? openReview : undefined}
+          onClose={() => setHideResult(true)}
+          moves={history.map((m) => m.uci)}
+        />
+        {endResult(view) && (
+          <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={winW} height={winH} />
+        )}
+      </ResultPopup>
     </Screen>
   );
 }

@@ -343,10 +343,10 @@ function SeekingCard() {
   const t = useAppTheme();
   const tr = useT();
   const s = usePlay();
-  useTicker(true);
+  const now = useTicker(true);
   if (!s.seek) return null;
   const st = s.seekStatus;
-  const waited = st ? st.waitedMs + (Date.now() - st.at) : 0;
+  const waited = st ? st.waitedMs + (now - st.at) : 0;
   const secs = Math.floor(waited / 1000);
   return (
     <GlassView padding="lg" radius="xl" strength="strong" style={{ gap: t.space.md }}>

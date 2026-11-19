@@ -600,8 +600,9 @@ export function usePlay(): PlayState {
 }
 
 /** Remaining time for a side, corrected for server clock offset. */
-export function clockRemaining(clock: ClockState, color: Color, offset: number): number {
-  return remaining(clock, color, Date.now() + offset);
+/** Time left on a clock; pass `at` (from useTicker) so the value updates every tick. */
+export function clockRemaining(clock: ClockState, color: Color, offset: number, at: number = Date.now()): number {
+  return remaining(clock, color, at + offset);
 }
 
 export function isGuest(me: PlayerInfo | null): boolean {

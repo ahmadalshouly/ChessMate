@@ -37,7 +37,7 @@ export default function TournamentScreen() {
   const [joining, setJoining] = useState(false);
   const [payout, setPayout] = useState(false);
   const [paymentsEnabled, setPaymentsEnabled] = useState(false);
-  useTicker(tour?.status === 'running' || tour?.status === 'scheduled');
+  const now = useTicker(tour?.status === 'running' || tour?.status === 'scheduled');
 
   const load = useCallback(() => {
     if (!id) return;
@@ -131,7 +131,7 @@ export default function TournamentScreen() {
             {tour.status === 'finished' && <Badge label={tr('tournaments.finishedBadge')} />}
             {tour.status === 'cancelled' && <Badge tone="danger" label={tr('tournaments.cancelled')} />}
             <Text variant="caption" tone="muted">
-              {tournamentClock(tour)}
+              {tournamentClock(tour, now)}
             </Text>
           </View>
           {tour.sponsor ? <SponsorBadge sponsor={tour.sponsor} size="lg" /> : null}

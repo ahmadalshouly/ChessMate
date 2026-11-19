@@ -23,7 +23,7 @@ export default function Tournaments() {
   const [list, setList] = useState<TournamentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const running = list?.some((x) => x.status === 'running' || x.status === 'scheduled') ?? false;
-  useTicker(running);
+  const now = useTicker(running);
 
   const load = useCallback(() => {
     tournamentsApi.list().then(
@@ -65,9 +65,9 @@ export default function Tournaments() {
           <Text tone="muted">{tr('tournaments.noneBody')}</Text>
         </GlassView>
       )}
-      {live.length > 0 && <Section title={tr('tournaments.live')} items={live} />}
-      {upcoming.length > 0 && <Section title={tr('tournaments.upcoming')} items={upcoming} />}
-      {past.length > 0 && <Section title={tr('tournaments.past')} items={past} />}
+      {live.length > 0 && <Section title={tr('tournaments.live')} items={live} now={now} />}
+      {upcoming.length > 0 && <Section title={tr('tournaments.upcoming')} items={upcoming} now={now} />}
+      {past.length > 0 && <Section title={tr('tournaments.past')} items={past} now={now} />}
       <GlassView padding="lg" radius="xl" style={{ gap: t.space.sm }}>
         <Text variant="label">{tr('tournaments.howTitle')}</Text>
         <Text tone="muted">{tr('tournaments.howBody')}</Text>
@@ -84,21 +84,21 @@ export default function Tournaments() {
   );
 }
 
-function Section({ title, items }: { title: string; items: TournamentSummary[] }) {
+function Section({ title, items, now }: { title: string; items: TournamentSummary[]; now: number }) {
   const t = useAppTheme();
   return (
     <View style={{ gap: t.space.md }}>
       <SectionHeader title={title} />
       <View style={{ gap: t.space.md }}>
         {items.map((x) => (
-          <TournamentCard key={x.id} t={x} />
+          <TournamentCard key={x.id} t={x} now={now} />
         ))}
       </View>
     </View>
   );
 }
 
-function TournamentCard({ t: x }: { t: TournamentSummary }) {
+function TournamentCard({ t: x, now }: { t: TournamentSummary; now: number }) {
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
@@ -123,7 +123,7 @@ function TournamentCard({ t: x }: { t: TournamentSummary }) {
               {formatTimeControl(x.timeControl)} · {category} · {x.rated ? tr('play.rated') : tr('play.casual')} · {tr('tournaments.minutes', { count: x.durationMinutes })}
             </Text>
             <Text variant="caption" tone="muted">
-              {tournamentClock(x)} · {tr('tournaments.players', { count: x.players, n: formatNumber(x.players) })}
+              {tournamentClock(x, now)} · {tr('tournaments.players', { count: x.players, n: formatNumber(x.players) })}
               {x.winner ? ` · ${tr('tournaments.winner', { name: x.winner })}` : ''}
             </Text>
             {x.sponsor ? <SponsorBadge sponsor={x.sponsor} size="sm" /> : null}

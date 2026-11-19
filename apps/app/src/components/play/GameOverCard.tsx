@@ -230,7 +230,7 @@ function CardButton({ icon, label, onPress, primary, disabled }: { icon: Compone
 }
 
 const styles = StyleSheet.create({
-  solid: { width: '100%', maxWidth: 400, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  solid: { width: '100%', maxWidth: 460, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   medal: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
