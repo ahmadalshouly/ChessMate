@@ -1,4 +1,4 @@
-import { formatTimeControl, timeCategory, type TournamentSummary } from '@chessmate/core';
+import { formatMoney, formatTimeControl, timeCategory, type TournamentSummary } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -7,10 +7,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTicker } from '@/components/PlayerBar';
 import { Page } from '@/components/shell/Page';
 import { tournamentClock } from '@/features/tournaments/format';
+import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { formatNumber, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { tournamentsApi } from '@/lib/tournamentsApi';
-import { Badge, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
+import { Badge, Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
 
 /**
  * The Tournaments tab: arenas running now, coming up and finished. Staff
@@ -71,6 +72,14 @@ export default function Tournaments() {
         <Text variant="label">{tr('tournaments.howTitle')}</Text>
         <Text tone="muted">{tr('tournaments.howBody')}</Text>
       </GlassView>
+      <GlassView padding="lg" radius="xl" style={{ gap: t.space.md, alignItems: 'flex-start' }}>
+        <View style={styles.titleRow}>
+          <Ionicons name="ribbon-outline" size={20} color={t.colors.text} />
+          <Text variant="heading">{tr('tournaments.sponsor.ctaTitle')}</Text>
+        </View>
+        <Text tone="muted">{tr('tournaments.sponsor.ctaBody')}</Text>
+        <Button variant="secondary" title={tr('tournaments.sponsor.cta')} onPress={() => router.push('/tournaments/sponsor')} />
+      </GlassView>
     </Page>
   );
 }
@@ -108,6 +117,7 @@ function TournamentCard({ t: x }: { t: TournamentSummary }) {
               </Text>
               {x.status === 'running' && <Badge tone="live" size="sm" label={tr('tournaments.liveBadge')} />}
               {x.joined && <Badge tone="outline" size="sm" label={tr('tournaments.joinedBadge')} />}
+              <Badge tone={x.entryFeeCents > 0 ? 'solid' : 'neutral'} size="sm" label={x.entryFeeCents > 0 ? formatMoney(x.entryFeeCents, x.currency) : tr('tournaments.free')} />
             </View>
             <Text variant="caption" tone="muted">
               {formatTimeControl(x.timeControl)} · {category} · {x.rated ? tr('play.rated') : tr('play.casual')} · {tr('tournaments.minutes', { count: x.durationMinutes })}
@@ -116,6 +126,7 @@ function TournamentCard({ t: x }: { t: TournamentSummary }) {
               {tournamentClock(x)} · {tr('tournaments.players', { count: x.players, n: formatNumber(x.players) })}
               {x.winner ? ` · ${tr('tournaments.winner', { name: x.winner })}` : ''}
             </Text>
+            {x.sponsor ? <SponsorBadge sponsor={x.sponsor} size="sm" /> : null}
             {x.prizePool ? (
               <View style={styles.titleRow}>
                 <Ionicons name="gift-outline" size={14} color={c.text} />

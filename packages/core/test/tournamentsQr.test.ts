@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { arenaPoints, profilePath, qrMatrix, qrPath, usernameFromLink, validateTournamentInput } from '../src';
+import { arenaPoints, formatMoney, profilePath, qrMatrix, qrPath, usernameFromLink, validatePayoutRequest, validateSponsorApplication, validateTournamentInput } from '../src';
 
 describe('arena points', () => {
   it('doubles wins and draws on a streak', () => {
@@ -32,6 +32,39 @@ describe('tournament input', () => {
     const edit = validateTournamentInput({ prizePool: '$150' }, now + 7200_000, base.value);
     expect('value' in edit && edit.value.prizePool).toBe('$150');
     expect('value' in edit && edit.value.name).toBe('Friday Blitz');
+  });
+});
+
+describe('tournament fees, ratings and sponsors', () => {
+  const now = Date.UTC(2026, 10, 19, 12);
+  const base = { name: 'Sponsored Rapid', timeControl: { initialMs: 600_000, incrementMs: 0 }, startsAt: now + 3600_000, durationMinutes: 90 };
+  it('accepts fees, rating limits and a sponsor', () => {
+    const r = validateTournamentInput({ ...base, entryFeeCents: 500, currency: 'usd', minRating: 1200, maxRating: 1800, minRatedGames: 10, lateJoin: false, rules: 'No pre-arranged draws', sponsorName: 'Acme', sponsorUrl: 'https://acme.example', sponsorLogo: 'data:image/png;base64,iVBORw0KGgo=' }, now);
+    expect('value' in r && r.value).toMatchObject({ entryFeeCents: 500, currency: 'usd', minRating: 1200, maxRating: 1800, minRatedGames: 10, lateJoin: false, sponsorName: 'Acme' });
+    expect('value' in r && r.value.sponsorLogo).toMatch(/^data:image\/png/);
+  });
+  it('defaults to a free tournament without limits', () => {
+    const r = validateTournamentInput(base, now);
+    expect('value' in r && r.value).toMatchObject({ entryFeeCents: 0, currency: 'eur', minRating: null, maxRating: null, lateJoin: true, sponsorName: null });
+    expect('value' in r && 'sponsorLogo' in r.value).toBe(false);
+  });
+  it('rejects bad fees, ratings and logos', () => {
+    expect(validateTournamentInput({ ...base, entryFeeCents: 50 }, now)).toMatchObject({ field: 'entryFeeCents' });
+    expect(validateTournamentInput({ ...base, currency: 'btc' }, now)).toMatchObject({ field: 'currency' });
+    expect(validateTournamentInput({ ...base, minRating: 2000, maxRating: 1500 }, now)).toMatchObject({ field: 'minRating' });
+    expect(validateTournamentInput({ ...base, sponsorName: 'X', sponsorLogo: 'data:image/svg+xml;base64,PHN2Zz4=' }, now)).toMatchObject({ field: 'sponsorLogo' });
+    expect(validateTournamentInput({ ...base, sponsorLogo: 'data:image/png;base64,AAAA' }, now)).toMatchObject({ field: 'sponsorName' });
+    expect(validateTournamentInput({ ...base, sponsorUrl: 'javascript:alert(1)' }, now)).toMatchObject({ field: 'sponsorUrl' });
+  });
+  it('formats money', () => {
+    expect(formatMoney(500, 'eur')).toBe('€5');
+    expect(formatMoney(250, 'gbp')).toBe('£2.50');
+  });
+  it('validates sponsor applications and payout requests', () => {
+    expect(validateSponsorApplication({ name: 'Ann', email: 'ann@acme.example', message: 'A monthly blitz arena' })).toHaveProperty('value');
+    expect(validateSponsorApplication({ name: 'Ann', email: 'nope', message: 'A monthly blitz arena' })).toMatchObject({ field: 'email' });
+    expect(validatePayoutRequest({ method: 'paypal', details: 'me@example.com' })).toHaveProperty('value');
+    expect(validatePayoutRequest({ method: 'cash', details: 'x' })).toMatchObject({ field: 'method' });
   });
 });
 

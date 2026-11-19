@@ -9,6 +9,8 @@ import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, c
 import { ChatPanel } from '@/components/ChatPanel';
 import { ReportDialog } from '@/components/ReportDialog';
 import { RestrictionBanner } from '@/components/shell/RestrictionBanner';
+import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
+import { useTournamentSponsor } from '@/features/tournaments/useTournamentSponsor';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
@@ -122,6 +124,7 @@ export default function OnlinePlay() {
     ? `${formatTimeControl(view.timeControl)} · ${view.variant === 'secretQueen' ? tr('secretQueen.name') : view.rated ? tr('play.rated') : tr('play.casual')}`
     : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
+  const sponsor = useTournamentSponsor(view?.tournamentId ?? null);
   const connectionNotice = s.restricted ? (
     <RestrictionBanner style={styles.restricted} />
   ) : s.closedReason ? (
@@ -332,7 +335,16 @@ export default function OnlinePlay() {
     <Screen>
       <Stack.Screen options={{ title }} />
       <GameLayout
-        notice={connectionNotice}
+        notice={
+          <>
+            {connectionNotice}
+            {sponsor ? (
+              <View style={styles.sponsor}>
+                <SponsorBadge sponsor={sponsor} size="sm" />
+              </View>
+            ) : null}
+          </>
+        }
         top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} status={firstMoveStatus(top)} />}
         bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} status={firstMoveStatus(orientation)} />}
         renderBoard={(boardSize) => (
@@ -404,5 +416,6 @@ const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
   restricted: { marginHorizontal: 12, marginTop: 8 },
+  sponsor: { alignItems: 'center', paddingTop: 6 },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
 });

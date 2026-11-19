@@ -1,29 +1,55 @@
 import {
   arenaPoints,
+  formatMoney,
+  validatePayoutRequest,
+  validateSponsorApplication,
   validateTournamentInput,
   type GameOutcome,
+  type PayoutMethod,
+  type PayoutRequestView,
+  type PayoutStatus,
+  type SponsorApplicationView,
+  type SponsorStatus,
   type TimeControl,
+  type TournamentCurrency,
   type TournamentDetail,
   type TournamentInput,
   type TournamentStanding,
   type TournamentStatus,
   type TournamentSummary,
+  type TournamentViewer,
+  PAYOUT_STATUSES,
+  SPONSOR_STATUSES,
 } from '@chessmate/core';
 import {
   getUser,
+  insertPayment,
+  insertPayoutRequest,
+  insertSponsorApplication,
   insertTournament,
+  listPayoutRequests,
+  listSponsorApplications,
   listTournaments,
+  paymentBySession,
+  paymentsOf,
   saveTournamentPlayer,
+  setPaymentStatus,
   tournamentPlayersOf,
+  updatePayoutRequest,
+  updateSponsorApplication,
   updateTournament,
   type Database,
+  type PayoutRequest,
+  type SponsorApplication,
   type Tournament,
 } from '@chessmate/db';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+
+import type { StripeClient } from '../payments/stripe';
 
 export class TournamentError extends Error {
   constructor(
-    readonly status: 400 | 403 | 404 | 409,
+    readonly status: 400 | 402 | 403 | 404 | 409 | 503,
     message: string,
   ) {
     super(message);
@@ -35,7 +61,8 @@ export interface TournamentBridge {
   isOnline(userId: string): boolean;
   /** Id of the player's live game, if any (tournament or not). */
   liveGameOf(userId: string): string | null;
-  rating(userId: string, tc: TimeControl): number;
+  /** Rating and number of rated games in this speed. */
+  rating(userId: string, tc: TimeControl): { rating: number; games: number };
   /** Starts a tournament game; returns its id, or null when it could not start. */
   startGame(whiteId: string, blackId: string, tc: TimeControl, rated: boolean, tournamentId: string): string | null;
   /** In-app and push notice to a player. */
@@ -53,6 +80,9 @@ interface Player {
   losses: number;
   streak: number;
   withdrawn: boolean;
+  disqualified: boolean;
+  paid: boolean;
+  rulesAcceptedAt: number | null;
   joinedAt: number;
   /** Not persisted: pairing helpers. */
   lastOpponent?: string;
@@ -72,22 +102,52 @@ const REST_MS = 4_000;
 
 const ms = (d: Date | string | null | undefined) => (d ? new Date(d).getTime() : 0);
 
+export interface AdminTournamentPlayer {
+  userId: string;
+  username: string;
+  rating: number;
+  score: number;
+  games: number;
+  withdrawn: boolean;
+  disqualified: boolean;
+  paid: boolean;
+  rulesAcceptedAt: number | null;
+  joinedAt: number;
+  playing: boolean;
+}
+
+export interface AdminTournamentView extends TournamentDetail {
+  roster: AdminTournamentPlayer[];
+  payments: { userId: string; amountCents: number; currency: string; status: string; createdAt: number }[];
+  revenueCents: number;
+}
+
 /**
- * Arena tournaments. Staff create them (admin service); players join and
+ * Arena tournaments. Staff create them (admin service); players join (after
+ * accepting the rules, and paying on the web when there is an entry fee) and
  * withdraw; while one runs, `tick` pairs waiting players with similar scores
- * and `gameEnded` scores results. State lives in memory and is written through
- * to the database.
+ * and `gameEnded` scores results. Also keeps sponsor applications and prize
+ * payout requests for staff to review. State lives in memory and is written
+ * through to the database.
  */
 export class TournamentService {
   private readonly db: Database;
   private readonly now: () => number;
   private readonly entries = new Map<string, Entry>();
+  private readonly payouts = new Map<string, PayoutRequest>();
   private bridge: TournamentBridge | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private stripe: StripeClient | null;
 
-  constructor(opts: { db: Database; now?: () => number }) {
+  constructor(opts: { db: Database; now?: () => number; stripe?: StripeClient | null }) {
     this.db = opts.db;
     this.now = opts.now ?? Date.now;
+    this.stripe = opts.stripe ?? null;
+  }
+
+  /** Whether entry fees can be paid here (Stripe keys are configured). */
+  get paymentsEnabled(): boolean {
+    return !!this.stripe;
   }
 
   async load() {
@@ -105,11 +165,15 @@ export class TournamentService {
           losses: p.losses,
           streak: p.streak,
           withdrawn: p.withdrawn,
+          disqualified: p.disqualified,
+          paid: p.paid,
+          rulesAcceptedAt: p.rulesAcceptedAt ? ms(p.rulesAcceptedAt) : null,
           joinedAt: ms(p.joinedAt),
         });
       }
       this.entries.set(row.id, { row, players, games: new Map() });
     }
+    for (const r of await listPayoutRequests(this.db, 1000)) this.payouts.set(`${r.tournamentId}:${r.userId}`, r);
   }
 
   /** Connects the game server and starts the clock that opens, pairs and closes tournaments. */
@@ -148,6 +212,9 @@ export class TournamentService {
       losses: p.losses,
       streak: p.streak,
       withdrawn: p.withdrawn,
+      disqualified: p.disqualified,
+      paid: p.paid,
+      rulesAcceptedAt: p.rulesAcceptedAt ? new Date(p.rulesAcceptedAt) : null,
       joinedAt: new Date(p.joinedAt),
     }).catch((e) => console.error('could not save tournament player', e));
   }
@@ -155,6 +222,10 @@ export class TournamentService {
   private setStatus(e: Entry, status: TournamentStatus) {
     e.row = { ...e.row, status, finishedAt: status === 'finished' || status === 'cancelled' ? new Date(this.now()) : e.row.finishedAt };
     void updateTournament(this.db, e.row.id, { status, finishedAt: e.row.finishedAt }).catch((err) => console.error('could not save tournament', err));
+  }
+
+  private active(p: Player) {
+    return !p.withdrawn && !p.disqualified;
   }
 
   // ---------------------------------------------------------------- clock
@@ -165,11 +236,26 @@ export class TournamentService {
       if (e.row.status === 'scheduled' && ms(e.row.startsAt) <= now) {
         this.setStatus(e, 'running');
         for (const p of e.players.values()) {
-          if (!p.withdrawn) this.bridge?.notify(p.userId, `${e.row.name} has started`, 'Open the tournament to get your first game.', `/tournaments/${e.row.id}`);
+          if (this.active(p)) this.bridge?.notify(p.userId, `${e.row.name} has started`, 'Open the tournament to get your first game.', `/tournaments/${e.row.id}`);
         }
       }
-      if (e.row.status === 'running' && this.endsAt(e.row) <= now) this.setStatus(e, 'finished');
+      if (e.row.status === 'running' && this.endsAt(e.row) <= now) {
+        this.setStatus(e, 'finished');
+        this.announceWinners(e);
+      }
       if (e.row.status === 'running') this.pair(e, now);
+    }
+  }
+
+  /** Tells prize winners they won and how to ask for their prize. */
+  private announceWinners(e: Entry) {
+    const prizes = e.row.prizes ?? [];
+    if (!prizes.length) return;
+    for (const s of this.standings(e)) {
+      const prize = prizes.find((p) => p.place === s.rank);
+      if (prize && s.games > 0) {
+        this.bridge?.notify(s.userId, `You placed #${s.rank} in ${e.row.name}`, `Your prize: ${prize.prize}. Open the tournament to request your payout.`, `/tournaments/${e.row.id}`);
+      }
     }
   }
 
@@ -180,7 +266,7 @@ export class TournamentService {
     // No new games in the last minute: they could not finish in time.
     if (this.endsAt(e.row) - now < 60_000) return;
     const waiting = [...e.players.values()].filter(
-      (p) => !p.withdrawn && b.isOnline(p.userId) && !b.liveGameOf(p.userId) && now - (p.freeSince ?? 0) >= REST_MS,
+      (p) => this.active(p) && (e.row.entryFeeCents === 0 || p.paid) && b.isOnline(p.userId) && !b.liveGameOf(p.userId) && now - (p.freeSince ?? 0) >= REST_MS,
     );
     waiting.sort((x, y) => y.score - x.score || y.rating - x.rating);
     const used = new Set<string>();
@@ -228,7 +314,7 @@ export class TournamentService {
       const p = e.players.get(id);
       if (!p) continue;
       p.freeSince = now;
-      if (outcome.reason === 'aborted') continue;
+      if (outcome.reason === 'aborted' || p.disqualified) continue;
       const result = outcome.winner === null ? 'draw' : outcome.winner === color ? 'win' : 'loss';
       p.score += arenaPoints(result, p.streak);
       p.games += 1;
@@ -246,24 +332,41 @@ export class TournamentService {
 
   // ---------------------------------------------------------------- players
 
-  async join(userId: string, id: string): Promise<TournamentDetail> {
-    const e = this.get(id);
-    if (e.row.status === 'finished' || e.row.status === 'cancelled') throw new TournamentError(409, 'This tournament is over');
+  /** Why this player may not join (or null): rating range, required games, late join, player limit. */
+  private blockedReason(e: Entry, userId: string): string | null {
     const existing = e.players.get(userId);
+    if (existing?.disqualified) return 'You were removed from this tournament';
+    if (e.row.status === 'finished' || e.row.status === 'cancelled') return 'This tournament is over';
+    if (existing) return null; // rejoining after a pause
+    if (e.row.status === 'running' && !e.row.lateJoin) return 'Late joining is closed for this tournament';
+    const active = [...e.players.values()].filter((p) => this.active(p)).length;
+    if (e.row.maxPlayers && active >= e.row.maxPlayers) return 'This tournament is full';
+    const r = this.bridge?.rating(userId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs });
+    if (r) {
+      if (e.row.minRating !== null && r.rating < e.row.minRating) return `Your rating must be at least ${e.row.minRating}`;
+      if (e.row.maxRating !== null && r.rating > e.row.maxRating) return `Your rating must be at most ${e.row.maxRating}`;
+      if (r.games < e.row.minRatedGames) return `Play at least ${e.row.minRatedGames} rated games in this speed first`;
+    }
+    return null;
+  }
+
+  private async addPlayer(e: Entry, userId: string, opts: { paid: boolean }): Promise<Player> {
+    const existing = e.players.get(userId);
+    const now = this.now();
     if (existing) {
       existing.withdrawn = false;
       existing.freeSince = 0;
-      this.persistPlayer(id, existing);
-      return this.detail(userId, id);
+      existing.rulesAcceptedAt = existing.rulesAcceptedAt ?? now;
+      existing.paid = existing.paid || opts.paid;
+      this.persistPlayer(e.row.id, existing);
+      return existing;
     }
-    const active = [...e.players.values()].filter((p) => !p.withdrawn).length;
-    if (e.row.maxPlayers && active >= e.row.maxPlayers) throw new TournamentError(409, 'This tournament is full');
     const u = await getUser(this.db, userId);
     if (!u || u.closedAt) throw new TournamentError(403, 'Sign in with an open account to join');
     const p: Player = {
       userId,
       username: u.displayName || u.username,
-      rating: Math.round(this.bridge?.rating(userId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs }) ?? 1500),
+      rating: Math.round(this.bridge?.rating(userId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs }).rating ?? 1500),
       score: 0,
       games: 0,
       wins: 0,
@@ -271,11 +374,72 @@ export class TournamentService {
       losses: 0,
       streak: 0,
       withdrawn: false,
-      joinedAt: this.now(),
+      disqualified: false,
+      paid: opts.paid,
+      rulesAcceptedAt: now,
+      joinedAt: now,
     };
     e.players.set(userId, p);
-    this.persistPlayer(id, p);
+    this.persistPlayer(e.row.id, p);
+    return p;
+  }
+
+  /** Joins a free tournament (or rejoins after a pause). The rules must be accepted. */
+  async join(userId: string, id: string, input: { acceptRules?: unknown } = {}): Promise<TournamentDetail> {
+    const e = this.get(id);
+    const blocked = this.blockedReason(e, userId);
+    if (blocked) throw new TournamentError(409, blocked);
+    const existing = e.players.get(userId);
+    if (input.acceptRules !== true && !existing?.rulesAcceptedAt) throw new TournamentError(400, 'Accept the tournament rules to join');
+    if (e.row.entryFeeCents > 0 && !existing?.paid) throw new TournamentError(402, 'This tournament has an entry fee: register and pay on the web');
+    await this.addPlayer(e, userId, { paid: existing?.paid ?? false });
     return this.detail(userId, id);
+  }
+
+  /**
+   * Starts paying the entry fee with Stripe Checkout. Returns the page to send
+   * the player to; the webhook confirms the payment and adds them.
+   */
+  async checkout(userId: string, id: string, input: { acceptRules?: unknown; returnUrl?: unknown }): Promise<{ url: string }> {
+    const e = this.get(id);
+    if (!this.stripe) throw new TournamentError(503, 'Payments are not set up yet');
+    if (e.row.entryFeeCents <= 0) throw new TournamentError(400, 'This tournament is free');
+    const blocked = this.blockedReason(e, userId);
+    if (blocked) throw new TournamentError(409, blocked);
+    if (e.players.get(userId)?.paid) throw new TournamentError(409, 'You have already paid for this tournament');
+    if (input.acceptRules !== true) throw new TournamentError(400, 'Accept the tournament rules to join');
+    const u = await getUser(this.db, userId);
+    if (!u || u.closedAt) throw new TournamentError(403, 'Sign in with an open account to join');
+    const base = typeof input.returnUrl === 'string' && /^https?:\/\//.test(input.returnUrl) ? input.returnUrl.replace(/[?#].*$/, '') : `${process.env.APP_WEB_URL ?? 'http://localhost:8081'}/tournaments/${id}`;
+    const session = await this.stripe.createCheckout({
+      amountCents: e.row.entryFeeCents,
+      currency: e.row.currency,
+      productName: `${e.row.name}: entry`,
+      customerEmail: u.email ?? undefined,
+      successUrl: `${base}?paid=1`,
+      cancelUrl: `${base}?paid=0`,
+      metadata: { tournamentId: id, userId },
+    });
+    await insertPayment(this.db, { tournamentId: id, userId, stripeSessionId: session.id, amountCents: e.row.entryFeeCents, currency: e.row.currency, status: 'pending' });
+    return { url: session.url };
+  }
+
+  /** Stripe said a checkout session was paid: record it and add the player. Safe to call twice. */
+  async paymentCompleted(sessionId: string): Promise<void> {
+    const pay = await paymentBySession(this.db, sessionId);
+    if (!pay || pay.status === 'paid') return;
+    await setPaymentStatus(this.db, sessionId, 'paid', new Date(this.now()));
+    const e = this.entries.get(pay.tournamentId);
+    if (!e) return;
+    const p = await this.addPlayer(e, pay.userId, { paid: true });
+    p.paid = true;
+    this.persistPlayer(e.row.id, p);
+    this.bridge?.notify(pay.userId, `You are in: ${e.row.name}`, `Entry fee of ${formatMoney(pay.amountCents, pay.currency)} received. Good luck!`, `/tournaments/${e.row.id}`);
+  }
+
+  async paymentExpired(sessionId: string): Promise<void> {
+    const pay = await paymentBySession(this.db, sessionId);
+    if (pay && pay.status === 'pending') await setPaymentStatus(this.db, sessionId, 'expired', null);
   }
 
   /** Leaves (before the start) or pauses (while running: no new pairings, points kept). */
@@ -288,7 +452,63 @@ export class TournamentService {
     return this.detail(userId, id);
   }
 
+  /** A prize winner asks to be paid; staff review it and get in touch. */
+  async requestPayout(userId: string, id: string, input: unknown): Promise<TournamentDetail> {
+    const e = this.get(id);
+    if (e.row.status !== 'finished') throw new TournamentError(409, 'Payouts open when the tournament has finished');
+    const place = this.prizePlaceOf(e, userId);
+    const prize = (e.row.prizes ?? []).find((p) => p.place === place);
+    if (!place || !prize) throw new TournamentError(403, 'Only prize winners can request a payout');
+    if (this.payouts.has(`${id}:${userId}`)) throw new TournamentError(409, 'You have already requested this payout');
+    const v = validatePayoutRequest(input);
+    if ('error' in v) throw new TournamentError(400, v.error);
+    const row = await insertPayoutRequest(this.db, {
+      tournamentId: id,
+      userId,
+      username: e.players.get(userId)?.username ?? userId,
+      place,
+      prize: prize.prize,
+      method: v.value.method,
+      details: v.value.details,
+      note: v.value.note,
+      status: 'new',
+      createdAt: new Date(this.now()),
+    });
+    this.payouts.set(`${id}:${userId}`, row);
+    return this.detail(userId, id);
+  }
+
+  private prizePlaceOf(e: Entry, userId: string): number | null {
+    if (e.row.status !== 'finished') return null;
+    const s = this.standings(e).find((x) => x.userId === userId);
+    if (!s || s.games === 0) return null;
+    return (e.row.prizes ?? []).some((p) => p.place === s.rank) ? s.rank : null;
+  }
+
+  // ---------------------------------------------------------------- sponsors
+
+  /** "Sponsor a tournament": anyone (signed in or not) can apply; staff review and get in touch. */
+  async applySponsor(userId: string | null, input: unknown): Promise<{ ok: true }> {
+    const v = validateSponsorApplication(input);
+    if ('error' in v) throw new TournamentError(400, v.error);
+    await insertSponsorApplication(this.db, { ...v.value, userId, status: 'new', createdAt: new Date(this.now()) });
+    return { ok: true };
+  }
+
   // ---------------------------------------------------------------- views
+
+  private logoPath(r: Tournament): string | null {
+    if (!r.sponsorLogo) return null;
+    const v = createHash('sha1').update(r.sponsorLogo).digest('hex').slice(0, 10);
+    return `/api/tournaments/${encodeURIComponent(r.id)}/logo?v=${v}`;
+  }
+
+  /** The sponsor logo image, for GET /api/tournaments/:id/logo. */
+  logoOf(id: string): { mime: string; bytes: Buffer } | null {
+    const logo = this.entries.get(id)?.row.sponsorLogo;
+    const m = logo ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(logo) : null;
+    return m ? { mime: m[1]!, bytes: Buffer.from(m[2]!, 'base64') } : null;
+  }
 
   private summary(e: Entry, viewer: string | null): TournamentSummary {
     const r = e.row;
@@ -306,8 +526,16 @@ export class TournamentService {
       maxPlayers: r.maxPlayers,
       prizePool: r.prizePool,
       prizes: r.prizes ?? [],
-      players: [...e.players.values()].filter((p) => !p.withdrawn || p.games > 0).length,
-      joined: !!viewer && !!e.players.get(viewer) && !e.players.get(viewer)!.withdrawn,
+      entryFeeCents: r.entryFeeCents,
+      currency: r.currency as TournamentCurrency,
+      minRating: r.minRating,
+      maxRating: r.maxRating,
+      minRatedGames: r.minRatedGames,
+      lateJoin: r.lateJoin,
+      rules: r.rules,
+      sponsor: r.sponsorName ? { name: r.sponsorName, url: r.sponsorUrl, logoPath: this.logoPath(r) } : null,
+      players: [...e.players.values()].filter((p) => (this.active(p) || p.games > 0) && !p.disqualified).length,
+      joined: !!viewer && !!e.players.get(viewer) && this.active(e.players.get(viewer)!),
       winner: r.status === 'finished' && standings[0] && standings[0].games > 0 ? standings[0].username : null,
     };
   }
@@ -315,7 +543,7 @@ export class TournamentService {
   private standings(e: Entry): TournamentStanding[] {
     const playing = new Set<string>();
     for (const g of e.games.values()) playing.add(g.white).add(g.black);
-    const list = [...e.players.values()].filter((p) => !p.withdrawn || p.games > 0);
+    const list = [...e.players.values()].filter((p) => !p.disqualified && (this.active(p) || p.games > 0));
     list.sort((a, b) => b.score - a.score || b.wins - a.wins || b.rating - a.rating || a.joinedAt - b.joinedAt);
     return list.map((p, i) => ({
       rank: i + 1,
@@ -348,17 +576,72 @@ export class TournamentService {
       liveGames.push({ gameId, white: e.players.get(g.white)?.username ?? '?', black: e.players.get(g.black)?.username ?? '?' });
       if (viewer && (g.white === viewer || g.black === viewer)) yourGameId = gameId;
     }
-    return { ...this.summary(e, viewer), standings: this.standings(e), liveGames, yourGameId };
+    let you: TournamentViewer | null = null;
+    if (viewer) {
+      const p = e.players.get(viewer);
+      const payout = this.payouts.get(`${id}:${viewer}`);
+      you = {
+        paid: !!p?.paid,
+        blocked: this.summary(e, viewer).joined ? null : this.blockedReason(e, viewer),
+        prizePlace: this.prizePlaceOf(e, viewer),
+        payout: payout ? { status: payout.status as PayoutStatus, method: payout.method as PayoutMethod } : null,
+        disqualified: !!p?.disqualified,
+      };
+    }
+    return { ...this.summary(e, viewer), standings: this.standings(e), liveGames, yourGameId, you };
   }
 
   // ---------------------------------------------------------------- staff
 
+  /** Live monitor for staff: the detail plus every player (paid, removed, paused) and the payments. */
+  async adminDetail(id: string): Promise<AdminTournamentView> {
+    const e = this.get(id);
+    const detail = this.detail(null, id);
+    const playing = new Set<string>();
+    for (const g of e.games.values()) playing.add(g.white).add(g.black);
+    const payments = (await paymentsOf(this.db, id)).map((p) => ({ userId: p.userId, amountCents: p.amountCents, currency: p.currency, status: p.status, createdAt: ms(p.createdAt) }));
+    return {
+      ...detail,
+      roster: [...e.players.values()]
+        .sort((a, b) => b.score - a.score || a.joinedAt - b.joinedAt)
+        .map((p) => ({
+          userId: p.userId,
+          username: p.username,
+          rating: p.rating,
+          score: p.score,
+          games: p.games,
+          withdrawn: p.withdrawn,
+          disqualified: p.disqualified,
+          paid: p.paid,
+          rulesAcceptedAt: p.rulesAcceptedAt,
+          joinedAt: p.joinedAt,
+          playing: playing.has(p.userId),
+        })),
+      payments,
+      revenueCents: payments.filter((p) => p.status === 'paid').reduce((sum, p) => sum + p.amountCents, 0),
+    };
+  }
+
+  /** Staff remove a player: no more pairings, off the standings, cannot rejoin. */
+  disqualify(id: string, userId: string): AdminTournamentView['roster'][number] {
+    const e = this.get(id);
+    const p = e.players.get(userId);
+    if (!p) throw new TournamentError(404, 'This player is not in the tournament');
+    p.disqualified = true;
+    p.withdrawn = true;
+    this.persistPlayer(id, p);
+    this.bridge?.notify(userId, `Removed from ${e.row.name}`, 'Tournament staff removed you from this tournament.', `/tournaments/${id}`);
+    return { userId: p.userId, username: p.username, rating: p.rating, score: p.score, games: p.games, withdrawn: p.withdrawn, disqualified: true, paid: p.paid, rulesAcceptedAt: p.rulesAcceptedAt, joinedAt: p.joinedAt, playing: false };
+  }
+
   async create(input: unknown, createdBy: string): Promise<TournamentDetail> {
     const v = validateTournamentInput(input, this.now());
     if ('error' in v) throw new TournamentError(400, v.error);
+    if (v.value.entryFeeCents > 0 && !this.stripe) throw new TournamentError(400, 'Set up Stripe (STRIPE_SECRET_KEY) before charging entry fees');
     const row = await insertTournament(this.db, {
       id: randomUUID().slice(0, 10),
       ...this.columns(v.value),
+      sponsorLogo: v.value.sponsorLogo ?? null,
       status: 'scheduled',
       createdBy,
     });
@@ -378,6 +661,15 @@ export class TournamentService {
       maxPlayers: v.maxPlayers,
       prizePool: v.prizePool,
       prizes: v.prizes,
+      entryFeeCents: v.entryFeeCents,
+      currency: v.currency,
+      minRating: v.minRating,
+      maxRating: v.maxRating,
+      minRatedGames: v.minRatedGames,
+      lateJoin: v.lateJoin,
+      rules: v.rules,
+      sponsorName: v.sponsorName,
+      sponsorUrl: v.sponsorUrl,
     };
   }
 
@@ -392,20 +684,45 @@ export class TournamentService {
       maxPlayers: row.maxPlayers,
       prizePool: row.prizePool,
       prizes: row.prizes ?? [],
+      entryFeeCents: row.entryFeeCents,
+      currency: row.currency as TournamentCurrency,
+      minRating: row.minRating,
+      maxRating: row.maxRating,
+      minRatedGames: row.minRatedGames,
+      lateJoin: row.lateJoin,
+      rules: row.rules,
+      sponsorName: row.sponsorName,
+      sponsorUrl: row.sponsorUrl,
     };
   }
 
-  /** Edits a tournament. Time control and start can only change before it starts; prizes and text any time. */
+  /**
+   * Edits a tournament. Time control, start, rating, fee and entry limits can
+   * only change before it starts; prizes, sponsor and texts any time.
+   */
   async update(id: string, input: unknown): Promise<TournamentDetail> {
     const e = this.get(id);
     if (e.row.status === 'cancelled') throw new TournamentError(409, 'This tournament was cancelled');
     const v = validateTournamentInput(input, this.now(), this.inputOf(e.row));
     if ('error' in v) throw new TournamentError(400, v.error);
-    let cols = this.columns(v.value);
+    if (v.value.entryFeeCents > 0 && !this.stripe) throw new TournamentError(400, 'Set up Stripe (STRIPE_SECRET_KEY) before charging entry fees');
+    let cols: ReturnType<TournamentService['columns']> & { sponsorLogo?: string | null } = this.columns(v.value);
     if (e.row.status !== 'scheduled') {
-      // Running or finished: keep the clock and the schedule.
-      cols = { ...cols, initialMs: e.row.initialMs, incrementMs: e.row.incrementMs, rated: e.row.rated, startsAt: new Date(e.row.startsAt) };
+      // Running or finished: keep the clock, the schedule and what players signed up for.
+      cols = {
+        ...cols,
+        initialMs: e.row.initialMs,
+        incrementMs: e.row.incrementMs,
+        rated: e.row.rated,
+        startsAt: new Date(e.row.startsAt),
+        entryFeeCents: e.row.entryFeeCents,
+        currency: e.row.currency as TournamentCurrency,
+        minRating: e.row.minRating,
+        maxRating: e.row.maxRating,
+        minRatedGames: e.row.minRatedGames,
+      };
     }
+    if (v.value.sponsorLogo !== undefined) cols.sponsorLogo = v.value.sponsorLogo;
     await updateTournament(this.db, id, cols);
     e.row = { ...e.row, ...cols };
     return this.detail(null, id);
@@ -415,7 +732,11 @@ export class TournamentService {
     const e = this.get(id);
     if (e.row.status === 'finished' || e.row.status === 'cancelled') throw new TournamentError(409, 'This tournament is already over');
     this.setStatus(e, 'cancelled');
-    for (const p of e.players.values()) if (!p.withdrawn) this.bridge?.notify(p.userId, `${e.row.name} was cancelled`, 'The tournament will not take place.', `/tournaments/${id}`);
+    for (const p of e.players.values()) {
+      if (!this.active(p)) continue;
+      const refund = p.paid ? ' Your entry fee will be refunded.' : '';
+      this.bridge?.notify(p.userId, `${e.row.name} was cancelled`, `The tournament will not take place.${refund}`, `/tournaments/${id}`);
+    }
     return this.detail(null, id);
   }
 
@@ -429,9 +750,87 @@ export class TournamentService {
     return this.detail(null, id);
   }
 
+  async sponsorApplications(): Promise<SponsorApplicationView[]> {
+    return (await listSponsorApplications(this.db)).map(toSponsorView);
+  }
+
+  async reviewSponsor(id: string, input: { status?: unknown; note?: unknown }, by: string): Promise<SponsorApplicationView> {
+    if (!(SPONSOR_STATUSES as readonly unknown[]).includes(input.status)) throw new TournamentError(400, 'Pick a status');
+    const row = await updateSponsorApplication(this.db, id, {
+      status: input.status as SponsorStatus,
+      staffNote: typeof input.note === 'string' ? input.note.trim().slice(0, 1000) || null : undefined,
+      reviewedBy: by,
+      updatedAt: new Date(this.now()),
+    });
+    if (!row) throw new TournamentError(404, 'No such application');
+    return toSponsorView(row);
+  }
+
+  payoutRequests(): PayoutRequestView[] {
+    return [...this.payouts.values()]
+      .sort((a, b) => ms(b.createdAt) - ms(a.createdAt))
+      .map((r) => toPayoutView(r, this.entries.get(r.tournamentId)?.row.name ?? r.tournamentId));
+  }
+
+  async reviewPayout(id: string, input: { status?: unknown; note?: unknown }, by: string): Promise<PayoutRequestView> {
+    if (!(PAYOUT_STATUSES as readonly unknown[]).includes(input.status)) throw new TournamentError(400, 'Pick a status');
+    const row = await updatePayoutRequest(this.db, id, {
+      status: input.status as PayoutStatus,
+      staffNote: typeof input.note === 'string' ? input.note.trim().slice(0, 1000) || null : undefined,
+      reviewedBy: by,
+      updatedAt: new Date(this.now()),
+    });
+    if (!row) throw new TournamentError(404, 'No such payout request');
+    this.payouts.set(`${row.tournamentId}:${row.userId}`, row);
+    const name = this.entries.get(row.tournamentId)?.row.name ?? 'the tournament';
+    const text: Record<string, string> = {
+      contacted: 'Our team will contact you about your prize.',
+      paid: `Your prize (${row.prize}) has been paid.`,
+      rejected: 'Your payout request was declined. Check your messages or contact support.',
+    };
+    if (text[row.status]) this.bridge?.notify(row.userId, `Prize from ${name}`, text[row.status]!, `/tournaments/${row.tournamentId}`);
+    return toPayoutView(row, name);
+  }
+
   /** Whether a game belongs to a tournament (for the game screen). */
   tournamentOfGame(gameId: string): string | null {
     for (const e of this.entries.values()) if (e.games.has(gameId)) return e.row.id;
     return null;
   }
+}
+
+function toSponsorView(r: SponsorApplication): SponsorApplicationView {
+  return {
+    id: r.id,
+    userId: r.userId,
+    name: r.name,
+    email: r.email,
+    company: r.company,
+    website: r.website,
+    budget: r.budget,
+    message: r.message,
+    status: r.status as SponsorStatus,
+    staffNote: r.staffNote,
+    reviewedBy: r.reviewedBy,
+    createdAt: ms(r.createdAt),
+  };
+}
+
+function toPayoutView(r: PayoutRequest, tournamentName: string): PayoutRequestView {
+  return {
+    id: r.id,
+    tournamentId: r.tournamentId,
+    tournamentName,
+    userId: r.userId,
+    username: r.username,
+    place: r.place,
+    prize: r.prize,
+    method: r.method as PayoutMethod,
+    details: r.details,
+    note: r.note,
+    status: r.status as PayoutStatus,
+    staffNote: r.staffNote,
+    reviewedBy: r.reviewedBy,
+    createdAt: ms(r.createdAt),
+  };
 }

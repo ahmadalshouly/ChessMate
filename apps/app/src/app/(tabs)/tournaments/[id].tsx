@@ -1,8 +1,8 @@
-import { formatTimeControl, timeCategory, type TournamentDetail } from '@chessmate/core';
+import { formatMoney, formatTimeControl, timeCategory, type TournamentDetail } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useTicker } from '@/components/PlayerBar';
 import { formatDateTime, useT } from '@/i18n';
@@ -14,6 +14,10 @@ import { Badge, Button, GlassView, ListGroup, ListRow, SectionHeader, Text, useA
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 
 import { tournamentClock } from '@/features/tournaments/format';
+import { JoinSheet } from '@/features/tournaments/JoinSheet';
+import { PayoutSheet } from '@/features/tournaments/PayoutSheet';
+import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
+import { webLink } from '@/lib/links';
 
 /**
  * One tournament: schedule, prizes, join or pause, your current game and the
@@ -24,12 +28,15 @@ export default function TournamentScreen() {
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, paid } = useLocalSearchParams<{ id: string; paid?: string }>();
   const me = useSocialIdentity();
   const play = usePlay();
   const [tour, setTour] = useState<TournamentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [payout, setPayout] = useState(false);
+  const [paymentsEnabled, setPaymentsEnabled] = useState(false);
   useTicker(tour?.status === 'running' || tour?.status === 'scheduled');
 
   const load = useCallback(() => {
@@ -37,6 +44,7 @@ export default function TournamentScreen() {
     tournamentsApi.get(id).then(
       (r) => {
         setTour(r.tournament);
+        setPaymentsEnabled(r.paymentsEnabled);
         setError(null);
       },
       (e: Error) => setError(e.message),
@@ -78,6 +86,36 @@ export default function TournamentScreen() {
   }
 
   const open = tour.status === 'scheduled' || tour.status === 'running';
+  const fee = tour.entryFeeCents > 0 ? formatMoney(tour.entryFeeCents, tour.currency) : null;
+  const web = Platform.OS === 'web';
+  const pageOnWeb = webLink(`/tournaments/${tour.id}`);
+  const prize = tour.you?.prizePlace ? tour.prizes.find((p) => p.place === tour.you!.prizePlace) : undefined;
+
+  const accept = async () => {
+    setBusy(true);
+    try {
+      if (fee) {
+        // Entry fees are paid with Stripe on the web; the payment page sends the player back here.
+        const { url } = await tournamentsApi.checkout(tour.id, pageOnWeb ?? `${window.location.origin}/tournaments/${tour.id}`);
+        window.location.href = url;
+        return;
+      }
+      setTour((await tournamentsApi.join(tour.id)).tournament);
+      setJoining(false);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setJoining(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const requirements = [
+    tour.minRating !== null ? tr('tournaments.minRating', { n: tour.minRating }) : null,
+    tour.maxRating !== null ? tr('tournaments.maxRating', { n: tour.maxRating }) : null,
+    tour.minRatedGames > 0 ? tr('tournaments.minGames', { count: tour.minRatedGames }) : null,
+    !tour.lateJoin ? tr('tournaments.noLateJoin') : null,
+  ].filter((x): x is string => !!x);
   const category = tr(`common.category.${timeCategory(tour.timeControl)}`);
 
   return (
@@ -94,6 +132,7 @@ export default function TournamentScreen() {
               {tournamentClock(tour)}
             </Text>
           </View>
+          {tour.sponsor ? <SponsorBadge sponsor={tour.sponsor} size="lg" /> : null}
           <Text variant="title">{tour.name}</Text>
           {tour.description ? <Text tone="muted">{tour.description}</Text> : null}
           <View style={styles.facts}>
@@ -102,7 +141,13 @@ export default function TournamentScreen() {
             <Fact icon="hourglass-outline" label={tr('tournaments.minutes', { count: tour.durationMinutes })} />
             <Fact icon="calendar-outline" label={formatDateTime(tour.startsAt)} />
             <Fact icon="people-outline" label={tour.maxPlayers ? tr('tournaments.playersOf', { n: tour.players, max: tour.maxPlayers }) : tr('tournaments.players', { count: tour.players, n: tour.players })} />
+            <Fact icon={fee ? 'card-outline' : 'pricetag-outline'} label={fee ? tr('tournaments.entryFee', { fee }) : tr('tournaments.free')} />
+            {requirements.map((r) => (
+              <Fact key={r} icon="shield-checkmark-outline" label={r} />
+            ))}
           </View>
+          {paid === '1' && !tour.joined && <Text variant="label">{tr('tournaments.paymentProcessing')}</Text>}
+          {paid === '0' && !tour.joined && <Text tone="muted">{tr('tournaments.paymentCancelled')}</Text>}
           {error && <Text tone="danger">{serverText(error)}</Text>}
           {open && me && (
             <View style={styles.row}>
@@ -117,8 +162,21 @@ export default function TournamentScreen() {
                   )}
                   <Button variant="secondary" size="sm" title={tour.status === 'running' ? tr('tournaments.pause') : tr('tournaments.leave')} disabled={busy} onPress={act(() => tournamentsApi.withdraw(tour.id))} />
                 </>
+              ) : tour.you?.disqualified ? (
+                <Text tone="danger">{tr('tournaments.removed')}</Text>
+              ) : tour.you?.blocked ? (
+                <Text tone="muted">{serverText(tour.you.blocked)}</Text>
+              ) : fee && !tour.you?.paid && !web ? (
+                <View style={{ gap: 8, flex: 1 }}>
+                  <Text tone="muted">{tr('tournaments.registerOnWeb', { fee })}</Text>
+                  {pageOnWeb && (
+                    <Button variant="secondary" title={tr('tournaments.openOnWeb')} rightIcon={<Ionicons name="open-outline" size={16} color={c.text} />} onPress={() => void Linking.openURL(pageOnWeb)} />
+                  )}
+                </View>
+              ) : fee && !tour.you?.paid && !paymentsEnabled ? (
+                <Text tone="muted">{tr('tournaments.paymentsOff')}</Text>
               ) : (
-                <Button title={tr('tournaments.join')} disabled={busy || !!play.restricted} onPress={act(() => tournamentsApi.join(tour.id))} />
+                <Button title={fee && !tour.you?.paid ? tr('tournaments.payAndJoin', { fee }) : tr('tournaments.join')} disabled={busy || !!play.restricted} onPress={() => setJoining(true)} />
               )}
             </View>
           )}
@@ -126,6 +184,20 @@ export default function TournamentScreen() {
             <Button variant="secondary" title={tr('tournaments.signInToJoin')} onPress={() => router.push({ pathname: '/sign-in', params: { next: `/tournaments/${tour.id}` } })} />
           )}
         </GlassView>
+
+        {prize && me && (
+          <GlassView padding="lg" radius="xl" style={{ gap: t.space.sm, borderColor: c.accent, borderWidth: 1 }}>
+            <Text variant="heading">{tr('tournaments.youWon', { place: prize.place, prize: prize.prize })}</Text>
+            {tour.you?.payout ? (
+              <Text tone="muted">{tr(`tournaments.payout.status.${tour.you.payout.status}`)}</Text>
+            ) : (
+              <>
+                <Text tone="muted">{tr('tournaments.payout.cta')}</Text>
+                <Button title={tr('tournaments.payout.request')} onPress={() => setPayout(true)} />
+              </>
+            )}
+          </GlassView>
+        )}
 
         {(tour.prizePool || tour.prizes.length > 0) && (
           <View style={{ gap: t.space.md }}>
@@ -192,6 +264,19 @@ export default function TournamentScreen() {
           )}
         </View>
       </View>
+      <JoinSheet tournament={tour} visible={joining} busy={busy} onClose={() => setJoining(false)} onAccept={() => void accept()} />
+      {prize && (
+        <PayoutSheet
+          visible={payout}
+          place={prize.place}
+          prize={prize.prize}
+          onClose={() => setPayout(false)}
+          onSubmit={async (body) => {
+            setTour((await tournamentsApi.requestPayout(tour.id, body)).tournament);
+            setPayout(false);
+          }}
+        />
+      )}
     </ScrollView>
   );
 }

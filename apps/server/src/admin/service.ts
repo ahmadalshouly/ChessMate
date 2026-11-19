@@ -460,6 +460,44 @@ export class AdminService {
     return t;
   }
 
+  /** Live monitor: standings, games, every player (paid, paused, removed) and payments. */
+  async tournamentMonitor(actor: Actor, id: string) {
+    this.require(actor, 'tournaments.manage');
+    return this.tournamentCall(() => this.tournamentService().adminDetail(id));
+  }
+
+  async removeTournamentPlayer(actor: Actor, id: string, input: { userId?: unknown; reason?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    const userId = typeof input.userId === 'string' ? input.userId : '';
+    const player = await this.tournamentCall(() => this.tournamentService().disqualify(id, userId));
+    await this.audit(actor, 'tournament.remove_player', { type: 'user', id: userId, name: player.username }, text(input.reason, 300) || null, { tournamentId: id });
+    return player;
+  }
+
+  async sponsorApplications(actor: Actor) {
+    this.require(actor, 'tournaments.manage');
+    return this.tournamentService().sponsorApplications();
+  }
+
+  async reviewSponsor(actor: Actor, id: string, input: { status?: unknown; note?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    const a = await this.tournamentCall(() => this.tournamentService().reviewSponsor(id, input, actor.username));
+    await this.audit(actor, 'sponsor.review', { type: 'system', id, name: a.company ?? a.name }, a.staffNote, { status: a.status });
+    return a;
+  }
+
+  payoutRequests(actor: Actor) {
+    this.require(actor, 'tournaments.manage');
+    return this.tournamentService().payoutRequests();
+  }
+
+  async reviewPayout(actor: Actor, id: string, input: { status?: unknown; note?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    const r = await this.tournamentCall(() => this.tournamentService().reviewPayout(id, input, actor.username));
+    await this.audit(actor, 'payout.review', { type: 'user', id: r.userId, name: r.username }, r.staffNote, { status: r.status, tournamentId: r.tournamentId, prize: r.prize });
+    return r;
+  }
+
   async startTournamentNow(actor: Actor, id: string) {
     this.require(actor, 'tournaments.manage');
     const t = await this.tournamentCall(() => this.tournamentService().startNow(id));

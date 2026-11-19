@@ -1,8 +1,12 @@
-import { formatTimeControl, type TournamentInput, type TournamentPrize, type TournamentSummary } from '@chessmate/core';
+import { TOURNAMENT_CURRENCIES, formatMoney, formatTimeControl, type TournamentCurrency, type TournamentInput, type TournamentPrize, type TournamentSummary } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+
+import { Segmented } from '@/components/play/Controls';
+import { logoUrl } from '@/lib/tournamentsApi';
 
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, ErrorLine, PageHeader, Section, useLoad } from '@/features/admin/ui';
@@ -39,11 +43,59 @@ interface Form {
   maxPlayers: string;
   prizePool: string;
   prizes: { place: string; prize: string }[];
+  /** Entry fee in whole currency units as typed ("5", "2.50"); empty = free. */
+  fee: string;
+  currency: TournamentCurrency;
+  minRating: string;
+  maxRating: string;
+  minRatedGames: string;
+  lateJoin: boolean;
+  rules: string;
+  sponsorName: string;
+  sponsorUrl: string;
+  /** New logo as a data URL; null removes it; undefined keeps the current one. */
+  logo: string | null | undefined;
+  /** Current logo on the server, for the preview. */
+  logoPath: string | null;
+}
+
+/** Reads a picked image file as a data URL (web and phones). */
+async function fileAsDataUrl(uri: string): Promise<string> {
+  const blob = await (await fetch(uri)).blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Could not read the image'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function emptyForm(): Form {
   const start = Math.ceil((Date.now() + 30 * 60_000) / 3_600_000) * 3_600_000;
-  return { name: '', description: '', minutes: '3', increment: '2', rated: true, date: localDate(start), time: localTime(start), duration: '60', maxPlayers: '', prizePool: '', prizes: [{ place: '1', prize: '' }] };
+  return {
+    name: '',
+    description: '',
+    minutes: '3',
+    increment: '2',
+    rated: true,
+    date: localDate(start),
+    time: localTime(start),
+    duration: '60',
+    maxPlayers: '',
+    prizePool: '',
+    prizes: [{ place: '1', prize: '' }],
+    fee: '',
+    currency: 'eur',
+    minRating: '',
+    maxRating: '',
+    minRatedGames: '0',
+    lateJoin: true,
+    rules: '',
+    sponsorName: '',
+    sponsorUrl: '',
+    logo: undefined,
+    logoPath: null,
+  };
 }
 
 function formOf(t: TournamentSummary): Form {
@@ -59,6 +111,17 @@ function formOf(t: TournamentSummary): Form {
     maxPlayers: t.maxPlayers ? String(t.maxPlayers) : '',
     prizePool: t.prizePool ?? '',
     prizes: t.prizes.length ? t.prizes.map((p) => ({ place: String(p.place), prize: p.prize })) : [{ place: '1', prize: '' }],
+    fee: t.entryFeeCents ? String(t.entryFeeCents / 100) : '',
+    currency: t.currency,
+    minRating: t.minRating !== null ? String(t.minRating) : '',
+    maxRating: t.maxRating !== null ? String(t.maxRating) : '',
+    minRatedGames: String(t.minRatedGames),
+    lateJoin: t.lateJoin,
+    rules: t.rules ?? '',
+    sponsorName: t.sponsor?.name ?? '',
+    sponsorUrl: t.sponsor?.url ?? '',
+    logo: undefined,
+    logoPath: t.sponsor?.logoPath ?? null,
   };
 }
 
@@ -73,6 +136,16 @@ function inputOf(f: Form): TournamentInput {
     maxPlayers: f.maxPlayers.trim() ? Number(f.maxPlayers) : null,
     prizePool: f.prizePool || null,
     prizes: f.prizes.filter((p) => p.prize.trim()).map((p): TournamentPrize => ({ place: Number(p.place), prize: p.prize })),
+    entryFeeCents: f.fee.trim() ? Math.round(Number(f.fee.replace(',', '.')) * 100) : 0,
+    currency: f.currency,
+    minRating: f.minRating.trim() ? Number(f.minRating) : null,
+    maxRating: f.maxRating.trim() ? Number(f.maxRating) : null,
+    minRatedGames: Number(f.minRatedGames) || 0,
+    lateJoin: f.lateJoin,
+    rules: f.rules.trim() || null,
+    sponsorName: f.sponsorName.trim() || null,
+    sponsorUrl: f.sponsorUrl.trim() || null,
+    ...(f.logo !== undefined ? { sponsorLogo: f.logo } : {}),
   };
 }
 
@@ -148,11 +221,14 @@ function TournamentRow({ t, onEdit, onDone }: { t: TournamentSummary; onEdit: ()
             </Text>
             <Text variant="caption" tone="muted">
               {tournamentClock(t)}
+              {t.entryFeeCents ? ` · ${formatMoney(t.entryFeeCents, t.currency)}` : ` · ${tr('tournaments.free')}`}
+              {t.sponsor ? ` · ${t.sponsor.name}` : ''}
               {t.prizePool ? ` · ${t.prizePool}` : ''}
               {t.prizes.length ? ` · ${tr('admin.tournaments.prizeCount', { count: t.prizes.length })}` : ''}
             </Text>
           </Stack>
           <Row gap="sm" wrap>
+            <Button size="sm" variant="secondary" title={tr('admin.tournaments.monitor')} onPress={() => router.push({ pathname: '/admin/tournaments/[id]', params: { id: t.id } })} />
             <Button size="sm" variant="ghost" title={tr('admin.tournaments.view')} onPress={() => router.push({ pathname: '/tournaments/[id]', params: { id: t.id } })} />
             {t.status !== 'cancelled' && <Button size="sm" variant="secondary" title={tr('admin.tournaments.edit')} onPress={onEdit} />}
             {t.status === 'scheduled' && <Button size="sm" variant="secondary" title={tr('admin.tournaments.startNow')} loading={busy === 'start'} onPress={run('start', () => api.startTournament(t.id))} />}
@@ -242,6 +318,72 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
             </Row>
           </Stack>
         </Section>
+        <Section title={tr('admin.tournaments.entry')} padding="none">
+          <Stack gap="md">
+            <Row gap="sm" align="flex-end">
+              <View style={{ flex: 1 }}>
+                <TextField label={tr('admin.tournaments.fee')} value={f.fee} onChangeText={(v) => set('fee', v)} keyboardType="decimal-pad" placeholder={tr('tournaments.free')} editable={!started} />
+              </View>
+              <Segmented<TournamentCurrency>
+                size="sm"
+                value={f.currency}
+                onChange={(v) => !started && set('currency', v)}
+                options={TOURNAMENT_CURRENCIES.map((cur) => ({ value: cur, label: cur.toUpperCase() }))}
+              />
+            </Row>
+            <Text variant="caption" tone="muted">
+              {tr('admin.tournaments.feeHint')}
+            </Text>
+            <Row gap="sm">
+              <View style={{ flex: 1 }}>
+                <TextField label={tr('admin.tournaments.minRating')} value={f.minRating} onChangeText={(v) => set('minRating', v)} keyboardType="number-pad" placeholder="—" editable={!started} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextField label={tr('admin.tournaments.maxRating')} value={f.maxRating} onChangeText={(v) => set('maxRating', v)} keyboardType="number-pad" placeholder="—" editable={!started} />
+              </View>
+            </Row>
+            <TextField label={tr('admin.tournaments.minGames')} value={f.minRatedGames} onChangeText={(v) => set('minRatedGames', v)} keyboardType="number-pad" editable={!started} />
+            <Row justify="space-between">
+              <Text variant="label">{tr('admin.tournaments.lateJoin')}</Text>
+              <Switch value={f.lateJoin} onValueChange={(v) => set('lateJoin', v)} />
+            </Row>
+            <TextField label={tr('admin.tournaments.rules')} value={f.rules} onChangeText={(v) => set('rules', v)} multiline maxLength={2000} placeholder={tr('admin.tournaments.rulesHint')} />
+          </Stack>
+        </Section>
+        <Section title={tr('admin.tournaments.sponsor')} padding="none">
+          <Stack gap="md">
+            <TextField label={tr('admin.tournaments.sponsorName')} value={f.sponsorName} onChangeText={(v) => set('sponsorName', v)} maxLength={60} />
+            <TextField label={tr('admin.tournaments.sponsorUrl')} value={f.sponsorUrl} onChangeText={(v) => set('sponsorUrl', v)} autoCapitalize="none" placeholder="https://" maxLength={200} />
+            <Row gap="md" align="center" wrap>
+              {(f.logo || (f.logo === undefined && f.logoPath)) && (
+                <View style={[styles.logoBox, { borderColor: c.border }]}>
+                  <Image source={{ uri: f.logo ? f.logo : logoUrl(f.logoPath!) }} style={styles.logo} resizeMode="contain" />
+                </View>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                title={f.logo || (f.logo === undefined && f.logoPath) ? tr('admin.tournaments.replaceLogo') : tr('admin.tournaments.uploadLogo')}
+                onPress={async () => {
+                  const r = await DocumentPicker.getDocumentAsync({ type: ['image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
+                  const asset = r.canceled ? null : r.assets?.[0];
+                  if (!asset) return;
+                  try {
+                    const url = await fileAsDataUrl(asset.uri);
+                    if (url.length > 400_000) return setError(tr('admin.tournaments.logoTooBig'));
+                    set('logo', url);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  }
+                }}
+              />
+              {(f.logo || (f.logo === undefined && f.logoPath)) && <Button size="sm" variant="ghost" title={tr('admin.tournaments.removeLogo')} onPress={() => set('logo', null)} />}
+            </Row>
+            <Text variant="caption" tone="muted">
+              {tr('admin.tournaments.logoHint')}
+            </Text>
+          </Stack>
+        </Section>
         <Section title={tr('tournaments.prizes')} padding="none">
           <Stack gap="md">
             <TextField label={tr('admin.tournaments.prizePool')} value={f.prizePool} onChangeText={(v) => set('prizePool', v)} placeholder={tr('admin.tournaments.prizePoolHint')} maxLength={80} />
@@ -280,4 +422,6 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
 
 const styles = StyleSheet.create({
   remove: { paddingBottom: 12 },
+  logoBox: { backgroundColor: '#fff', borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, padding: 6 },
+  logo: { width: 120, height: 40 },
 });

@@ -57,6 +57,10 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /tournaments/:id             same fields, while it has not started
  *   POST /tournaments/:id/cancel      { reason? }
  *   POST /tournaments/:id/start       start a scheduled tournament now
+ *   GET  /tournaments/:id             live monitor (players, payments)
+ *   POST /tournaments/:id/remove      { userId, reason? } remove a player
+ *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
+ *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -151,6 +155,18 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ tournament: await admin.cancelTournament(actor, id!, await body()) });
         case 'POST tournaments/:id/start':
           return ok({ tournament: await admin.startTournamentNow(actor, id!) });
+        case 'GET tournaments/:id':
+          return ok({ tournament: await admin.tournamentMonitor(actor, id!) });
+        case 'POST tournaments/:id/remove':
+          return ok({ player: await admin.removeTournamentPlayer(actor, id!, await body()) });
+        case 'GET sponsors':
+          return ok({ applications: await admin.sponsorApplications(actor) });
+        case 'POST sponsors/:id':
+          return ok({ application: await admin.reviewSponsor(actor, id!, await body()) });
+        case 'GET payouts':
+          return ok({ requests: admin.payoutRequests(actor) });
+        case 'POST payouts/:id':
+          return ok({ request: await admin.reviewPayout(actor, id!, await body()) });
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

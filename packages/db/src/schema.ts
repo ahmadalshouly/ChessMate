@@ -644,6 +644,21 @@ export const tournaments = pgTable(
     createdBy: text('created_by').notNull(),
     createdAt: createdAt(),
     finishedAt: ts('finished_at'),
+    /** Entry fee in the smallest currency unit (cents); 0 = free. Paid through Stripe on the web. */
+    entryFeeCents: integer('entry_fee_cents').notNull().default(0),
+    currency: text('currency').notNull().default('eur'),
+    minRating: integer('min_rating'),
+    maxRating: integer('max_rating'),
+    /** Rated games a player must have played in this speed to join. */
+    minRatedGames: integer('min_rated_games').notNull().default(0),
+    /** May players join after the start? */
+    lateJoin: boolean('late_join').notNull().default(true),
+    /** Extra rules players accept when joining (shown with the standard arena rules). */
+    rules: text('rules'),
+    sponsorName: text('sponsor_name'),
+    sponsorUrl: text('sponsor_url'),
+    /** Logo as a data URL (PNG/JPEG/WebP, at most ~300 KB), served at /api/tournaments/:id/logo. */
+    sponsorLogo: text('sponsor_logo'),
   },
   (t) => [index('tournaments_starts_idx').on(t.startsAt)],
 );
@@ -666,10 +681,78 @@ export const tournamentPlayers = pgTable(
     streak: integer('streak').notNull().default(0),
     withdrawn: boolean('withdrawn').notNull().default(false),
     joinedAt: createdAt(),
+    /** Removed by staff; cannot rejoin. */
+    disqualified: boolean('disqualified').notNull().default(false),
+    /** Entry fee paid (paid tournaments only). */
+    paid: boolean('paid').notNull().default(false),
+    rulesAcceptedAt: ts('rules_accepted_at'),
   },
   (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
+);
+
+/** Stripe Checkout payments for tournament entry fees. */
+export const tournamentPayments = pgTable(
+  'tournament_payments',
+  {
+    id: id(),
+    tournamentId: text('tournament_id').notNull(),
+    userId: text('user_id').notNull(),
+    stripeSessionId: text('stripe_session_id').notNull().unique(),
+    amountCents: integer('amount_cents').notNull(),
+    currency: text('currency').notNull(),
+    /** pending | paid | expired | refunded */
+    status: text('status').notNull().default('pending'),
+    createdAt: createdAt(),
+    paidAt: ts('paid_at'),
+  },
+  (t) => [index('tournament_payments_player_idx').on(t.tournamentId, t.userId)],
+);
+
+/** "Sponsor a tournament" applications; staff review them and get in touch. */
+export const sponsorApplications = pgTable('sponsor_applications', {
+  id: id(),
+  userId: text('user_id'),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  company: text('company'),
+  website: text('website'),
+  budget: text('budget'),
+  message: text('message').notNull(),
+  /** new | contacted | accepted | declined */
+  status: text('status').notNull().default('new'),
+  staffNote: text('staff_note'),
+  reviewedBy: text('reviewed_by'),
+  createdAt: createdAt(),
+  updatedAt: ts('updated_at'),
+});
+
+/** Prize winners asking to be paid; staff review them and get in touch. */
+export const payoutRequests = pgTable(
+  'payout_requests',
+  {
+    id: id(),
+    tournamentId: text('tournament_id').notNull(),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    place: integer('place').notNull(),
+    prize: text('prize').notNull(),
+    /** paypal | bank | other */
+    method: text('method').notNull(),
+    details: text('details').notNull(),
+    note: text('note'),
+    /** new | contacted | paid | rejected */
+    status: text('status').notNull().default('new'),
+    staffNote: text('staff_note'),
+    reviewedBy: text('reviewed_by'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at'),
+  },
+  (t) => [uniqueIndex('payout_requests_player_idx').on(t.tournamentId, t.userId)],
 );
 
 export type DirectMessage = typeof directMessages.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
 export type TournamentPlayer = typeof tournamentPlayers.$inferSelect;
+export type TournamentPayment = typeof tournamentPayments.$inferSelect;
+export type SponsorApplication = typeof sponsorApplications.$inferSelect;
+export type PayoutRequest = typeof payoutRequests.$inferSelect;

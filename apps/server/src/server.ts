@@ -237,7 +237,10 @@ export class ChessServer {
       opts.tournaments.attach({
         isOnline: (id) => (this.sockets.get(id)?.size ?? 0) > 0 && !this.restrictionOf(id),
         liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
-        rating: (id, tc) => this.ratings.forTimeControl(id, tc, this.now()).rating,
+        rating: (id, tc) => {
+          const r = this.ratings.forTimeControl(id, tc, this.now());
+          return { rating: r.rating, games: r.games };
+        },
         startGame: (whiteId, blackId, tc, rated, tournamentId) => {
           const w = this.store.get(whiteId);
           const b = this.store.get(blackId);

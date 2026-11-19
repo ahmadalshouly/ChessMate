@@ -18,6 +18,16 @@ export function challengeLink(id: string): string {
   return Linking.createURL(path.slice(1));
 }
 
+/**
+ * Link to a page of the web app (where tournament entry fees are paid). Null on
+ * phones when the web address is not configured (EXPO_PUBLIC_WEB_URL).
+ */
+export function webLink(path: string): string | null {
+  if (typeof webUrl === 'string' && webUrl.length > 0) return `${webUrl.replace(/\/+$/, '')}${path}`;
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) return `${window.location.origin}${path}`;
+  return null;
+}
+
 /** Shareable link to a player's profile (what their QR code holds). Same host rules as challengeLink. */
 export function profileLink(username: string): string {
   const path = profilePath(username);

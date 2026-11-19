@@ -21,6 +21,7 @@ import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
+import { stripeFromEnv } from './payments/stripe';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -103,7 +104,7 @@ async function start() {
   const privacy = (id: string) => profileStore.get(id)?.settings.privacy.messages ?? DEFAULT_SETTINGS.privacy.messages;
   const messages = new MessageService({ db: db.db, privacyOf: privacy, isStaff: (id) => isStaff(admin.roleOf(id)) });
   admin.messages = messages;
-  const tournaments = new TournamentService({ db: db.db });
+  const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
   return {
