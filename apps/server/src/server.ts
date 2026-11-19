@@ -43,6 +43,8 @@ import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
 import { messageRoutes } from './messages/http';
 import { tournamentRoutes } from './tournaments/http';
 import { communityRoutes } from './community/http';
+import { habitsRoutes } from './habits/http';
+import { PlayHabitsService } from './habits/service';
 import type { CommunityService } from './community/service';
 import type { MessageService } from './messages/service';
 import type { TournamentService } from './tournaments/service';
@@ -117,6 +119,8 @@ export interface ServerOptions {
   tournaments?: TournamentService;
   /** News and forum (database mode). */
   community?: CommunityService;
+  /** Play limits and streaks. In memory when not given. */
+  habits?: PlayHabitsService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -135,6 +139,8 @@ export const CLOSE_FAIR_PLAY_BAN = 4010;
 
 /** Messages a fair-play restricted player may not send: anything that starts or joins a game, or talks to opponents. */
 const RESTRICTED_ACTIONS: ReadonlySet<ClientMessage['t']> = new Set(['seek', 'createOpenGame', 'joinOpenGame', 'rematch', 'challengeCreate', 'challengeAccept', 'chat']);
+/** Every way to start a game: refused while the player's own play limit has them on a break. */
+const PLAY_ACTIONS: ReadonlySet<ClientMessage['t']> = new Set(['seek', 'createOpenGame', 'joinOpenGame', 'rematch', 'challengeCreate', 'challengeAccept']);
 /** Close code for clients that keep ignoring rate limits. */
 export const CLOSE_RATE_LIMITED = 4008;
 
@@ -180,6 +186,8 @@ export class ChessServer {
   private readonly limits: RateLimitConfig;
   private readonly ipLimiter: IpLimiter;
   readonly notifications: NotificationService;
+  /** Play limits and streaks. */
+  readonly habits: PlayHabitsService;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
@@ -238,6 +246,8 @@ export class ChessServer {
       routes.push(adminRoutes(opts.admin, opts.auth));
       routes.push(titleRoutes(opts.admin.titles, opts.auth));
     }
+    this.habits = opts.habits ?? new PlayHabitsService();
+    routes.push(habitsRoutes(this.habits, opts.resolveUser ?? devResolveUser, (id, until) => this.startBreak(id, until)));
     if (opts.community) {
       routes.push(communityRoutes(opts.community, opts.resolveUser ?? devResolveUser));
       opts.community.attach({
@@ -250,7 +260,7 @@ export class ChessServer {
     if (opts.tournaments) {
       routes.push(tournamentRoutes(opts.tournaments, opts.resolveUser ?? devResolveUser));
       opts.tournaments.attach({
-        isOnline: (id) => (this.sockets.get(id)?.size ?? 0) > 0 && !this.restrictionOf(id),
+        isOnline: (id) => (this.sockets.get(id)?.size ?? 0) > 0 && !this.restrictionOf(id) && !this.habits.lockOf(id),
         liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
         rating: (id, tc) => {
           const r = this.ratings.forTimeControl(id, tc, this.now());
@@ -419,6 +429,7 @@ export class ChessServer {
         player: playerInfo(player, this.ratings.get(player.id, 'blitz', this.now())),
         resumeToken: isGuest(player) ? this.guests.issue(player.id) : undefined,
         restricted: this.restrictionOf(player.id),
+        playLock: this.habits.lockOf(player.id),
       });
       this.resume(ws, player.id, !wasOnline);
       const now = this.now();
@@ -432,6 +443,10 @@ export class ChessServer {
     const now = this.now();
     if (RESTRICTED_ACTIONS.has(msg.t) && this.restrictionOf(player.id)) {
       return this.send(ws, err('account_restricted', 'Your account is closed for a fair play violation, so online play is turned off'));
+    }
+    if (PLAY_ACTIONS.has(msg.t) && this.habits.lockOf(player.id)) {
+      this.send(ws, { t: 'playLock', until: this.habits.lockOf(player.id) });
+      return this.send(ws, err('play_locked', 'Break time: your play limit is on until your break ends'));
     }
 
     switch (msg.t) {
@@ -770,6 +785,13 @@ export class ChessServer {
     this.toPlayer(playerId, { t: 'restricted', reason: this.restrictionOf(playerId) });
   }
 
+  /** The player's play limit started a break: out of the search and open games, and their apps lock play. */
+  private startBreak(playerId: string, until: number) {
+    this.matchmaker.remove(playerId);
+    if (this.openGames.removeBy(playerId)) this.markLobbyDirty();
+    this.toPlayer(playerId, { t: 'playLock', until });
+  }
+
   private cancelGrace(playerId: string) {
     const t = this.graceTimers.get(playerId);
     if (t) clearTimeout(t);
@@ -1009,6 +1031,18 @@ export class ChessServer {
       onEnd: (r, outcome) => {
         const { change: ratingChange, unrated } = this.applyRatings(r);
         if (r.tournamentId) this.opts.tournaments?.gameEnded(r.tournamentId, r.id, outcome);
+        // Streaks and play limits count every finished game of an account.
+        if (outcome.reason !== 'aborted') {
+          for (const p of [r.white, r.black]) {
+            if (!isAccountId(p.id)) continue;
+            void this.habits
+              .gameFinished(p.id)
+              .then(({ view, lockedNow }) => {
+                if (lockedNow && view.lockedUntil) this.startBreak(p.id, view.lockedUntil);
+              })
+              .catch((e) => console.warn(`habits update failed for ${p.id}:`, e));
+          }
+        }
         if (!r.secret) this.opts.persistence?.gameEnded(r, outcome, ratingChange);
         if (outcome.reason !== 'aborted' && !r.secret) {
           // Grade every move now so Review opens with the badges already there.

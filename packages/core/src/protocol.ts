@@ -141,7 +141,11 @@ export type ServerMessage =
       resumeToken?: string;
       /** Set when the account may not play online (closed for fair play). */
       restricted?: AccountRestriction | null;
+      /** The player's own play limit is in force until this time (ms); no games until then. */
+      playLock?: number | null;
     }
+  /** The play limit locked (until = ms) or unlocked (null) while connected. */
+  | { t: 'playLock'; until: number | null }
   /** The account was restricted (or the restriction lifted, reason null) while connected. */
   | { t: 'restricted'; reason: AccountRestriction | null }
   | { t: 'pong'; id: number; serverNow: number }
@@ -221,7 +225,9 @@ export type ErrorCode =
   | 'engine_locked'
   | 'engine_unavailable'
   | 'forbidden'
-  | 'account_restricted';
+  | 'account_restricted'
+  /** The player's own play limit is in force: no new games until it ends. */
+  | 'play_locked';
 
 /** Why an account that can still sign in may not play online. */
 export type AccountRestriction = 'fair_play';

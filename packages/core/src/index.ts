@@ -32,3 +32,4 @@ export * from './tournaments';
 export * from './secretQueen';
 export * from './qr';
 export * from './community';
+export * from './habits';

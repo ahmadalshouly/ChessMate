@@ -842,3 +842,30 @@ export type NewsPost = typeof newsPosts.$inferSelect;
 export type NewsComment = typeof newsComments.$inferSelect;
 export type ForumTopic = typeof forumTopics.$inferSelect;
 export type ForumReply = typeof forumReplies.$inferSelect;
+
+// ---------------------------------------------------------------- play habits: limits and streaks
+
+/**
+ * Per player: the self-chosen play limit (anti-addiction) and the daily streak.
+ * The server enforces the limit: while `lockedUntil` is in the future no game
+ * can be started, and the limit cannot be loosened or switched off.
+ */
+export const playHabits = pgTable('play_habits', {
+  userId: text('user_id').primaryKey(),
+  limitsEnabled: boolean('limits_enabled').notNull().default(false),
+  maxGames: integer('max_games').notNull().default(5),
+  windowMinutes: integer('window_minutes').notNull().default(60),
+  cooldownMinutes: integer('cooldown_minutes').notNull().default(60),
+  lockedUntil: ts('locked_until'),
+  /** End times (ms) of games inside the current window. */
+  recentGames: jsonb('recent_games').$type<number[]>().notNull().default([]),
+  streakStart: ts('streak_start'),
+  lastPlayedAt: ts('last_played_at'),
+  bestStreak: integer('best_streak').notNull().default(0),
+  /** Minutes east of UTC, from the player's device: streak days follow their calendar. */
+  tzOffsetMin: integer('tz_offset_min').notNull().default(0),
+  lastComputerGameAt: ts('last_computer_game_at'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PlayHabits = typeof playHabits.$inferSelect;

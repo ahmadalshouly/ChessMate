@@ -20,6 +20,7 @@ import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
 import { CommunityService } from './community/service';
+import { PlayHabitsService } from './habits/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { stripeFromEnv } from './payments/stripe';
@@ -116,6 +117,9 @@ async function start() {
   const messages = new MessageService({ db: db.db, privacyOf: privacy, isStaff: (id) => isStaff(admin.roleOf(id)) });
   admin.messages = messages;
   const community = new CommunityService({ db: db.db, isStaff: (id) => isStaff(admin.roleOf(id)) });
+  // Play limits and streaks; breaks in force are loaded so a restart can't lift them.
+  const habits = new PlayHabitsService({ db: db.db });
+  await habits.load();
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
@@ -132,6 +136,7 @@ async function start() {
       messages,
       tournaments,
       community,
+      habits,
       // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
       // tokens also get an account row on first use so friends and search can be tried.
       resolveUser: async (token) => {
