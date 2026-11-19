@@ -22,6 +22,7 @@ import { SocialService } from './social/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { stripeFromEnv } from './payments/stripe';
+import { gameRoutes } from './games/http';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -94,6 +95,7 @@ async function start() {
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
+  base.http = [...(base.http ?? []), gameRoutes(db.db)];
   // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
   const admin = new AdminService({ db: db.db, auth });
   await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));

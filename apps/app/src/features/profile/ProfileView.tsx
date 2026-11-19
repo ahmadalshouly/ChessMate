@@ -2,17 +2,17 @@ import { countryFlag, type PublicProfile, type RatingPoint, type RecentGame, typ
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '@/ui/primitives';
 
-import { Button, Card, Label, Screen } from '@/components/ui';
+import { Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useAccountSession } from '@/features/account/session';
 import { formatDate, translate, useT } from '@/i18n';
 import { countryLabel } from '@/i18n/chess';
 import { reasonText } from '@/components/play/GameOverCard';
+import { serverText } from '@/i18n/serverMessages';
+import { Badge, Button, GlassView, ListGroup, ListRow, Row, SectionHeader, Stack, Text, useAppTheme } from '@/ui';
 
 import { Avatar } from './Avatar';
-import { Divider, Segmented, SectionTitle } from './controls';
 import { RatingGraph } from './RatingGraph';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
@@ -47,26 +47,24 @@ export function ProfileView({ username }: { username: string | null }) {
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           {!username && !session.signedIn ? (
-            <Card>
-              <Label size={18} bold>
-                {tr('profile.signInTitle')}
-              </Label>
-              <Label muted>{tr('profile.signInBody')}</Label>
+            <GlassView radius="xl" padding="lg" style={{ gap: 12 }}>
+              <Text variant="heading">{tr('profile.signInTitle')}</Text>
+              <Text tone="muted">{tr('profile.signInBody')}</Text>
               <View style={styles.actions}>
                 <View style={{ flex: 1 }}>
-                  <Button title={tr('auth.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: '/profile' } })} />
+                  <Button fullWidth title={tr('auth.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: '/profile' } })} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Button variant="secondary" title={tr('settings.title')} onPress={() => router.push('/settings')} />
+                  <Button fullWidth variant="secondary" title={tr('settings.title')} onPress={() => router.push('/settings')} />
                 </View>
               </View>
-            </Card>
+            </GlassView>
           ) : error ? (
-            <Card>
-              <Label bold>{tr('profile.loadFailed')}</Label>
-              <Label muted>{error}</Label>
+            <GlassView radius="xl" padding="lg" style={{ gap: 12, alignItems: 'flex-start' }}>
+              <Text variant="heading">{tr('profile.loadFailed')}</Text>
+              <Text tone="muted">{serverText(error)}</Text>
               <Button variant="secondary" title={tr('common.tryAgain')} onPress={() => setReload((n) => n + 1)} />
-            </Card>
+            </GlassView>
           ) : !profile ? (
             <ActivityIndicator style={{ marginTop: 48 }} />
           ) : (
@@ -79,98 +77,138 @@ export function ProfileView({ username }: { username: string | null }) {
 }
 
 function ProfileBody({ profile }: { profile: PublicProfile }) {
-  const t = useTheme();
   const tr = useT();
+  const c = useAppTheme().colors;
   const played = profile.ratings.filter((r) => r.games > 0);
-  const [category, setCategory] = useState<TimeCategory>((played.sort((a, b) => b.games - a.games)[0]?.category as TimeCategory) ?? 'blitz');
+  const [category, setCategory] = useState<TimeCategory>(([...played].sort((a, b) => b.games - a.games)[0]?.category as TimeCategory) ?? 'blitz');
   const country = countryLabel(profile.country);
   const joined = formatDate(profile.createdAt, { month: 'long', year: 'numeric' });
   const { totals } = profile;
+  const totalGames = totals.wins + totals.draws + totals.losses;
+  const best = played.length ? played.reduce((a, b) => (b.rating > a.rating ? b : a)) : null;
 
   return (
     <>
-      <Card>
-        <View style={styles.header}>
-          <Avatar avatar={profile.avatar} name={profile.displayName} size={84} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <View style={styles.meta}>
+      <GlassView radius="xl" padding="lg" elevation="lg" style={{ gap: 16 }}>
+        <View style={styles.hero}>
+          <Avatar avatar={profile.avatar} name={profile.displayName} size={88} />
+          <Stack gap="xs" flex={1} style={{ minWidth: 200 }}>
+            <Row gap="sm" wrap>
               <TitleBadge title={profile.title} size="md" />
-              <Text style={[styles.name, { color: t.text, flexShrink: 1 }]} numberOfLines={1}>
+              <Text variant="title" numberOfLines={1} style={{ flexShrink: 1 }}>
                 {profile.displayName}
               </Text>
               <RoleTagBadge tag={profile.roleTag} size="md" />
-            </View>
-            {profile.playerTag ? (
-              <View style={styles.meta}>
-                <PlayerTagBadge tag={profile.playerTag} />
-              </View>
-            ) : null}
-            <View style={styles.meta}>
-              <Text style={{ color: t.muted }}>@{profile.username}</Text>
-              {profile.online !== null && (
-                <View style={styles.meta}>
-                  <View style={[styles.onlineDot, { backgroundColor: profile.online ? '#2FBF71' : t.muted }]} />
-                  <Text style={{ color: t.muted }}>{profile.online ? tr('profile.online') : tr('play.offline')}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={{ color: t.muted }}>
-              {country ? `${countryFlag(profile.country)} ${country} · ` : ''}{tr('profile.joined', { date: joined })}
+            </Row>
+            <Row gap="sm" wrap>
+              <Text tone="muted">@{profile.username}</Text>
+              {profile.online !== null &&
+                (profile.online ? <Badge tone="live" label={tr('profile.online')} /> : <Badge tone="outline" label={tr('play.offline')} />)}
+              {profile.playerTag ? <PlayerTagBadge tag={profile.playerTag} /> : null}
+            </Row>
+            <Text variant="caption" tone="muted">
+              {country ? `${countryFlag(profile.country)} ${country} · ` : ''}
+              {tr('profile.joined', { date: joined })}
             </Text>
-          </View>
+          </Stack>
         </View>
-        {profile.bio ? <Label>{profile.bio}</Label> : profile.isMe ? <Label muted>{tr('profile.addBio')}</Label> : null}
+        {profile.bio ? <Text>{profile.bio}</Text> : profile.isMe ? <Text tone="muted">{tr('profile.addBio')}</Text> : null}
+        <View style={[styles.heroStats, { borderTopColor: c.border }]}>
+          <HeroStat value={best ? `${best.rating}` : '—'} label={best ? tr('profile.bestRating', { category: categoryLabel(best.category) }) : tr('nav.unrated')} />
+          <HeroStat value={`${totalGames}`} label={tr('profile.games')} />
+          <HeroStat value={totalGames ? `${Math.round(((totals.wins + totals.draws / 2) / totalGames) * 100)}%` : '—'} label={tr('profile.score')} />
+        </View>
         <ProfileActions profile={profile} />
-      </Card>
+      </GlassView>
 
-      <View style={styles.tiles}>
-        {profile.ratings.map((r) => {
-          const on = r.category === category;
-          return (
-            <Pressable
-              key={r.category}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-              onPress={() => setCategory(r.category)}
-              style={[styles.tile, { borderColor: on ? t.text : t.glassBorder, backgroundColor: t.surface }]}>
-              <Text style={[styles.tileLabel, { color: t.muted }]}>{categoryLabel(r.category)}</Text>
-              <Text style={[styles.tileValue, { color: t.text }]}>
-                {r.rating}
-                {r.provisional ? '?' : ''}
-              </Text>
-              <Text style={{ color: t.muted, fontSize: 12 }}>{r.games === 0 ? tr('nav.unrated') : tr('profile.gamesPeak', { count: r.games, peak: r.peak })}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Stack gap="sm">
+        <SectionHeader title={tr('profile.ratings')} />
+        <View style={styles.tiles}>
+          {profile.ratings.map((r) => {
+            const on = r.category === category;
+            return (
+              <Pressable
+                key={r.category}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                onPress={() => setCategory(r.category)}
+                style={styles.tileWrap}>
+                {({ pressed }) => (
+                  <GlassView
+                    radius="lg"
+                    padding="md"
+                    elevation={on ? 'md' : 'sm'}
+                    style={[styles.tile, { borderColor: on ? c.accent : 'transparent', opacity: pressed ? 0.8 : 1 }]}>
+                    <Text variant="overline" tone="muted">
+                      {categoryLabel(r.category)}
+                    </Text>
+                    <Text variant="figure">
+                      {r.rating}
+                      {r.provisional ? '?' : ''}
+                    </Text>
+                    <Text variant="caption" tone="muted">
+                      {r.games === 0 ? tr('nav.unrated') : tr('profile.gamesPeak', { count: r.games, peak: r.peak })}
+                    </Text>
+                  </GlassView>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Stack>
 
-      <Card>
-        <SectionTitle>{tr('profile.categoryRating', { category: categoryLabel(category) })}</SectionTitle>
-        <RatingHistory username={profile.username} category={category} />
-      </Card>
+      <Stack gap="sm">
+        <SectionHeader title={tr('profile.categoryRating', { category: categoryLabel(category) })} />
+        <GlassView radius="lg" padding="lg">
+          <RatingHistory username={profile.username} category={category} />
+        </GlassView>
+      </Stack>
 
-      <Card>
-        <SectionTitle>{tr('profile.allGames')}</SectionTitle>
-        <ResultBar wins={totals.wins} draws={totals.draws} losses={totals.losses} />
-        <StatsByCategory profile={profile} />
-      </Card>
+      <Stack gap="sm">
+        <SectionHeader title={tr('profile.allGames')} />
+        <GlassView radius="lg" padding="lg" style={{ gap: 16 }}>
+          <ResultBar wins={totals.wins} draws={totals.draws} losses={totals.losses} />
+          <StatsByCategory profile={profile} />
+        </GlassView>
+      </Stack>
 
-      <Card>
-        <SectionTitle>{tr('profile.recentGames')}</SectionTitle>
+      <Stack gap="sm">
+        <SectionHeader title={tr('profile.recentGames')} />
         {profile.recentGames === null ? (
-          <Label muted>{tr('profile.gamesPrivate', { name: profile.displayName })}</Label>
+          <GlassView radius="lg" padding="lg">
+            <Text tone="muted">{tr('profile.gamesPrivate', { name: profile.displayName })}</Text>
+          </GlassView>
         ) : profile.recentGames.length === 0 ? (
-          <Label muted>{tr('profile.noGames')}</Label>
+          <GlassView radius="lg" padding="lg">
+            <Text tone="muted">{tr('profile.noGames')}</Text>
+          </GlassView>
         ) : (
-          profile.recentGames.map((g, i) => (
-            <View key={g.id} style={{ gap: 10 }}>
-              {i > 0 && <Divider />}
-              <GameRow game={g} />
-            </View>
-          ))
+          <>
+            <ListGroup>
+              {profile.recentGames.map((g) => (
+                <GameRow key={g.id} game={g} />
+              ))}
+            </ListGroup>
+            <Text variant="caption" tone="tertiary" style={{ paddingHorizontal: 4 }}>
+              {tr('profile.gamesHint')}
+            </Text>
+          </>
         )}
-      </Card>
+      </Stack>
     </>
+  );
+}
+
+function HeroStat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={{ flex: 1, gap: 2 }}>
+      <Text variant="numeric" style={{ fontSize: 20 }}>
+        {value}
+      </Text>
+      <Text variant="caption" tone="muted" numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -189,7 +227,7 @@ function RatingHistory({ username, category }: { username: string; category: Tim
     };
   }, [username, category, session]);
   if (state.loading && !state.points) return <ActivityIndicator style={{ height: 160 }} />;
-  if (state.error) return <Label muted>{state.error}</Label>;
+  if (state.error) return <Text tone="muted">{serverText(state.error)}</Text>;
   return <RatingGraph points={state.points ?? []} />;
 }
 
@@ -252,52 +290,59 @@ function StatsByCategory({ profile }: { profile: PublicProfile }) {
   );
 }
 
+const openGame = (game: RecentGame, review = false) =>
+  router.push({ pathname: '/game/[id]', params: { id: game.id, side: game.color, ...(review ? { review: '1' } : {}) } });
+
 function GameRow({ game }: { game: RecentGame }) {
-  const t = useTheme();
+  const c = useAppTheme().colors;
   const tr = useT();
   const mark = game.outcome === 'win' ? tr('profile.w') : game.outcome === 'loss' ? tr('profile.l') : tr('profile.d');
   const when = formatDate(game.endedAt, { day: 'numeric', month: 'short' });
+  const result = tr(game.outcome === 'draw' ? 'profile.resultDraw' : game.outcome === 'win' ? 'profile.resultWon' : 'profile.resultLost');
+  const d = game.rated ? game.ratingDelta : null;
   return (
-    <View style={styles.game}>
-      <View
-        style={[
-          styles.badge,
-          game.outcome === 'win' ? { backgroundColor: t.accent } : { borderWidth: 1, borderColor: t.border, backgroundColor: game.outcome === 'draw' ? t.surface : 'transparent' },
-        ]}>
-        <Text style={{ color: game.outcome === 'win' ? t.onAccent : t.text, fontWeight: '700' }}>{mark}</Text>
-      </View>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: t.text, fontSize: 15 }} numberOfLines={1}>
-          <Text style={{ color: t.muted }}>{game.color === 'w' ? '○ ' : '● '}</Text>
-          {tr('profile.vs', { name: game.opponent.username })} <Text style={{ color: t.muted }}>({game.opponent.rating})</Text>
-        </Text>
-        <Text style={{ color: t.muted, fontSize: 13 }}>
-          {game.timeControl} {categoryLabel(game.category)} · {tr(game.outcome === 'draw' ? 'profile.resultDraw' : game.outcome === 'win' ? 'profile.resultWon' : 'profile.resultLost')}{' '}
-          {reasonText(game.reason)} · {tr('profile.moves', { count: game.moves })} · {when}
-        </Text>
-      </View>
-      {game.rated && game.ratingDelta !== null && (
-        <Text style={[styles.delta, { color: t.text }]}>
-          {game.ratingDelta > 0 ? `+${game.ratingDelta}` : game.ratingDelta === 0 ? '±0' : `−${Math.abs(game.ratingDelta)}`}
-        </Text>
-      )}
-    </View>
+    <ListRow
+      onPress={() => openGame(game)}
+      left={
+        <View
+          style={[
+            styles.mark,
+            game.outcome === 'win'
+              ? { backgroundColor: c.accent }
+              : { borderWidth: 1, borderColor: c.borderStrong, backgroundColor: game.outcome === 'draw' ? c.surface : 'transparent' },
+          ]}>
+          <Text variant="label" color={game.outcome === 'win' ? c.onAccent : c.text} style={{ fontWeight: '700' }}>
+            {mark}
+          </Text>
+        </View>
+      }
+      title={`${game.color === 'w' ? '○' : '●'} ${tr('profile.vs', { name: game.opponent.username })} (${game.opponent.rating})`}
+      subtitle={`${game.timeControl} ${categoryLabel(game.category)} · ${result} ${reasonText(game.reason)} · ${tr('profile.moves', { count: game.moves })} · ${when}`}
+      right={
+        <Row gap="sm">
+          {d !== null && (
+            <Text variant="numeric" tone={d > 0 ? 'success' : d < 0 ? 'danger' : 'muted'} style={styles.delta}>
+              {d > 0 ? `+${d}` : d === 0 ? '±0' : `−${Math.abs(d)}`}
+            </Text>
+          )}
+          {game.moves > 0 && <Button size="sm" variant="secondary" title={tr('profile.review')} onPress={() => openGame(game, true)} />}
+        </Row>
+      }
+      chevron
+    />
   );
 }
 
-
 const styles = StyleSheet.create({
-  page: { padding: 16, alignItems: 'center' },
-  inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
-  header: { flexDirection: 'row', gap: 16, alignItems: 'center' },
-  name: { fontSize: 24, fontWeight: '700', letterSpacing: -0.4 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  onlineDot: { width: 8, height: 8, borderRadius: 4 },
+  page: { padding: 16, paddingBottom: 48, alignItems: 'center' },
+  inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 24 },
+  hero: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, alignItems: 'center' },
+  heroStats: { flexDirection: 'row', gap: 12, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth },
   actions: { flexDirection: 'row', gap: 8 },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { flexGrow: 1, flexBasis: 140, borderWidth: 1, borderRadius: 16, padding: 12, gap: 2 },
-  tileLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
-  tileValue: { fontSize: 26, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tileWrap: { flexGrow: 1, flexBasis: 140 },
+  tile: { gap: 2, borderWidth: 1.5 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   bar: { height: 10, borderRadius: 5, overflow: 'hidden', flexDirection: 'row' },
   legend: { flexDirection: 'row', gap: 8 },
   legendValue: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
@@ -305,7 +350,6 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row' },
   statCell: { flex: 1, textAlign: 'right', fontVariant: ['tabular-nums'] },
   statFirst: { flex: 2, textAlign: 'left' },
-  game: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  badge: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  delta: { fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 36, textAlign: 'right' },
+  mark: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  delta: { minWidth: 36, textAlign: 'right' },
 });
