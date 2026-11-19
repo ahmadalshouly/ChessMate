@@ -229,6 +229,9 @@ export const fonts = {
   displayMedium: families.display[500],
   displayRegular: families.display[400],
   displayItalic: families.displayItalic,
+  /** Cinzel, for small all-caps labels. */
+  label: families.label[600],
+  labelBold: families.label[700],
 } as const;
 
 type TypeStyle = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'letterSpacing' | 'fontFamily' | 'textTransform' | 'fontVariant' | 'fontStyle'>;
@@ -237,8 +240,8 @@ type TypeStyle = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'let
  * Type ramp. Use through `<Text variant="…">`.
  *
  * Brand card: Playfair Display for big moments (headlines, the wordmark, the slogan), Inter
- * for everything you read, and Inter with tabular figures for anything that counts or
- * labels (ratings, clocks, overlines). Playfair is a serif, so it is tracked looser.
+ * for everything you read, Cinzel for small all-caps labels (overlines, tab names), and
+ * Inter with tabular figures for anything that counts (ratings, clocks).
  */
 export const typography = {
   /** Hero headline. One per screen at most. */
@@ -254,7 +257,7 @@ export const typography = {
   label: { fontFamily: S[500], fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
   caption: { fontFamily: S[400], fontSize: 12.5, lineHeight: 17 },
   /** Small uppercase mono label above sections and stats. */
-  overline: { fontFamily: M[500], fontSize: 10.5, lineHeight: 14, letterSpacing: 1.4, textTransform: 'uppercase' },
+  overline: { fontFamily: families.label[600], fontSize: 11, lineHeight: 15, letterSpacing: 1.2, textTransform: 'uppercase' },
   /** Ratings, counts, evaluations: fixed-width digits. */
   numeric: { fontFamily: M[500], fontSize: 14, lineHeight: 20, fontVariant: ['tabular-nums'], letterSpacing: -0.2 },
   /** Big figures in stat blocks and time-control tiles. */

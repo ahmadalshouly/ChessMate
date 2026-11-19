@@ -33,7 +33,7 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
         <View style={[styles.barIcon, focused && { backgroundColor: t.accent }]}>
           <Ionicons name={focused ? tab.iconActive : tab.icon} size={19} color={focused ? t.onAccent : t.muted} />
         </View>
-        <Text numberOfLines={1} style={[styles.barLabel, { color: focused ? t.text : t.textTertiary }]}>
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.barLabel, { color: focused ? t.text : t.textTertiary }]}>
           {tr(tab.label)}
         </Text>
       </Pressable>
@@ -63,7 +63,7 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
 const styles = StyleSheet.create({
   bar: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
   barIcon: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  barLabel: { fontFamily: fonts.monoMedium, fontSize: 9.5, letterSpacing: 0.9, textTransform: 'uppercase' },
+  barLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 0.4, textTransform: 'uppercase' },
   side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 42, borderRadius: 12 },
   sideMark: { position: 'absolute', top: 12, bottom: 12, width: 2.5, borderRadius: 2 },
   sideLabel: { fontSize: 14.5, flex: 1, letterSpacing: -0.15 },

@@ -74,10 +74,10 @@ export function Sidebar() {
 }
 
 const styles = StyleSheet.create({
-  tagline: { fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: 2.2, textTransform: 'uppercase', marginTop: 6 },
+  tagline: { fontFamily: fonts.label, fontSize: 9.5, letterSpacing: 1.8, textTransform: 'uppercase', marginTop: 6 },
   panel: { paddingEnd: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
   logo: { paddingHorizontal: 8, paddingBottom: 30 },
-  section: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 1.4, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 10 },
+  section: { fontFamily: fonts.label, fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 10 },
   nav: { gap: 2, flex: 1 },
   userCard: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 12 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, borderRadius: 12 },

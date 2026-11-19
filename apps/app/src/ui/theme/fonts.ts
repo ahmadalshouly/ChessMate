@@ -9,14 +9,16 @@ import { i18nStore } from '@/i18n/store';
  *
  * - Display (Playfair Display): headlines, titles, the ChessMate wordmark and the slogan.
  * - Sans (Inter): body text and every piece of UI.
- * - Mono role (Inter with tabular figures): clocks, ratings, time controls, overlines.
- *   Anything that counts keeps fixed-width digits through `fontVariant: ['tabular-nums']`.
+ * - Label (Cinzel): the small all-caps labels (section overlines, greetings, categories
+ *   under time controls, tab names). Roman inscription capitals: elegant and timeless.
+ * - Mono role (Inter with tabular figures): clocks, ratings, time controls. Anything that
+ *   counts keeps fixed-width digits through `fontVariant: ['tabular-nums']`.
  * - Arabic (IBM Plex Sans Arabic): replaces Sans and Display while the app is in Arabic.
  *   Inter and Playfair have no Arabic glyphs; Plex Arabic ships its own Latin, so mixed
  *   text (names, "Elo 1500") stays consistent.
  *
- * Inter and Playfair Display are bundled from assets/fonts (SIL Open Font License, see the
- * licence files there), trimmed to Latin.
+ * Inter, Playfair Display and Cinzel are bundled from assets/fonts (SIL Open Font License,
+ * see the licence files there), trimmed to Latin.
  *
  * Custom fonts on native need one family per weight, so a weight is a family name here.
  * Screens never pick these directly: `<Text variant>` does, and plain `fontWeight` styles
@@ -33,6 +35,9 @@ export const FONT_FILES = {
   PlayfairDisplay_700Bold: require('../../../assets/fonts/PlayfairDisplay-Bold.ttf'),
   /** The slogan ("Think. Move. Win.") and the brand line are set in italic. */
   PlayfairDisplay_500MediumItalic: require('../../../assets/fonts/PlayfairDisplay-MediumItalic.ttf'),
+  Cinzel_500Medium: require('../../../assets/fonts/Cinzel-Medium.ttf'),
+  Cinzel_600SemiBold: require('../../../assets/fonts/Cinzel-SemiBold.ttf'),
+  Cinzel_700Bold: require('../../../assets/fonts/Cinzel-Bold.ttf'),
 } as const;
 
 /** Arabic faces. Bundled on native; fetched on web only once someone switches to Arabic. */
@@ -79,6 +84,12 @@ export const families = {
   } as Record<400 | 500 | 600 | 700, FontFamilyName>,
   /** The slogan face. */
   displayItalic: 'PlayfairDisplay_500MediumItalic' as FontFamilyName,
+  /** All-caps labels. */
+  label: {
+    500: 'Cinzel_500Medium',
+    600: 'Cinzel_600SemiBold',
+    700: 'Cinzel_700Bold',
+  } as Record<500 | 600 | 700, FontFamilyName>,
 };
 
 /** Generic family aliases a style may use instead of a family name. */
@@ -118,6 +129,11 @@ export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
     const ownWeight = /_(\d)00/.exec(fam)?.[1];
     // The italic slogan face has no other weights: keep it as it is.
     if (fam === families.displayItalic && !arabic) return [style, NEUTRAL_WEIGHT];
+    // Cinzel labels: an explicit weight picks that weight of Cinzel.
+    if (fam.startsWith('Cinzel') && !arabic) {
+      const w = Math.min(700, Math.max(500, weightOf(flat.fontWeight))) as 500 | 600 | 700;
+      return [style, { fontFamily: families.label[w], fontWeight: 'normal' }];
+    }
     fam = fam.startsWith('PlayfairDisplay') ? 'display' : 'sans';
     if (plainWeight && ownWeight) weightStyle = `${ownWeight}00` as TextStyle['fontWeight'];
   }
