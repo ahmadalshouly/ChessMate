@@ -73,7 +73,9 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
     const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
     try {
       const actor: Actor = admin.actorFor(bearerUser(req, auth));
-      const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req) : {});
+      // Tournament forms can carry a sponsor logo (a data URL of up to ~400 KB); everything else stays small.
+      const maxBody = section === 'tournaments' ? 1024 * 1024 : undefined;
+      const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req, maxBody) : {});
       const route = `${req.method} ${section}${id ? '/:id' : ''}${action ? `/${action}` : ''}`;
       const ok = (v: unknown) => (sendJson(res, 200, v), true);
       switch (route) {

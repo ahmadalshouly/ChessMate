@@ -94,6 +94,15 @@ describe('admin console', () => {
     expect(asAdmin.body.player.email).toBe('alice@example.com');
   });
 
+  it('accepts tournament forms carrying a sponsor logo (bigger than other requests)', async () => {
+    const logo = `data:image/png;base64,${'A'.repeat(300_000)}`;
+    const r = await call('owner', 'POST', '/tournaments', { name: 'Logo cup', sponsorName: 'Acme', sponsorLogo: logo });
+    // This harness runs without tournaments; the point is the body is read, not refused as too large.
+    expect(JSON.stringify(r.body)).not.toContain('too large');
+    const small = await call('owner', 'POST', `/players/${ids.bob}/note`, { note: 'x'.repeat(40_000) });
+    expect(JSON.stringify(small.body)).toContain('too large');
+  });
+
   it('searches players by name and status', async () => {
     const r = await call('owner', 'GET', '/players?q=ali');
     expect(r.body.players.map((p: { username: string }) => p.username)).toEqual(['alice']);

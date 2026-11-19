@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Segmented } from '@/components/play/Controls';
 import { logoUrl } from '@/lib/tournamentsApi';
@@ -68,6 +68,32 @@ async function fileAsDataUrl(uri: string): Promise<string> {
     reader.onerror = () => reject(new Error('Could not read the image'));
     reader.readAsDataURL(blob);
   });
+}
+
+/** Logos are shown small; on the web, big images are scaled down to this many pixels on the long side. */
+const LOGO_MAX_PX = 512;
+
+/**
+ * Web only: scales a large logo down (keeping transparency) so it fits the upload
+ * limit. Phones send the picked file as it is.
+ */
+async function shrinkLogo(dataUrl: string): Promise<string> {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return dataUrl;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new window.Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('Could not read the image'));
+    el.src = dataUrl;
+  });
+  const scale = Math.min(1, LOGO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+  if (scale === 1 && dataUrl.length <= 200_000) return dataUrl;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const webp = canvas.toDataURL('image/webp', 0.9);
+  const out = webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
+  return out.length < dataUrl.length ? out : dataUrl;
 }
 
 function emptyForm(): Form {
@@ -369,7 +395,7 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
                   const asset = r.canceled ? null : r.assets?.[0];
                   if (!asset) return;
                   try {
-                    const url = await fileAsDataUrl(asset.uri);
+                    const url = await shrinkLogo(await fileAsDataUrl(asset.uri));
                     if (url.length > 400_000) return setError(tr('admin.tournaments.logoTooBig'));
                     set('logo', url);
                   } catch (e) {
