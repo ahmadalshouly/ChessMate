@@ -8,6 +8,7 @@ import { Text } from '@/ui/primitives';
 
 import { pickIndex, type EndResult } from '@/components/play/GameEndCelebration';
 import { Label } from '@/components/ui';
+import { QuickReview } from '@/components/play/QuickReview';
 import { useTheme } from '@/constants/theme';
 import { translate, useT, type TKey } from '@/i18n';
 import type { GameView } from '@/lib/playClient';
@@ -78,6 +79,7 @@ export function GameOverCard({
   onLobby,
   onReview,
   onClose,
+  moves,
 }: {
   view: GameView;
   onRematch: () => void;
@@ -88,6 +90,8 @@ export function GameOverCard({
   onReview?: () => void;
   /** Hides the card to look at the final position. */
   onClose?: () => void;
+  /** The game's moves (UCI), for the quick review in the card. */
+  moves?: string[];
 }) {
   const t = useTheme();
   const tr = useT();
@@ -108,15 +112,16 @@ export function GameOverCard({
   // Enter after the checkmate stamp has had its moment.
   const enter = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
-    if (!reduced) enter.value = withDelay(checkmate ? 1450 : 250, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
-  }, [reduced, checkmate, enter]);
+    // After the checkmate stamp or the victory burst has had its moment.
+    if (!reduced) enter.value = withDelay(checkmate || result === 'win' ? 1500 : 250, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
+  }, [reduced, checkmate, result, enter]);
   const enterStyle = useAnimatedStyle(() => ({ opacity: enter.value, transform: [{ translateY: (1 - enter.value) * 18 }] }));
   const icon = result === 'win' ? 'trophy' : result === 'loss' ? 'heart' : result === 'draw' ? 'git-compare-outline' : 'close-circle-outline';
 
   return (
     <Animated.View style={[styles.solid, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }, enterStyle]}>
       <View style={styles.head}>
-        <Medallion icon={icon} bounce={result === 'win' && !reduced} delay={checkmate ? 1700 : 450} />
+        <Medallion icon={icon} bounce={result === 'win' && !reduced} delay={checkmate || result === 'win' ? 1750 : 450} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
             {title}
@@ -150,6 +155,7 @@ export function GameOverCard({
       ) : (
         result && <Label muted>{unratedText(view.unrated ?? (view.rated ? undefined : 'casual'))}</Label>
       )}
+      {canReview && moves && moves.length > 1 && <QuickReview moves={moves} gameId={view.gameId} side={view.you} onOpen={onReview!} />}
       {oppOffered && <Label bold>{tr('play.over.wantsRematch', { name: opponent.name })}</Label>}
       {iOffered && <Label muted>{tr('play.over.rematchWaiting', { name: opponent.name })}</Label>}
       {view.rematchDeclined && <Label muted>{tr('play.over.declined')}</Label>}

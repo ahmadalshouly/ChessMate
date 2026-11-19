@@ -29,6 +29,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useEngine } from '@/lib/useEngine';
+import { useWideBoard } from '@/lib/useWideBoard';
 import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
 import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 
@@ -56,11 +57,11 @@ export default function Analysis() {
   const [showImport, setShowImport] = useState(false);
   const t = useTheme();
   const tr = useT();
-  const { width: winW, height: winH } = useWindowDimensions();
-  // Wide screens (web, tablets): board on the left, panel scrolls on the right.
+  const { height: winH } = useWindowDimensions();
+  // Wide screens (web, tablets): a big board on the left, panel scrolls on the right.
   // Phones: board and move buttons stay put; the panel scrolls underneath.
-  const wide = winW >= 900;
-  const boardSpace = wide ? Math.min(winH - 150, winW - 420 - 48, 720) : Math.min(winW - 24, winH * 0.56, 640);
+  const { wide, size: wideSpace } = useWideBoard({ panel: 404, reserve: 170 });
+  const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.56);
   const size = Math.max(200, Math.floor((boardSpace - EVAL_BAR - 6) / 8) * 8);
   const engine = useEngine();
 

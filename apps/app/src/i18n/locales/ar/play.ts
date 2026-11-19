@@ -94,6 +94,14 @@ export const play: Messages<typeof en> = {
   confirmResign: 'تأكيد الاستسلام',
   confirmMoveQ: 'هل تلعب {san}؟',
   over: {
+    victory: 'فوز!',
+    quick: {
+      title: 'مراجعة سريعة',
+      working: 'مراجعة سريعة… {pct}٪',
+      accuracy: 'دقة {n}٪',
+      hint: 'اضغط للمراجعة الكاملة',
+      open: 'فتح المراجعة الكاملة',
+    },
     checkmate: 'كش مات',
     newRating: 'التقييم الجديد',
     review: 'تعلّم من هذه المباراة',

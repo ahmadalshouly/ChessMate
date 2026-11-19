@@ -87,6 +87,14 @@ export const play: Messages<typeof en> = {
   confirmResign: 'Aufgabe bestätigen',
   confirmMoveQ: '{san} spielen?',
   over: {
+    victory: 'Sieg!',
+    quick: {
+      title: 'Kurzanalyse',
+      working: 'Kurzanalyse… {pct} %',
+      accuracy: '{n} % Genauigkeit',
+      hint: 'Tippe für die vollständige Analyse',
+      open: 'Vollständige Analyse öffnen',
+    },
     checkmate: 'Schachmatt',
     newRating: 'Neue Wertung',
     review: 'Aus dieser Partie lernen',

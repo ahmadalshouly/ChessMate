@@ -12,7 +12,7 @@ import { dirIcon, translate, translateOr, useT } from '@/i18n';
 import { ActionBar } from '@/components/game/ActionBar';
 import { deleteGame } from '@/lib/archive';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useWideBoard } from '@/lib/useWideBoard';
 import { canDownload, copyText, downloadPgn, pgnFileName, sharePgn } from '@/lib/share';
 
 
@@ -38,7 +38,8 @@ function resultLine(g: ArchivedGame): string {
 export function GameReplay({ game, deletable = true }: { game: ArchivedGame; deletable?: boolean }) {
   const t = useTheme();
   const tr = useT();
-  const size = useBoardSize(330);
+  // Big board on wide screens with the details beside it; full width on phones.
+  const { wide, size, panel } = useWideBoard({ panel: 400, reserve: 230, phoneReserve: 330 });
   const history: PlayedMove[] = useMemo(() => Game.fromUciMoves(game.moves, game.initialFen).history(), [game]);
   const fens = useMemo(() => [game.initialFen, ...history.map((m) => m.fenAfter)], [game, history]);
   const openings = useMemo(() => openingTimeline(game.moves, game.initialFen), [game]);
@@ -135,7 +136,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
     <Screen>
       <Stack.Screen options={{ title: tr('games.vsPlayers', { white: game.white, black: game.black }) }} />
       <ScrollView contentContainerStyle={styles.page}>
-        <View style={[styles.layout, { maxWidth: Math.max(size, 360) * 2 + 16 }]}>
+        <View style={[styles.layout, wide ? { flexWrap: 'nowrap', alignItems: 'flex-start' } : { maxWidth: Math.max(size, 360) * 2 + 16 }]}>
           <View style={{ width: size, gap: 8 }}>
             <View style={styles.playerRow}>
               <SideDot color={top} />
@@ -180,7 +181,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
             />
           </View>
 
-          <View style={styles.side}>
+          <View style={[styles.side, wide && { flexGrow: 0, width: panel, flexBasis: panel }]}>
             <Card>
               <Label size={18} bold>
                 {resultLine(game)}

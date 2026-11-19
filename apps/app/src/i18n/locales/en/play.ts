@@ -84,6 +84,14 @@ export const play = {
   confirmResign: 'Confirm resign',
   confirmMoveQ: 'Play {san}?',
   over: {
+    victory: 'Victory!',
+    quick: {
+      title: 'Quick review',
+      working: 'Quick review… {pct}%',
+      accuracy: '{n}% accuracy',
+      hint: 'Tap for the full review',
+      open: 'Open the full review',
+    },
     checkmate: 'Checkmate',
     newRating: 'New rating',
     review: 'Learn from this game',

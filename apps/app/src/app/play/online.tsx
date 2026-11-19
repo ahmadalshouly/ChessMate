@@ -368,6 +368,7 @@ export default function OnlinePlay() {
             />
             {over && !hideResult && (
               <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
+                <ScrollView style={styles.overlayScroll} contentContainerStyle={styles.overlayContent} showsVerticalScrollIndicator={false}>
                 <GameOverCard
                   view={view}
                   onRematch={() => playClient.rematch()}
@@ -376,7 +377,9 @@ export default function OnlinePlay() {
                   onLobby={toLobby}
                   onReview={reviewable ? openReview : undefined}
                   onClose={() => setHideResult(true)}
+                  moves={history.map((m) => m.uci)}
                 />
+                </ScrollView>
               </View>
             )}
             {/* Drawn above the result card; touches pass through. */}
@@ -420,5 +423,8 @@ const styles = StyleSheet.create({
   banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
   restricted: { marginHorizontal: 12, marginTop: 8 },
   sponsor: { alignItems: 'center', paddingTop: 6 },
+  // The result card scrolls inside the board when it is taller than the board (small phones).
+  overlayScroll: { width: '100%', maxHeight: '100%' },
+  overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
 });

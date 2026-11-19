@@ -16,7 +16,7 @@ import { ActionBar } from '@/components/game/ActionBar';
 import { moveFeedbackText } from '@/i18n/chess';
 import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useWideBoard } from '@/lib/useWideBoard';
 import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
@@ -37,7 +37,8 @@ export default function Review() {
   const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string }>();
   const engine = useEngine();
   const t = useTheme();
-  const size = useBoardSize(300) - EVAL_BAR - 6;
+  const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 190 });
+  const size = boardSpace - EVAL_BAR - 6;
   const [ply, setPly] = useState(0);
   // Play: steps through the game a move at a time, pieces sliding as if it were being played.
   const [autoplay, setAutoplay] = useState(false);
@@ -136,10 +137,7 @@ export default function Review() {
     setAutoplay(false);
     setPly(fn);
   };
-  return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+  const boardRow = (
           <View style={styles.boardRow}>
             <EvalBar score={review ? score : null} orientation={orientation} height={size} width={EVAL_BAR} />
             <View style={{ width: size, height: size }}>
@@ -160,7 +158,31 @@ export default function Review() {
               {current && <BoardMoveBadge square={current.uci.slice(2, 4) as Square} cls={current.judgement.classification} size={size} orientation={orientation} />}
             </View>
           </View>
-
+  );
+  const bar = review ? (
+              <ActionBar
+                actions={[
+                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => step(() => 0), disabled: ply === 0 },
+                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => step((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
+                  {
+                    key: 'play',
+                    icon: autoplay ? 'pause' : 'play',
+                    label: autoplay ? tr('review.pause') : tr('review.play'),
+                    active: autoplay,
+                    disabled: moves.length === 0,
+                    onPress: () => {
+                      if (!autoplay && ply >= moves.length) setPly(0);
+                      setAutoplay((a) => !a);
+                    },
+                  },
+                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => step((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
+                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => step(() => moves.length), disabled: ply >= moves.length },
+                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+                ]}
+              />
+  ) : null;
+  const panel = (
+    <>
           {!review && (
             <Card>
               {engine.state.error ? (
@@ -184,30 +206,8 @@ export default function Review() {
               )}
             </Card>
           )}
-
           {review && (
             <>
-              <ActionBar
-                actions={[
-                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => step(() => 0), disabled: ply === 0 },
-                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => step((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
-                  {
-                    key: 'play',
-                    icon: autoplay ? 'pause' : 'play',
-                    label: autoplay ? tr('review.pause') : tr('review.play'),
-                    active: autoplay,
-                    disabled: moves.length === 0,
-                    onPress: () => {
-                      if (!autoplay && ply >= moves.length) setPly(0);
-                      setAutoplay((a) => !a);
-                    },
-                  },
-                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => step((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
-                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => step(() => moves.length), disabled: ply >= moves.length },
-                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
-                ]}
-              />
-
               <Card>
                 {current ? (
                   <>
@@ -309,8 +309,31 @@ export default function Review() {
               </Card>
             </>
           )}
+    </>
+  );
+
+  return (
+    <Screen>
+      {wide ? (
+        // Web and tablets: a big board with the controls under it, the review beside it.
+        <View style={styles.wide}>
+          <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {boardRow}
+            {bar}
+          </View>
+          <ScrollView style={{ width: panelWidth, flexGrow: 0 }} contentContainerStyle={styles.widePanel}>
+            {panel}
+          </ScrollView>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.page}>
+          <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {boardRow}
+            {bar}
+            {panel}
+          </View>
+        </ScrollView>
+      )}
     </Screen>
   );
 }
@@ -357,6 +380,8 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
 }
 
 const styles = StyleSheet.create({
+  wide: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, padding: 16 },
+  widePanel: { gap: 12, paddingBottom: 32 },
   page: { padding: 12, alignItems: 'center' },
   boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },

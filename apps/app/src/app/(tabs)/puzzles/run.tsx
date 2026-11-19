@@ -8,7 +8,7 @@ import { PuzzleBoard } from '@/components/PuzzleBoard';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { puzzleApi } from '@/lib/puzzleApi';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useWideBoard } from '@/lib/useWideBoard';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
 import { translate, useT, type TKey } from '@/i18n';
 
@@ -26,7 +26,8 @@ export default function PuzzleRun() {
   const mode: PuzzleRunMode = params.mode === 'rush' ? 'rush' : 'streak';
   const t = useTheme();
   const tr = useT();
-  const size = useBoardSize(360);
+  // Big board on wide screens (panel beside it); phones keep room below for hints and results.
+  const { wide, size } = useWideBoard({ panel: 380, reserve: 140, phoneReserve: 360, sidebar: true });
   const [phase, setPhase] = useState<Phase>('ready');
   const [queue, setQueue] = useState<PuzzleDto[]>([]);
   const [index, setIndex] = useState(0);
@@ -140,6 +141,7 @@ export default function PuzzleRun() {
           view={view}
           puzzle={puzzle}
           size={size}
+          wide={wide}
           showHints={false}
           above={
             <>
@@ -158,7 +160,7 @@ export default function PuzzleRun() {
         />
       ) : (
         <ScrollView contentContainerStyle={styles.page}>
-          <View style={{ width: size, gap: 12 }}>
+          <View style={{ width: Math.min(size, 560), gap: 12 }}>
             {phase === 'ready' && (
               <Card>
                 <Label size={22} bold>

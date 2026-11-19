@@ -3,6 +3,7 @@ import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useGameLock } from '@/lib/useGameLock';
+import { QuickReview } from '@/components/play/QuickReview';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -336,6 +337,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
             />
             {verdict && !hideResult && (
               <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
+                <ScrollView style={styles.overlayScroll} contentContainerStyle={styles.overlayContent} showsVerticalScrollIndicator={false}>
                 <View style={[styles.result, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }]}>
                   <View style={styles.row}>
                     <View style={{ flex: 1, gap: 2 }}>
@@ -356,12 +358,14 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
                       <GameIcon name="close" size={18} color={t.text} />
                     </Pressable>
                   </View>
+                  {plyCount > 1 && <QuickReview moves={view.history.map((m) => m.uci)} side={me} onOpen={openReview} />}
                   <View style={styles.resultButtons}>
                     <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary />
                     {plyCount > 0 && <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} />}
                     <NoticeButton icon="account-switch-outline" label={tr('game.action.newGame')} onPress={onExit} />
                   </View>
                 </View>
+                </ScrollView>
               </View>
             )}
           </>
@@ -402,6 +406,8 @@ const styles = StyleSheet.create({
   botMeta: { fontSize: 13 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  overlayScroll: { width: '100%', maxHeight: '100%' },
+  overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
   result: { width: '100%', maxWidth: 400, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
   resultButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

@@ -23,6 +23,9 @@ const FEEDBACK: Record<PuzzleView['feedback'], (side: string) => string> = {
   failed: () => translate('puzzles.feedback.failed'),
 };
 
+/** Width of the panel beside the board on wide screens. */
+const PANEL_WIDE = 380;
+
 /** Success is a game signal, so it gets colour like check and danger do. */
 const SUCCESS = { light: '#1F8A4C', dark: '#4CC27F' };
 
@@ -40,6 +43,7 @@ export function PuzzleBoard({
   showRating = true,
   above,
   below,
+  wide = false,
 }: {
   view: PuzzleView;
   puzzle: PuzzleDto | null;
@@ -48,6 +52,8 @@ export function PuzzleBoard({
   showRating?: boolean;
   above?: ReactNode;
   below?: ReactNode;
+  /** Wide screens: the panel sits beside the board instead of under it. */
+  wide?: boolean;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -58,7 +64,7 @@ export function PuzzleBoard({
   usePuzzleSounds(view.fen, view.lastMove, over);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, wide && styles.screenWide]}>
       <View style={[styles.fixed, { width: size }]}>
         {above}
         <Board
@@ -73,8 +79,11 @@ export function PuzzleBoard({
         {...interaction.dragProps}
         />
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={{ width: size, gap: 12 }}>
+      <ScrollView
+        style={wide ? styles.scrollWide : styles.scroll}
+        contentContainerStyle={wide ? styles.scrollContentWide : styles.scrollContent}
+        keyboardShouldPersistTaps="handled">
+        <View style={{ width: wide ? PANEL_WIDE : size, gap: 12 }}>
           <Card>
             <View style={styles.status}>
               <View style={[styles.dot, { backgroundColor: view.solver === 'w' ? '#FFFFFF' : '#15171B', borderColor: t.border }]} />
@@ -134,6 +143,9 @@ function usePuzzleSounds(fen: string, lastMove: { from: string; to: string } | n
 
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center' },
+  screenWide: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, paddingHorizontal: 16 },
+  scrollWide: { flexGrow: 0, width: 380 },
+  scrollContentWide: { paddingTop: 12, paddingBottom: 32 },
   fixed: { gap: 12, paddingTop: 12 },
   scroll: { flex: 1, alignSelf: 'stretch' },
   scrollContent: { alignItems: 'center', paddingTop: 12, paddingHorizontal: 12, paddingBottom: 32 },
