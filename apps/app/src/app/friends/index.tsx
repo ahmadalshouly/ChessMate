@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Pill, Tabs, UserRow, timeAgo } from '@/components/social';
-import { DevSignIn } from '@/components/SocialSignIn';
+import { SignInPrompt } from '@/components/SocialSignIn';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
@@ -79,7 +79,7 @@ export default function FriendsScreen() {
       <ScrollView contentContainerStyle={styles.page} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         <View style={styles.inner}>
           {!me ? (
-            <DevSignIn />
+            <SignInPrompt />
           ) : (
             <>
               <Tabs<Tab>

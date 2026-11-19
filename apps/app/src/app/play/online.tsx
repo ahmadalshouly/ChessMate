@@ -285,11 +285,7 @@ export default function OnlinePlay() {
         />
       )}
       {live && secretQueen && board.picking && <BoardNotice icon="crown-outline" text={tr('secretQueen.pick')} strong />}
-      {live && secretQueen && !board.picking && view.canPickSecret && view.secret && (
-        <BoardNotice icon="crown" text={tr('secretQueen.chosen', { square: view.secret })}>
-          <NoticeButton icon="swap-horizontal" label={tr('secretQueen.change')} onPress={board.repick} />
-        </BoardNotice>
-      )}
+      {live && secretQueen && !board.picking && view.secret && history.length < 2 && <BoardNotice icon="crown" text={tr('secretQueen.chosen', { square: view.secret })} />}
       {secretQueen && view.lastReveals.length > 0 && nav.live && <BoardNotice icon="eye-outline" text={view.lastReveals.map(revealText).join(' ')} />}
       {firstMoveIn !== null && view.opponentConnected && (
         <BoardNotice
@@ -302,7 +298,7 @@ export default function OnlinePlay() {
     </>
   );
   const hasNotice =
-    (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null || (secretQueen && (board.picking || view.canPickSecret)))) ||
+    (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null || (secretQueen && (board.picking || (!!view.secret && history.length < 2))))) ||
     (secretQueen && view.lastReveals.length > 0) ||
     !!s.error;
   const firstMoveStatus = (c: Color) => (firstMoveIn !== null && c === toMove ? tr('play.online.firstMoveCountdown', { n: firstMoveIn }) : null);
@@ -349,6 +345,7 @@ export default function OnlinePlay() {
               targets={nav.live ? board.targets : []}
               premoves={nav.live ? view.premoves : null}
               crowned={nav.live || over ? crowned : undefined}
+              pickable={nav.live ? board.pickable : undefined}
               lastMove={boardLast ? { from: boardLast.from, to: boardLast.to } : null}
               checkSquare={checkSquareOf(boardFen)}
               onSquarePress={nav.live ? board.onSquarePress : undefined}

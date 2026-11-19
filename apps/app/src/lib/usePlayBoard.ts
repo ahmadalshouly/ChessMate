@@ -54,9 +54,14 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
   const secretQueen = view?.variant === 'secretQueen';
   // Secret Queen: no premoves (the server may refuse a move because of the hidden queen).
   const canPremove = live && !myTurn && premovesOn && !secretQueen;
-  // Secret Queen: until the player has chosen, tapping one of their pawns picks it.
-  const [repicking, setRepicking] = useState(false);
-  const picking = live && secretQueen && !!view?.canPickSecret && (!view.secret || repicking);
+  // Secret Queen: until the player has chosen, tapping one of their pawns picks it. The choice is final.
+  const picking = live && secretQueen && !!view?.canPickSecret && !view.secret;
+  const pickable = useMemo(() => {
+    if (!picking || !game || !view) return [] as Square[];
+    const out: Square[] = [];
+    for (const row of game.raw.board()) for (const p of row) if (p && p.type === 'p' && p.color === view.you) out.push(p.square as Square);
+    return out;
+  }, [picking, game, view]);
   const queued = view?.premoves ?? [];
   const hasQueue = queued.length > 0;
 
@@ -133,7 +138,6 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
       const piece = game.raw.get(sq);
       if (piece?.type === 'p' && piece.color === view.you) {
         playClient.pickSecret(sq);
-        setRepicking(false);
       }
       return;
     }
@@ -174,8 +178,8 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
     premoves: queued,
     /** Secret Queen: waiting for the player to tap a pawn. */
     picking,
-    /** Secret Queen: choose a different pawn (before the first move). */
-    repick: () => setRepicking(true),
+    /** Secret Queen: the pawns that can be picked (highlighted on the board). */
+    pickable,
     dragProps: { canDrag: movable, onPieceDrop, onCancel: cancel, promotion },
   };
 }

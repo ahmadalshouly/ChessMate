@@ -71,8 +71,8 @@ export default function Lobby() {
   const online = s.connection === 'online';
   const canStart = !busy && !liveGameId && online && !s.restricted;
   // Open games are standard chess only; Secret Queen pairs through matchmaking.
-  const canCreate = canStart && seekOptions.variant !== 'secretQueen';
-  const rated = seekOptions.rated && !guest && seekOptions.variant !== 'secretQueen';
+  const canCreate = canStart;
+  const rated = seekOptions.rated && !guest;
 
   const poolCount = (key: string) => {
     const tc = parseTimeControl(key);
@@ -82,7 +82,8 @@ export default function Lobby() {
   };
 
   const step = (list: number[], cur: number, dir: 1 | -1) => list[Math.max(0, Math.min(list.length - 1, list.indexOf(cur) + dir))]!;
-  const play = () => startSeek(timeControl, seekOptions, guest);
+  // The lobby's own Play button is always normal chess; Secret Queen starts only from the setup pop-up.
+  const play = () => startSeek(timeControl, { ...seekOptions, variant: 'standard' }, guest);
   const create = () => postOpenGame(timeControl, seekOptions, guest);
 
   const status = online ? tr('play.lobby.online', { count: s.lobby?.online ?? 0, n: formatNumber(s.lobby?.online ?? 0) }) : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');

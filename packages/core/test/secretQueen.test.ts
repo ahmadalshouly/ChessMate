@@ -28,6 +28,10 @@ describe('Secret Queen', () => {
     const g = new SecretQueenGame();
     expect(g.pick('w', 'd2')).toBe(true);
     expect(g.pick('w', 'e1')).toBe(false); // not a pawn
+    expect(g.pick('w', 'c2')).toBe(false); // the choice is final
+    expect(g.secretOf('w')).toBe('d2');
+    expect(g.pickable('b')).toHaveLength(8);
+    expect(g.pickable('w')).toEqual([]);
     expect(g.move('e2e4')).not.toBeNull();
     expect(g.pick('w', 'c2')).toBe(false); // too late: white has moved
     expect(g.pick('b', 'a7')).toBe(true);

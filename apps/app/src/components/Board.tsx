@@ -55,6 +55,8 @@ export interface BoardProps {
   arrows?: Arrow[];
   /** Secret Queen: squares to badge with a small crown (your secret pawn; both at the end). */
   crowned?: Square[];
+  /** Secret Queen: pawns that can be picked as the secret queen, ringed in gold. */
+  pickable?: Square[];
 }
 
 /**
@@ -279,6 +281,9 @@ export const Board = memo(function Board(props: BoardProps) {
               <View style={dragging?.from === sq ? styles.lifted : undefined}>
                 <PieceView piece={piece} cell={cell} set={set} />
               </View>
+            )}
+            {props.pickable?.includes(sq) && (
+              <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />
             )}
             {props.crowned?.includes(sq) && (
               <View
@@ -506,6 +511,7 @@ const styles = StyleSheet.create({
   coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
   lifted: { opacity: 0.3 },
   floating: { position: 'absolute', zIndex: 10 },
+  pickable: { backgroundColor: 'rgba(240, 196, 64, 0.28)', borderColor: 'rgba(240, 196, 64, 0.95)' },
   crown: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(240, 196, 64, 0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
   promoChip: {
     alignItems: 'center',

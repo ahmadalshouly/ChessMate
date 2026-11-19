@@ -503,7 +503,11 @@ export class ChessServer {
         const room = this.rooms.get(msg.gameId);
         const color = room?.colorOf(player.id);
         if (!room || !color) return this.send(ws, err('not_found', 'No such game'));
-        if (!room.pickSecret(player.id, msg.square)) return this.send(ws, err('bad_request', 'Pick one of your pawns before your first move'));
+        if (!room.pickSecret(player.id, msg.square)) {
+          // Already chosen (the choice is final) or not a pawn: tell the app what really stands.
+          this.send(ws, { t: 'secret', gameId: room.id, square: room.secret?.secretOf(color) ?? null, canPick: !!room.secret?.canPick(color) });
+          return this.send(ws, err('bad_request', 'Pick one of your pawns before your first move'));
+        }
         return this.send(ws, { t: 'secret', gameId: room.id, square: room.secret!.secretOf(color), canPick: room.secret!.canPick(color) });
       }
       case 'watch': {

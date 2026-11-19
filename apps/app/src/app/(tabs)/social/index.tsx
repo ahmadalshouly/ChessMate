@@ -4,12 +4,11 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { DevSignIn } from '@/components/SocialSignIn';
+import { SignInPrompt } from '@/components/SocialSignIn';
 import { Page } from '@/components/shell/Page';
 import { feedText } from '@/components/socialFeed';
 import { dirIcon, formatAgo, translate, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
-import { useAuth } from '@/lib/auth';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { useSocialLive } from '@/lib/social/useSocialLive';
@@ -29,7 +28,6 @@ export default function Social() {
   const t = useAppTheme();
   const tr = useT();
   const me = useSocialIdentity();
-  const { status } = useAuth();
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [live, setLive] = useState<LiveGameEntry[]>([]);
   const [requests, setRequests] = useState<{ incoming: FriendRequestEntry[]; outgoing: FriendRequestEntry[] }>({ incoming: [], outgoing: [] });
@@ -77,12 +75,7 @@ export default function Social() {
     return (
       <Page>
         <Hero />
-        <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
-          <Text variant="heading">{tr('social.hub.signInTitle')}</Text>
-          <Text tone="muted">{tr('social.hub.signInBody')}</Text>
-          {status !== 'signedIn' && <Button title={tr('auth.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: '/social' } })} />}
-        </GlassView>
-        {__DEV__ && <DevSignIn />}
+        <SignInPrompt />
       </Page>
     );
   }

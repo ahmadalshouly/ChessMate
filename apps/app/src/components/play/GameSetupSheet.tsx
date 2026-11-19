@@ -44,6 +44,8 @@ export function useSeekOptions(): SeekOptions {
 export function startSeek(timeControl: TimeControl, o: SeekOptions, guest: boolean) {
   const secret = o.variant === 'secretQueen';
   playClient.seek({ timeControl, rated: o.rated && !guest && !secret, range: o.window === 0 ? undefined : o.window, color: o.color, variant: secret ? 'secretQueen' : undefined });
+  // Secret Queen is a one-off for fun: the next game is normal chess again unless chosen on purpose.
+  if (secret) setSeekOptions({ variant: 'standard' });
 }
 
 export function postOpenGame(timeControl: TimeControl, o: SeekOptions, guest: boolean) {

@@ -4,7 +4,7 @@ import { Stack, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
-import { DevSignIn } from '@/components/SocialSignIn';
+import { SignInPrompt } from '@/components/SocialSignIn';
 import { Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { formatAgo, translate, useT } from '@/i18n';
@@ -68,7 +68,7 @@ export default function Messages() {
             )}
           </View>
           {!me ? (
-            <DevSignIn />
+            <SignInPrompt />
           ) : (
             <>
               {error && (

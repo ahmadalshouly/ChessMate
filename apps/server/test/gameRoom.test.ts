@@ -82,6 +82,27 @@ describe('Matchmaker', () => {
     expect(m.size).toBe(0);
   });
 
+  it('never pairs Secret Queen seeks with standard ones', () => {
+    const m = new Matchmaker();
+    m.add({ playerId: 'std', rating: 1500, timeControl: tc, rated: false, createdAt: 0 });
+    m.add({ playerId: 'sq', rating: 1500, timeControl: tc, rated: false, createdAt: 0, variant: 'secretQueen' });
+    expect(m.tick(60_000)).toHaveLength(0);
+    m.add({ playerId: 'sq2', rating: 1500, timeControl: tc, rated: false, createdAt: 0, variant: 'secretQueen' });
+    const [p] = m.tick(60_000);
+    expect([p!.a.playerId, p!.b.playerId].sort()).toEqual(['sq', 'sq2']);
+  });
+
+  it('plays standard chess in standard rooms', () => {
+    const { r } = room();
+    expect(r.variant).toBe('standard');
+    expect(r.secret).toBeNull();
+    // A pawn cannot move like a queen in a normal game.
+    expect(r.move('w', 'd2d4', 0, 1)).not.toBe('illegal_move');
+    expect(r.move('b', 'e7e5', 1, 2)).not.toBe('illegal_move');
+    expect(r.move('w', 'c2h7', 2, 3)).toBe('illegal_move');
+    expect(r.snapshot(3).variant).toBeUndefined();
+  });
+
   it('keeps colour preferences', () => {
     const m = new Matchmaker();
     m.add({ playerId: 'a', rating: 1500, timeControl: tc, rated: true, createdAt: 0, color: 'w' });

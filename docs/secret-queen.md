@@ -1,10 +1,10 @@
 # Secret Queen
 
-A ChessMate variant with hidden information, played through matchmaking (pick **Secret Queen** under *Game* in the setup pop-up). Games are always casual.
+A ChessMate variant with hidden information, just for fun. Start it from the setup pop-up (choose **Secret Queen** under *Game*); the choice goes back to Standard after each search, and the lobby's own Play button always plays normal chess. Secret Queen has its own matchmaking pool, is always casual, and never touches ratings, game history, reviews or fair-play analysis.
 
 ## Rules
 
-1. Before their first move, each player secretly picks one of their pawns: tap it on the board. You can change it until you move. If you move without picking, a random pawn is picked for you.
+1. Before their first move, each player secretly picks one of their pawns: the pawns you can pick are highlighted; tap one. The choice is final. If the time for the first move runs low and you move without picking, a random pawn is picked for you.
 2. Your opponent sees an ordinary pawn. You can move it like a pawn (it stays secret) or like a queen. A queen move reveals it: from then on it is a normal, visible queen.
 3. It shows itself as soon as it must:
    - when it gives check as a queen (directly or by discovery);

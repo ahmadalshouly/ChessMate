@@ -7,7 +7,8 @@ import type { Color, GameEndReason, Square } from './types';
  * Secret Queen: a chess variant with hidden information.
  *
  * - Before their first move, each player secretly picks one of their pawns
- *   to be their secret queen (a random one if they don't).
+ *   to be their secret queen (a random one if they don't). The choice is
+ *   final: it cannot be changed afterwards.
  * - Until it is revealed the opponent sees an ordinary pawn. Its owner can move
  *   it like a pawn (it stays hidden) or like a queen (that reveals it: it
  *   becomes a visible queen).
@@ -195,12 +196,20 @@ export class SecretQueenGame {
 
   // ---------------------------------------------------------------- picking
 
-  /** Whether `color` may still pick (or change) their secret pawn. */
+  /** Whether `color` still has to pick their secret pawn (once, before their first move). */
   canPick(color: Color): boolean {
-    return this.movesBy(color) === 0;
+    return this.movesBy(color) === 0 && !this.secrets[color];
   }
 
-  /** Picks the secret pawn; only an own pawn, before the player's first move. */
+  /** Own pawns that can become the secret queen right now (empty once picked or after the first move). */
+  pickable(color: Color): Square[] {
+    if (!this.canPick(color)) return [];
+    const out: Square[] = [];
+    for (const row of new Chess(this.fenNow).board()) for (const p of row) if (p && p.type === 'p' && p.color === color) out.push(p.square as Square);
+    return out;
+  }
+
+  /** Picks the secret pawn: an own pawn, once, before the player's first move. The choice is final. */
   pick(color: Color, sq: Square): boolean {
     if (!this.canPick(color)) return false;
     const p = new Chess(this.fenNow).get(sq);
@@ -211,7 +220,7 @@ export class SecretQueenGame {
 
   /** Picks a random pawn for a player who did not choose. */
   autoPick(color: Color): Square | null {
-    if (this.secrets[color] || !this.canPick(color)) return this.secrets[color];
+    if (!this.canPick(color)) return this.secrets[color];
     const pawns: Square[] = [];
     for (const row of new Chess(this.fenNow).board()) for (const p of row) if (p && p.type === 'p' && p.color === color) pawns.push(p.square as Square);
     if (!pawns.length) return null;

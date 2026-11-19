@@ -10,7 +10,7 @@ import type {
 } from '@chessmate/core';
 
 import { SERVER_URL } from '@/lib/config';
-import { getSocialIdentity } from './session';
+import { freshSocialToken, getSocialIdentity } from './session';
 import { translate } from '@/i18n';
 
 /** HTTP base of the game server, derived from its WebSocket URL. */
@@ -36,11 +36,12 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export async function apiRequest<T>(method: string, path: string, body?: unknown, opts: { optionalAuth?: boolean } = {}): Promise<T> {
   const id = getSocialIdentity();
   if (!id && !opts.optionalAuth) throw new ApiError(401, translate('friends.signInRequired'));
+  const token = id ? await freshSocialToken() : null;
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
       method,
-      headers: { ...(id ? { authorization: `Bearer ${id.token}` } : {}), ...(body ? { 'content-type': 'application/json' } : {}) },
+      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(body ? { 'content-type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {

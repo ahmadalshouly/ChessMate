@@ -13,7 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { SERVER_URL } from '@/lib/config';
-import { getSocialIdentity } from './session';
+import { freshSocialToken, getSocialIdentity } from './session';
 import { translate } from '@/i18n';
 
 export interface SpectateState {
@@ -47,9 +47,14 @@ export function useSpectate(gameId: string) {
   const secret = useRef(false);
 
   useEffect(() => {
-    const token = getSocialIdentity()?.token ?? `guest:Spectator${Math.floor(Math.random() * 9000 + 1000)}`;
+    const guest = `guest:Spectator${Math.floor(Math.random() * 9000 + 1000)}`;
     const ws = new WebSocket(SERVER_URL);
-    ws.onopen = () => ws.send(encode({ t: 'hello', v: PROTOCOL_VERSION, token }));
+    ws.onopen = () => {
+      const signedIn = !!getSocialIdentity();
+      void (signedIn ? freshSocialToken() : Promise.resolve(null)).then((token) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(encode({ t: 'hello', v: PROTOCOL_VERSION, token: token ?? guest }));
+      });
+    };
     ws.onmessage = (ev) => {
       const m = decodeServer(String(ev.data));
       if (!m) return;

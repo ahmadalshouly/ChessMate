@@ -11,6 +11,7 @@ import { useAccountSession } from '@/features/account/session';
 import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
+import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider } from '@/lib/notifications';
@@ -45,6 +46,7 @@ function Navigator() {
       <AuthProvider>
         <NotificationsProvider>
           <PlayAuthBridge />
+          <SocialAuthBridge />
           <AccountSettingsBridge />
           <RootStack />
           <InAppBanner />
@@ -69,6 +71,31 @@ function PlayAuthBridge() {
     prev.current = signedIn;
     playClient.setTokenProvider(signedIn ? getAccessToken : null, changed);
   }, [signedIn, getAccessToken]);
+  return null;
+}
+
+/**
+ * Friends, messages and tournaments act as the signed-in account: no separate
+ * username to pick. Signing out clears it.
+ */
+function SocialAuthBridge() {
+  const { status, user, getAccessToken } = useAuth();
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status !== 'signedIn' || !user) {
+      setSocialTokenProvider(null);
+      setSocialIdentity(null);
+      return;
+    }
+    setSocialTokenProvider(getAccessToken);
+    let live = true;
+    void getAccessToken().then((token) => {
+      if (live && token) setSocialToken(token, user.id, user.username);
+    });
+    return () => {
+      live = false;
+    };
+  }, [status, user, getAccessToken]);
   return null;
 }
 

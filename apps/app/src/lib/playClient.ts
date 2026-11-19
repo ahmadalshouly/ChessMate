@@ -527,11 +527,12 @@ class PlayClient {
     return true;
   }
 
-  /** Secret Queen: pick (or change) your secret pawn before your first move. */
+  /** Secret Queen: pick your secret pawn before your first move. The choice is final. */
   pickSecret(square: Square) {
     const view = this.state.game;
-    if (!view || view.variant !== 'secretQueen' || !view.canPickSecret) return;
-    this.patchGame({ secret: square });
+    if (!view || view.variant !== 'secretQueen' || !view.canPickSecret || view.secret) return;
+    // Final: the server confirms with a `secret` message.
+    this.patchGame({ secret: square, canPickSecret: false });
     haptic('pickup');
     this.send({ t: 'secretPick', gameId: view.gameId, square });
   }
