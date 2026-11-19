@@ -16,7 +16,9 @@ export function useGameLock(locked: boolean) {
   // Back gestures, header back and router.back() all go through this.
   useEffect(() => {
     if (!locked) return;
-    return navigation.addListener('beforeRemove', (e) => e.preventDefault());
+    // expo-router's navigation type doesn't list stack events; beforeRemove is the stack's own.
+    const nav = navigation as unknown as { addListener: (type: 'beforeRemove', cb: (e: { preventDefault: () => void }) => void) => () => void };
+    return nav.addListener('beforeRemove', (e) => e.preventDefault());
   }, [locked, navigation]);
 
   useEffect(() => {
