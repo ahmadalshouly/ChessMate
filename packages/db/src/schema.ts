@@ -680,7 +680,7 @@ export const tournamentPlayers = pgTable(
     /** Consecutive wins; from the third in a row a win counts double. */
     streak: integer('streak').notNull().default(0),
     withdrawn: boolean('withdrawn').notNull().default(false),
-    joinedAt: createdAt(),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
     /** Removed by staff; cannot rejoin. */
     disqualified: boolean('disqualified').notNull().default(false),
     /** Entry fee paid (paid tournaments only). */

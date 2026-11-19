@@ -10,6 +10,9 @@ import {
   getGameReview,
   saveGameReview,
   getRating,
+  insertTournament,
+  saveTournamentPlayer,
+  tournamentPlayersOf,
   getRatings,
   listUserGames,
   openDb,
@@ -74,5 +77,24 @@ describe('game reviews', () => {
     await saveGameReview(h.db, 'k1', review, 'game-1');
     await saveGameReview(h.db, 'k1', { ...(review as object), depth: 1 } as never);
     expect(await getGameReview(h.db, 'k1')).toMatchObject({ depth: 18, accuracy: { w: 90, b: 80 } });
+  });
+
+  it('stores tournament players in join order (columns match the migrations)', async () => {
+    const t = await insertTournament(h.db, {
+      id: 'tour-test',
+      name: 'Friday Arena',
+      status: 'scheduled',
+      initialMs: 180_000,
+      incrementMs: 0,
+      startsAt: new Date(Date.now() + 3_600_000),
+      durationMinutes: 30,
+      createdBy: 'admin',
+    });
+    await saveTournamentPlayer(h.db, { tournamentId: t.id, userId: 'u1', username: 'first', rating: 1500 });
+    await saveTournamentPlayer(h.db, { tournamentId: t.id, userId: 'u2', username: 'second', rating: 1600, rulesAcceptedAt: new Date() });
+    const players = await tournamentPlayersOf(h.db, t.id);
+    expect(players.map((p) => p.username)).toEqual(['first', 'second']);
+    expect(players[0]!.joinedAt).toBeInstanceOf(Date);
+    expect(players[1]!.rulesAcceptedAt).toBeInstanceOf(Date);
   });
 });
