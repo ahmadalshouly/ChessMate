@@ -424,3 +424,34 @@ export function secretQueenTargets(fen: string, color: Color, from: Square, secr
     return [];
   }
 }
+
+/**
+ * A Secret Queen move as clients show it, from the server's public record
+ * (pawns may move like queens, so these games are never replayed with
+ * standard rules).
+ */
+export function publicMove(p: { uci: string; san: string; fen: string }, fenBefore: string): PlayedMove {
+  const color: Color = fenBefore.split(' ')[1] === 'b' ? 'b' : 'w';
+  return {
+    san: p.san,
+    uci: p.uci,
+    from: p.uci.slice(0, 2) as Square,
+    to: p.uci.slice(2, 4) as Square,
+    color,
+    piece: '',
+    promotion: p.uci[4],
+    fenAfter: p.fen,
+    isCheck: /[+#]$/.test(p.san),
+  };
+}
+
+/** The whole public history of a Secret Queen game. */
+export function publicHistory(positions: { uci: string; san: string; fen: string }[], initialFen: string): PlayedMove[] {
+  const out: PlayedMove[] = [];
+  let before = initialFen;
+  for (const p of positions) {
+    out.push(publicMove(p, before));
+    before = p.fen;
+  }
+  return out;
+}

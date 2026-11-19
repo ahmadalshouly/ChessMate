@@ -1,6 +1,8 @@
 import {
   FIRST_MOVE_TIMEOUT_MS,
   Game,
+  publicHistory,
+  publicMove,
   PROTOCOL_VERSION,
   decodeServer,
   encode,
@@ -142,32 +144,6 @@ function storage(): Storage | null {
 
 function freshGuestToken() {
   return `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`;
-}
-
-/** A Secret Queen move as the board needs it, from the server's public record. */
-function secretEntry(p: { uci: string; san: string; fen: string }, fenBefore: string): PlayedMove {
-  const color: Color = fenBefore.split(' ')[1] === 'b' ? 'b' : 'w';
-  return {
-    san: p.san,
-    uci: p.uci,
-    from: p.uci.slice(0, 2) as Square,
-    to: p.uci.slice(2, 4) as Square,
-    color,
-    piece: '',
-    promotion: p.uci[4],
-    fenAfter: p.fen,
-    isCheck: /[+#]$/.test(p.san),
-  };
-}
-
-function secretHistory(positions: { uci: string; san: string; fen: string }[], initialFen: string): PlayedMove[] {
-  const out: PlayedMove[] = [];
-  let before = initialFen;
-  for (const p of positions) {
-    out.push(secretEntry(p, before));
-    before = p.fen;
-  }
-  return out;
 }
 
 class PlayClient {
@@ -410,7 +386,7 @@ class PlayClient {
     const secretQueen = s.variant === 'secretQueen';
     // Secret Queen positions come from the server (pawns may move like queens); standard games replay the moves.
     this.game = secretQueen ? new Game(s.fen ?? s.initialFen) : Game.fromUciMoves(s.moves, s.initialFen);
-    const history = secretQueen ? secretHistory(s.positions ?? [], s.initialFen) : this.game.history();
+    const history = secretQueen ? publicHistory(s.positions ?? [], s.initialFen) : this.game.history();
     this.set({
       game: {
         gameId: s.gameId,
@@ -453,7 +429,7 @@ class PlayClient {
       // The server is the only one who knows both secrets: take its position as it is.
       if (view.history.length !== m.ply - 1) return this.send({ t: 'join', gameId: m.gameId });
       const prevFen = view.history[view.history.length - 1]?.fenAfter ?? view.fen;
-      const entry = secretEntry({ uci: m.uci, san: m.san, fen: m.fen }, prevFen);
+      const entry = publicMove({ uci: m.uci, san: m.san, fen: m.fen }, prevFen);
       this.game = new Game(m.fen);
       moveFeedback(m.san);
       return this.patchGame({
