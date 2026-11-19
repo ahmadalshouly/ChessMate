@@ -1,4 +1,4 @@
-import { PLAY_LIMIT_COOLDOWN_CHOICES, PLAY_LIMIT_RANGES, PLAY_LIMIT_WINDOW_CHOICES, loosens, type PlayLimitSettings } from '@chessmate/core';
+import { PLAY_LIMIT_COOLDOWN_CHOICES, PLAY_LIMIT_DEFAULTS, PLAY_LIMIT_RANGES, PLAY_LIMIT_WINDOW_CHOICES, loosens, type PlayLimitSettings } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -9,7 +9,7 @@ import { Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
-import { saveLimits, useHabits } from '@/lib/habits';
+import { refreshHabits, saveLimits, useHabits } from '@/lib/habits';
 import { useSocialIdentity } from '@/lib/social/session';
 import { Button, GlassView, Switch, Text, useAppTheme } from '@/ui';
 
@@ -27,18 +27,20 @@ export default function PlayLimits() {
   const tr = useT();
   const c = useAppTheme().colors;
   const me = useSocialIdentity();
-  const { habits } = useHabits();
+  const { habits, error: loadError } = useHabits();
   const { until } = usePlayLock();
   const duration = useDuration();
+  // The controls always show: the defaults until the saved limit arrives.
   const saved = habits?.limits ?? null;
-  const [draft, setDraft] = useState<PlayLimitSettings | null>(saved);
+  const [draft, setDraft] = useState<PlayLimitSettings>(saved ?? PLAY_LIMIT_DEFAULTS);
+  const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (saved) setDraft((d) => d ?? saved);
-  }, [saved]);
+    if (saved && !touched) setDraft(saved);
+  }, [saved, touched]);
 
   if (!me) {
     return (
@@ -59,19 +61,19 @@ export default function PlayLimits() {
   // During a break, anything that allows more play is greyed out (the server refuses it too).
   const blocked = (next: PlayLimitSettings) => onBreak && !!saved && loosens(saved, next);
   const change = (patch: Partial<PlayLimitSettings>) => {
-    if (!draft) return;
     const next = { ...draft, ...patch };
     if (blocked(next)) return;
     setDraft(next);
+    setTouched(true);
     setDone(false);
   };
-  const dirty = !!draft && !!saved && JSON.stringify(draft) !== JSON.stringify(saved);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved ?? PLAY_LIMIT_DEFAULTS);
   const save = async () => {
-    if (!draft) return;
     setBusy(true);
     try {
       const h = await saveLimits(draft);
       setDraft(h.limits);
+      setTouched(false);
       setError(null);
       setDone(true);
     } catch (e) {
@@ -91,7 +93,14 @@ export default function PlayLimits() {
             <Text tone="muted">{tr('limits.intro')}</Text>
           </View>
           <BreakBanner compact />
-          {draft && (
+          {!habits && loadError && (
+            <GlassView radius="xl" padding="lg" style={{ gap: 10 }}>
+              <Text variant="subheading">{tr('limits.loadFailed')}</Text>
+              <Text tone="muted">{serverText(loadError)}</Text>
+              <Button size="sm" variant="secondary" title={tr('common.tryAgain')} onPress={() => void refreshHabits()} />
+            </GlassView>
+          )}
+          {(
             <GlassView radius="xl" padding="lg" style={{ gap: 20 }}>
               <View style={styles.row}>
                 <View style={{ flex: 1, gap: 2 }}>

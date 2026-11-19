@@ -12,6 +12,7 @@ export const limits = {
   saved: 'Saved',
   lockedNote: 'Your break is on. You can make the limit stricter now, and loosen or switch it off once the break ends.',
   signIn: 'Sign in to set play limits. They follow your account on every device.',
+  loadFailed: 'Could not load your saved limit. You can still set one; if saving fails, restart the server so it has the latest update.',
   howTitle: 'How it works',
   how: 'Every finished game counts: online, challenges, tournaments and games against the computer. When you reach your limit, a break starts right away. During the break you cannot start, accept or rematch games on any device, and the limit cannot be turned off or loosened. Puzzles and lessons stay open.',
   breakTitle: 'Break time',

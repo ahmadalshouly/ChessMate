@@ -12,6 +12,7 @@ export const limits = {
   saved: 'Gespeichert',
   lockedNote: 'Deine Pause läuft. Du kannst das Limit jetzt verschärfen und nach der Pause lockern oder ausschalten.',
   signIn: 'Melde dich an, um Spiellimits festzulegen. Sie gelten für dein Konto auf allen Geräten.',
+  loadFailed: 'Dein gespeichertes Limit konnte nicht geladen werden. Du kannst trotzdem eins festlegen; wenn das Speichern fehlschlägt, starte den Server neu, damit er das neueste Update hat.',
   howTitle: 'So funktioniert es',
   how: 'Jede beendete Partie zählt: online, Herausforderungen, Turniere und Partien gegen den Computer. Wenn du dein Limit erreichst, beginnt sofort eine Pause. Während der Pause kannst du auf keinem Gerät Partien starten, annehmen oder Revanchen spielen, und das Limit lässt sich weder ausschalten noch lockern. Puzzles und Lektionen bleiben offen.',
   breakTitle: 'Pause',

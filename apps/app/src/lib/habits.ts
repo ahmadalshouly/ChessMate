@@ -16,12 +16,14 @@ import { useSocialIdentity } from './social/session';
  */
 interface HabitsStore {
   habits: HabitsView | null;
+  /** Why the last load failed (server unreachable, not updated, signed out…). */
+  error: string | null;
   /** End of a break this device knows about (survives sign-out and restarts). */
   deviceLock: number | null;
 }
 
 const KEY = 'chessmate.playLock';
-let state: HabitsStore = { habits: null, deviceLock: null };
+let state: HabitsStore = { habits: null, error: null, deviceLock: null };
 const listeners = new Set<() => void>();
 
 function set(patch: Partial<HabitsStore>) {
@@ -57,9 +59,14 @@ try {
 const tz = () => -new Date().getTimezoneOffset();
 
 export async function refreshHabits(): Promise<HabitsView | null> {
-  const r = await apiRequest<{ habits: HabitsView }>('GET', `/api/me/habits?tz=${tz()}`).catch(() => null);
-  if (!r) return null;
-  set({ habits: r.habits });
+  let r: { habits: HabitsView };
+  try {
+    r = await apiRequest<{ habits: HabitsView }>('GET', `/api/me/habits?tz=${tz()}`);
+  } catch (e) {
+    set({ error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+  set({ habits: r.habits, error: null });
   rememberLock(r.habits.lockedUntil);
   return r.habits;
 }
@@ -115,7 +122,7 @@ export function useHabits(): HabitsStore {
   useEffect(() => {
     wire();
     if (me) void refreshHabits();
-    else set({ habits: null });
+    else set({ habits: null, error: null });
   }, [me]);
   return useSyncExternalStore(subscribe, () => state, () => state);
 }
