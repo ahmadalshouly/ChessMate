@@ -38,6 +38,12 @@ export const home = {
     body: 'Top players worldwide, in your country and among friends.',
   },
   heroTitle: 'Your move.',
+  onlineFriends: {
+    title: 'Friends online',
+    count: { one: '{count} online', other: '{count} online' },
+    none: 'No friends online right now',
+    all: 'All friends',
+  },
   liveBoard: {
     title: 'Live games',
     watch: 'Watch game',

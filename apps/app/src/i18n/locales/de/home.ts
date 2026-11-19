@@ -41,6 +41,12 @@ export const home: Messages<typeof en> = {
     body: 'Die besten Spieler weltweit, in deinem Land und unter Freunden.',
   },
   heroTitle: 'Dein Zug.',
+  onlineFriends: {
+    title: 'Freunde online',
+    count: { one: '{count} online', other: '{count} online' },
+    none: 'Gerade ist kein Freund online',
+    all: 'Alle Freunde',
+  },
   liveBoard: {
     title: 'Live-Partien',
     watch: 'Partie ansehen',

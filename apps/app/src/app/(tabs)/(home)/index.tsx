@@ -6,6 +6,7 @@ import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { LiveBoard } from '@/components/LiveBoard';
+import { OnlineFriends } from '@/components/OnlineFriends';
 import { GameSetupSheet } from '@/components/play/GameSetupSheet';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -104,6 +105,7 @@ export default function Home() {
             );
           })}
         </View>
+        <OnlineFriends width={Math.min(content, 1080) - 32} />
       </View>
 
       <View style={{ gap: t.space.md }}>

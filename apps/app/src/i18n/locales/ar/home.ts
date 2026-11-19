@@ -41,6 +41,12 @@ export const home: Messages<typeof en> = {
     body: 'أفضل اللاعبين عالميًا وفي بلدك وبين أصدقائك.',
   },
   heroTitle: 'دورك.',
+  onlineFriends: {
+    title: 'الأصدقاء المتصلون',
+    count: { other: 'متصل: {count}' },
+    none: 'لا يوجد أصدقاء متصلون الآن',
+    all: 'كل الأصدقاء',
+  },
   liveBoard: {
     title: 'مباريات مباشرة',
     watch: 'شاهد المباراة',
