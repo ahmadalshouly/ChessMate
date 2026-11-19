@@ -73,7 +73,10 @@ function PlayAuthBridge() {
   }, [signedIn, getAccessToken]);
   // Keep the live connection open on every screen, not only while playing:
   // notifications, friend requests, challenges and messages arrive over it.
-  useEffect(() => playClient.subscribe(() => undefined), []);
+  useEffect(() => {
+    const unsubscribe = playClient.subscribe(() => undefined);
+    return () => void unsubscribe();
+  }, []);
   return null;
 }
 
