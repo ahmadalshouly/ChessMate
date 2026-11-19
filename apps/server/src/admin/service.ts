@@ -219,8 +219,9 @@ export class AdminService {
    * and by email when the account has an address. Never throws: a failed
    * email must not undo the action.
    */
-  private async tell(userId: string, notice: ModerationNotice, data: Record<string, unknown> = {}) {
-    this.b.notifications.notify(userId, { kind: 'system', title: notice.title, body: notice.body, url: '/notifications', data });
+  private async tell(userId: string, notice: ModerationNotice, data: Record<string, string | number> = {}) {
+    const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
+    this.b.notifications.notify(userId, { kind: 'system', title: notice.title, body: notice.body, url: '/notifications', data: fields });
     await this.email(userId, notice.email);
   }
 
