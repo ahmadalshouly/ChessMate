@@ -299,7 +299,7 @@ function GameRow({ game }: { game: RecentGame }) {
   const mark = game.outcome === 'win' ? tr('profile.w') : game.outcome === 'loss' ? tr('profile.l') : tr('profile.d');
   const when = formatDate(game.endedAt, { day: 'numeric', month: 'short' });
   const result = tr(game.outcome === 'draw' ? 'profile.resultDraw' : game.outcome === 'win' ? 'profile.resultWon' : 'profile.resultLost');
-  const d = game.rated ? game.ratingDelta : null;
+  const d = game.rated && game.ratingDelta !== null ? Math.round(game.ratingDelta) : null;
   return (
     <ListRow
       onPress={() => openGame(game)}

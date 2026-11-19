@@ -21,14 +21,23 @@ export interface PublicGame {
   endedAt: number | null;
 }
 
+export interface GameRouteDeps {
+  /** The signed-in viewer from an access token, or null. */
+  viewerOf: (token: string) => string | null;
+  /** True when this player keeps their games private (profile privacy setting). */
+  gamesHidden: (userId: string) => Promise<boolean>;
+}
+
 /**
  * Finished games, for opening them from a profile's recent games:
  *
  *   GET /api/games/:id   → { game: PublicGame }
  *
  * Live and aborted games are not served here (live games are watched over the socket).
+ * If either player keeps their games private, only the two players can open it,
+ * matching what their profiles show.
  */
-export function gameRoutes(db: Database): HttpRoute {
+export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
   return async (req, res, url) => {
     const m = /^\/api\/games\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
     if (!m) return false;
@@ -47,6 +56,12 @@ export function gameRoutes(db: Database): HttpRoute {
     try {
       const g = await getGame(db, m[1]!);
       if (!g || g.status !== 'finished') return json(404, { error: 'No such game' });
+      const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
+      const viewer = token ? deps.viewerOf(token) : null;
+      const players = [g.whiteUserId, g.blackUserId].filter((x): x is string => !!x);
+      if (!viewer || !players.includes(viewer)) {
+        for (const id of players) if (await deps.gamesHidden(id)) return json(404, { error: 'No such game' });
+      }
       const game: PublicGame = {
         id: g.id,
         white: { userId: g.whiteUserId, name: g.whiteName, ratingBefore: round(g.whiteRatingBefore), ratingAfter: round(g.whiteRatingAfter) },
@@ -61,7 +76,7 @@ export function gameRoutes(db: Database): HttpRoute {
         startedAt: new Date(g.startedAt).getTime(),
         endedAt: g.endedAt ? new Date(g.endedAt).getTime() : null,
       };
-      res.setHeader('cache-control', 'public, max-age=300');
+      res.setHeader('cache-control', 'private, max-age=300');
       return json(200, { game });
     } catch (e) {
       console.error('game route failed', e);

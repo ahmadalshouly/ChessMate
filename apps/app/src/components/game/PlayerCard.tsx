@@ -45,7 +45,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
   const [open, setOpen] = useState(false);
   const low = ms != null && ms < 20_000;
   const flag = countryFlag(profile?.country);
-  const rating = player ? `${player.rating}${player.provisional ? '?' : ''}` : '';
+  const rating = player ? `${Math.round(player.rating)}${player.provisional ? '?' : ''}` : '';
   const canOpen = pressable && !!player;
   const tag = profile?.roleTag ?? null;
   const tagName = tag ? tr(`chessTitle.roleTags.${tag}`) : null;
@@ -142,7 +142,7 @@ function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; 
         </View>
       </View>
       <View style={styles.stats}>
-        <Stat label={tr('game.player.rating')} value={`${player.rating}${player.provisional ? '?' : ''}`} />
+        <Stat label={tr('game.player.rating')} value={`${Math.round(player.rating)}${player.provisional ? '?' : ''}`} />
         {totals && <Stat label={tr('game.player.games')} value={formatNumber(totals.games)} />}
       </View>
       {totals && (

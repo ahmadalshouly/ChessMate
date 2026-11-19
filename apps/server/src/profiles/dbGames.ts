@@ -5,7 +5,7 @@ import type { FinishedGame } from './types';
 
 /** A finished game row as the profile service reads it (recent games, streaks, history). */
 export function toFinishedGame(g: GameRow): FinishedGame {
-  const delta = (before: number | null, after: number | null) => (before == null || after == null ? null : after - before);
+  const delta = (before: number | null, after: number | null) => (before == null || after == null ? null : Math.round(after) - Math.round(before));
   return {
     id: g.id,
     whiteId: g.whiteUserId ?? '',

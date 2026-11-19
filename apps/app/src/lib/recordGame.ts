@@ -20,15 +20,15 @@ export function useRecordOnlineGame(view: GameView | null) {
     saved.current = view.gameId;
     const delta = (c: 'w' | 'b') => {
       const rc = view.ratingChange?.[c];
-      return rc ? Math.round(rc.after.rating - rc.before.rating) : null;
+      return rc ? Math.round(rc.after.rating) - Math.round(rc.before.rating) : null;
     };
     void saveGame({
       id: `on_${view.gameId}`,
       source: 'online',
       white: white.name,
       black: black.name,
-      whiteRating: white.rating,
-      blackRating: black.rating,
+      whiteRating: white.rating == null ? null : Math.round(white.rating),
+      blackRating: black.rating == null ? null : Math.round(black.rating),
       whiteDelta: delta('w'),
       blackDelta: delta('b'),
       myColor: view.you,

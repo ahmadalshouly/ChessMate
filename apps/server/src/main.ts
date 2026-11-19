@@ -95,7 +95,13 @@ async function start() {
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
-  base.http = [...(base.http ?? []), gameRoutes(db.db)];
+  base.http = [
+    ...(base.http ?? []),
+    gameRoutes(db.db, {
+      viewerOf: (token) => auth.verifyAccessToken(token)?.userId ?? null,
+      gamesHidden: async (id) => !((await profileStore.get(id))?.settings.privacy.showGames ?? DEFAULT_SETTINGS.privacy.showGames),
+    }),
+  ];
   // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
   const admin = new AdminService({ db: db.db, auth });
   await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));

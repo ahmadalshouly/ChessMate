@@ -105,7 +105,7 @@ export class ProfileService {
       const before = white ? g.whiteRating : g.blackRating;
       const delta = white ? g.whiteDelta : g.blackDelta;
       if (delta === null) continue;
-      points.push({ t: g.endedAt, rating: before + delta, gameId: g.id });
+      points.push({ t: g.endedAt, rating: Math.round(before + delta), gameId: g.id });
     }
     return points.reverse();
   }
@@ -138,6 +138,9 @@ export class ProfileService {
   }
 }
 
+/** Rating points are whole numbers on screen: 1523, +8, −6. */
+const roundOrNull = (v: number | null) => (v === null ? null : Math.round(v));
+
 export function toRecent(g: FinishedGame, userId: string): RecentGame {
   const color = g.whiteId === userId ? 'w' : 'b';
   const score = g.result === '1-0' ? 1 : g.result === '0-1' ? 0 : 0.5;
@@ -148,11 +151,11 @@ export function toRecent(g: FinishedGame, userId: string): RecentGame {
     timeControl: formatTimeControl({ initialMs: g.initialMs, incrementMs: g.incrementMs }),
     rated: g.rated,
     color,
-    opponent: color === 'w' ? { username: g.blackName, rating: g.blackRating } : { username: g.whiteName, rating: g.whiteRating },
+    opponent: color === 'w' ? { username: g.blackName, rating: Math.round(g.blackRating) } : { username: g.whiteName, rating: Math.round(g.whiteRating) },
     result: g.result,
     outcome: mine === 1 ? 'win' : mine === 0 ? 'loss' : 'draw',
     reason: g.reason,
-    ratingDelta: color === 'w' ? g.whiteDelta : g.blackDelta,
+    ratingDelta: roundOrNull(color === 'w' ? g.whiteDelta : g.blackDelta),
     moves: Math.ceil(g.moves.length / 2),
     endedAt: g.endedAt,
   };
