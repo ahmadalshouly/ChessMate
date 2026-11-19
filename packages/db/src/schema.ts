@@ -756,3 +756,89 @@ export type TournamentPlayer = typeof tournamentPlayers.$inferSelect;
 export type TournamentPayment = typeof tournamentPayments.$inferSelect;
 export type SponsorApplication = typeof sponsorApplications.$inferSelect;
 export type PayoutRequest = typeof payoutRequests.$inferSelect;
+
+// ---------------------------------------------------------------- community: news and forum
+
+/** News posts written by staff. Players like and comment. */
+export const newsPosts = pgTable(
+  'news_posts',
+  {
+    id: id(),
+    authorId: text('author_id').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    pinned: boolean('pinned').notNull().default(false),
+    likeCount: integer('like_count').notNull().default(0),
+    commentCount: integer('comment_count').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at'),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('news_posts_created_idx').on(t.createdAt)],
+);
+
+export const newsLikes = pgTable(
+  'news_likes',
+  {
+    postId: text('post_id')
+      .notNull()
+      .references(() => newsPosts.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.userId] })],
+);
+
+export const newsComments = pgTable(
+  'news_comments',
+  {
+    id: id(),
+    postId: text('post_id')
+      .notNull()
+      .references(() => newsPosts.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('news_comments_post_idx').on(t.postId, t.createdAt)],
+);
+
+/** Forum topics started by players; staff can pin, lock and remove them. */
+export const forumTopics = pgTable(
+  'forum_topics',
+  {
+    id: id(),
+    userId: text('user_id').notNull(),
+    category: text('category').notNull().default('general'),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    pinned: boolean('pinned').notNull().default(false),
+    locked: boolean('locked').notNull().default(false),
+    replyCount: integer('reply_count').notNull().default(0),
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('forum_topics_activity_idx').on(t.lastActivityAt)],
+);
+
+export const forumReplies = pgTable(
+  'forum_replies',
+  {
+    id: id(),
+    topicId: text('topic_id')
+      .notNull()
+      .references(() => forumTopics.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('forum_replies_topic_idx').on(t.topicId, t.createdAt)],
+);
+
+export type NewsPost = typeof newsPosts.$inferSelect;
+export type NewsComment = typeof newsComments.$inferSelect;
+export type ForumTopic = typeof forumTopics.$inferSelect;
+export type ForumReply = typeof forumReplies.$inferSelect;

@@ -42,6 +42,8 @@ import { GuestSessions } from './guestSessions';
 import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
 import { messageRoutes } from './messages/http';
 import { tournamentRoutes } from './tournaments/http';
+import { communityRoutes } from './community/http';
+import type { CommunityService } from './community/service';
 import type { MessageService } from './messages/service';
 import type { TournamentService } from './tournaments/service';
 import { OpenGames } from './openGames';
@@ -113,6 +115,8 @@ export interface ServerOptions {
   messages?: MessageService;
   /** Arena tournaments (database mode). */
   tournaments?: TournamentService;
+  /** News and forum (database mode). */
+  community?: CommunityService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -233,6 +237,15 @@ export class ChessServer {
       opts.admin.attach(this.adminBridge(fp.analyzer === undefined ? !!process.env.STOCKFISH_PATH : !!fp.analyzer));
       routes.push(adminRoutes(opts.admin, opts.auth));
       routes.push(titleRoutes(opts.admin.titles, opts.auth));
+    }
+    if (opts.community) {
+      routes.push(communityRoutes(opts.community, opts.resolveUser ?? devResolveUser));
+      opts.community.attach({
+        // Closed accounts and chat mutes can read but not post.
+        blockedReason: (id) =>
+          this.restrictionOf(id) ? 'Your account is restricted, so you cannot post' : this.moderation.activeBan(id) ? 'You are muted for now, so you cannot post' : null,
+        notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'message', title, body, url }),
+      });
     }
     if (opts.tournaments) {
       routes.push(tournamentRoutes(opts.tournaments, opts.resolveUser ?? devResolveUser));

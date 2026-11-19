@@ -19,6 +19,7 @@ import { Moderation } from './moderation';
 import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
+import { CommunityService } from './community/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { stripeFromEnv } from './payments/stripe';
@@ -112,6 +113,7 @@ async function start() {
   const privacy = (id: string) => profileStore.get(id)?.settings.privacy.messages ?? DEFAULT_SETTINGS.privacy.messages;
   const messages = new MessageService({ db: db.db, privacyOf: privacy, isStaff: (id) => isStaff(admin.roleOf(id)) });
   admin.messages = messages;
+  const community = new CommunityService({ db: db.db, isStaff: (id) => isStaff(admin.roleOf(id)) });
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
@@ -127,6 +129,7 @@ async function start() {
       social: new SocialService(db.db),
       messages,
       tournaments,
+      community,
       // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
       // tokens also get an account row on first use so friends and search can be tried.
       resolveUser: async (token) => {

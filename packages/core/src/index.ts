@@ -31,3 +31,4 @@ export * from './messages';
 export * from './tournaments';
 export * from './secretQueen';
 export * from './qr';
+export * from './community';
