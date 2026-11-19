@@ -10,6 +10,7 @@ export const analysis: Messages<typeof en> = {
   lines: { other: 'الخطوط: {count}' },
   depthOf: 'العمق {n}/{max}',
   settings: {
+    summary: 'العمق {depth} · {lines} خطوط · {seconds} ث لكل وضعية',
     title: 'إعدادات المحرك',
     body: 'تُحفظ على هذا الجهاز. تُطبَّق التغييرات فورًا.',
     reset: 'إعادة التعيين',

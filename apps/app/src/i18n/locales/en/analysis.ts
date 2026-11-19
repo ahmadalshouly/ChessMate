@@ -7,6 +7,7 @@ export const analysis = {
   lines: { one: '{count} line', other: '{count} lines' },
   depthOf: 'depth {n}/{max}',
   settings: {
+    summary: 'Depth {depth} · {lines} lines · {seconds} s per position',
     title: 'Engine settings',
     body: 'Saved on this device. Changes apply right away.',
     reset: 'Reset',

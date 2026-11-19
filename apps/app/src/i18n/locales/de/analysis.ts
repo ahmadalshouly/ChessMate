@@ -10,6 +10,7 @@ export const analysis: Messages<typeof en> = {
   lines: { one: '{count} Variante', other: '{count} Varianten' },
   depthOf: 'Tiefe {n}/{max}',
   settings: {
+    summary: 'Tiefe {depth} · {lines} Varianten · {seconds} s pro Stellung',
     title: 'Engine-Einstellungen',
     body: 'Auf diesem Gerät gespeichert. Änderungen gelten sofort.',
     reset: 'Zurücksetzen',

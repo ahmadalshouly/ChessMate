@@ -16,7 +16,7 @@ import { ActionBar } from '@/components/game/ActionBar';
 import { moveFeedbackText } from '@/i18n/chess';
 import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
-import { useWideBoard } from '@/lib/useWideBoard';
+import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
@@ -39,6 +39,8 @@ export default function Review() {
   const t = useTheme();
   const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 190 });
   const size = boardSpace - EVAL_BAR - 6;
+  // The review beside the board scrolls within the window height (web).
+  const [fillH, onFill] = useFillHeight();
   const [ply, setPly] = useState(0);
   // Play: steps through the game a move at a time, pieces sliding as if it were being played.
   const [autoplay, setAutoplay] = useState(false);
@@ -316,12 +318,12 @@ export default function Review() {
     <Screen>
       {wide ? (
         // Web and tablets: a big board with the controls under it, the review beside it.
-        <View style={styles.wide}>
+        <View style={styles.wide} onLayout={onFill}>
           <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
             {boardRow}
             {bar}
           </View>
-          <ScrollView style={{ width: panelWidth, flexGrow: 0 }} contentContainerStyle={styles.widePanel}>
+          <ScrollView style={{ width: panelWidth, flexGrow: 0, height: fillH ? fillH - 32 : undefined, alignSelf: 'stretch' }} contentContainerStyle={styles.widePanel}>
             {panel}
           </ScrollView>
         </View>
@@ -380,7 +382,7 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
 }
 
 const styles = StyleSheet.create({
-  wide: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, padding: 16 },
+  wide: { flex: 1, minHeight: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, padding: 16 },
   widePanel: { gap: 12, paddingBottom: 32 },
   page: { padding: 12, alignItems: 'center' },
   boardRow: { flexDirection: 'row', gap: 6 },

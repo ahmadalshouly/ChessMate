@@ -29,7 +29,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useEngine } from '@/lib/useEngine';
-import { useWideBoard } from '@/lib/useWideBoard';
+import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
 import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 
@@ -63,6 +63,8 @@ export default function Analysis() {
   const { wide, size: wideSpace } = useWideBoard({ panel: 404, reserve: 170 });
   const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.56);
   const size = Math.max(200, Math.floor((boardSpace - EVAL_BAR - 6) / 8) * 8);
+  // The panel beside the board scrolls within the window height (web).
+  const [fillH, onFill] = useFillHeight();
   const engine = useEngine();
 
   const history = useMemo(() => Game.fromUciMoves(line, start).history(), [line, start]);
@@ -188,12 +190,24 @@ export default function Analysis() {
 
   return (
     <Screen>
-      <View style={[styles.layout, wide && styles.layoutWide]}>
+      <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
         <ScrollView
-          style={[styles.panel, wide && { flex: 0, width: 404 }]}
+          style={[styles.panel, wide && { flex: 0, width: 404, height: fillH, alignSelf: 'stretch' }]}
           contentContainerStyle={[styles.panelContent, { width: wide ? 400 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
           keyboardShouldPersistTaps="handled">
+          <Pressable
+            onPress={() => setSettingsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={tr('analysis.settings.title')}
+            style={({ pressed }) => [styles.settingsRow, { borderColor: t.border, backgroundColor: pressed ? t.border : t.surface }]}>
+            <Ionicons name="options-outline" size={18} color={t.text} />
+            <View style={{ flex: 1 }}>
+              <Label bold>{tr('analysis.settings.title')}</Label>
+              <Label muted>{tr('analysis.settings.summary', { depth: settings.depth, lines: settings.lines, seconds: settings.seconds })}</Label>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={t.muted} />
+          </Pressable>
           <Card>
             <View style={styles.row}>
               <Label bold size={18}>
@@ -391,11 +405,12 @@ function clampPly(n: number, max: number) {
 }
 
 const styles = StyleSheet.create({
-  layout: { flex: 1 },
+  layout: { flex: 1, minHeight: 0 },
   layoutWide: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingHorizontal: 16 },
   fixed: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
   panel: { flex: 1, flexGrow: 1 },
   panelContent: { gap: 12, paddingVertical: 12, paddingHorizontal: 2, paddingBottom: 32 },
+  settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
   gear: { width: 32, height: 32, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   // `direction` goes inline: StyleSheet.create rejects it on the web.
   boardRow: { flexDirection: 'row', gap: 6 },

@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
+import { useFillHeight } from '@/lib/useWideBoard';
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { gameEndFeedback, moveFeedback } from '@/lib/feedback';
@@ -62,9 +63,10 @@ export function PuzzleBoard({
   const tone = view.feedback === 'wrong' || view.feedback === 'failed' ? t.danger : view.feedback === 'solved' || view.feedback === 'correct' ? SUCCESS[t.scheme] : t.text;
   const over = view.feedback === 'solved' || view.feedback === 'failed';
   usePuzzleSounds(view.fen, view.lastMove, over);
+  const [fillH, onFill] = useFillHeight();
 
   return (
-    <View style={[styles.screen, wide && styles.screenWide]}>
+    <View style={[styles.screen, wide && styles.screenWide]} onLayout={onFill}>
       <View style={[styles.fixed, { width: size }]}>
         {above}
         <Board
@@ -80,7 +82,7 @@ export function PuzzleBoard({
         />
       </View>
       <ScrollView
-        style={wide ? styles.scrollWide : styles.scroll}
+        style={wide ? [styles.scrollWide, { height: fillH }] : styles.scroll}
         contentContainerStyle={wide ? styles.scrollContentWide : styles.scrollContent}
         keyboardShouldPersistTaps="handled">
         <View style={{ width: wide ? PANEL_WIDE : size, gap: 12 }}>
@@ -143,8 +145,8 @@ function usePuzzleSounds(fen: string, lastMove: { from: string; to: string } | n
 
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center' },
-  screenWide: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, paddingHorizontal: 16 },
-  scrollWide: { flexGrow: 0, width: 380 },
+  screenWide: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, paddingHorizontal: 16, minHeight: 0 },
+  scrollWide: { flexGrow: 0, width: 380, alignSelf: 'stretch' },
   scrollContentWide: { paddingTop: 12, paddingBottom: 32 },
   fixed: { gap: 12, paddingTop: 12 },
   scroll: { flex: 1, alignSelf: 'stretch' },

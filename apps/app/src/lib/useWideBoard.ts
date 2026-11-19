@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useWindowDimensions } from 'react-native';
 
 /** Width at which a board screen puts its panel beside the board instead of under it. */
@@ -20,4 +21,14 @@ export function useWideBoard({ panel = 400, reserve = 150, phoneReserve = 300, s
   const wide = content >= WIDE_BOARD_MIN;
   const raw = wide ? Math.min(height - reserve, content - panel - 72, 1000) : Math.min(content - 24, height - phoneReserve, 640);
   return { wide, size: Math.max(240, Math.floor(raw / 8) * 8), panel };
+}
+
+/**
+ * Height of the area a wide board screen fills, measured on layout. The side
+ * panel gets it as an explicit height, so it scrolls on the web instead of
+ * growing past the window and getting cut off.
+ */
+export function useFillHeight(): [number | undefined, (e: { nativeEvent: { layout: { height: number } } }) => void] {
+  const [h, setH] = useState<number | undefined>(undefined);
+  return [h, (e) => setH((prev) => (Math.abs((prev ?? 0) - e.nativeEvent.layout.height) > 1 ? e.nativeEvent.layout.height : prev))];
 }
