@@ -59,6 +59,9 @@ describe('featured live game', () => {
 
     const first = (await featured()).game;
     expect(first).toMatchObject({ gameId: sa.game.gameId, ply: 1 });
+    expect((first as { fen?: string } | null)?.fen).toContain('4P3');
+    const list = (await (await fetch(`http://localhost:${port}/api/live/games?limit=4`)).json()) as { games: { gameId: string }[] };
+    expect(list.games.map((g) => g.gameId)).toEqual([sa.game.gameId]);
     expect((await featured()).game?.gameId).toBe(first?.gameId);
 
     // Anyone can then watch it over the socket.
@@ -70,6 +73,7 @@ describe('featured live game', () => {
     white.send({ t: 'resign', gameId: sa.game.gameId });
     await white.next('gameOver');
     expect((await featured()).game).toBeNull();
+    expect(((await (await fetch(`http://localhost:${port}/api/live/games`)).json()) as { games: unknown[] }).games).toEqual([]);
     for (const c of [a, b, viewer]) c.close();
   });
 });

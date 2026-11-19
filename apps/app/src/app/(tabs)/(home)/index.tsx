@@ -6,7 +6,6 @@ import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { LiveBoard } from '@/components/LiveBoard';
-import { LiveStats } from '@/components/LiveStats';
 import { GameSetupSheet } from '@/components/play/GameSetupSheet';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
@@ -79,8 +78,6 @@ export default function Home() {
           <Button title={tr('nav.puzzles')} size="lg" variant="secondary" onPress={() => router.navigate('/puzzles')} />
         </View>
       </View>
-
-      <LiveStats />
 
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={1} title={tr('home.quick.title')} action={<Text variant="caption" tone="tertiary">{tr('home.quick.hint')}</Text>} />

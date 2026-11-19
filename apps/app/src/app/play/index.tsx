@@ -12,7 +12,7 @@ import { Glass } from '@/components/shell/Glass';
 import { RestrictionBanner } from '@/components/shell/RestrictionBanner';
 import { isGuest, playClient, usePlay } from '@/lib/playClient';
 import { Avatar, Backdrop, Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
-import { dirIcon, formatNumber, useT, type TKey } from '@/i18n';
+import { dirIcon, useT, type TKey } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 
 const GROUPS: { name: TKey; icon: 'flash' | 'flame' | 'time' | 'hourglass'; controls: string[] }[] = [
@@ -74,19 +74,13 @@ export default function Lobby() {
   const canCreate = canStart;
   const rated = seekOptions.rated && !guest;
 
-  const poolCount = (key: string) => {
-    const tc = parseTimeControl(key);
-    return (s.lobby?.pools ?? [])
-      .filter((p) => p.timeControl.initialMs === tc.initialMs && p.timeControl.incrementMs === tc.incrementMs)
-      .reduce((n, p) => n + p.seeking, 0);
-  };
-
   const step = (list: number[], cur: number, dir: 1 | -1) => list[Math.max(0, Math.min(list.length - 1, list.indexOf(cur) + dir))]!;
   // The lobby's own Play button is always normal chess; Secret Queen starts only from the setup pop-up.
   const play = () => startSeek(timeControl, { ...seekOptions, variant: 'standard' }, guest);
   const create = () => postOpenGame(timeControl, seekOptions, guest);
 
-  const status = online ? tr('play.lobby.online', { count: s.lobby?.online ?? 0, n: formatNumber(s.lobby?.online ?? 0) }) : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');
+  // Only a connection problem is worth a badge; player counts are not shown.
+  const status = online ? null : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');
 
   const setup = (
     <View style={{ gap: t.space.xl }}>
@@ -104,10 +98,9 @@ export default function Lobby() {
               </View>
               <View style={styles.tiles}>
                 {g.controls.map((key) => {
-                  const n = poolCount(key);
                   return (
                     <View key={key} style={{ flex: 1 }}>
-                      <Tile title={key} caption={n > 0 ? tr('play.lobby.waiting', { count: n }) : undefined} live={n > 0} selected={tcKey === key}
+                      <Tile title={key} selected={tcKey === key}
                         onPress={() => {
                           setTcKey(key);
                           if (canStart) setSetupOpen(true);
@@ -249,8 +242,7 @@ export default function Lobby() {
               <Text tone="muted">{tr('play.lobby.intro')}</Text>
             </View>
             <View style={styles.stats}>
-              <Pill text={status} tone={online ? 'live' : 'muted'} />
-              {s.lobby ? <Pill text={tr('play.lobby.playing', { count: s.lobby.playing, n: formatNumber(s.lobby.playing) })} /> : null}
+              {status ? <Pill text={status} tone="muted" /> : null}
             </View>
           </View>
 

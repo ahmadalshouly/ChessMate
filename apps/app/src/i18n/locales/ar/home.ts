@@ -42,7 +42,7 @@ export const home: Messages<typeof en> = {
   },
   heroTitle: 'دورك.',
   liveBoard: {
-    title: 'رقعة مباشرة',
+    title: 'مباريات مباشرة',
     watch: 'شاهد المباراة',
     finding: 'جارٍ البحث عن مباراة مباشرة…',
     empty: 'لا توجد مباريات جارية الآن. ابدأ مباراة وقد تظهر مباراتك على هذه الرقعة.',
@@ -50,6 +50,7 @@ export const home: Messages<typeof en> = {
     rated: 'مصنّفة',
     casual: 'ودية',
     a11y: 'مباراة مباشرة: {white} ضد {black}',
+    page: 'المباراة المباشرة {n} من {total}',
   },
   stats: {
     online: 'لاعبون متصلون',

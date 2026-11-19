@@ -187,6 +187,7 @@ export class ChessServer {
       leaderboards: opts.leaderboards ?? new Leaderboards(new MemoryLeaderboardSource(() => store.all?.() ?? [])),
       stats: () => this.stats(),
       featured: () => this.featuredGame(),
+      featuredList: (limit) => this.featuredGames(limit),
       viewerFor: opts.viewerFor ?? devViewerId,
     };
     this.moderation = opts.moderation ?? new Moderation(undefined, this.now);
@@ -1141,6 +1142,27 @@ export class ChessServer {
   }
 
   private featuredId: string | null = null;
+  private featuredSet: string[] = [];
+
+  private featuredOf(room: GameRoom): FeaturedGame {
+    return {
+      gameId: room.id,
+      white: room.white,
+      black: room.black,
+      timeControl: room.timeControl,
+      rated: room.rated,
+      ply: room.game.ply,
+      // Secret Queen: the public position, never the hidden one.
+      fen: room.secret ? room.secret.fen : room.game.fen,
+    };
+  }
+
+  /** Games in progress, games already under way first. */
+  private livePool(exclude: Set<string> = new Set()): GameRoom[] {
+    const live = [...this.rooms.values()].filter((r) => !r.outcome && !exclude.has(r.id));
+    const started = live.filter((r) => r.game.ply > 0);
+    return started.length ? started : live;
+  }
 
   /**
    * The Play tab's live board: a random game in progress. The pick sticks while that
@@ -1149,15 +1171,29 @@ export class ChessServer {
   featuredGame(): FeaturedGame | null {
     let room = this.featuredId ? this.rooms.get(this.featuredId) : undefined;
     if (!room || room.outcome) {
-      const live = [...this.rooms.values()].filter((r) => !r.outcome);
-      // Prefer games already under way over ones still waiting for the first move.
-      const started = live.filter((r) => r.game.ply > 0);
-      const pool = started.length ? started : live;
+      const pool = this.livePool();
       room = pool[Math.floor(Math.random() * pool.length)];
       this.featuredId = room?.id ?? null;
     }
-    if (!room) return null;
-    return { gameId: room.id, white: room.white, black: room.black, timeControl: room.timeControl, rated: room.rated, ply: room.game.ply };
+    return room ? this.featuredOf(room) : null;
+  }
+
+  /**
+   * Up to `limit` live games for the Play tab's swipeable boards. Like the single
+   * featured game, picks stick while they last; finished ones are replaced.
+   */
+  featuredGames(limit = 4): FeaturedGame[] {
+    const n = Math.max(1, Math.min(8, Math.floor(limit) || 4));
+    const kept = this.featuredSet.map((id) => this.rooms.get(id)).filter((r): r is GameRoom => !!r && !r.outcome);
+    const taken = new Set(kept.map((r) => r.id));
+    const pool = this.livePool(taken);
+    while (kept.length < n && pool.length) {
+      const room = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]!;
+      kept.push(room);
+      taken.add(room.id);
+    }
+    this.featuredSet = kept.slice(0, n).map((r) => r.id);
+    return kept.slice(0, n).map((r) => this.featuredOf(r));
   }
 
   getRoom(id: string) {

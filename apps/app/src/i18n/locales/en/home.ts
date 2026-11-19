@@ -39,7 +39,7 @@ export const home = {
   },
   heroTitle: 'Your move.',
   liveBoard: {
-    title: 'Live board',
+    title: 'Live games',
     watch: 'Watch game',
     finding: 'Finding a live game…',
     empty: 'No games in progress right now. Start one and yours could be on this board.',
@@ -47,6 +47,7 @@ export const home = {
     rated: 'Rated',
     casual: 'Casual',
     a11y: 'Live game: {white} against {black}',
+    page: 'Live game {n} of {total}',
   },
   stats: {
     online: 'Players online',

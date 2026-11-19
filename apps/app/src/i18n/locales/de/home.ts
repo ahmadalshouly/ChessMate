@@ -42,7 +42,7 @@ export const home: Messages<typeof en> = {
   },
   heroTitle: 'Dein Zug.',
   liveBoard: {
-    title: 'Live-Brett',
+    title: 'Live-Partien',
     watch: 'Partie ansehen',
     finding: 'Suche eine laufende Partie…',
     empty: 'Gerade läuft keine Partie. Starte eine, dann steht vielleicht deine auf diesem Brett.',
@@ -50,6 +50,7 @@ export const home: Messages<typeof en> = {
     rated: 'Gewertet',
     casual: 'Ungewertet',
     a11y: 'Live-Partie: {white} gegen {black}',
+    page: 'Live-Partie {n} von {total}',
   },
   stats: {
     online: 'Spieler online',
