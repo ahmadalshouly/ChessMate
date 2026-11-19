@@ -7,7 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { socialApi } from '@/lib/social/api';
-import { useSocialIdentity } from '@/lib/social/session';
+import { useAccountSession } from '@/features/account/session';
 import { Button, Text, useAppTheme } from '@/ui';
 
 import { ProfileQrSheet } from './ProfileQrSheet';
@@ -20,18 +20,20 @@ export function ProfileActions({ profile }: { profile: PublicProfile }) {
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
-  const me = useSocialIdentity();
-  const [rel, setRel] = useState<Relationship | null>(null);
+  const { signedIn } = useAccountSession();
+  /** Friendship with this player; 'unknown' when the lookup failed (buttons still show). */
+  const [rel, setRel] = useState<Relationship | 'unknown' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qr, setQr] = useState(false);
-  const other = !profile.isMe && !!me && me.userId !== profile.id;
+  // Any signed-in player can add or message someone else; no need to wait for the social link.
+  const other = !profile.isMe && signedIn;
 
   const load = useCallback(() => {
     if (!other) return;
     socialApi.user(profile.id).then(
       (p) => setRel(p.relationship),
-      () => setRel(null),
+      () => setRel('unknown'),
     );
   }, [other, profile.id]);
   useEffect(load, [load]);
@@ -70,12 +72,12 @@ export function ProfileActions({ profile }: { profile: PublicProfile }) {
           </>
         ) : (
           <>
-            {other && rel && !rel.blocked && (
-              rel.friend ? (
+            {other && rel && (rel === 'unknown' || !rel.blocked) && (
+              rel !== 'unknown' && rel.friend ? (
                 <Button variant="secondary" size="sm" title={tr('friends.friend')} leftIcon={<Ionicons name="checkmark" size={15} color={c.text} />} onPress={() => router.push(`/friends/user/${profile.id}`)} />
-              ) : rel.request === 'incoming' ? (
+              ) : rel !== 'unknown' && rel.request === 'incoming' ? (
                 <Button size="sm" title={tr('profile.actions.accept')} disabled={busy} onPress={act(() => socialApi.accept(profile.id))} />
-              ) : rel.request === 'outgoing' ? (
+              ) : rel !== 'unknown' && rel.request === 'outgoing' ? (
                 <Button variant="secondary" size="sm" title={tr('friends.requested')} disabled={busy} onPress={act(() => socialApi.cancel(profile.id))} />
               ) : (
                 <Button
@@ -87,7 +89,7 @@ export function ProfileActions({ profile }: { profile: PublicProfile }) {
                 />
               )
             )}
-            {other && rel && !rel.blocked && (
+            {other && (rel === null || rel === 'unknown' || !rel.blocked) && (
               <Button
                 variant="secondary"
                 size="sm"
@@ -100,7 +102,7 @@ export function ProfileActions({ profile }: { profile: PublicProfile }) {
           </>
         )}
       </View>
-      {!profile.isMe && !me && <Text variant="caption" tone="muted">{tr('profile.actions.signInToAdd')}</Text>}
+      {!profile.isMe && !signedIn && <Text variant="caption" tone="muted">{tr('profile.actions.signInToAdd')}</Text>}
       {error && (
         <Text variant="caption" tone="danger">
           {serverText(error)}

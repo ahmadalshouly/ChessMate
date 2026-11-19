@@ -14,6 +14,7 @@ export const profile = {
     veteran: 'Veteran',
   },
   actions: {
+    viewProfile: 'View full profile',
     accept: 'Accept request',
     message: 'Message',
     signInToAdd: 'Sign in to add friends and send messages.',

@@ -17,6 +17,7 @@ export const profile: Messages<typeof en> = {
     veteran: 'Veteran',
   },
   actions: {
+    viewProfile: 'Ganzes Profil ansehen',
     accept: 'Anfrage annehmen',
     message: 'Nachricht',
     signInToAdd: 'Melde dich an, um Freunde hinzuzufügen und Nachrichten zu schreiben.',

@@ -17,6 +17,7 @@ export const profile: Messages<typeof en> = {
     veteran: 'مخضرم',
   },
   actions: {
+    viewProfile: 'عرض الملف الكامل',
     accept: 'قبول الطلب',
     message: 'رسالة',
     signInToAdd: 'سجّل الدخول لإضافة أصدقاء وإرسال رسائل.',

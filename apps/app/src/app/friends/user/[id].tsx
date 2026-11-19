@@ -96,6 +96,12 @@ export default function PlayerCard() {
                       )}
                       <Button
                         variant="secondary"
+                        title={tr('profile.actions.message')}
+                        onPress={() => router.push({ pathname: '/messages/[key]', params: { key: p.id } })}
+                      />
+                      <Button variant="secondary" title={tr('profile.actions.viewProfile')} onPress={() => router.push(`/profile/${encodeURIComponent(p.username)}`)} />
+                      <Button
+                        variant="secondary"
                         title={r.following ? tr('friends.card.unfollow') : tr('friends.card.follow')}
                         onPress={act(() => (r.following ? socialApi.unfollow(p.id) : socialApi.follow(p.id)))}
                       />
