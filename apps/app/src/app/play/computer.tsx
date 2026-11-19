@@ -5,6 +5,8 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useGameLock } from '@/lib/useGameLock';
 import { QuickReview } from '@/components/play/QuickReview';
 import { ResultPopup } from '@/components/play/ResultPopup';
+import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
+import { currentPlayLock, reportComputerGame } from '@/lib/habits';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -42,14 +44,25 @@ export default function PlayComputer() {
   const tr = useT();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [round, setRound] = useState(0);
+  // The player's play limit covers games against the computer too.
+  const { until } = usePlayLock();
   const begin = (s: Setup) => {
+    if (currentPlayLock()) return setSetup(null);
     setRound((r) => r + 1);
     setSetup(s);
   };
   return (
     <Screen>
       <Stack.Screen options={{ title: tr('titles.computer') }} />
-      {setup ? <ComputerGame key={round} setup={setup} onExit={() => setSetup(null)} onRematch={begin} /> : <BotPicker onStart={begin} />}
+      {setup ? (
+        <ComputerGame key={round} setup={setup} onExit={() => setSetup(null)} onRematch={begin} />
+      ) : until ? (
+        <ScrollView contentContainerStyle={styles.page}>
+          <BreakBanner />
+        </ScrollView>
+      ) : (
+        <BotPicker onStart={begin} />
+      )}
     </Screen>
   );
 }
@@ -236,7 +249,10 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   useMoveFeedback(view.history, !!outcome, { startCue: true });
   // Grade the game on the server as soon as it ends, so Review opens with every badge ready.
   useEffect(() => {
-    if (outcome) prepareReview(view.history.map((m) => m.uci));
+    if (!outcome) return;
+    prepareReview(view.history.map((m) => m.uci));
+    // Counts for the streak and the play limit (signed-in players).
+    void reportComputerGame(view.history.length);
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Takeback: return to the last position where it was the player's turn.

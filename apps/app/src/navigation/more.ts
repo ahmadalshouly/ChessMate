@@ -46,6 +46,7 @@ export const MORE_SECTIONS: MoreSection[] = [
     title: 'more.section.you',
     items: [
       { key: 'profile', label: 'more.profile', icon: 'person-circle-outline', href: '/profile' },
+      { key: 'limits', label: 'more.limits', icon: 'hourglass-outline', href: '/play-limits' },
       { key: 'settings', label: 'more.settings', icon: 'settings-outline', href: '/settings' },
     ],
   },

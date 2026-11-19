@@ -15,6 +15,7 @@ export const more = {
   news: 'Neuigkeiten',
   forum: 'Forum',
   profile: 'Profil',
+  limits: 'Spiellimits',
   settings: 'Einstellungen',
   about: 'Über ChessMate',
   support: 'Hilfe',

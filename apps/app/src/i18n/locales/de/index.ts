@@ -47,5 +47,6 @@ import { brand } from './brand';
 import { more } from './more';
 import { community, news, forum } from './community';
 import { pages } from './pages';
+import { limits, streak } from './habits';
 
-export const de: Messages<typeof en> = { tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const de: Messages<typeof en> = { tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };

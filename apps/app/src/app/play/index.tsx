@@ -3,6 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BreakBanner } from '@/components/BreakBanner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTicker } from '@/components/PlayerBar';
@@ -234,6 +235,7 @@ export default function Lobby() {
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: wide ? 48 : 140 + insets.bottom }]}>
         <View style={[styles.inner, { maxWidth: wide ? 1160 : 640 }]}>
           <RestrictionBanner />
+          <BreakBanner />
           <View style={styles.hero}>
             <View style={{ flex: 1, gap: 6, minWidth: 240 }}>
               <Text variant="display">

@@ -313,6 +313,9 @@ class PlayClient {
         return this.restore();
       case 'restricted':
         return this.set({ restricted: m.reason, seek: null, seekStatus: null, openGame: null });
+      case 'playLock':
+        // A break started: the server already took us out of the search and open games.
+        return m.until ? this.set({ seek: null, seekStatus: null, openGame: null }) : undefined;
       case 'lobby':
         return this.set({ lobby: m.lobby });
       case 'seeking':
@@ -375,6 +378,7 @@ class PlayClient {
       case 'error':
         if (m.code === 'chat_restricted') return; // shown by the chat panel
         if (m.id !== undefined) return; // engine analysis errors belong to the analysis screen
+        if (m.code === 'play_locked') return this.set({ error: translate('limits.breakErrorShort'), seek: null, seekStatus: null });
         return this.set({ error: m.message });
       default:
         return;
@@ -472,7 +476,22 @@ class PlayClient {
 
   // ---- actions ----
 
+  /** Supplied by lib/habits: the end of the player's break, or null. */
+  private playLockGuard: () => number | null = () => null;
+  setPlayLockGuard(fn: () => number | null) {
+    this.playLockGuard = fn;
+  }
+
+  /** True (and shows why) while the player's play limit has them on a break. */
+  private onBreak(): boolean {
+    const until = this.playLockGuard();
+    if (!until) return false;
+    this.set({ error: translate('limits.breakError', { time: new Date(until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }) });
+    return true;
+  }
+
   seek(req: SeekRequest) {
+    if (this.onBreak()) return;
     this.dismissFinished();
     this.set({ seek: req, seekStatus: null, error: null });
     this.send({ t: 'seek', ...req });
@@ -484,6 +503,7 @@ class PlayClient {
   }
 
   createOpenGame(timeControl: TimeControl, rated: boolean, color: ColorChoice, range?: number) {
+    if (this.onBreak()) return;
     this.dismissFinished();
     this.send({ t: 'createOpenGame', timeControl, rated, color, range });
   }
@@ -494,6 +514,7 @@ class PlayClient {
   }
 
   joinOpenGame(id: string) {
+    if (this.onBreak()) return;
     this.dismissFinished();
     this.set({ error: null });
     this.send({ t: 'joinOpenGame', id });
@@ -560,6 +581,7 @@ class PlayClient {
   declineDraw = () => this.gameAction('declineDraw');
   declineRematch = () => this.gameAction('declineRematch');
   rematch = () => {
+    if (this.onBreak()) return;
     const g = this.state.game;
     if (g && !g.rematchBy) this.patchGame({ rematchBy: g.you, rematchDeclined: false });
     this.gameAction('rematch');
@@ -581,11 +603,13 @@ class PlayClient {
 
   /** Direct challenge when `to` is a player id; open invite link otherwise. */
   createChallenge = (opts: { to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }) => {
+    if (this.onBreak()) return;
     this.dismissFinished();
     this.send({ t: 'challengeCreate', ...opts });
   };
   getChallenge = (id: string) => this.send({ t: 'challengeGet', id });
   acceptChallenge = (id: string) => {
+    if (this.onBreak()) return;
     this.dismissFinished();
     this.send({ t: 'challengeAccept', id });
   };

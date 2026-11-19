@@ -5,6 +5,7 @@ import { router, type Href } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { BreakBanner } from '@/components/BreakBanner';
 import { DailyPuzzleCard } from '@/components/DailyPuzzleCard';
 import { LiveBoard } from '@/components/LiveBoard';
 import { OnlineFriends } from '@/components/OnlineFriends';
@@ -81,6 +82,8 @@ export default function Home() {
           <Button title={tr('nav.puzzles')} size="lg" variant="secondary" onPress={() => router.navigate('/puzzles')} />
         </View>
       </View>
+
+      <BreakBanner />
 
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={1} title={tr('home.quick.title')} action={<Text variant="caption" tone="tertiary">{tr('home.quick.hint')}</Text>} />
