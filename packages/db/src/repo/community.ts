@@ -154,8 +154,12 @@ export async function getTopic(db: Database, id: string): Promise<TopicRow | und
   return r && { ...r.t, author: toAuthor(r.t.userId, r) };
 }
 
-export async function insertTopic(db: Database, t: { userId: string; category: string; title: string; body: string }): Promise<ForumTopic> {
-  const [row] = await db.insert(forumTopics).values(t).returning();
+export async function insertTopic(db: Database, t: { userId: string; category: string; title: string; body: string; at?: Date }): Promise<ForumTopic> {
+  const { at, ...rest } = t;
+  const [row] = await db
+    .insert(forumTopics)
+    .values({ ...rest, ...(at ? { createdAt: at, lastActivityAt: at } : {}) })
+    .returning();
   return row!;
 }
 

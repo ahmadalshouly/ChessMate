@@ -24,6 +24,7 @@ import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
+import { donateRoutes } from './payments/donate';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -98,6 +99,7 @@ async function start() {
   const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
   base.http = [
     ...(base.http ?? []),
+    donateRoutes(stripeFromEnv()),
     gameRoutes(db.db, {
       viewerOf: (token) => auth.verifyAccessToken(token)?.userId ?? null,
       gamesHidden: async (id) => !((await profileStore.get(id))?.settings.privacy.showGames ?? DEFAULT_SETTINGS.privacy.showGames),

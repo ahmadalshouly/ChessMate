@@ -237,7 +237,7 @@ export class CommunityService {
     if (!this.opts.isStaff(me) && (await countRecentTopics(this.db, me, new Date(this.now() - 3600_000))) >= COMMUNITY_LIMITS.topicsPerHour) {
       throw new CommunityError(429, 'You started several topics in the last hour. Try again later.');
     }
-    const row = await insertTopic(this.db, { userId: me, category, title, body });
+    const row = await insertTopic(this.db, { userId: me, category, title, body, at: new Date(this.now()) });
     return (await this.topic(me, row.id)).topic;
   }
 
