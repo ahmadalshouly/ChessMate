@@ -23,3 +23,28 @@ export const ROLE_TAG_LABELS: Record<RoleTag, string> = {
   creator: 'Content creator',
   ambassador: 'Ambassador',
 };
+
+/**
+ * Tags players pick for themselves on their profile ("Tactician", "Night owl").
+ * A different list from the official role tags above, so nobody can pose as staff.
+ */
+export const PLAYER_TAGS = ['learner', 'casual', 'competitive', 'tactician', 'positional', 'endgame', 'openings', 'speed', 'nightOwl', 'puzzles', 'coachable', 'veteran'] as const;
+export type PlayerTag = (typeof PLAYER_TAGS)[number];
+
+export function isPlayerTag(v: unknown): v is PlayerTag {
+  return typeof v === 'string' && (PLAYER_TAGS as readonly string[]).includes(v);
+}
+
+/** Path of a player's shareable profile link (what the profile QR code opens). */
+export function profilePath(username: string): string {
+  return `/u/${encodeURIComponent(username)}`;
+}
+
+/** Username from a scanned or pasted profile link (or a plain username), or null. */
+export function usernameFromLink(text: string): string | null {
+  const t = text.trim();
+  const m = /(?:^|\/)u\/([A-Za-z0-9_-]{2,30})(?:[/?#].*)?$/.exec(t);
+  if (m) return m[1]!;
+  if (/^@?[A-Za-z0-9_-]{2,30}$/.test(t)) return t.replace(/^@/, '');
+  return null;
+}

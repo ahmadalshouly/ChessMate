@@ -18,6 +18,9 @@ import type {
   RatingCategory,
   ReportAction,
   StaffRole,
+  TournamentDetail,
+  TournamentInput,
+  TournamentSummary,
 } from '@chessmate/core';
 import { useMemo } from 'react';
 
@@ -84,6 +87,13 @@ export function useAdminApi() {
       setTitle: (playerId: string, title: ChessTitle, note: string) => post(`/players/${id(playerId)}/title`, { title, note }),
       removeTitle: (playerId: string, reason: TitleRevokeReason, note: string) => post(`/players/${id(playerId)}/title`, { title: null, reason, note }),
       setRoleTag: (playerId: string, tag: RoleTag | null, note: string) => post(`/players/${id(playerId)}/tag`, { tag, note }),
+      messagePlayer: (playerId: string, body: string) => post(`/players/${id(playerId)}/message`, { body }),
+      broadcast: (body: string) => post<{ sent: number }>('/broadcast', { body }),
+      tournaments: () => get<{ tournaments: TournamentSummary[] }>('/tournaments').then((r) => r.tournaments),
+      createTournament: (t: TournamentInput) => post<{ tournament: TournamentDetail }>('/tournaments', { ...t }).then((r) => r.tournament),
+      updateTournament: (tid: string, t: Partial<TournamentInput>) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}`, { ...t }).then((r) => r.tournament),
+      cancelTournament: (tid: string, reason: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/cancel`, { reason }).then((r) => r.tournament),
+      startTournament: (tid: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/start`).then((r) => r.tournament),
     };
   }, [apiFetch]);
 }

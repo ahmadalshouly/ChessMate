@@ -597,3 +597,79 @@ export type PuzzleAttempt = typeof puzzleAttempts.$inferSelect;
 export type UserRole = (typeof userRole.enumValues)[number];
 export type AdminAuditRow = typeof adminAuditLog.$inferSelect;
 export type PlayerWarningRow = typeof playerWarnings.$inferSelect;
+
+// ---------------------------------------------------------------- messages
+
+/**
+ * Direct messages between players, plus messages from ChessMate staff
+ * (`kind` 'staff') and announcements to everyone (`kind` 'broadcast', one row
+ * per recipient so read state stays per player). Game chat is separate.
+ */
+export const directMessages = pgTable(
+  'direct_messages',
+  {
+    id: id(),
+    senderId: text('sender_id').notNull(),
+    recipientId: text('recipient_id').notNull(),
+    body: text('body').notNull(),
+    /** user | staff | broadcast */
+    kind: text('kind').notNull().default('user'),
+    createdAt: createdAt(),
+    readAt: ts('read_at'),
+  },
+  (t) => [index('direct_messages_recipient_idx').on(t.recipientId, t.createdAt), index('direct_messages_sender_idx').on(t.senderId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------- tournaments
+
+/** Arena tournaments created by staff. Players join; the server pairs them while it runs. */
+export const tournaments = pgTable(
+  'tournaments',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    /** scheduled | running | finished | cancelled */
+    status: text('status').notNull(),
+    initialMs: integer('initial_ms').notNull(),
+    incrementMs: integer('increment_ms').notNull(),
+    rated: boolean('rated').notNull().default(true),
+    startsAt: ts('starts_at').notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    maxPlayers: integer('max_players'),
+    /** Free text shown as the prize pool ("$500", "ChessMate Premium for a year"). */
+    prizePool: text('prize_pool'),
+    /** Prize per place: [{ place: 1, prize: '$250' }, ...]. */
+    prizes: jsonb('prizes').$type<{ place: number; prize: string }[]>().notNull().default([]),
+    createdBy: text('created_by').notNull(),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+  },
+  (t) => [index('tournaments_starts_idx').on(t.startsAt)],
+);
+
+export const tournamentPlayers = pgTable(
+  'tournament_players',
+  {
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    rating: integer('rating').notNull(),
+    score: integer('score').notNull().default(0),
+    games: integer('games').notNull().default(0),
+    wins: integer('wins').notNull().default(0),
+    draws: integer('draws').notNull().default(0),
+    losses: integer('losses').notNull().default(0),
+    /** Consecutive wins; from the third in a row a win counts double. */
+    streak: integer('streak').notNull().default(0),
+    withdrawn: boolean('withdrawn').notNull().default(false),
+    joinedAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
+);
+
+export type DirectMessage = typeof directMessages.$inferSelect;
+export type Tournament = typeof tournaments.$inferSelect;
+export type TournamentPlayer = typeof tournamentPlayers.$inferSelect;

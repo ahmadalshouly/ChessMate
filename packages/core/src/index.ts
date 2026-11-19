@@ -27,3 +27,7 @@ export * from './social';
 export * from './admin';
 export * from './titles';
 export * from './roleTags';
+export * from './messages';
+export * from './tournaments';
+export * from './secretQueen';
+export * from './qr';

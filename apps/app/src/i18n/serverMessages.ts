@@ -37,6 +37,17 @@ const EXACT: Record<string, TKey> = {
   'No such account': 'server.noSuchAccount',
   'This account has been closed for a fair play violation.': 'server.closedFairPlay',
   'Your account is closed for a fair play violation, so online play is turned off': 'server.restrictedFairPlay',
+  'Only friends can message this player': 'server.onlyFriendsMessage',
+  'This player does not accept messages': 'server.noMessages',
+  'You cannot message this player': 'server.cannotMessage',
+  'You cannot message yourself': 'server.messageSelf',
+  'Sign in to use messages': 'server.signInMessages',
+  'This tournament is full': 'server.tournamentFull',
+  'This tournament is over': 'server.tournamentOver',
+  'Sign in to join tournaments': 'server.signInTournament',
+  'That move is illegal: the secret queen was revealed': 'server.secretRevealed',
+  'Pick one of your pawns before your first move': 'server.secretPick',
+  'Replies to the ChessMate team are not possible here': 'messages.teamReadOnly',
 };
 
 const PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [

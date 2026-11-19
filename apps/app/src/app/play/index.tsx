@@ -46,7 +46,6 @@ export default function Lobby() {
   const [custom, setCustom] = useState({ min: 7, inc: 2 });
   // Options are shared with the setup pop-up (and Home's quick play), so they stay in step.
   const seekOptions = useSeekOptions();
-  const rated = seekOptions.rated && !guest;
   const { window, color } = seekOptions;
   const setRated = (v: boolean) => setSeekOptions({ rated: v });
   const setWindow = (v: Window) => setSeekOptions({ window: v });
@@ -71,6 +70,9 @@ export default function Lobby() {
   const busy = seeking || s.openGame !== null;
   const online = s.connection === 'online';
   const canStart = !busy && !liveGameId && online && !s.restricted;
+  // Open games are standard chess only; Secret Queen pairs through matchmaking.
+  const canCreate = canStart && seekOptions.variant !== 'secretQueen';
+  const rated = seekOptions.rated && !guest && seekOptions.variant !== 'secretQueen';
 
   const poolCount = (key: string) => {
     const tc = parseTimeControl(key);
@@ -197,7 +199,7 @@ export default function Lobby() {
         </GlassView>
       </View>
 
-      {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} onPlay={play} onCreate={create} />}
+      {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} canCreate={canCreate} onPlay={play} onCreate={create} />}
     </View>
   );
 
@@ -279,7 +281,7 @@ export default function Lobby() {
                   {category} · {rated ? tr('play.rated') : tr('play.casual')}
                 </Text>
               </View>
-              <Button title={tr('play.lobby.createShort')} variant="ghost" size="md" disabled={!canStart} onPress={create} />
+              <Button title={tr('play.lobby.createShort')} variant="ghost" size="md" disabled={!canCreate} onPress={create} />
               <Button title={tr('nav.play')} size="md" disabled={!canStart} onPress={play} rightIcon={<Ionicons name={dirIcon('arrow-forward')} size={16} color={c.onAccent} />} />
             </View>
           </Glass>
@@ -305,7 +307,23 @@ function OptionRow({ label, hint, children }: { label: string; hint: string; chi
 }
 
 /** Wide screens: summary of the chosen game and the two actions. */
-function ActionPanel({ tcLabel, category, rated, canStart, onPlay, onCreate }: { tcLabel: string; category: string; rated: boolean; canStart: boolean; onPlay: () => void; onCreate: () => void }) {
+function ActionPanel({
+  tcLabel,
+  category,
+  rated,
+  canStart,
+  canCreate,
+  onPlay,
+  onCreate,
+}: {
+  tcLabel: string;
+  category: string;
+  rated: boolean;
+  canStart: boolean;
+  canCreate: boolean;
+  onPlay: () => void;
+  onCreate: () => void;
+}) {
   const t = useAppTheme();
   const tr = useT();
   const c = t.colors;
@@ -322,7 +340,7 @@ function ActionPanel({ tcLabel, category, rated, canStart, onPlay, onCreate }: {
           </Text>
         </Text>
       </View>
-      <Button title={tr('play.lobby.post')} variant="secondary" disabled={!canStart} onPress={onCreate} />
+      <Button title={tr('play.lobby.post')} variant="secondary" disabled={!canCreate} onPress={onCreate} />
       <Button title={tr('play.lobby.playNow')} size="lg" disabled={!canStart} onPress={onPlay} rightIcon={<Ionicons name={dirIcon('arrow-forward')} size={18} color={c.onAccent} />} />
     </GlassView>
   );

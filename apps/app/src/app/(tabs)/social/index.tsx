@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { useSocialLive } from '@/lib/social/useSocialLive';
+import { useUnreadMessages } from '@/lib/messagesApi';
 import { Avatar, Badge, Button, GlassView, ListGroup, ListRow, SectionHeader, Text, useAppTheme } from '@/ui';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -35,6 +36,7 @@ export default function Social() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const unreadMessages = useUnreadMessages();
 
   const load = useCallback(async () => {
     if (!me) return;
@@ -218,7 +220,16 @@ export default function Social() {
       <View style={{ gap: t.space.md }}>
         <SectionHeader title={tr('social.hub.more')} />
         <ListGroup>
+          <ListRow
+            left={<IconDisc name="chatbubble-ellipses-outline" />}
+            title={tr('messages.title')}
+            subtitle={unreadMessages > 0 ? tr('messages.unread', { count: unreadMessages }) : tr('messages.subtitle')}
+            right={unreadMessages > 0 ? <Badge tone="solid" size="sm" label={unreadMessages} /> : undefined}
+            chevron
+            onPress={() => router.push('/messages')}
+          />
           <ListRow left={<IconDisc name="search-outline" />} title={tr('friends.find')} subtitle={tr('social.hub.findBody')} chevron onPress={() => router.push('/friends/search')} />
+          <ListRow left={<IconDisc name="qr-code-outline" />} title={tr('qr.addTitle')} subtitle={tr('qr.addBody')} chevron onPress={() => router.push('/friends/add')} />
           <ListRow
             left={<IconDisc name="mail-outline" />}
             title={tr('social.hub.sentRequests')}

@@ -70,6 +70,8 @@ import type { Moderation, Report } from '../moderation';
 import type { NotificationService } from '../notifications';
 import type { RatingService } from '../ratingService';
 import { TitleService, toApplication } from '../titles/service';
+import type { MessageService } from '../messages/service';
+import { TournamentError, type TournamentService } from '../tournaments/service';
 import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, warningNotice, type ModerationNotice } from './notices';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
@@ -145,6 +147,9 @@ export class AdminService {
   private readonly roles = new Map<string, StaffRole>();
   private readonly closed = new Map<string, string>();
   private bootstrap = new Set<string>();
+  /** Set in database mode, once the services exist. */
+  messages: MessageService | null = null;
+  tournaments: TournamentService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -411,6 +416,78 @@ export class AdminService {
       titleGrantedAt: u.titleGrantedAt?.getTime() ?? null,
       titleApplications: titleApps.map((a) => toApplication(a, true)),
     };
+  }
+
+  // ---------------------------------------------------------------- tournaments
+
+  private tournamentService() {
+    if (!this.tournaments) throw new AdminError('unavailable', 'Tournaments need the database');
+    return this.tournaments;
+  }
+
+  private async tournamentCall<T>(fn: () => T | Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof TournamentError) throw new AdminError(e.status === 404 ? 'not_found' : e.status === 409 ? 'conflict' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  tournamentList(actor: Actor) {
+    this.require(actor, 'tournaments.manage');
+    return this.tournamentService().list(null);
+  }
+
+  async createTournament(actor: Actor, input: Record<string, unknown>) {
+    this.require(actor, 'tournaments.manage');
+    const t = await this.tournamentCall(() => this.tournamentService().create(input, actor.id));
+    await this.audit(actor, 'tournament.create', { type: 'system', id: t.id, name: t.name }, null, { startsAt: t.startsAt, prizePool: t.prizePool });
+    return t;
+  }
+
+  async updateTournament(actor: Actor, id: string, input: Record<string, unknown>) {
+    this.require(actor, 'tournaments.manage');
+    const t = await this.tournamentCall(() => this.tournamentService().update(id, input));
+    await this.audit(actor, 'tournament.update', { type: 'system', id: t.id, name: t.name }, null, { prizePool: t.prizePool, prizes: t.prizes.length });
+    return t;
+  }
+
+  async cancelTournament(actor: Actor, id: string, input: { reason?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    const t = await this.tournamentCall(() => this.tournamentService().cancel(id));
+    await this.audit(actor, 'tournament.cancel', { type: 'system', id: t.id, name: t.name }, text(input.reason, 300) || null);
+    return t;
+  }
+
+  async startTournamentNow(actor: Actor, id: string) {
+    this.require(actor, 'tournaments.manage');
+    const t = await this.tournamentCall(() => this.tournamentService().startNow(id));
+    await this.audit(actor, 'tournament.start', { type: 'system', id: t.id, name: t.name });
+    return t;
+  }
+
+  /** A message to one player from the ChessMate team; it shows in their Messages under "ChessMate team". */
+  async messagePlayer(actor: Actor, id: string, input: { body?: unknown }) {
+    this.require(actor, 'messages.send');
+    if (!this.messages) throw new AdminError('unavailable', 'Messages need the database');
+    const u = await this.user(id);
+    const message = await this.messages.staffSend(actor.id, id, input.body).catch((e: Error) => {
+      throw new AdminError('invalid_input', e.message);
+    });
+    await this.audit(actor, 'message.send', { type: 'user', id, name: u.username }, message.body.slice(0, 200));
+    return { message };
+  }
+
+  /** Announcement to every open account. */
+  async broadcast(actor: Actor, input: { body?: unknown }) {
+    this.require(actor, 'messages.broadcast');
+    if (!this.messages) throw new AdminError('unavailable', 'Messages need the database');
+    const sent = await this.messages.broadcast(actor.id, input.body).catch((e: Error) => {
+      throw new AdminError('invalid_input', e.message);
+    });
+    await this.audit(actor, 'message.broadcast', { type: 'system' }, typeof input.body === 'string' ? input.body.slice(0, 200) : null, { recipients: sent });
+    return { sent };
   }
 
   /** Formal warning: kept on the player's record and sent to them as an account notification. */

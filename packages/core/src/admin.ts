@@ -44,6 +44,12 @@ export const ADMIN_PERMISSIONS = [
   'titles.revoke',
   /** Give or remove official role tags (staff, streamer, coach, ...). Admins only. */
   'tags.manage',
+  /** Send a message to one player from the ChessMate team. */
+  'messages.send',
+  /** Send an announcement to every player. Admins only. */
+  'messages.broadcast',
+  /** Create, schedule, edit and cancel tournaments and their prizes. Admins only. */
+  'tournaments.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -62,6 +68,7 @@ const MODERATOR: readonly AdminPermission[] = [
   'games.view',
   'audit.view',
   'titles.review',
+  'messages.send',
 ];
 
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly AdminPermission[]> = {

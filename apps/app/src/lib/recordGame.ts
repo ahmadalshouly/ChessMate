@@ -15,7 +15,8 @@ export function useRecordOnlineGame(view: GameView | null) {
   useEffect(() => {
     if (!view?.outcome || saved.current === view.gameId) return;
     const { outcome, white, black, timeControl } = view;
-    if (outcome.reason === 'aborted') return;
+    // Secret Queen games cannot be replayed with standard rules, so they stay out of the archive.
+    if (outcome.reason === 'aborted' || view.variant === 'secretQueen') return;
     saved.current = view.gameId;
     const delta = (c: 'w' | 'b') => {
       const rc = view.ratingChange?.[c];

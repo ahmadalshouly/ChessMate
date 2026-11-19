@@ -29,6 +29,7 @@ export function validateClientMessage(m: ClientMessage): string | null {
       if (!isObj(msg.timeControl) || typeof msg.rated !== 'boolean') return 'Invalid seek';
       if (msg.range !== undefined && !isInt(msg.range, 0, 4000)) return 'Invalid rating window';
       if (msg.color !== undefined && msg.color !== 'w' && msg.color !== 'b' && msg.color !== 'random') return 'Invalid colour';
+      if (msg.variant !== undefined && msg.variant !== 'standard' && msg.variant !== 'secretQueen') return 'Invalid variant';
       const r = msg.ratingRange;
       if (r === undefined) return null;
       return Array.isArray(r) && r.length === 2 && isInt(r[0], 0, 4000) && isInt(r[1], 0, 4000) && r[0] <= r[1]
@@ -85,6 +86,8 @@ export function validateClientMessage(m: ClientMessage): string | null {
       if (typeof msg.playerId !== 'string' || msg.playerId.length > 128) return 'Invalid player id';
       if (msg.gameId !== undefined && !isGameId(msg.gameId)) return 'Invalid game id';
       return msg.note === undefined || (typeof msg.note === 'string' && msg.note.length <= 2000) ? null : 'Invalid report note';
+    case 'secretPick':
+      return isGameId(msg.gameId) && typeof msg.square === 'string' && /^[a-h][1-8]$/.test(msg.square) ? null : 'Invalid pick';
     default:
       return 'Unknown message';
   }

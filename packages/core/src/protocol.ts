@@ -7,7 +7,8 @@ import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
 import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
-import type { Color } from './types';
+import type { GameVariant, SecretReveal, SecretSquares } from './secretQueen';
+import type { Color, Square } from './types';
 
 /** Wire protocol between clients and the realtime game server (JSON over WebSocket). */
 export const PROTOCOL_VERSION = 1;
@@ -37,6 +38,18 @@ export interface GameSnapshot {
    * game is aborted. Null once both sides have moved.
    */
   firstMoveDeadline?: number | null;
+  /** The tournament this game belongs to, if any. */
+  tournamentId?: string | null;
+  /** Rules variant; absent means standard chess. */
+  variant?: GameVariant;
+  /**
+   * Secret Queen only: the public moves with the position after each (pawns
+   * can move like queens, so `moves` cannot be replayed with standard rules),
+   * the current public position, and what has been revealed so far.
+   */
+  positions?: { uci: string; san: string; fen: string }[];
+  fen?: string;
+  reveals?: SecretReveal[];
 }
 
 /** Colour a custom game's creator wants to play. */
@@ -80,7 +93,11 @@ export type ClientMessage =
       range?: number;
       /** Side the player wants; omitted or 'random' pairs with anyone. Two players wanting the same side are not paired. */
       color?: ColorChoice;
+      /** Rules variant; Secret Queen games are always casual. */
+      variant?: GameVariant;
     }
+  /** Secret Queen: pick (or change) your secret pawn before your first move. */
+  | { t: 'secretPick'; gameId: string; square: Square }
   | { t: 'cancelSeek' }
   | { t: 'lobbySub' }
   | { t: 'lobbyUnsub' }
@@ -139,7 +156,20 @@ export type ServerMessage =
   | { t: 'rematchDeclined'; gameId: string }
   | { t: 'gameStart'; game: GameSnapshot; you: Color }
   | { t: 'gameState'; game: GameSnapshot }
-  | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
+  | {
+      t: 'moved';
+      gameId: string;
+      uci: string;
+      san: string;
+      ply: number;
+      clock: ClockState;
+      serverNow: number;
+      /** Secret Queen: public position after the move and anything it revealed. */
+      fen?: string;
+      reveals?: SecretReveal[];
+    }
+  /** Secret Queen, to the owner only: where your secret pawn is (null once revealed or gone) and whether you can still change it. */
+  | { t: 'secret'; gameId: string; square: Square | null; canPick: boolean }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
   | {
@@ -149,6 +179,8 @@ export type ServerMessage =
       ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }>;
       /** Why ratings did not change, when they didn't ('casual', 'guest', 'too_short', ...). */
       unrated?: string;
+      /** Secret Queen: where both secret pawns were when the game ended (null if revealed or captured earlier). */
+      secrets?: SecretSquares;
     }
   | {
       t: 'opponentConnection';

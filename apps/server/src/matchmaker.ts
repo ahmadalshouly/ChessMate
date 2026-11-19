@@ -14,6 +14,8 @@ export interface Seek {
   range?: number;
   /** Side the player asked for; absent means either. */
   color?: 'w' | 'b';
+  /** Rules variant; absent means standard. Each variant has its own pool. */
+  variant?: 'secretQueen';
 }
 
 export interface MatchOptions extends RatingRangeOptions {
@@ -50,8 +52,8 @@ export class Matchmaker {
     this.opts = { ...DEFAULT_MATCH_OPTIONS, ...opts };
   }
 
-  private key(s: Pick<Seek, 'timeControl' | 'rated'>) {
-    return `${formatTimeControl(s.timeControl)}:${s.rated ? 'r' : 'c'}`;
+  private key(s: Pick<Seek, 'timeControl' | 'rated' | 'variant'>) {
+    return `${formatTimeControl(s.timeControl)}:${s.rated ? 'r' : 'c'}${s.variant ? `:${s.variant}` : ''}`;
   }
 
   add(seek: Seek): void {

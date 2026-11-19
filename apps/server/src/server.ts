@@ -10,6 +10,7 @@ import {
   type Challenge,
   type ChallengeEndReason,
   type ClientMessage,
+  type GameVariant,
   type Color,
   type ColorChoice,
   type ErrorCode,
@@ -38,6 +39,10 @@ import type { HttpRoute } from './auth/http';
 import type { AuthService } from './auth/service';
 import { GuestSessions } from './guestSessions';
 import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
+import { messageRoutes } from './messages/http';
+import { tournamentRoutes } from './tournaments/http';
+import type { MessageService } from './messages/service';
+import type { TournamentService } from './tournaments/service';
 import { OpenGames } from './openGames';
 import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
@@ -103,6 +108,10 @@ export interface ServerOptions {
   resolveUser?: ResolveUser;
   /** Staff console (/api/admin): roles, account closure, audit log. Needs `auth` and the database. */
   admin?: AdminService;
+  /** Direct messages (database mode). */
+  messages?: MessageService;
+  /** Arena tournaments (database mode). */
+  tournaments?: TournamentService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -223,6 +232,27 @@ export class ChessServer {
       routes.push(adminRoutes(opts.admin, opts.auth));
       routes.push(titleRoutes(opts.admin.titles, opts.auth));
     }
+    if (opts.tournaments) {
+      routes.push(tournamentRoutes(opts.tournaments, opts.resolveUser ?? devResolveUser));
+      opts.tournaments.attach({
+        isOnline: (id) => (this.sockets.get(id)?.size ?? 0) > 0 && !this.restrictionOf(id),
+        liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
+        rating: (id, tc) => this.ratings.forTimeControl(id, tc, this.now()).rating,
+        startGame: (whiteId, blackId, tc, rated, tournamentId) => {
+          const w = this.store.get(whiteId);
+          const b = this.store.get(blackId);
+          if (!w || !b || this.activeRoomOf(whiteId) || this.activeRoomOf(blackId)) return null;
+          return this.createGame(w, b, tc, rated, this.now(), { tournamentId }).id;
+        },
+        notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'tournament', title, body, url }),
+      });
+    }
+    if (opts.messages) {
+      routes.push(messageRoutes(opts.messages, opts.resolveUser ?? devResolveUser));
+      opts.messages.attach((ids, event) => {
+        for (const id of ids) for (const ws of this.sockets.get(id) ?? []) this.send(ws, { t: 'social', event });
+      }, this.notifications);
+    }
     if (this.social) {
       routes.push(socialRoutes(this.social, opts.resolveUser ?? devResolveUser));
       this.social.attach(
@@ -283,6 +313,7 @@ export class ChessServer {
 
   async close(): Promise<void> {
     clearInterval(this.matchTimer);
+    this.opts.tournaments?.stop();
     await this.fairPlay.close();
     this.opts.analysis?.close();
     for (const t of [...this.timers.values(), ...this.graceTimers.values()]) clearTimeout(t);
@@ -377,11 +408,12 @@ export class ChessServer {
           rating: r.rating,
           rd: r.rd,
           timeControl: tc,
-          rated: !!msg.rated && canSeekRated(isGuest(player)),
+          rated: !!msg.rated && canSeekRated(isGuest(player)) && msg.variant !== 'secretQueen',
           createdAt: now,
           ratingRange: sanitizeRatingRange(msg.ratingRange, r.rating) ?? undefined,
           range: validWindow(msg.range),
           color: msg.color === 'w' || msg.color === 'b' ? msg.color : undefined,
+          variant: msg.variant === 'secretQueen' ? 'secretQueen' : undefined,
         });
         this.markLobbyDirty();
         this.toPlayer(player.id, { t: 'seeking', timeControl: tc });
@@ -443,6 +475,7 @@ export class ChessServer {
         const color = room.colorOf(player.id);
         if (color) {
           this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+          if (room.secret) this.send(ws, { t: 'secret', gameId: room.id, square: room.secret.secretOf(color), canPick: room.secret.canPick(color) });
           return this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
         }
         return this.send(ws, { t: 'gameState', game: room.snapshot(now) });
@@ -452,11 +485,26 @@ export class ChessServer {
         if (!room) return this.send(ws, err('not_found', 'No such game'));
         const res = room.move(player.id, msg.uci, msg.ply, now);
         if (typeof res === 'string') {
+          const revealed = room.secret?.takeRejectedReveal();
+          if (revealed) {
+            // Secret Queen: the move was illegal only because of the hidden queen. Everyone sees it now.
+            this.send(ws, err('illegal_move', 'That move is illegal: the secret queen was revealed'));
+            this.broadcast(room, { t: 'gameState', game: room.snapshot(now) });
+            this.sendSecrets(room);
+            return;
+          }
           // Re-sync the client so its board matches the server.
           this.send(ws, err(res as MoveError, moveErrorText(res)));
           this.send(ws, { t: 'gameState', game: room.snapshot(now) });
         }
         return;
+      }
+      case 'secretPick': {
+        const room = this.rooms.get(msg.gameId);
+        const color = room?.colorOf(player.id);
+        if (!room || !color) return this.send(ws, err('not_found', 'No such game'));
+        if (!room.pickSecret(player.id, msg.square)) return this.send(ws, err('bad_request', 'Pick one of your pawns before your first move'));
+        return this.send(ws, { t: 'secret', gameId: room.id, square: room.secret!.secretOf(color), canPick: room.secret!.canPick(color) });
       }
       case 'watch': {
         const room = this.rooms.get(String(msg.gameId));
@@ -689,6 +737,7 @@ export class ChessServer {
     if (room) {
       const color = room.colorOf(playerId)!;
       this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+      if (room.secret) this.send(ws, { t: 'secret', gameId: room.id, square: room.secret.secretOf(color), canPick: room.secret.canPick(color) });
       this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
       const oppId = color === 'w' ? room.black.id : room.white.id;
       if (!this.sockets.has(oppId)) {
@@ -716,7 +765,7 @@ export class ChessServer {
       const white = this.store.get(room.black.id);
       const black = this.store.get(room.white.id);
       if (!white || !black) return this.send(ws, err('not_found', 'Player not found'));
-      this.createGame(white, black, room.timeControl, room.rated, now);
+      this.createGame(white, black, room.timeControl, room.rated, now, { variant: room.variant });
       return;
     }
     this.rematchOffers.set(room.id, color);
@@ -861,11 +910,11 @@ export class ChessServer {
       const pb = this.store.get(b.playerId);
       if (!pa || !pb) continue;
       const [white, black] = whiteOf(pairing) === a ? [pa, pb] : [pb, pa];
-      this.createGame(white, black, a.timeControl, a.rated && b.rated, now);
+      this.createGame(white, black, a.timeControl, a.rated && b.rated, now, { variant: a.variant });
     }
   }
 
-  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number): GameRoom {
+  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number, extra: { tournamentId?: string; variant?: GameVariant } = {}): GameRoom {
     const id = randomUUID().slice(0, 8);
     for (const p of [white, black]) {
       this.matchmaker.remove(p.id);
@@ -877,21 +926,33 @@ export class ChessServer {
       playerInfo(white, this.ratings.forTimeControl(white.id, tc, now)),
       playerInfo(black, this.ratings.forTimeControl(black.id, tc, now)),
       tc,
-      rated,
+      extra.variant === 'secretQueen' ? false : rated,
       now,
       {
       onMove: (r, m) => {
         const t = this.now();
-        this.opts.persistence?.moveMade(r, m);
-        this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
+        // Secret Queen moves cannot be replayed with standard rules: those games are not stored.
+        if (!r.secret) this.opts.persistence?.moveMade(r, m);
+        this.broadcast(r, {
+          t: 'moved',
+          gameId: r.id,
+          uci: m.uci,
+          san: m.san,
+          ply: r.game.ply,
+          clock: r.clock,
+          serverNow: t,
+          ...(r.secret ? { fen: r.secret.fen, reveals: r.secret.lastReveals() } : {}),
+        });
+        if (r.secret) this.sendSecrets(r);
         this.schedule(r);
         this.notifyTurnIfAway(r, m.san);
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
         const { change: ratingChange, unrated } = this.applyRatings(r);
-        this.opts.persistence?.gameEnded(r, outcome, ratingChange);
-        if (outcome.reason !== 'aborted') {
+        if (r.tournamentId) this.opts.tournaments?.gameEnded(r.tournamentId, r.id, outcome);
+        if (!r.secret) this.opts.persistence?.gameEnded(r, outcome, ratingChange);
+        if (outcome.reason !== 'aborted' && !r.secret) {
           // Grade every move now so Review opens with the badges already there.
           void this.opts.analysis?.precompute({ gameId: r.id, moves: r.game.uciHistory(), initialFen: r.initialFen });
           this.fairPlay.gameFinished({
@@ -910,7 +971,7 @@ export class ChessServer {
             },
           });
         }
-        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated });
+        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated, ...(r.secret ? { secrets: r.secret.allSecrets() } : {}) });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
         for (const id of [r.white.id, r.black.id]) this.cancelGrace(id);
@@ -924,7 +985,8 @@ export class ChessServer {
           this.moderation.forgetGame(r.id);
         }, 5 * 60_000).unref();
       },
-    });
+    }, undefined, extra.variant ?? 'standard');
+    room.tournamentId = extra.tournamentId ?? null;
     this.rooms.set(id, room);
     this.opts.persistence?.gameStarted(room);
     // No engine help once a live game starts.
@@ -936,10 +998,23 @@ export class ChessServer {
     ] as const) {
       for (const ws of this.sockets.get(p.id) ?? []) this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
     }
+    if (room.secret) this.sendSecrets(room);
     this.schedule(room);
     this.pushPresence(white.id);
     this.pushPresence(black.id);
     return room;
+  }
+
+  /** Secret Queen: tells each player (only them) where their own secret pawn is. */
+  private sendSecrets(room: GameRoom) {
+    const g = room.secret;
+    if (!g) return;
+    for (const [p, color] of [
+      [room.white, 'w'],
+      [room.black, 'b'],
+    ] as const) {
+      this.toPlayer(p.id, { t: 'secret', gameId: room.id, square: g.secretOf(color), canPick: !room.outcome && g.canPick(color) });
+    }
   }
 
   // ---- social: presence, spectators, activity ----

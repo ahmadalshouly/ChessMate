@@ -50,6 +50,13 @@ const STATUS: Record<AdminError['code'], number> = {
  *   GET  /documents/:id               { url, expiresAt }: a 10-minute link that opens a proof file
  *   POST /players/:id/title           { title, note } grants; { title: null, reason, note? } takes it away
  *   POST /players/:id/tag             { tag, note? } sets an official role tag; { tag: null } removes it (admins only)
+ *   POST /players/:id/message         { body } message from the ChessMate team
+ *   POST /broadcast                   { body } announcement to every player (admins only)
+ *   GET  /tournaments                 all tournaments, newest first
+ *   POST /tournaments                 { name, description?, timeControl, rated, startsAt, durationMinutes, maxPlayers?, prizePool?, prizes? }
+ *   POST /tournaments/:id             same fields, while it has not started
+ *   POST /tournaments/:id/cancel      { reason? }
+ *   POST /tournaments/:id/start       start a scheduled tournament now
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -130,6 +137,20 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.setPlayerTitle(actor, id!, await body()));
         case 'POST players/:id/tag':
           return ok(await admin.setPlayerRoleTag(actor, id!, await body()));
+        case 'POST players/:id/message':
+          return ok(await admin.messagePlayer(actor, id!, await body()));
+        case 'POST broadcast':
+          return ok(await admin.broadcast(actor, await body()));
+        case 'GET tournaments':
+          return ok({ tournaments: admin.tournamentList(actor) });
+        case 'POST tournaments':
+          return ok({ tournament: await admin.createTournament(actor, await body()) });
+        case 'POST tournaments/:id':
+          return ok({ tournament: await admin.updateTournament(actor, id!, await body()) });
+        case 'POST tournaments/:id/cancel':
+          return ok({ tournament: await admin.cancelTournament(actor, id!, await body()) });
+        case 'POST tournaments/:id/start':
+          return ok({ tournament: await admin.startTournamentNow(actor, id!) });
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

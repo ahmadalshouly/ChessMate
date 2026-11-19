@@ -1,4 +1,4 @@
-import type { RoleTag } from './roleTags';
+import { isPlayerTag, type PlayerTag, type RoleTag } from './roleTags';
 import type { ChessTitle } from './titles';
 import type { TimeCategory } from './timeControl';
 import type { GameEndReason, GameResult } from './types';
@@ -176,6 +176,7 @@ export interface ProfileEdit {
   bio?: string | null;
   country?: string | null;
   avatar?: Avatar;
+  playerTag?: PlayerTag | null;
 }
 
 export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { error: string; field: string } {
@@ -205,6 +206,10 @@ export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { e
       return { error: 'Pick an avatar from the list', field: 'avatar' };
     }
     edit.avatar = { id: a.id as AvatarId, tone: a.tone as AvatarTone };
+  }
+  if (input.playerTag !== undefined) {
+    if (input.playerTag !== null && !isPlayerTag(input.playerTag)) return { error: 'Pick a tag from the list', field: 'playerTag' };
+    edit.playerTag = input.playerTag;
   }
   return { edit };
 }
@@ -244,6 +249,8 @@ export interface PublicProfile {
   title?: ChessTitle | null;
   /** Official tag (ChessMate staff, streamer, coach, ...), only set by admins. */
   roleTag?: RoleTag | null;
+  /** Tag the player picked for themselves (Tactician, Night owl, ...). */
+  playerTag?: PlayerTag | null;
   displayName: string;
   avatar: Avatar;
   bio: string | null;

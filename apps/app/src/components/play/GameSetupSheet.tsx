@@ -1,4 +1,4 @@
-import { formatTimeControl, timeCategory, type ColorChoice, type TimeControl } from '@chessmate/core';
+import { formatTimeControl, timeCategory, type ColorChoice, type GameVariant, type TimeControl } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -16,10 +16,12 @@ export interface SeekOptions {
   rated: boolean;
   window: RatingWindow;
   color: ColorChoice;
+  /** Standard chess or Secret Queen (always casual, matchmaking only). */
+  variant: GameVariant;
 }
 
 // Signed-in players default to rated so every game counts toward their Elo; casual stays one tap away.
-let options: SeekOptions = { rated: true, window: 0, color: 'random' };
+let options: SeekOptions = { rated: true, window: 0, color: 'random', variant: 'standard' };
 const listeners = new Set<() => void>();
 
 export function setSeekOptions(patch: Partial<SeekOptions>) {
@@ -40,7 +42,8 @@ export function useSeekOptions(): SeekOptions {
 
 /** Starts matchmaking with the chosen options. Guests always play casual. */
 export function startSeek(timeControl: TimeControl, o: SeekOptions, guest: boolean) {
-  playClient.seek({ timeControl, rated: o.rated && !guest, range: o.window === 0 ? undefined : o.window, color: o.color });
+  const secret = o.variant === 'secretQueen';
+  playClient.seek({ timeControl, rated: o.rated && !guest && !secret, range: o.window === 0 ? undefined : o.window, color: o.color, variant: secret ? 'secretQueen' : undefined });
 }
 
 export function postOpenGame(timeControl: TimeControl, o: SeekOptions, guest: boolean) {
@@ -73,7 +76,8 @@ export function GameSetupSheet({
   const s = usePlay();
   const o = useSeekOptions();
   const guest = isGuest(s.me);
-  const rated = o.rated && !guest;
+  const secret = o.variant === 'secretQueen';
+  const rated = o.rated && !guest && !secret;
   const online = s.connection === 'online';
   const busy = s.seek !== null || s.openGame !== null || (!!s.game && !s.game.outcome);
   const canStart = online && !busy && !s.restricted && !!timeControl;
@@ -96,14 +100,28 @@ export function GameSetupSheet({
 
       <RestrictionBanner />
       <View style={[styles.rows, { borderColor: c.border }]}>
-        <SetupRow label={tr('play.lobby.mode')} hint={guest ? tr('server.signInRated') : rated ? tr('play.lobby.ratedHint') : tr('play.lobby.casualHint')}>
+        <SetupRow label={tr('secretQueen.game')} hint={secret ? tr('secretQueen.rules') : tr('secretQueen.standardHint')}>
+          <Segmented<GameVariant>
+            size="sm"
+            value={o.variant}
+            onChange={(variant) => setSeekOptions({ variant })}
+            options={[
+              { value: 'standard', label: tr('secretQueen.standard') },
+              { value: 'secretQueen', label: tr('secretQueen.name') },
+            ]}
+          />
+        </SetupRow>
+        <View style={[styles.rule, { backgroundColor: c.border }]} />
+        <SetupRow
+          label={tr('play.lobby.mode')}
+          hint={secret ? tr('secretQueen.casualOnly') : guest ? tr('server.signInRated') : rated ? tr('play.lobby.ratedHint') : tr('play.lobby.casualHint')}>
           <Segmented
             size="sm"
             value={rated ? 'rated' : 'casual'}
             onChange={(v) => setSeekOptions({ rated: v === 'rated' })}
             options={[
               { value: 'casual', label: tr('play.casual') },
-              { value: 'rated', label: tr('play.rated'), disabled: guest },
+              { value: 'rated', label: tr('play.rated'), disabled: guest || secret },
             ]}
           />
         </SetupRow>
@@ -147,7 +165,7 @@ export function GameSetupSheet({
             variant="secondary"
             title={tr('play.lobby.post')}
             fullWidth
-            disabled={!canStart}
+            disabled={!canStart || secret}
             onPress={() => {
               postOpenGame(timeControl, o, guest);
               onClose();

@@ -15,6 +15,8 @@ import { Avatar } from './Avatar';
 import { Divider, Segmented, SectionTitle } from './controls';
 import { RatingGraph } from './RatingGraph';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
+import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
+import { ProfileActions } from './ProfileActions';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
@@ -98,6 +100,11 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
               </Text>
               <RoleTagBadge tag={profile.roleTag} size="md" />
             </View>
+            {profile.playerTag ? (
+              <View style={styles.meta}>
+                <PlayerTagBadge tag={profile.playerTag} />
+              </View>
+            ) : null}
             <View style={styles.meta}>
               <Text style={{ color: t.muted }}>@{profile.username}</Text>
               {profile.online !== null && (
@@ -113,16 +120,7 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
           </View>
         </View>
         {profile.bio ? <Label>{profile.bio}</Label> : profile.isMe ? <Label muted>{tr('profile.addBio')}</Label> : null}
-        {profile.isMe && (
-          <View style={styles.actions}>
-            <View style={{ flex: 1 }}>
-              <Button variant="secondary" title={tr('profile.edit')} onPress={() => router.push('/profile/edit')} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Button variant="secondary" title={tr('settings.title')} onPress={() => router.push('/settings')} />
-            </View>
-          </View>
-        )}
+        <ProfileActions profile={profile} />
       </Card>
 
       <View style={styles.tiles}>

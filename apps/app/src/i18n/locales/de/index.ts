@@ -38,5 +38,9 @@ import { social } from './social';
 import { titles } from './titles';
 import { chessTitle } from './chessTitle';
 import { watch } from './watch';
+import { tournaments } from './tournaments';
+import { qr } from './qr';
+import { messages } from './messages';
+import { secretQueen } from './secretQueen';
 
-export const de: Messages<typeof en> = { nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const de: Messages<typeof en> = { tournaments, qr, messages, secretQueen, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };

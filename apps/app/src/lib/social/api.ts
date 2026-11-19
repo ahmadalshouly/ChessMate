@@ -26,13 +26,21 @@ export class ApiError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(method, `/api/social/${path}`, body);
+}
+
+/**
+ * Calls the game server's HTTP API as the signed-in player (the same identity
+ * as friends). `optionalAuth` sends the request without a token when signed out.
+ */
+export async function apiRequest<T>(method: string, path: string, body?: unknown, opts: { optionalAuth?: boolean } = {}): Promise<T> {
   const id = getSocialIdentity();
-  if (!id) throw new ApiError(401, translate('friends.signInRequired'));
+  if (!id && !opts.optionalAuth) throw new ApiError(401, translate('friends.signInRequired'));
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/api/social/${path}`, {
+    res = await fetch(`${API_URL}${path}`, {
       method,
-      headers: { authorization: `Bearer ${id.token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      headers: { ...(id ? { authorization: `Bearer ${id.token}` } : {}), ...(body ? { 'content-type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {

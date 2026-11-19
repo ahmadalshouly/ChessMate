@@ -74,6 +74,7 @@ export class ProfileService {
       id: user.id,
       title: this.deps.titleOf?.(user.id) ?? null,
       roleTag: this.deps.roleTagOf?.(user.id) ?? null,
+      playerTag: rec.playerTag ?? null,
       username: user.username,
       displayName: rec.displayName ?? user.username,
       avatar: rec.avatar,
@@ -117,6 +118,7 @@ export class ProfileService {
       bio: edit.bio === undefined ? rec.bio : edit.bio,
       country: edit.country === undefined ? rec.country : edit.country,
       avatar: edit.avatar ?? rec.avatar,
+      playerTag: edit.playerTag === undefined ? (rec.playerTag ?? null) : edit.playerTag,
       updatedAt: this.now(),
     };
     await this.store.save(next);

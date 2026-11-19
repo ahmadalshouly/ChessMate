@@ -1,6 +1,9 @@
 import {
   FIRST_MOVE_TIMEOUT_MS,
   Game,
+  SecretQueenGame,
+  type GameVariant,
+  type Square,
   createClock,
   isFlagged,
   outcomeFor,
@@ -35,11 +38,13 @@ export { FIRST_MOVE_TIMEOUT_MS };
  * timer.
  */
 export class GameRoom {
-  readonly game: Game;
+  readonly game: Game | SecretQueenGame;
   clock: ClockState;
   outcome: GameOutcome | null = null;
   drawOfferBy: Color | null = null;
   readonly createdAt: number;
+  /** Set for games a tournament started; the tournament scores the result. */
+  tournamentId: string | null = null;
   /** Server-measured think time per ply (ms), for fair-play timing analysis. */
   readonly thinkMs: number[] = [];
   private lastMoveAt: number;
@@ -55,11 +60,25 @@ export class GameRoom {
     now: number,
     private readonly events: RoomEvents,
     readonly initialFen: string = START_FEN,
+    readonly variant: GameVariant = 'standard',
   ) {
-    this.game = new Game(initialFen);
+    this.game = variant === 'secretQueen' ? new SecretQueenGame(initialFen) : new Game(initialFen);
     this.clock = createClock(timeControl);
     this.createdAt = now;
     this.lastMoveAt = now;
+  }
+
+  /** The Secret Queen rules engine, or null for standard games. */
+  get secret(): SecretQueenGame | null {
+    return this.game instanceof SecretQueenGame ? this.game : null;
+  }
+
+  /** Secret Queen: a player picks (or changes) their secret pawn before their first move. */
+  pickSecret(playerId: string, square: Square): boolean {
+    const color = this.colorOf(playerId);
+    const g = this.secret;
+    if (!color || !g || this.outcome) return false;
+    return g.pick(color, square);
   }
 
   colorOf(playerId: string): Color | null {
@@ -228,6 +247,15 @@ export class GameRoom {
       drawOfferBy: this.drawOfferBy,
       outcome: this.outcome,
       firstMoveDeadline: this.abortable ? (this.clock.startedAt ?? this.createdAt) + FIRST_MOVE_TIMEOUT_MS : null,
+      tournamentId: this.tournamentId,
+      ...(this.secret
+        ? {
+            variant: 'secretQueen' as const,
+            fen: this.secret.fen,
+            positions: this.secret.history().map((m) => ({ uci: m.uci, san: m.san, fen: m.fenAfter })),
+            reveals: this.secret.reveals(),
+          }
+        : {}),
     };
   }
 }

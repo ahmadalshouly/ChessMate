@@ -2,6 +2,25 @@ import type { Messages } from '../../core';
 import type { profile as en } from '../en/profile';
 
 export const profile: Messages<typeof en> = {
+  tags: {
+    learner: 'متعلم',
+    casual: 'لاعب هاوٍ',
+    competitive: 'تنافسي',
+    tactician: 'تكتيكي',
+    positional: 'لاعب مواقع',
+    endgame: 'عاشق النهايات',
+    openings: 'مستكشف الافتتاحيات',
+    speed: 'سريع جدًا',
+    nightOwl: 'بومة الليل',
+    puzzles: 'محب الألغاز',
+    coachable: 'منفتح على النصائح',
+    veteran: 'مخضرم',
+  },
+  actions: {
+    accept: 'قبول الطلب',
+    message: 'رسالة',
+    signInToAdd: 'سجّل الدخول لإضافة أصدقاء وإرسال رسائل.',
+  },
   signInTitle: 'سجّل الدخول لترى ملفك الشخصي',
   signInBody: 'تصنيفاتك وإحصاءاتك وسجل مبارياتك محفوظة في حسابك.',
   loadFailed: 'تعذّر تحميل هذا الملف الشخصي',
@@ -35,6 +54,8 @@ export const profile: Messages<typeof en> = {
   resultLost: 'خسارة',
   moves: { zero: 'بلا نقلات', one: 'نقلة واحدة', two: 'نقلتان', few: '{count} نقلات', many: '{count} نقلة', other: '{count} نقلة' },
   editScreen: {
+    tag: 'وسمك',
+    tagHint: 'اختر وسمًا يصف أسلوب لعبك. يظهر بجانب اسمك. الوسوم الرسمية مثل مدرب أو صانع بث يمنحها فريق ChessMate.',
     avatar: 'الصورة الرمزية',
     about: 'عنك',
     displayName: 'الاسم المعروض',

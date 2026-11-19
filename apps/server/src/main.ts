@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS, isStaff } from '@chessmate/core';
 import { DEFAULT_PGLITE_DIR, abortStaleGames, ensureUser, getGameReview, openDb, saveGameReview } from '@chessmate/db';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -18,6 +19,8 @@ import { Moderation } from './moderation';
 import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
+import { MessageService } from './messages/service';
+import { TournamentService } from './tournaments/service';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -62,7 +65,8 @@ function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number
   const auth = new AuthService({ store: authStore, mailer: mailerFromEnv(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
   const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend(), gamesOf);
-  const profiles = profileRoutes(profileDeps, new MemoryProfileStore());
+  const profileStore = new MemoryProfileStore();
+  const profiles = profileRoutes(profileDeps, profileStore);
   const base: ServerOptions = {
     port,
     auth,
@@ -72,7 +76,7 @@ function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number
     http: [authRoutes(auth), profiles, (req, res) => puzzles.handle(req, res)],
     adminToken: process.env.ADMIN_TOKEN || undefined,
   };
-  return { auth, base, profileDeps };
+  return { auth, base, profileDeps, profileStore };
 }
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
@@ -88,7 +92,7 @@ async function start() {
   const stale = await abortStaleGames(db.db);
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
-  const { auth, base, profileDeps } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
+  const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
   // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
   const admin = new AdminService({ db: db.db, auth });
   await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));
@@ -96,6 +100,12 @@ async function start() {
   const persistence = new DbGamePersistence(db.db);
   reviewStore.current = { get: (k) => getGameReview(db.db, k), put: (k, r, g) => saveGameReview(db.db, k, r, g) };
   const store = await DbPlayerStore.load(db.db, persistence);
+  const privacy = (id: string) => profileStore.get(id)?.settings.privacy.messages ?? DEFAULT_SETTINGS.privacy.messages;
+  const messages = new MessageService({ db: db.db, privacyOf: privacy, isStaff: (id) => isStaff(admin.roleOf(id)) });
+  admin.messages = messages;
+  const tournaments = new TournamentService({ db: db.db });
+  await tournaments.load();
+  admin.tournaments = tournaments;
   return {
     server: new ChessServer({
       ...base,
@@ -106,6 +116,8 @@ async function start() {
       persistence,
       leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)),
       social: new SocialService(db.db),
+      messages,
+      tournaments,
       // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
       // tokens also get an account row on first use so friends and search can be tried.
       resolveUser: async (token) => {

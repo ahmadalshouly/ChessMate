@@ -21,6 +21,8 @@ export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconN
   { key: 'reports', href: '/admin/reports', label: 'admin.nav.reports', icon: 'flag-outline', needs: 'reports.view' },
   { key: 'fairplay', href: '/admin/fairplay', label: 'admin.nav.fairplay', icon: 'shield-checkmark-outline', needs: 'fairplay.view' },
   { key: 'titles', href: '/admin/titles', label: 'admin.nav.titles', icon: 'ribbon-outline', needs: 'titles.review' },
+  { key: 'tournaments', href: '/admin/tournaments', label: 'admin.nav.tournaments', icon: 'trophy-outline', needs: 'tournaments.manage' },
+  { key: 'messages', href: '/admin/messages', label: 'admin.nav.messages', icon: 'megaphone-outline', needs: 'messages.broadcast' },
   { key: 'games', href: '/admin/games', label: 'admin.nav.games', icon: 'grid-outline', needs: 'games.view' },
   { key: 'audit', href: '/admin/audit', label: 'admin.nav.audit', icon: 'document-text-outline', needs: 'audit.view' },
 ];

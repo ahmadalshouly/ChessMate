@@ -8,3 +8,5 @@ export * from './repo/social';
 export * from './repo/reviews';
 export * from './repo/admin';
 export * from './repo/titles';
+export * from './repo/messages';
+export * from './repo/tournaments';

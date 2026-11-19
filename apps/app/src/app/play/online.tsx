@@ -118,7 +118,9 @@ export default function OnlinePlay() {
     setPanel(panel === p ? null : p);
   };
 
-  const title = view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
+  const title = view
+    ? `${formatTimeControl(view.timeControl)} · ${view.variant === 'secretQueen' ? tr('secretQueen.name') : view.rated ? tr('play.rated') : tr('play.casual')}`
+    : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
   const connectionNotice = s.restricted ? (
     <RestrictionBanner style={styles.restricted} />
@@ -194,10 +196,15 @@ export default function OnlinePlay() {
   const orientation: Color = flipped ? opp : you;
   const top: Color = orientation === 'w' ? 'b' : 'w';
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
-  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
+  const boardFen = nav.live ? (board.displayFen ?? view.fen) : (shownMove?.fenAfter ?? START);
   const boardLast = nav.live ? last : shownMove;
   const oppOfferedRematch = view.rematchBy === opp;
-  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
+  const secretQueen = view.variant === 'secretQueen';
+  // Secret Queen games are not reviewed or archived: pawns that moved like queens confuse the engine and the replay.
+  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0 && !secretQueen;
+  const crowned = secretQueen ? (over && view.endSecrets ? [view.endSecrets.w, view.endSecrets.b].filter((x): x is NonNullable<typeof x> => !!x) : view.secret ? [view.secret] : []) : undefined;
+  const revealText = (r: (typeof view.reveals)[number]) =>
+    tr(`secretQueen.revealed.${r.reason}`, { side: r.color === 'w' ? tr('play.white') : tr('play.black'), square: r.square });
 
   const openReview = () =>
     router.push({
@@ -237,13 +244,16 @@ export default function OnlinePlay() {
   const canReport = !!me && opponent.id !== me.id;
   const moreItems: OptionItem[] = [
     { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlipped((f) => !f) },
-    ...(view.premove ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.setPremove(null) }] : []),
+    ...(view.premoves.length ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.clearPremoves() }] : []),
     ...(over
       ? [
           ...(hideResult ? [{ key: 'result', icon: 'trophy-outline' as const, label: tr('game.over.showResult'), onPress: () => { setHideResult(false); setPanel(null); } }] : []),
           { key: 'new', icon: 'plus-circle-outline' as const, label: tr('game.more.newGame', { tc: formatTimeControl(view.timeControl) }), onPress: newGame },
-          ...(view.outcome!.reason !== 'aborted'
+          ...(view.outcome!.reason !== 'aborted' && !secretQueen
             ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } }) }]
+            : []),
+          ...(view.tournamentId
+            ? [{ key: 'tournament', icon: 'trophy-outline' as const, label: tr('tournaments.back'), onPress: () => router.push({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) }]
             : []),
           { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
         ]
@@ -274,6 +284,13 @@ export default function OnlinePlay() {
           text={history.length < 2 ? tr('play.online.oppGoneEarly') : abandonIn !== null ? tr('play.online.oppGoneWin', { n: abandonIn }) : tr('play.online.oppGoneWait')}
         />
       )}
+      {live && secretQueen && board.picking && <BoardNotice icon="crown-outline" text={tr('secretQueen.pick')} strong />}
+      {live && secretQueen && !board.picking && view.canPickSecret && view.secret && (
+        <BoardNotice icon="crown" text={tr('secretQueen.chosen', { square: view.secret })}>
+          <NoticeButton icon="swap-horizontal" label={tr('secretQueen.change')} onPress={board.repick} />
+        </BoardNotice>
+      )}
+      {secretQueen && view.lastReveals.length > 0 && nav.live && <BoardNotice icon="eye-outline" text={view.lastReveals.map(revealText).join(' ')} />}
       {firstMoveIn !== null && view.opponentConnected && (
         <BoardNotice
           icon="timer-sand"
@@ -284,7 +301,10 @@ export default function OnlinePlay() {
       {s.error && <BoardNotice icon="alert-circle-outline" text={serverText(s.error)} />}
     </>
   );
-  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null)) || !!s.error;
+  const hasNotice =
+    (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null || (secretQueen && (board.picking || view.canPickSecret)))) ||
+    (secretQueen && view.lastReveals.length > 0) ||
+    !!s.error;
   const firstMoveStatus = (c: Color) => (firstMoveIn !== null && c === toMove ? tr('play.online.firstMoveCountdown', { n: firstMoveIn }) : null);
   const oppName = players[opp].name;
 
@@ -327,7 +347,8 @@ export default function OnlinePlay() {
               size={boardSize}
               selected={nav.live ? board.selected : null}
               targets={nav.live ? board.targets : []}
-              premove={nav.live ? view.premove : null}
+              premoves={nav.live ? view.premoves : null}
+              crowned={nav.live || over ? crowned : undefined}
               lastMove={boardLast ? { from: boardLast.from, to: boardLast.to } : null}
               checkSquare={checkSquareOf(boardFen)}
               onSquarePress={nav.live ? board.onSquarePress : undefined}

@@ -70,6 +70,14 @@ export const notifications: Messages<typeof en> = {
       label: 'Partieanalyse fertig',
       description: 'Der Coach hat deine Partie analysiert',
     },
+    message: {
+      label: 'Nachrichten',
+      description: 'Jemand schreibt dir eine Nachricht',
+    },
+    tournament: {
+      label: 'Turniere',
+      description: 'Ein Turnier, dem du beigetreten bist, beginnt',
+    },
     system: {
       label: 'Konto und Sicherheit',
       description: 'Wichtige Kontonachrichten',

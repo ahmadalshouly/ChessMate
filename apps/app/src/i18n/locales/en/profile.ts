@@ -1,4 +1,23 @@
 export const profile = {
+  tags: {
+    learner: 'Learner',
+    casual: 'Casual player',
+    competitive: 'Competitive',
+    tactician: 'Tactician',
+    positional: 'Positional player',
+    endgame: 'Endgame lover',
+    openings: 'Opening explorer',
+    speed: 'Speed demon',
+    nightOwl: 'Night owl',
+    puzzles: 'Puzzle fan',
+    coachable: 'Open to tips',
+    veteran: 'Veteran',
+  },
+  actions: {
+    accept: 'Accept request',
+    message: 'Message',
+    signInToAdd: 'Sign in to add friends and send messages.',
+  },
   signInTitle: 'Sign in to see your profile',
   signInBody: 'Your ratings, stats and game history live on your account.',
   loadFailed: 'Couldn\'t load this profile',
@@ -25,6 +44,8 @@ export const profile = {
   resultLost: 'lost',
   moves: { one: '{count} move', other: '{count} moves' },
   editScreen: {
+    tag: 'Your tag',
+    tagHint: 'Pick one that describes how you play. It shows next to your name. Official tags like Coach or Streamer are given by ChessMate staff.',
     avatar: 'Avatar',
     about: 'About you',
     displayName: 'Display name',

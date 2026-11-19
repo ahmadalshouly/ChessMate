@@ -70,6 +70,14 @@ export const notifications: Messages<typeof en> = {
       label: 'مراجعة المباراة جاهزة',
       description: 'أنهى المدرب مراجعة مباراتك',
     },
+    message: {
+      label: 'الرسائل',
+      description: 'أرسل إليك أحدهم رسالة',
+    },
+    tournament: {
+      label: 'البطولات',
+      description: 'بدأت بطولة انضممت إليها',
+    },
     system: {
       label: 'الحساب والأمان',
       description: 'رسائل مهمة عن الحساب',

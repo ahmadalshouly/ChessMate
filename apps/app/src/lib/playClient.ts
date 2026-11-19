@@ -7,6 +7,9 @@ import {
   remaining,
   timeCategory,
   type AccountRestriction,
+  type GameVariant,
+  type SecretReveal,
+  type SecretSquares,
   type Challenge,
   type ChallengeColor,
   type ChallengeEndReason,
@@ -48,6 +51,8 @@ export interface SeekRequest {
   range?: number;
   /** Side to play; 'random' or undefined pairs with anyone. */
   color?: ColorChoice;
+  /** Rules variant (Secret Queen is always casual). */
+  variant?: GameVariant;
 }
 
 export interface SeekStatus {
@@ -56,6 +61,13 @@ export interface SeekStatus {
   waitedMs: number;
   /** Local time the status arrived, to keep the wait timer ticking between updates. */
   at: number;
+}
+
+/** A queued move; `promotion` is the piece picked for a pawn reaching the last rank (queen if absent). */
+export interface Premove {
+  from: string;
+  to: string;
+  promotion?: 'q' | 'r' | 'b' | 'n';
 }
 
 export interface GameView {
@@ -80,10 +92,23 @@ export interface GameView {
   opponentAbandonAt: number | null;
   rematchBy: Color | null;
   rematchDeclined: boolean;
-  /** Queued move; `promotion` is the piece picked for a pawn reaching the last rank (queen if absent). */
-  premove: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' } | null;
+  /** Queued moves, played one per opponent move; the first is next. Phones queue one, the web several. */
+  premoves: Premove[];
   /** Server time by which the side to move must make its first move; null once both have moved. */
   firstMoveDeadline: number | null;
+  /** The tournament this game belongs to, if any. */
+  tournamentId: string | null;
+  variant: GameVariant;
+  /** Secret Queen: your secret pawn (only you know it), null once revealed, captured or before you pick. */
+  secret: Square | null;
+  /** Secret Queen: you can still pick or change it (before your first move). */
+  canPickSecret: boolean;
+  /** Secret Queen: what has been revealed so far. */
+  reveals: SecretReveal[];
+  /** Secret Queen: both secret pawns, shown when the game ends. */
+  endSecrets: SecretSquares | null;
+  /** Secret Queen: what the latest move (or refused move) revealed, for a notice. */
+  lastReveals: SecretReveal[];
 }
 
 export interface PlayState {
@@ -117,6 +142,32 @@ function storage(): Storage | null {
 
 function freshGuestToken() {
   return `guest:Guest${Math.floor(Math.random() * 9000 + 1000)}`;
+}
+
+/** A Secret Queen move as the board needs it, from the server's public record. */
+function secretEntry(p: { uci: string; san: string; fen: string }, fenBefore: string): PlayedMove {
+  const color: Color = fenBefore.split(' ')[1] === 'b' ? 'b' : 'w';
+  return {
+    san: p.san,
+    uci: p.uci,
+    from: p.uci.slice(0, 2) as Square,
+    to: p.uci.slice(2, 4) as Square,
+    color,
+    piece: '',
+    promotion: p.uci[4],
+    fenAfter: p.fen,
+    isCheck: /[+#]$/.test(p.san),
+  };
+}
+
+function secretHistory(positions: { uci: string; san: string; fen: string }[], initialFen: string): PlayedMove[] {
+  const out: PlayedMove[] = [];
+  let before = initialFen;
+  for (const p of positions) {
+    out.push(secretEntry(p, before));
+    before = p.fen;
+  }
+  return out;
 }
 
 class PlayClient {
@@ -325,11 +376,16 @@ class PlayClient {
           ratingChange: m.ratingChange,
           unrated: m.unrated,
           drawOfferBy: null,
-          premove: null,
+          premoves: [],
           opponentAbandonAt: null,
           firstMoveDeadline: null,
+          endSecrets: m.secrets ?? null,
+          canPickSecret: false,
           clock: { ...this.state.game.clock, running: null, startedAt: null },
         });
+      case 'secret':
+        if (this.state.game?.gameId !== m.gameId) return;
+        return this.patchGame({ secret: m.square, canPickSecret: m.canPick });
       case 'rematchOffered':
         return this.patchGame({ rematchBy: m.by, rematchDeclined: false });
       case 'rematchDeclined':
@@ -350,8 +406,11 @@ class PlayClient {
   }
 
   private load(s: GameSnapshot, you: Color) {
-    this.game = Game.fromUciMoves(s.moves, s.initialFen);
     const prev = this.state.game?.gameId === s.gameId ? this.state.game : null;
+    const secretQueen = s.variant === 'secretQueen';
+    // Secret Queen positions come from the server (pawns may move like queens); standard games replay the moves.
+    this.game = secretQueen ? new Game(s.fen ?? s.initialFen) : Game.fromUciMoves(s.moves, s.initialFen);
+    const history = secretQueen ? secretHistory(s.positions ?? [], s.initialFen) : this.game.history();
     this.set({
       game: {
         gameId: s.gameId,
@@ -360,8 +419,8 @@ class PlayClient {
         black: s.black,
         timeControl: s.timeControl,
         rated: s.rated,
-        fen: this.game.fen,
-        history: this.game.history(),
+        fen: secretQueen ? (s.fen ?? s.initialFen) : this.game.fen,
+        history,
         clock: s.clock,
         clockOffset: s.serverNow - Date.now(),
         outcome: s.outcome,
@@ -372,8 +431,16 @@ class PlayClient {
         unrated: prev?.unrated,
         rematchBy: null,
         rematchDeclined: false,
-        premove: prev?.premove ?? null,
+        premoves: prev?.premoves ?? [],
         firstMoveDeadline: s.outcome ? null : (s.firstMoveDeadline ?? null),
+        tournamentId: s.tournamentId ?? null,
+        variant: s.variant ?? 'standard',
+        secret: prev?.secret ?? null,
+        canPickSecret: prev?.canPickSecret ?? (secretQueen && !s.outcome),
+        reveals: s.reveals ?? [],
+        endSecrets: prev?.endSecrets ?? null,
+        // A reveal without a move (a refused move) arrives as a fresh snapshot.
+        lastReveals: prev && (s.reveals?.length ?? 0) > prev.reveals.length ? (s.reveals ?? []).slice(prev.reveals.length) : (prev?.lastReveals ?? []),
       },
       error: null,
     });
@@ -382,6 +449,24 @@ class PlayClient {
   private onMoved(m: Extract<ServerMessage, { t: 'moved' }>) {
     const view = this.state.game;
     if (!view || view.gameId !== m.gameId) return;
+    if (view.variant === 'secretQueen' && m.fen) {
+      // The server is the only one who knows both secrets: take its position as it is.
+      if (view.history.length !== m.ply - 1) return this.send({ t: 'join', gameId: m.gameId });
+      const prevFen = view.history[view.history.length - 1]?.fenAfter ?? view.fen;
+      const entry = secretEntry({ uci: m.uci, san: m.san, fen: m.fen }, prevFen);
+      this.game = new Game(m.fen);
+      moveFeedback(m.san);
+      return this.patchGame({
+        clock: m.clock,
+        clockOffset: m.serverNow - Date.now(),
+        drawOfferBy: null,
+        fen: m.fen,
+        history: [...view.history, entry],
+        reveals: [...view.reveals, ...(m.reveals ?? [])],
+        lastReveals: m.reveals ?? [],
+        firstMoveDeadline: m.ply === 1 ? (m.clock.startedAt ?? m.serverNow) + FIRST_MOVE_TIMEOUT_MS : null,
+      });
+    }
     const g = this.game;
     let mover: Color | null = null;
     if (g.ply === m.ply - 1) {
@@ -400,11 +485,11 @@ class PlayClient {
       // White's first move starts black's 30 seconds; after black's, the clocks take over.
       firstMoveDeadline: m.ply === 1 ? (m.clock.startedAt ?? m.serverNow) + FIRST_MOVE_TIMEOUT_MS : null,
     });
-    // Opponent just moved: fire the queued premove if it is legal now.
-    const pm = this.state.game?.premove;
+    // Opponent just moved: play the next queued premove if it is legal now. An illegal one drops the whole queue.
+    const [pm, ...rest] = this.state.game?.premoves ?? [];
     if (mover && mover !== view.you && pm) {
-      this.patchGame({ premove: null });
       const legal = g.legalMoves(pm.from as Square).find((x) => x.to === pm.to);
+      this.patchGame({ premoves: legal ? rest : [] });
       if (legal) this.move(`${pm.from}${pm.to}${legal.promotion ? (pm.promotion ?? 'q') : ''}`);
     }
   }
@@ -452,6 +537,11 @@ class PlayClient {
     const view = this.state.game;
     const g = this.game;
     if (!view || view.outcome || g.turn !== view.you) return false;
+    if (view.variant === 'secretQueen') {
+      // No local rules check: only the server knows where the opponent's secret queen is.
+      this.send({ t: 'move', gameId: view.gameId, uci, ply: view.history.length });
+      return true;
+    }
     const ply = g.ply;
     const played = g.move(uci);
     if (!played) return false;
@@ -461,12 +551,24 @@ class PlayClient {
     return true;
   }
 
-  setPremove(premove: GameView['premove']) {
-    if (premove) {
-      playSound('premove');
-      haptic('premove');
-    }
-    this.patchGame({ premove });
+  /** Secret Queen: pick (or change) your secret pawn before your first move. */
+  pickSecret(square: Square) {
+    const view = this.state.game;
+    if (!view || view.variant !== 'secretQueen' || !view.canPickSecret) return;
+    this.patchGame({ secret: square });
+    haptic('pickup');
+    this.send({ t: 'secretPick', gameId: view.gameId, square });
+  }
+
+  /** Queues a premove: added to the end (`append`, web) or replacing what was queued (phones). */
+  addPremove(premove: Premove, append: boolean) {
+    playSound('premove');
+    haptic('premove');
+    this.patchGame({ premoves: append ? [...(this.state.game?.premoves ?? []), premove] : [premove] });
+  }
+
+  clearPremoves() {
+    if (this.state.game?.premoves.length) this.patchGame({ premoves: [] });
   }
 
   private gameAction(t: 'resign' | 'abort' | 'offerDraw' | 'acceptDraw' | 'declineDraw' | 'rematch' | 'declineRematch') {

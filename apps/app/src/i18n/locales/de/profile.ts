@@ -2,6 +2,25 @@ import type { Messages } from '../../core';
 import type { profile as en } from '../en/profile';
 
 export const profile: Messages<typeof en> = {
+  tags: {
+    learner: 'Lernend',
+    casual: 'Hobbyspieler',
+    competitive: 'Ehrgeizig',
+    tactician: 'Taktiker',
+    positional: 'Positionsspieler',
+    endgame: 'Endspiel-Fan',
+    openings: 'Eröffnungsforscher',
+    speed: 'Blitzteufel',
+    nightOwl: 'Nachteule',
+    puzzles: 'Puzzle-Fan',
+    coachable: 'Offen für Tipps',
+    veteran: 'Veteran',
+  },
+  actions: {
+    accept: 'Anfrage annehmen',
+    message: 'Nachricht',
+    signInToAdd: 'Melde dich an, um Freunde hinzuzufügen und Nachrichten zu schreiben.',
+  },
   signInTitle: 'Melde dich an, um dein Profil zu sehen',
   signInBody: 'Deine Wertungen, Statistiken und dein Partienverlauf liegen in deinem Konto.',
   loadFailed: 'Profil konnte nicht geladen werden',
@@ -28,6 +47,8 @@ export const profile: Messages<typeof en> = {
   resultLost: 'verloren',
   moves: { one: '{count} Zug', other: '{count} Züge' },
   editScreen: {
+    tag: 'Dein Tag',
+    tagHint: 'Wähle einen, der zu deinem Spiel passt. Er steht neben deinem Namen. Offizielle Tags wie Trainer oder Streamer vergibt das ChessMate-Team.',
     avatar: 'Avatar',
     about: 'Über dich',
     displayName: 'Anzeigename',
