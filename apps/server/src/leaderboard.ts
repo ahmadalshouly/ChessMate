@@ -100,8 +100,31 @@ export class LeaderboardError extends Error {
 
 const MAX_LIMIT = 100;
 
+/** How long a global or country page is reused before it is queried again. */
+const PAGE_TTL_MS = 15_000;
+const MAX_CACHED_PAGES = 500;
+
 export class Leaderboards {
-  constructor(private readonly source: LeaderboardSource) {}
+  /** Global and country pages are the same for everyone: one query per page every 15 s, shared by all viewers (and by requests that arrive while it runs). */
+  private pages = new Map<string, { at: number; page: Promise<{ total: number; entries: LeaderboardEntry[] }> }>();
+
+  constructor(
+    private readonly source: LeaderboardSource,
+    private readonly now: () => number = Date.now,
+  ) {}
+
+  private sharedPage(f: BoardFilter, limit: number, offset: number) {
+    if (f.userIds) return this.source.page(f, limit, offset);
+    const key = JSON.stringify([f.category, f.country ?? null, f.includeProvisional, limit, offset]);
+    const hit = this.pages.get(key);
+    if (hit && this.now() - hit.at < PAGE_TTL_MS) return hit.page;
+    const page = this.source.page(f, limit, offset);
+    // A failed query is not kept, so the next request tries again.
+    page.catch(() => this.pages.get(key)?.page === page && this.pages.delete(key));
+    if (this.pages.size >= MAX_CACHED_PAGES) this.pages.delete(this.pages.keys().next().value!);
+    this.pages.set(key, { at: this.now(), page });
+    return page;
+  }
 
   async get(q: LeaderboardQuery): Promise<LeaderboardPage> {
     if (!LEADERBOARD_CATEGORIES.includes(q.category)) throw new LeaderboardError(400, 'Unknown rating category');
@@ -124,7 +147,7 @@ export class Leaderboards {
       filter = { category: q.category, includeProvisional: false };
     }
 
-    const { total, entries } = await this.source.page(filter, limit, offset);
+    const { total, entries } = await this.sharedPage(filter, limit, offset);
     const you = viewerId ? (entries.find((e) => e.userId === viewerId) ?? (await this.source.standing(filter, viewerId))) : null;
     return { category: q.category, scope: q.scope, country, total, offset, entries, you };
   }

@@ -10,6 +10,8 @@ import { currentPushStatus, disablePush, enablePush, pushSupported, type PushSta
 import { translate } from '@/i18n';
 
 const POLL_MS = 30_000;
+/** With the live connection up, new notifications are pushed; poll only now and then (read state from other devices). */
+const POLL_EVERY_N_WHEN_LIVE = 6;
 
 export interface NotificationsContextValue {
   items: AppNotification[];
@@ -89,11 +91,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Poll while the app is in the foreground and refresh when it comes back.
   useEffect(() => {
     void refresh();
-    let timer: ReturnType<typeof setInterval> | null = setInterval(() => void refresh(), POLL_MS);
+    let ticks = 0;
+    const poll = () => {
+      ticks++;
+      if (playClient.getState().connection === 'online' && ticks % POLL_EVERY_N_WHEN_LIVE !== 0) return;
+      void refresh();
+    };
+    let timer: ReturnType<typeof setInterval> | null = setInterval(poll, POLL_MS);
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') {
         void refresh();
-        timer ??= setInterval(() => void refresh(), POLL_MS);
+        timer ??= setInterval(poll, POLL_MS);
       } else if (timer) {
         clearInterval(timer);
         timer = null;

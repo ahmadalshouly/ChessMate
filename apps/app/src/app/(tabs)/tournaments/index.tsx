@@ -37,7 +37,7 @@ export default function Tournaments() {
   useFocusEffect(
     useCallback(() => {
       load();
-      const timer = setInterval(load, 15_000);
+      const timer = setInterval(load, 60_000);
       return () => clearInterval(timer);
     }, [load]),
   );

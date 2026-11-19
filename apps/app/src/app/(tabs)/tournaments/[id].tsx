@@ -50,12 +50,14 @@ export default function TournamentScreen() {
       (e: Error) => setError(e.message),
     );
   }, [id]);
+  // Standings move fast only while it runs; before and after, a slow refresh is plenty.
+  const running = tour?.status === 'running';
   useFocusEffect(
     useCallback(() => {
       load();
-      const timer = setInterval(load, 3_000);
+      const timer = setInterval(load, running ? 5_000 : 30_000);
       return () => clearInterval(timer);
-    }, [load]),
+    }, [load, running]),
   );
 
   // The server paired you: open the game.

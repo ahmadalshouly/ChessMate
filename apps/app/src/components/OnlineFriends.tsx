@@ -11,7 +11,8 @@ import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { Text, useAppTheme } from '@/ui';
 
-const POLL_MS = 30_000;
+/** A safety net only: presence and friend changes arrive live over the socket. */
+const POLL_MS = 120_000;
 
 /** Friends who are online or playing right now, playing first. Empty when signed out. */
 export function useOnlineFriends(): { friends: FriendEntry[]; loaded: boolean } {

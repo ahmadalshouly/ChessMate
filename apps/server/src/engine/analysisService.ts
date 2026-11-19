@@ -14,7 +14,7 @@ import {
   type UciInfo,
 } from '@chessmate/core';
 import { createHash } from 'node:crypto';
-import type { EnginePool } from './pool';
+import { EngineBusyError, type EnginePool } from './pool';
 
 export interface AnalysisServiceOptions {
   /** Engine settings for game reviews (per position). */
@@ -26,6 +26,8 @@ export interface AnalysisServiceOptions {
   store?: ReviewStore;
   /** Review finished online games in the background (default on). */
   precompute?: boolean;
+  /** Analysis-board requests allowed to wait for an engine before "busy" (default 64). */
+  maxAnalysisQueue?: number;
   log?: (msg: string) => void;
 }
 
@@ -134,6 +136,7 @@ export class AnalysisService {
       await this.pool.run(
         (engine) => engine.search(fen, { multipv, depth, movetimeMs }, onInfo, ctrl.signal),
         ctrl.signal,
+        { priority: 'high', maxQueue: this.opts.maxAnalysisQueue ?? 64 },
       );
       if (pending) clearTimeout(pending);
       if (!ctrl.signal.aborted) send({ t: 'analysis', id: req.id, analysis: snapshot(), done: true });
@@ -271,6 +274,8 @@ export class AnalysisService {
     let finish!: (v: GameReview | null) => void;
     let fail!: (e: unknown) => void;
     const promise = new Promise<GameReview | null>((res, rej) => ((finish = res), (fail = rej)));
+    // Background reviews only use spare engine time until a player asks for this one.
+    let urgent = !o.background;
     const job: ReviewJob = {
       ctrl,
       promise,
@@ -278,6 +283,8 @@ export class AnalysisService {
       done: 0,
       listeners: new Set(),
       boost: () => {
+        // Someone is waiting for it now: it no longer yields to other reviews.
+        urgent = true;
         while (running < this.pool.size && next < fens.length && !ctrl.signal.aborted) spawn();
       },
     };
@@ -293,6 +300,8 @@ export class AnalysisService {
           const res = await this.pool.run(
             (engine) => engine.search(fen, { multipv: REVIEW_DEFAULTS.multipv, depth, movetimeMs }, undefined, ctrl.signal),
             ctrl.signal,
+            // A review someone is waiting for outranks one done just in case.
+            { priority: urgent ? 'normal' : 'low' },
           );
           evals[i] = positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null);
         }
@@ -372,6 +381,7 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 function engineError(err: unknown, id: number): ServerMessage {
+  if (err instanceof EngineBusyError) return { t: 'error', code: 'engine_unavailable', message: err.message, id };
   const message = err instanceof Error ? err.message : 'Engine error';
   return { t: 'error', code: 'engine_unavailable', message: `Engine unavailable: ${message}`, id };
 }
