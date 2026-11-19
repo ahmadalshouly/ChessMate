@@ -8,6 +8,7 @@ import { Board } from '@/components/Board';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
 import { ReportDialog } from '@/components/ReportDialog';
+import { RestrictionBanner } from '@/components/shell/RestrictionBanner';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
@@ -77,6 +78,9 @@ export default function OnlinePlay() {
   const last = prefs.pending ?? history[history.length - 1];
   useLowTimeWarning(view?.gameId ?? null, live, ms(you), view?.timeControl.initialMs ?? 0);
   const abandonIn = view?.opponentAbandonAt ? Math.max(0, Math.ceil((view.opponentAbandonAt - (Date.now() + view.clockOffset)) / 1000)) : null;
+  // Each side has 30 seconds for its first move; the server aborts the game after that.
+  const firstMoveIn = live && view?.firstMoveDeadline ? Math.max(0, Math.ceil((view.firstMoveDeadline - (Date.now() + view.clockOffset)) / 1000)) : null;
+  const toMove: Color = view?.fen.split(' ')[1] === 'b' ? 'b' : 'w';
 
   const me = s.me;
   const connected = s.connection === 'online' && !!me;
@@ -116,7 +120,9 @@ export default function OnlinePlay() {
 
   const title = view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
-  const connectionNotice = s.closedReason ? (
+  const connectionNotice = s.restricted ? (
+    <RestrictionBanner style={styles.restricted} />
+  ) : s.closedReason ? (
     <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
       <Text style={{ color: t.text, fontWeight: '600' }}>{serverText(s.closedReason)}</Text>
     </View>
@@ -268,10 +274,18 @@ export default function OnlinePlay() {
           text={history.length < 2 ? tr('play.online.oppGoneEarly') : abandonIn !== null ? tr('play.online.oppGoneWin', { n: abandonIn }) : tr('play.online.oppGoneWait')}
         />
       )}
+      {firstMoveIn !== null && view.opponentConnected && (
+        <BoardNotice
+          icon="timer-sand"
+          text={toMove === you ? tr('play.online.firstMoveYou', { n: firstMoveIn }) : tr('play.online.firstMoveOpp', { name: players[opp].name, n: firstMoveIn })}
+          strong={toMove === you}
+        />
+      )}
       {s.error && <BoardNotice icon="alert-circle-outline" text={serverText(s.error)} />}
     </>
   );
-  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected)) || !!s.error;
+  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null)) || !!s.error;
+  const firstMoveStatus = (c: Color) => (firstMoveIn !== null && c === toMove ? tr('play.online.firstMoveCountdown', { n: firstMoveIn }) : null);
   const oppName = players[opp].name;
 
   const popover =
@@ -303,8 +317,8 @@ export default function OnlinePlay() {
       <Stack.Screen options={{ title }} />
       <GameLayout
         notice={connectionNotice}
-        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} />}
-        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} />}
+        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} status={firstMoveStatus(top)} />}
+        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} status={firstMoveStatus(orientation)} />}
         renderBoard={(boardSize) => (
           <>
             <Board
@@ -371,5 +385,6 @@ export default function OnlinePlay() {
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
+  restricted: { marginHorizontal: 12, marginTop: 8 },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
 });

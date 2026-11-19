@@ -32,6 +32,11 @@ export interface GameSnapshot {
   serverNow: number;
   drawOfferBy: Color | null;
   outcome: GameOutcome | null;
+  /**
+   * Server time by which the side to move must make its first move, or the
+   * game is aborted. Null once both sides have moved.
+   */
+  firstMoveDeadline?: number | null;
 }
 
 /** Colour a custom game's creator wants to play. */
@@ -73,6 +78,8 @@ export type ClientMessage =
       ratingRange?: [number, number];
       /** Fixed rating window (± points). Omit to let the window widen while waiting. */
       range?: number;
+      /** Side the player wants; omitted or 'random' pairs with anyone. Two players wanting the same side are not paired. */
+      color?: ColorChoice;
     }
   | { t: 'cancelSeek' }
   | { t: 'lobbySub' }
@@ -115,7 +122,11 @@ export type ServerMessage =
       player: PlayerInfo;
       /** Guests only: send this as the token on reconnect to stay the same player. */
       resumeToken?: string;
+      /** Set when the account may not play online (closed for fair play). */
+      restricted?: AccountRestriction | null;
     }
+  /** The account was restricted (or the restriction lifted, reason null) while connected. */
+  | { t: 'restricted'; reason: AccountRestriction | null }
   | { t: 'pong'; id: number; serverNow: number }
   | { t: 'seeking'; timeControl: TimeControl }
   | { t: 'seekCancelled' }
@@ -177,7 +188,11 @@ export type ErrorCode =
   | 'chat_restricted'
   | 'engine_locked'
   | 'engine_unavailable'
-  | 'forbidden';
+  | 'forbidden'
+  | 'account_restricted';
+
+/** Why an account that can still sign in may not play online. */
+export type AccountRestriction = 'fair_play';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

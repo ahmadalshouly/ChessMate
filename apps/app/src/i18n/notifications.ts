@@ -17,6 +17,10 @@ const BODY: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Your coach review of the game against (.+) is ready$/, (m) => translate('notifications.body.reviewReady', { name: m[1]! })],
   [/^Your game against (.+): (\d+)% accuracy\. See where it turned$/, (m) => translate('notifications.body.reviewAccuracy', { name: m[1]!, accuracy: m[2]! })],
   [/^Notifications are working on this device\.$/, () => translate('notifications.body.test')],
+  // Moderation notices (apps/server/src/admin/notices.ts).
+  [/^Our fair play review found outside help in your games\./, () => translate('notifications.body.fairPlay')],
+  [/^Your account is open again\. Online play is back on\.$/, () => translate('notifications.body.reopened')],
+  [/^Chat is off for your account for (\d+) (hours?|days)\. Reason: (.*)$/s, (m) => translate(m[2] === 'days' ? 'notifications.body.mutedDays' : 'notifications.body.mutedHours', { count: Number(m[1]), reason: m[3]! })],
 ];
 
 const TITLE: Record<string, Parameters<typeof translate>[0]> = {
@@ -26,6 +30,10 @@ const TITLE: Record<string, Parameters<typeof translate>[0]> = {
   'Your turn': 'notifications.title.yourTurn',
   'Game review ready': 'notifications.title.reviewReady',
   'Test notification': 'notifications.title.test',
+  'Warning from ChessMate moderators': 'notifications.title.warning',
+  'Chat turned off': 'notifications.title.muted',
+  'Account closed for fair play': 'notifications.title.fairPlay',
+  'Account reopened': 'notifications.title.reopened',
 };
 
 export function notificationText(n: Pick<AppNotification, 'title' | 'body'>): { title: string; body: string } {

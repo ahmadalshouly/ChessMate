@@ -17,6 +17,10 @@ export const notifications: Messages<typeof en> = {
     reviewReady: 'Die Coach-Analyse deiner Partie gegen {name} ist fertig',
     reviewAccuracy: 'Deine Partie gegen {name}: {accuracy}% Genauigkeit. Sieh, wo sie kippte',
     test: 'Benachrichtigungen funktionieren auf diesem Gerät.',
+    fairPlay: 'Unsere Fair-Play-Prüfung hat fremde Hilfe in deinen Partien festgestellt. Du kannst dich weiter anmelden und deine Partien und Puzzles ansehen, aber Online-Partien sind deaktiviert. Deine Gegner haben ihre verlorenen Wertungspunkte zurückbekommen.',
+    reopened: 'Dein Konto ist wieder offen. Online-Partien sind wieder möglich.',
+    mutedHours: { one: 'Der Chat ist für dein Konto {count} Stunde deaktiviert. Grund: {reason}', other: 'Der Chat ist für dein Konto {count} Stunden deaktiviert. Grund: {reason}' },
+    mutedDays: { one: 'Der Chat ist für dein Konto {count} Tag deaktiviert. Grund: {reason}', other: 'Der Chat ist für dein Konto {count} Tage deaktiviert. Grund: {reason}' },
   },
   title: {
     challenge: 'Neue Herausforderung',
@@ -25,6 +29,10 @@ export const notifications: Messages<typeof en> = {
     yourTurn: 'Du bist dran',
     reviewReady: 'Partieanalyse fertig',
     test: 'Testbenachrichtigung',
+    warning: 'Verwarnung vom ChessMate-Team',
+    muted: 'Chat deaktiviert',
+    fairPlay: 'Konto wegen Fair Play geschlossen',
+    reopened: 'Konto wieder geöffnet',
   },
   time: {
     m: { one: '{count} Min.', other: '{count} Min.' },

@@ -88,3 +88,6 @@ export function formatClock(ms: number): string {
   const sec = String(s % 60).padStart(2, '0');
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
+
+/** Time each player has to make their first move before an online game is aborted. */
+export const FIRST_MOVE_TIMEOUT_MS = 30_000;

@@ -12,6 +12,8 @@ export interface Seek {
   ratingRange?: [number, number];
   /** Fixed ± window chosen by the player; it never widens past this. */
   range?: number;
+  /** Side the player asked for; absent means either. */
+  color?: 'w' | 'b';
 }
 
 export interface MatchOptions extends RatingRangeOptions {
@@ -24,6 +26,13 @@ export const DEFAULT_MATCH_OPTIONS: MatchOptions = { ...DEFAULT_RANGE_OPTIONS, o
 export interface Pairing {
   a: Seek;
   b: Seek;
+}
+
+/** Which seek plays white: a stated preference wins, otherwise a coin flip. */
+export function whiteOf(p: Pairing, coin: () => boolean = () => Math.random() < 0.5): Seek {
+  if (p.a.color === 'w' || p.b.color === 'b') return p.a;
+  if (p.b.color === 'w' || p.a.color === 'b') return p.b;
+  return coin() ? p.a : p.b;
 }
 
 /**
@@ -111,6 +120,7 @@ export class Matchmaker {
 
   private compatible(a: Seek, b: Seek, now: number): boolean {
     if (a.playerId === b.playerId) return false;
+    if (a.color && a.color === b.color) return false;
     const gap = Math.abs(a.rating - b.rating);
     if (gap > Math.min(this.allowedGap(a, now), this.allowedGap(b, now))) return false;
     const inRange = (s: Seek, r: number) => !s.ratingRange || (r >= s.ratingRange[0] && r <= s.ratingRange[1]);

@@ -27,6 +27,11 @@ export const server = {
   noSuchAccount: 'No such account.',
   closedFairPlay: 'This account has been closed for a fair play violation.',
   accountClosed: 'This account has been closed by ChessMate staff.',
+  restrictedFairPlay: 'Your account is closed for a fair play violation, so online play is turned off.',
+  restriction: {
+    title: 'Online play is off',
+    body: 'Your account was closed for a fair play violation. You can still look at your games, puzzles and analysis. Tap to read why.',
+  },
   notOnline: '{name} is not online right now.',
   inAnotherGame: '{name} is in another game.',
   chatRestricted: {

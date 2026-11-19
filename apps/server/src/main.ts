@@ -5,7 +5,7 @@ import { networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import { AdminService, DbModerationStore } from './admin';
 import { DbFairPlayStore } from './fairplay';
-import { AuthService, ConsoleMailer, DbAuthStore, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
+import { AuthService, DbAuthStore, mailerFromEnv, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService, type ReviewStore } from './engine';
@@ -59,7 +59,7 @@ const ratingRepo = new MemoryRatingRepository();
 const ratings = new RatingService(ratingRepo);
 
 function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number) => Promise<FinishedGame[]>) {
-  const auth = new AuthService({ store: authStore, mailer: new ConsoleMailer(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
+  const auth = new AuthService({ store: authStore, mailer: mailerFromEnv(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
   const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend(), gamesOf);
   const profiles = profileRoutes(profileDeps, new MemoryProfileStore());

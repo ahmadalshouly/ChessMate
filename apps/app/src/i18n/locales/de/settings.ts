@@ -33,6 +33,8 @@ export const settings: Messages<typeof en> = {
     confirmResign: 'Vor dem Aufgeben bestätigen',
     premoves: 'Vorauszüge',
     premovesDetail: 'Plane deinen nächsten Zug, während dein Gegner nachdenkt. Tippe woanders hin oder klicke rechts, um abzubrechen.',
+    autoQueen: 'Immer zur Dame umwandeln',
+    autoQueenDetail: 'Aus: Bei jeder Umwandlung wählst du Dame, Turm, Läufer oder Springer.',
   },
   notifications: {
     title: 'Benachrichtigungen',

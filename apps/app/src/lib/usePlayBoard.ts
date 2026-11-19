@@ -1,9 +1,11 @@
 import { Game, premoveDests, type Square } from '@chessmate/core';
 import { useEffect, useMemo, useState } from 'react';
 
+import type { PromotionPiece } from '@/components/Board';
 import { useSettings } from '@/features/account/settingsStore';
 
 import { haptic } from './haptics';
+import { promotionChoice, type PendingPromotion } from './useBoardInteraction';
 import { playClient, type GameView } from './playClient';
 
 /**
@@ -14,7 +16,8 @@ import { playClient, type GameView } from './playClient';
  */
 export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boolean = (uci) => playClient.move(uci)) {
   const [selected, setSelected] = useState<Square | null>(null);
-  const premovesOn = useSettings().gameplay.premoves;
+  const [promoting, setPromoting] = useState<(PendingPromotion & { premove: boolean }) | null>(null);
+  const { premoves: premovesOn, autoQueen } = useSettings().gameplay;
   const fen = view?.fen;
   const game = useMemo(() => (fen ? new Game(fen) : null), [fen]);
   const live = !!view && !view.outcome && !!game;
@@ -36,15 +39,37 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
     return !!piece && !!view && piece.color === view.you && (myTurn || canPremove);
   };
 
+  /** A pawn reaching the last rank (for premoves, where the move is not legal yet). */
+  const isPromotion = (from: Square, to: Square) => {
+    const piece = game?.raw.get(from);
+    return piece?.type === 'p' && (to[1] === '8' || to[1] === '1');
+  };
+
   const commit = (from: Square, to: Square): boolean => {
     if (!destsFrom(from).includes(to)) return false;
     if (myTurn) {
       const move = game!.legalMoves(from).find((m) => m.to === to);
-      return !!move && onMove(`${move.from}${move.to}${move.promotion ? 'q' : ''}`);
+      if (!move) return false;
+      if (move.promotion && !autoQueen) {
+        setPromoting({ fen: view!.fen, from, to, color: view!.you, premove: false });
+        return true;
+      }
+      return onMove(`${move.from}${move.to}${move.promotion ? 'q' : ''}`);
+    }
+    if (isPromotion(from, to) && !autoQueen) {
+      setPromoting({ fen: view!.fen, from, to, color: view!.you, premove: true });
+      return true;
     }
     playClient.setPremove({ from, to });
     return true;
   };
+
+  const pick = (p: PendingPromotion & { premove: boolean }, piece: PromotionPiece) => {
+    setPromoting(null);
+    if (p.premove) playClient.setPremove({ from: p.from, to: p.to, promotion: piece });
+    else onMove(`${p.from}${p.to}${piece}`);
+  };
+  const promotion = fen ? promotionChoice(promoting, fen, pick, () => setPromoting(null)) : null;
 
   const onSquarePress = (sq: Square) => {
     if (!live || !view || !game) return;
@@ -66,8 +91,9 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
 
   const cancel = () => {
     setSelected(null);
+    setPromoting(null);
     if (queued) playClient.setPremove(null);
   };
 
-  return { selected, targets, onSquarePress, myTurn, canPremove, cancel, dragProps: { canDrag: movable, onPieceDrop, onCancel: cancel } };
+  return { selected, targets, onSquarePress, myTurn, canPremove, cancel, promotion, dragProps: { canDrag: movable, onPieceDrop, onCancel: cancel, promotion } };
 }

@@ -1,4 +1,4 @@
-import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory } from '@chessmate/core';
+import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory, type TimeControl } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, type Href } from 'expo-router';
@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { LiveBoard } from '@/components/LiveBoard';
 import { LiveStats } from '@/components/LiveStats';
+import { GameSetupSheet } from '@/components/play/GameSetupSheet';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
 import { Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
@@ -55,6 +56,8 @@ export default function Home() {
   // The shell's sidebar takes ~250px at 960 and up.
   const content = width >= 960 ? width - 250 : width;
   const cols = content >= 900 ? 3 : content >= 560 ? 2 : 1;
+  // Tapping a time opens the game setup (mode, rating window, side) before searching.
+  const [setupTc, setSetupTc] = useState<TimeControl | null>(null);
 
   return (
     <Page maxWidth={1080}>
@@ -89,7 +92,7 @@ export default function Home() {
                 key={key}
                 accessibilityRole="button"
                 accessibilityLabel={tr('home.quick.a11y', { tc: key, category: tr(`common.category.${timeCategory(tc)}`) })}
-                onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
+                onPress={() => setSetupTc(tc)}
                 style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                   styles.quickCell,
                   { borderColor: hovered ? c.borderStrong : c.border, backgroundColor: hovered ? c.surfacePressed : c.surface, transform: [{ scale: pressed ? 0.97 : 1 }] },
@@ -114,6 +117,13 @@ export default function Home() {
       <ModeSection index={3} title={tr('nav.play')} modes={PLAY} cols={cols} />
       <ModeSection index={4} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
       <ModeSection index={5} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+      <GameSetupSheet
+        timeControl={setupTc}
+        visible={setupTc !== null}
+        onClose={() => setSetupTc(null)}
+        onPlay={() => router.push('/play/online')}
+        onPost={() => router.push('/play')}
+      />
     </Page>
   );
 }

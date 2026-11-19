@@ -1,7 +1,7 @@
 import { parseTimeControl } from '@chessmate/core';
 import { describe, expect, it, vi } from 'vitest';
 import { FIRST_MOVE_TIMEOUT_MS, GameRoom } from '../src/gameRoom';
-import { Matchmaker } from '../src/matchmaker';
+import { Matchmaker, whiteOf } from '../src/matchmaker';
 
 const W = { id: 'w', name: 'White', rating: 1500, provisional: true };
 const B = { id: 'b', name: 'Black', rating: 1500, provisional: true };
@@ -45,6 +45,15 @@ describe('GameRoom', () => {
     expect(r.outcome?.reason).toBe('aborted');
   });
 
+  it('tells clients when each first move is due', () => {
+    const { r } = room();
+    expect(r.snapshot(0).firstMoveDeadline).toBe(FIRST_MOVE_TIMEOUT_MS);
+    r.move('w', 'e2e4', 0, 5000);
+    expect(r.snapshot(5000).firstMoveDeadline).toBe(5000 + FIRST_MOVE_TIMEOUT_MS);
+    r.move('b', 'e7e5', 1, 9000);
+    expect(r.snapshot(9000).firstMoveDeadline).toBeNull();
+  });
+
   it('handles draw offers and resignations', () => {
     const { r } = room();
     r.move('w', 'e2e4', 0, 1);
@@ -71,6 +80,18 @@ describe('Matchmaker', () => {
     expect(m.tick(0)).toHaveLength(0);
     expect(m.tick(20_000)).toHaveLength(1);
     expect(m.size).toBe(0);
+  });
+
+  it('keeps colour preferences', () => {
+    const m = new Matchmaker();
+    m.add({ playerId: 'a', rating: 1500, timeControl: tc, rated: true, createdAt: 0, color: 'w' });
+    m.add({ playerId: 'b', rating: 1500, timeControl: tc, rated: true, createdAt: 0, color: 'w' });
+    expect(m.tick(0)).toHaveLength(0);
+    m.add({ playerId: 'c', rating: 1500, timeControl: tc, rated: true, createdAt: 0 });
+    const [p] = m.tick(0);
+    expect(p).toBeDefined();
+    expect(whiteOf(p!).color).toBe('w');
+    expect(whiteOf({ a: { ...p!.a, color: undefined }, b: { ...p!.b, color: 'b' } }, () => false)).toBe(p!.a);
   });
 
   it('does not pair different time controls', () => {

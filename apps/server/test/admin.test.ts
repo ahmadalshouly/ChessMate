@@ -264,6 +264,10 @@ describe('title applications', () => {
 
     expect((await call('owner', 'POST', `/players/${ids.carla}/close`, { reason: 'fair_play', note: 'engine' })).status).toBe(200);
     expect(admin.titles.titleOf(ids.carla!)).toBeNull();
+    // A fair-play closure restricts the account instead of locking it: carla can still sign in, but not play.
+    const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: 'carla', password: PASSWORD }) });
+    expect(login.status).toBe(200);
+    expect(server.restrictionOf(ids.carla!)).toBe('fair_play');
     const log = await call('owner', 'GET', `/audit?target=${ids.carla}&action=title`);
     expect(log.body.entries.map((e: { action: string }) => e.action)).toEqual(['title.revoke', 'title.grant', 'title.revoke', 'title.approve']);
   });

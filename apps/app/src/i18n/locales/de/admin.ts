@@ -161,7 +161,7 @@ export const admin: Messages<typeof en> = {
     signOutTitle: '{name} überall abmelden?',
     signOutBody: 'Alle Sitzungen auf allen Geräten enden. Eine erneute Anmeldung ist möglich.',
     closeTitle: 'Konto von {name} schließen?',
-    closeBody: 'Der Spieler wird überall abgemeldet, kann sich nicht anmelden oder spielen und verschwindet aus den Bestenlisten. Du kannst das Konto später wieder öffnen.',
+    closeBody: 'Der Spieler kann nicht mehr online spielen und verschwindet aus den Bestenlisten. Bei Fair Play kann er sich weiter anmelden und seine Partien ansehen; aus anderen Gründen wird er abgemeldet und kann sich nicht anmelden. Er bekommt eine E-Mail (bei Fair Play auch eine Nachricht in der App). Du kannst das Konto später wieder öffnen.',
     closeFairPlayNote: 'Bei Fair-Play-Schließungen erhalten Gegner die Wertungspunkte zurück, die sie in den letzten 90 Tagen gegen dieses Konto verloren haben.',
     closeReason: 'Warum',
     reopenTitle: 'Konto von {name} wieder öffnen?',

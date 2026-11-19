@@ -33,6 +33,8 @@ export const settings: Messages<typeof en> = {
     confirmResign: 'التأكيد قبل الاستسلام',
     premoves: 'النقلات المسبقة',
     premovesDetail: 'جهّز نقلتك التالية بينما يفكر خصمك. اضغط في مكان آخر أو انقر بالزر الأيمن للإلغاء.',
+    autoQueen: 'الترقية إلى وزير دائمًا',
+    autoQueenDetail: 'عند الإيقاف: اختر وزيرًا أو قلعة أو فيلًا أو حصانًا عند كل ترقية.',
   },
   notifications: {
     title: 'الإشعارات',

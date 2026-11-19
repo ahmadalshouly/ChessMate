@@ -1,10 +1,12 @@
 import {
+  FIRST_MOVE_TIMEOUT_MS,
   Game,
   PROTOCOL_VERSION,
   decodeServer,
   encode,
   remaining,
   timeCategory,
+  type AccountRestriction,
   type Challenge,
   type ChallengeColor,
   type ChallengeEndReason,
@@ -44,6 +46,8 @@ export interface SeekRequest {
   rated: boolean;
   /** Fixed ± rating window; undefined widens automatically. */
   range?: number;
+  /** Side to play; 'random' or undefined pairs with anyone. */
+  color?: ColorChoice;
 }
 
 export interface SeekStatus {
@@ -76,7 +80,10 @@ export interface GameView {
   opponentAbandonAt: number | null;
   rematchBy: Color | null;
   rematchDeclined: boolean;
-  premove: { from: string; to: string } | null;
+  /** Queued move; `promotion` is the piece picked for a pawn reaching the last rank (queen if absent). */
+  premove: { from: string; to: string; promotion?: 'q' | 'r' | 'b' | 'n' } | null;
+  /** Server time by which the side to move must make its first move; null once both have moved. */
+  firstMoveDeadline: number | null;
 }
 
 export interface PlayState {
@@ -94,6 +101,8 @@ export interface PlayState {
   challengeEnded: Record<string, ChallengeEndReason>;
   /** Set when the server closed this account (fair play); no reconnects after that. */
   closedReason: string | null;
+  /** Set while the account may not play online (closed for fair play); it can still watch and analyse. */
+  restricted: AccountRestriction | null;
 }
 
 const TOKEN_KEY = 'chessmate.playToken';
@@ -123,6 +132,7 @@ class PlayClient {
     challenges: {},
     challengeEnded: {},
     closedReason: null,
+    restricted: null,
   };
   private listeners = new Set<() => void>();
   /** Raw server message listeners (chat, etc.) so features can live in their own hooks. */
@@ -272,8 +282,10 @@ class PlayClient {
           this.token = m.resumeToken;
           storage()?.setItem(TOKEN_KEY, m.resumeToken);
         }
-        this.set({ connection: 'online', me: m.player, error: null });
+        this.set({ connection: 'online', me: m.player, error: null, restricted: m.restricted ?? null });
         return this.restore();
+      case 'restricted':
+        return this.set({ restricted: m.reason, seek: null, seekStatus: null, openGame: null });
       case 'lobby':
         return this.set({ lobby: m.lobby });
       case 'seeking':
@@ -315,6 +327,7 @@ class PlayClient {
           drawOfferBy: null,
           premove: null,
           opponentAbandonAt: null,
+          firstMoveDeadline: null,
           clock: { ...this.state.game.clock, running: null, startedAt: null },
         });
       case 'rematchOffered':
@@ -360,6 +373,7 @@ class PlayClient {
         rematchBy: null,
         rematchDeclined: false,
         premove: prev?.premove ?? null,
+        firstMoveDeadline: s.outcome ? null : (s.firstMoveDeadline ?? null),
       },
       error: null,
     });
@@ -383,13 +397,15 @@ class PlayClient {
       drawOfferBy: null,
       fen: g.fen,
       history: g.history(),
+      // White's first move starts black's 30 seconds; after black's, the clocks take over.
+      firstMoveDeadline: m.ply === 1 ? (m.clock.startedAt ?? m.serverNow) + FIRST_MOVE_TIMEOUT_MS : null,
     });
     // Opponent just moved: fire the queued premove if it is legal now.
     const pm = this.state.game?.premove;
     if (mover && mover !== view.you && pm) {
       this.patchGame({ premove: null });
       const legal = g.legalMoves(pm.from as Square).find((x) => x.to === pm.to);
-      if (legal) this.move(`${pm.from}${pm.to}${legal.promotion ? 'q' : ''}`);
+      if (legal) this.move(`${pm.from}${pm.to}${legal.promotion ? (pm.promotion ?? 'q') : ''}`);
     }
   }
 

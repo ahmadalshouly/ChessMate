@@ -30,6 +30,11 @@ export const server: Messages<typeof en> = {
   noSuchAccount: 'Konto nicht gefunden.',
   closedFairPlay: 'Dieses Konto wurde wegen eines Fair-Play-Verstoßes geschlossen.',
   accountClosed: 'Dieses Konto wurde vom ChessMate-Team geschlossen.',
+  restrictedFairPlay: 'Dein Konto wurde wegen eines Fair-Play-Verstoßes geschlossen. Online-Partien sind deshalb deaktiviert.',
+  restriction: {
+    title: 'Online-Partien sind deaktiviert',
+    body: 'Dein Konto wurde wegen eines Fair-Play-Verstoßes geschlossen. Deine Partien, Puzzles und Analysen kannst du weiter ansehen. Tippe für die Begründung.',
+  },
   notOnline: '{name} ist gerade nicht online.',
   inAnotherGame: '{name} ist in einer anderen Partie.',
   chatRestricted: {

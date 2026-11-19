@@ -1,4 +1,5 @@
 import {
+  FIRST_MOVE_TIMEOUT_MS,
   Game,
   createClock,
   isFlagged,
@@ -25,8 +26,8 @@ export interface RoomEvents {
   onDrawOffer(room: GameRoom, by: Color): void;
 }
 
-/** Time a player has to make the first move before the game is aborted. */
-export const FIRST_MOVE_TIMEOUT_MS = 30_000;
+/** Time a player has to make the first move before the game is aborted (shared with the app). */
+export { FIRST_MOVE_TIMEOUT_MS };
 
 /**
  * Authoritative state for a single game. All time arguments are injected so
@@ -226,6 +227,7 @@ export class GameRoom {
       serverNow: now,
       drawOfferBy: this.drawOfferBy,
       outcome: this.outcome,
+      firstMoveDeadline: this.abortable ? (this.clock.startedAt ?? this.createdAt) + FIRST_MOVE_TIMEOUT_MS : null,
     };
   }
 }

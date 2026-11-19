@@ -158,7 +158,7 @@ export const admin = {
     signOutTitle: 'Sign {name} out everywhere?',
     signOutBody: 'Every session on every device ends. They can sign in again.',
     closeTitle: 'Close {name}\'s account?',
-    closeBody: 'They are signed out everywhere, cannot sign in or play, and drop off leaderboards. You can reopen the account later.',
+    closeBody: 'They cannot play online and drop off leaderboards. For fair play they can still sign in to see their games; for other reasons they are signed out and cannot sign in. They get an email (and, for fair play, an in-app notice). You can reopen the account later.',
     closeFairPlayNote: 'Fair play closures also give opponents back the rating they lost to this account in the last 90 days.',
     closeReason: 'Why',
     reopenTitle: 'Reopen {name}\'s account?',

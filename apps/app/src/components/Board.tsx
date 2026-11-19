@@ -9,6 +9,7 @@ import { useBoardAppearance } from '@/features/account/boardThemes';
 import { pieceImage } from '@/features/board/pieceSets';
 import { PLACE_ORIGIN, placeAt } from '@/components/boardLayout';
 import { haptic } from '@/lib/haptics';
+import { useT } from '@/i18n';
 import { useBoardTheme, type BoardTheme } from '@/ui';
 
 const PREMOVE_TINT = 'rgba(64, 104, 168, 0.42)';
@@ -39,7 +40,22 @@ export interface BoardProps {
   pieces?: PieceSet;
   /** Hide coordinates regardless of settings (thumbnails). */
   hideCoordinates?: boolean;
+  /** A pawn is promoting: show the piece choice over the board until one is picked or it is cancelled. */
+  promotion?: PromotionChoice | null;
 }
+
+export type PromotionPiece = 'q' | 'r' | 'b' | 'n';
+
+export interface PromotionChoice {
+  /** The promotion square. */
+  to: Square;
+  color: Color;
+  onPick: (piece: PromotionPiece) => void;
+  onCancel: () => void;
+}
+
+/** Order of the choices, starting on the promotion square: the usual picks first. */
+const PROMOTION_ORDER: PromotionPiece[] = ['q', 'n', 'r', 'b'];
 
 /** How far a press can wander (px) and still count as a tap. */
 const DRAG_SLOP = 6;
@@ -190,11 +206,54 @@ export const Board = memo(function Board(props: BoardProps) {
           <PieceView piece={dragging.piece} cell={cell} set={set} />
         </Animated.View>
       )}
+      {props.promotion && <PromotionPicker choice={props.promotion} orientation={orientation} size={size} set={set} />}
       {/* Glass edge: a hairline highlight that sits on top of everything. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.edge, { borderColor: colors.frame, borderRadius: Math.max(4, size * 0.012) }]} />
     </View>
   );
 });
+
+/**
+ * Promotion choice: the board dims and the four pieces stand in a column from
+ * the promotion square towards the middle of the board. Tap one to promote;
+ * tap anywhere else to take the move back.
+ */
+function PromotionPicker({ choice, orientation, size, set }: { choice: PromotionChoice; orientation: Color; size: number; set: PieceSet }) {
+  const tr = useT();
+  const cell = size / 8;
+  const fileIdx = choice.to.charCodeAt(0) - 97;
+  const rank = Number(choice.to[1]);
+  const col = orientation === 'w' ? fileIdx : 7 - fileIdx;
+  const row = orientation === 'w' ? 8 - rank : rank - 1;
+  const step = row === 0 ? 1 : -1;
+  return (
+    <View style={[StyleSheet.absoluteFill, PLACE_ORIGIN, { zIndex: 20 }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={tr('common.cancel')}
+        onPress={choice.onCancel}
+        style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(8, 10, 14, 0.55)' }]}
+      />
+      {PROMOTION_ORDER.map((type, i) => (
+        <Pressable
+          key={type}
+          accessibilityRole="button"
+          accessibilityLabel={tr(`chess.piece.${type}`)}
+          onPress={() => {
+            haptic('pickup');
+            choice.onPick(type);
+          }}
+          style={[placeAt(col * cell, (row + step * i) * cell, cell, cell, size), PLACE_ORIGIN]}>
+          {({ pressed }) => (
+            <View style={[styles.promoChip, { width: cell * 0.94, height: cell * 0.94, borderRadius: cell * 0.47, opacity: pressed ? 0.75 : 1 }]}>
+              <PieceView piece={{ type, color: choice.color }} cell={cell * 0.86} set={set} />
+            </View>
+          )}
+        </Pressable>
+      ))}
+    </View>
+  );
+}
 
 function PieceView({ piece, cell, set }: { piece: Piece; cell: number; set: PieceSet }) {
   return <Image source={pieceImage(set, piece.color, piece.type)} style={{ width: cell, height: cell }} resizeMode="contain" accessibilityIgnoresInvertColors />;
@@ -321,4 +380,16 @@ const styles = StyleSheet.create({
   coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
   lifted: { opacity: 0.3 },
   floating: { position: 'absolute', zIndex: 10 },
+  promoChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
 });

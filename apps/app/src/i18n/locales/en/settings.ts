@@ -30,6 +30,8 @@ export const settings = {
     confirmResign: 'Confirm before resigning',
     premoves: 'Premoves',
     premovesDetail: 'Queue your next move while your opponent is thinking. Tap elsewhere or right-click to cancel.',
+    autoQueen: 'Always promote to a queen',
+    autoQueenDetail: 'Off: choose a queen, rook, bishop or knight each time a pawn promotes.',
   },
   notifications: {
     title: 'Notifications',

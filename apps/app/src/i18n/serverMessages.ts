@@ -36,6 +36,7 @@ const EXACT: Record<string, TKey> = {
   'Something went wrong': 'errors.generic',
   'No such account': 'server.noSuchAccount',
   'This account has been closed for a fair play violation.': 'server.closedFairPlay',
+  'Your account is closed for a fair play violation, so online play is turned off': 'server.restrictedFairPlay',
 };
 
 const PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [

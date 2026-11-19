@@ -30,6 +30,11 @@ export const server: Messages<typeof en> = {
   noSuchAccount: 'الحساب غير موجود.',
   closedFairPlay: 'أُغلق هذا الحساب بسبب مخالفة قواعد اللعب النظيف.',
   accountClosed: 'أغلق فريق ChessMate هذا الحساب.',
+  restrictedFairPlay: 'أُغلق حسابك بسبب مخالفة قواعد اللعب النظيف، لذا اللعب عبر الإنترنت متوقف.',
+  restriction: {
+    title: 'اللعب عبر الإنترنت متوقف',
+    body: 'أُغلق حسابك بسبب مخالفة قواعد اللعب النظيف. ما زال بإمكانك رؤية مبارياتك والألغاز والتحليل. اضغط لمعرفة السبب.',
+  },
   notOnline: '{name} غير متصل الآن.',
   inAnotherGame: '{name} في مباراة أخرى.',
   chatRestricted: { other: 'الدردشة معطّلة لحسابك لمدة {count} دقيقة أخرى.' },

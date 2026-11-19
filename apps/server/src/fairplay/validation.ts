@@ -28,6 +28,7 @@ export function validateClientMessage(m: ClientMessage): string | null {
     case 'seek': {
       if (!isObj(msg.timeControl) || typeof msg.rated !== 'boolean') return 'Invalid seek';
       if (msg.range !== undefined && !isInt(msg.range, 0, 4000)) return 'Invalid rating window';
+      if (msg.color !== undefined && msg.color !== 'w' && msg.color !== 'b' && msg.color !== 'random') return 'Invalid colour';
       const r = msg.ratingRange;
       if (r === undefined) return null;
       return Array.isArray(r) && r.length === 2 && isInt(r[0], 0, 4000) && isInt(r[1], 0, 4000) && r[0] <= r[1]
