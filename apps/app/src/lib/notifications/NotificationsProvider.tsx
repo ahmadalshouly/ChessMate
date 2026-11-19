@@ -4,7 +4,7 @@ import { router, type Href } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
-import { notificationsApi } from './api';
+import { notificationsApi, onNotificationsAccountChange } from './api';
 import { currentPushStatus, disablePush, enablePush, pushSupported, type PushStatus } from './push';
 import { translate } from '@/i18n';
 
@@ -158,6 +158,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (p) setPrefs(p);
   }, []);
   useEffect(() => void loadPrefs(), [loadPrefs]);
+
+  // A different account (or none): start from an empty inbox and load theirs.
+  useEffect(
+    () =>
+      onNotificationsAccountChange(() => {
+        seen.current = null;
+        setItems([]);
+        setUnread(0);
+        setIncoming(null);
+        setPrefs(null);
+        setLoading(true);
+        void refresh();
+        void loadPrefs();
+      }),
+    [refresh, loadPrefs],
+  );
 
   const updatePrefs = useCallback(async (patch: Record<string, unknown>) => {
     const next = await notificationsApi.savePrefs(patch).catch(() => null);

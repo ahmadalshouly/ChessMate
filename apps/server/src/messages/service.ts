@@ -102,12 +102,12 @@ export class MessageService {
   }
 
   /** Message from ChessMate staff to one player; shows in their "ChessMate team" thread. */
-  async staffSend(staffId: string, to: string, input: unknown): Promise<MessageView> {
+  async staffSend(staffId: string, to: string, input: unknown, opts: { silent?: boolean } = {}): Promise<MessageView> {
     const clean = cleanMessage(input);
     if ('error' in clean) throw new SocialError(400, clean.error);
     await this.userOrThrow(to);
     const row = await insertMessage(this.db, { senderId: staffId, recipientId: to, body: clean.body, kind: 'staff', at: new Date(this.now()) });
-    await this.deliver(row, null, to);
+    await this.deliver(row, null, to, opts.silent);
     return toView(row, staffId);
   }
 
@@ -127,11 +127,13 @@ export class MessageService {
     return n;
   }
 
-  private async deliver(row: DirectMessage, sender: SocialUser | null, to: string) {
+  /** `silent`: no inbox/push notification (the caller sends its own, e.g. a moderation notice). */
+  private async deliver(row: DirectMessage, sender: SocialUser | null, to: string, silent = false) {
     const unread = await this.unreadTotal(to);
     this.notify([to], { kind: 'message', message: toView(row, to), from: sender, unread });
     // The sender's other devices see it too.
     if (sender) this.notify([sender.id], { kind: 'message', message: toView(row, sender.id), from: sender, unread: await this.unreadTotal(sender.id) });
+    if (silent) return;
     this.notifications?.notify(to, {
       kind: sender ? 'message' : 'system',
       title: sender ? sender.displayName : 'Message from ChessMate',

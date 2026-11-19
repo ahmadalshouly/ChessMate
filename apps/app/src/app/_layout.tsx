@@ -14,7 +14,7 @@ import { playClient } from '@/lib/playClient';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
-import { NotificationsProvider } from '@/lib/notifications';
+import { NotificationsProvider, setNotificationsTokenProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
 
 // Web: when Google's sign-in pop-up returns to the app, hand the result to the opener and close it.
@@ -85,9 +85,12 @@ function SocialAuthBridge() {
     if (status !== 'signedIn' || !user) {
       setSocialTokenProvider(null);
       setSocialIdentity(null);
+      setNotificationsTokenProvider(null);
       return;
     }
     setSocialTokenProvider(getAccessToken);
+    // The notification inbox (warnings, tournament news, ...) belongs to the signed-in account.
+    setNotificationsTokenProvider(getAccessToken, user.id);
     let live = true;
     void getAccessToken().then((token) => {
       if (live && token) setSocialToken(token, user.id, user.username);

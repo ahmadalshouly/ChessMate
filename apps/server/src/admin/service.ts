@@ -1,6 +1,8 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  MESSAGE_MAX,
   ROLE_TAG_LABELS,
+  STAFF_THREAD,
   TITLE_REVOKE_REASONS,
   isRoleTag,
   isChessTitle,
@@ -224,10 +226,24 @@ export class AdminService {
    * and by email when the account has an address. Never throws: a failed
    * email must not undo the action.
    */
-  private async tell(userId: string, notice: ModerationNotice, data: Record<string, string | number> = {}) {
+  private async tell(userId: string, notice: ModerationNotice, data: Record<string, string | number> = {}, staffId?: string) {
     const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
-    this.b.notifications.notify(userId, { kind: 'system', title: notice.title, body: notice.body, url: '/notifications', data: fields });
+    // With a staff member behind it, the notice also lands in Messages under "ChessMate team",
+    // where the player can read it again later.
+    const sent = staffId ? await this.messageNotice(staffId, userId, notice) : false;
+    this.b.notifications.notify(userId, { kind: 'system', title: notice.title, body: notice.body, url: sent ? `/messages/${STAFF_THREAD}` : '/notifications', data: fields });
     await this.email(userId, notice.email);
+  }
+
+  private async messageNotice(staffId: string, userId: string, notice: ModerationNotice): Promise<boolean> {
+    if (!this.messages) return false;
+    try {
+      await this.messages.staffSend(staffId, userId, `${notice.title}\n\n${notice.body}`.slice(0, MESSAGE_MAX), { silent: true });
+      return true;
+    } catch (e) {
+      this.log(`could not message ${userId}: ${String(e)}`);
+      return false;
+    }
   }
 
   private async email(userId: string, notice: ModerationNotice['email']) {
@@ -537,7 +553,7 @@ export class AdminService {
     if (!message) throw new AdminError('invalid_input', 'Write the warning the player will read');
     const reportId = typeof input.reportId === 'string' ? input.reportId : null;
     const w = await insertWarning(this.db, { userId: id, category, message, issuedBy: actor.id, issuedByName: actor.username, reportId });
-    await this.tell(id, warningNotice(message), { warningId: w.id, category });
+    await this.tell(id, warningNotice(message), { warningId: w.id, category }, actor.id);
     await this.audit(actor, 'player.warn', { type: 'user', id, name: u.username }, message, { category, reportId });
     return { ok: true };
   }
@@ -549,7 +565,7 @@ export class AdminService {
     if (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 365) throw new AdminError('invalid_input', 'Choose how long to mute');
     const reason = text(input.reason, 300) || 'Chat rules';
     const ban = this.b.moderation.ban(id, u.username, hours, reason);
-    await this.tell(id, muteNotice(hours, ban.until, reason), { until: ban.until });
+    await this.tell(id, muteNotice(hours, ban.until, reason), { until: ban.until }, actor.id);
     await this.audit(actor, 'chat.mute', { type: 'user', id, name: u.username }, reason, { hours, until: ban.until });
     return { until: ban.until };
   }
@@ -667,7 +683,7 @@ export class AdminService {
     if (reason === 'fair_play') await this.stripTitleForFairPlay(actor, id, u.username);
     if (reason === 'fair_play') {
       this.b.restrict(id);
-      await this.tell(id, fairPlayNotice(note || null), { reason });
+      await this.tell(id, fairPlayNotice(note || null), { reason }, actor.id);
     } else {
       this.b.disconnect(id, CLOSE_ACCOUNT_CLOSED, 'account closed');
       await this.email(id, closureEmail(reason, note || null));
@@ -690,7 +706,7 @@ export class AdminService {
     this.closed.delete(id);
     if (this.b.fairPlay.isBanned(id)) this.b.fairPlay.unban(id, actor.username, note || 'Account reopened');
     this.b.restrict(id);
-    await this.tell(id, reopenNotice());
+    await this.tell(id, reopenNotice(), {}, actor.id);
     await this.audit(actor, 'account.reopen', { type: 'user', id, name: u.username }, note, { previousReason: u.closedReason });
     return { ok: true };
   }
@@ -900,7 +916,7 @@ export class AdminService {
     if (action === 'warn') {
       const message = text(input.message, 500) || defaultWarning(r.reason);
       await insertWarning(this.db, { userId: r.targetId, category: r.reason, message, issuedBy: actor.id, issuedByName: actor.username, reportId: r.id }).catch(() => undefined);
-      await this.tell(r.targetId, warningNotice(message), { reportId: r.id });
+      await this.tell(r.targetId, warningNotice(message), { reportId: r.id }, actor.id);
     }
     if (action === 'chat_ban') this.require(actor, 'players.mute');
     const hours = Number(input.hours) > 0 ? Number(input.hours) : 24;
@@ -910,7 +926,7 @@ export class AdminService {
       reason: r.reason,
       ...(action === 'chat_ban' ? { hours } : {}),
     });
-    if (action === 'chat_ban') await this.tell(r.targetId, muteNotice(hours, this.now() + hours * 3600_000, r.reason), { reportId: r.id });
+    if (action === 'chat_ban') await this.tell(r.targetId, muteNotice(hours, this.now() + hours * 3600_000, r.reason), { reportId: r.id }, actor.id);
     return { report: updated && this.reportView(updated) };
   }
 

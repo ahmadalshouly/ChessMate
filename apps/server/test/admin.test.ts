@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { AdminService } from '../src/admin';
 import { AuthService, ConsoleMailer, DbAuthStore, authRoutes } from '../src/auth';
+import { MessageService } from '../src/messages/service';
 import { ChessServer } from '../src/server';
 
 const SECRET = 'test-secret-test-secret-test-secret!';
@@ -39,7 +40,10 @@ beforeAll(async () => {
   for (const u of ['owner', 'mod', 'alice', 'bob']) await signup(u);
   admin = new AdminService({ db: h.db, auth, log: () => {} });
   await admin.load(['owner', 'nobody_yet']);
+  const messages = new MessageService({ db: h.db, isStaff: (id) => admin.roleOf(id) !== 'user' });
+  admin.messages = messages;
   server = new ChessServer({
+    messages,
     port: 0,
     matchIntervalMs: 20,
     auth,
@@ -101,6 +105,16 @@ describe('admin console', () => {
     expect(JSON.stringify(r.body)).not.toContain('too large');
     const small = await call('owner', 'POST', `/players/${ids.bob}/note`, { note: 'x'.repeat(40_000) });
     expect(JSON.stringify(small.body)).toContain('too large');
+  });
+
+  it('tells a warned player: one inbox notification, and the warning in Messages from the team', async () => {
+    const res = await fetch(`${base}/api/notifications`, { headers: { authorization: `Bearer ${tokens.alice}` } });
+    const inbox = ((await res.json()) as { notifications: { title: string; body: string; url: string | null }[] }).notifications;
+    const warnings = inbox.filter((n) => n.body === 'Keep chat friendly');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.url).toBe('/messages/staff');
+    const thread = await admin.messages!.thread(ids.alice!, 'staff');
+    expect(JSON.stringify(thread)).toContain('Keep chat friendly');
   });
 
   it('searches players by name and status', async () => {
