@@ -10,6 +10,7 @@ import {
   getGameReview,
   saveGameReview,
   getRating,
+  headToHead,
   insertTournament,
   saveTournamentPlayer,
   tournamentPlayersOf,
@@ -67,6 +68,33 @@ describe('db', () => {
     expect(g).toMatchObject({ whiteUserId: w.id, blackUserId: null, blackName: 'Guest', timeCategory: 'blitz', status: 'finished', result: '0-1' });
     expect(g!.moves.map((m) => m.san)).toEqual(['e4']);
     expect((await listUserGames(h.db, w.id)).map((x) => x.id)).toEqual(['g1']);
+  });
+
+  it('counts head-to-head results from each side', async () => {
+    const a = await createUser(h.db, { username: 'h2h_a' });
+    const b = await createUser(h.db, { username: 'h2h_b' });
+    const results = [
+      { id: 'h1', white: a, black: b, result: '1-0' as const },
+      { id: 'h2', white: b, black: a, result: '1-0' as const },
+      { id: 'h3', white: b, black: a, result: '1/2-1/2' as const },
+    ];
+    for (const [i, r] of results.entries()) {
+      await createGame(h.db, {
+        id: r.id,
+        white: { id: r.white.id, name: r.white.username },
+        black: { id: r.black.id, name: r.black.username },
+        timeControl: { initialMs: 180_000, incrementMs: 0 },
+        rated: true,
+        initialFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        startedAt: new Date(1_700_000_000_000 + i * 60_000),
+      });
+      const winner = r.result === '1-0' ? ('w' as const) : null;
+      await finishGame(h.db, r.id, { outcome: { result: r.result, reason: winner ? 'checkmate' : 'draw_agreement', winner }, pgn: '', finalFen: 'x', plyCount: 10 });
+    }
+    expect(await headToHead(h.db, a.id, b.id)).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1 });
+    const fromB = await headToHead(h.db, b.id, a.id);
+    expect(fromB).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1 });
+    expect(fromB.recent.map((g) => g.id)).toEqual(['h3', 'h2', 'h1']);
   });
 });
 

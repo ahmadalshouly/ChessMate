@@ -40,5 +40,6 @@ import { tournaments } from './tournaments';
 import { qr } from './qr';
 import { messages } from './messages';
 import { secretQueen } from './secretQueen';
+import { h2h } from './h2h';
 
-export const en = { tournaments, qr, messages, secretQueen, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const en = { tournaments, qr, messages, secretQueen, h2h, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };

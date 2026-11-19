@@ -1,6 +1,6 @@
 import { countryFlag, type PublicProfile, type RatingPoint, type RecentGame, type TimeCategory } from '@chessmate/core';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/ui';
@@ -17,6 +17,7 @@ import { RatingGraph } from './RatingGraph';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { ProfileActions } from './ProfileActions';
+import { HeadToHeadCard } from '@/components/HeadToHead';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
@@ -41,6 +42,15 @@ export function ProfileView({ username }: { username: string | null }) {
       live = false;
     };
   }, [username, session, reload]);
+
+  // Back on this screen (after a game, a rating change, a new friend): fetch it again.
+  const visited = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (visited.current) setReload((n) => n + 1);
+      visited.current = true;
+    }, []),
+  );
 
   return (
     <Screen>
@@ -78,6 +88,7 @@ export function ProfileView({ username }: { username: string | null }) {
 
 function ProfileBody({ profile }: { profile: PublicProfile }) {
   const tr = useT();
+  const { signedIn } = useAccountSession();
   const c = useAppTheme().colors;
   const played = profile.ratings.filter((r) => r.games > 0);
   const [category, setCategory] = useState<TimeCategory>(([...played].sort((a, b) => b.games - a.games)[0]?.category as TimeCategory) ?? 'blitz');
@@ -120,6 +131,8 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
         </View>
         <ProfileActions profile={profile} />
       </GlassView>
+
+      {!profile.isMe && signedIn && <HeadToHeadCard userId={profile.id} name={profile.displayName} />}
 
       <Stack gap="sm">
         <SectionHeader title={tr('profile.ratings')} />

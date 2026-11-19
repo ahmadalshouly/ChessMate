@@ -7,6 +7,7 @@ import { StyleSheet, View } from 'react-native';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { socialApi } from '@/lib/social/api';
+import { useSocialRefresh } from '@/lib/realtime';
 import { useAccountSession } from '@/features/account/session';
 import { Button, Text, useAppTheme } from '@/ui';
 
@@ -37,6 +38,8 @@ export function ProfileActions({ profile }: { profile: PublicProfile }) {
     );
   }, [other, profile.id]);
   useEffect(load, [load]);
+  // A request accepted or declined elsewhere shows here straight away.
+  useSocialRefresh(load, ['friendRequest', 'friendAccepted', 'friendRemoved']);
 
   const act = (fn: () => Promise<unknown>) => async () => {
     setBusy(true);

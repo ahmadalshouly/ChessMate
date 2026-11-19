@@ -4,6 +4,7 @@ import {
   resolveChallengeColor,
   decodeClient,
   encode,
+  formatTimeControl,
   positionKey,
   START_FEN,
   timeCategory,
@@ -263,6 +264,27 @@ export class ChessServer {
         { presence: (id) => this.presenceOf(id), liveGames: (ids) => this.liveGamesOf(ids) },
         (ids, event) => {
           for (const id of ids) for (const ws of this.sockets.get(id) ?? []) this.send(ws, { t: 'social', event });
+          // Friend requests and acceptances also reach the inbox, push and the in-app banner.
+          if (event.kind === 'friendRequest') {
+            for (const id of ids)
+              this.notifications.notify(id, {
+                kind: 'friend_request',
+                title: `${event.from.displayName || event.from.username} sent you a friend request`,
+                body: 'Tap to accept or decline',
+                url: `/friends/user/${event.from.id}`,
+                data: { from: event.from.id },
+                collapseKey: `friend:${event.from.id}`,
+              });
+          } else if (event.kind === 'friendAccepted') {
+            for (const id of ids)
+              this.notifications.notify(id, {
+                kind: 'friend_accepted',
+                title: `${event.by.displayName || event.by.username} accepted your friend request`,
+                body: 'You are now friends',
+                url: `/friends/user/${event.by.id}`,
+                data: { from: event.by.id },
+              });
+          }
         },
       );
     }
@@ -857,7 +879,18 @@ export class ChessServer {
       );
       if (typeof created === 'string') return this.send(ws, challengeErr(created));
       this.sendToPlayer(player.id, { t: 'challenge', challenge: created });
-      if (to) this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
+      if (to) {
+        this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
+        // Inbox, push when away, and the in-app banner wherever they are in the app.
+        this.notifications.notify(to.id, {
+          kind: 'challenge',
+          title: `${created.from.name} challenges you`,
+          body: `${formatTimeControl(tc)} ${created.rated ? 'rated' : 'casual'} · tap to accept or decline`,
+          url: `/play/online?challenge=${created.id}`,
+          data: { challengeId: created.id, from: player.id },
+          collapseKey: `challenge:${player.id}`,
+        });
+      }
       return;
     }
 

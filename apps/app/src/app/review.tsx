@@ -1,4 +1,4 @@
-import { START_FEN, evalBarFraction, parseUci, type MoveClass, type ReviewedMove, type Square } from '@chessmate/core';
+import { Game, START_FEN, evalBarFraction, parseUci, type MoveClass, type ReviewedMove, type Square } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -58,8 +58,36 @@ export default function Review() {
 
   const review = engine.state.review;
   const moves = review?.moves ?? [];
+
+  // While the engine works, the board plays the game through move by move,
+  // so there is something to watch instead of a bare progress bar.
+  const preview = useMemo(() => {
+    try {
+      return Game.fromUciMoves(request.moves, request.initialFen).history();
+    } catch {
+      return [];
+    }
+  }, [request]);
+  const [previewPly, setPreviewPly] = useState(0);
+  const reviewing = !review && !engine.state.error && preview.length > 0;
+  useEffect(() => {
+    if (!reviewing || previewPly >= preview.length) return;
+    const id = setTimeout(() => setPreviewPly((p) => p + 1), 450);
+    return () => clearTimeout(id);
+  }, [reviewing, previewPly, preview.length]);
+  // Results in: carry on from where the preview got to, now with grades, unless it already finished.
+  const [handedOver, setHandedOver] = useState<typeof review>(null);
+  if (review && review !== handedOver) {
+    setHandedOver(review);
+    if (previewPly > 0 && previewPly < review.moves.length) {
+      setPly(previewPly);
+      setAutoplay(true);
+    }
+  }
+  const previewMove = reviewing && previewPly > 0 ? preview[previewPly - 1] : undefined;
+
   const current: ReviewedMove | undefined = moves[ply - 1];
-  const fen = current ? current.fenAfter : (review?.initialFen ?? request.initialFen);
+  const fen = previewMove ? previewMove.fenAfter : current ? current.fenAfter : (review?.initialFen ?? request.initialFen);
   const score = current ? current.scoreAfter : moves[0]?.scoreBefore ?? null;
   const orientation = flip ? 'b' : 'w';
 
@@ -119,7 +147,13 @@ export default function Review() {
                 fen={fen}
                 orientation={orientation}
                 size={size}
-                lastMove={current ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square } : null}
+                lastMove={
+                  previewMove
+                    ? { from: previewMove.from, to: previewMove.to }
+                    : current
+                      ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square }
+                      : null
+                }
                 checkSquare={checkSquareOf(fen)}
               />
               <BoardArrows arrows={arrows} size={size} orientation={orientation} />

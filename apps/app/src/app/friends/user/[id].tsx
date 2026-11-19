@@ -1,11 +1,13 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { HeadToHeadCard } from '@/components/HeadToHead';
 import { Avatar, Pill, presenceLabel } from '@/components/social';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { socialApi, type Profile } from '@/lib/social/api';
+import { useSocialRefresh } from '@/lib/realtime';
 import { useSocialIdentity } from '@/lib/social/session';
 import { useT } from '@/i18n';
 import { countryLabel } from '@/i18n/chess';
@@ -31,7 +33,13 @@ export default function PlayerCard() {
       ),
     [id],
   );
-  useEffect(() => void load(), [load]);
+  // Fresh on every visit, and live when they accept, remove or message you.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+  useSocialRefresh(() => void load());
 
   const act = (fn: () => Promise<unknown>) => () =>
     void fn()
@@ -68,6 +76,8 @@ export default function PlayerCard() {
                   {r.followsYou ? ` · ${tr('friends.followsYou')}` : ''}
                 </Label>
               </Card>
+
+              {!self && <HeadToHeadCard userId={p.id} name={p.displayName || p.username} />}
 
               {!self && (
                 <Card>

@@ -1,4 +1,4 @@
-import { getGame, type Database } from '@chessmate/db';
+import { getGame, headToHead, type Database } from '@chessmate/db';
 
 import type { HttpRoute } from '../social/http';
 
@@ -31,7 +31,8 @@ export interface GameRouteDeps {
 /**
  * Finished games, for opening them from a profile's recent games:
  *
- *   GET /api/games/:id   → { game: PublicGame }
+ *   GET /api/games/:id           → { game: PublicGame }
+ *   GET /api/games/h2h/:userId   → { h2h: HeadToHead }  your record against that player (signed in)
  *
  * Live and aborted games are not served here (live games are watched over the socket).
  * If either player keeps their games private, only the two players can open it,
@@ -40,7 +41,8 @@ export interface GameRouteDeps {
 export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
   return async (req, res, url) => {
     const m = /^\/api\/games\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
-    if (!m) return false;
+    const vs = /^\/api\/games\/h2h\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
+    if (!m && !vs) return false;
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'authorization, content-type');
     const json = (status: number, body: unknown) => {
@@ -53,11 +55,21 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
       return true;
     }
     if (req.method !== 'GET') return json(405, { error: 'GET only' });
+    const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
+    const viewer = token ? deps.viewerOf(token) : null;
+    if (vs) {
+      // Your own games against them: no privacy question, but you must be signed in.
+      if (!viewer) return json(401, { error: 'Sign in again' });
+      try {
+        res.setHeader('cache-control', 'no-store');
+        return json(200, { h2h: await headToHead(db, viewer, vs[1]!) });
+      } catch {
+        return json(500, { error: 'Could not load your games against this player' });
+      }
+    }
     try {
-      const g = await getGame(db, m[1]!);
+      const g = await getGame(db, m![1]!);
       if (!g || g.status !== 'finished') return json(404, { error: 'No such game' });
-      const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
-      const viewer = token ? deps.viewerOf(token) : null;
       const players = [g.whiteUserId, g.blackUserId].filter((x): x is string => !!x);
       if (!viewer || !players.includes(viewer)) {
         for (const id of players) if (await deps.gamesHidden(id)) return json(404, { error: 'No such game' });

@@ -6,6 +6,7 @@ import { AppState, Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar, presenceLabel } from '@/components/social';
 import { useI18n } from '@/i18n';
+import { onPresence, onSocialEvent } from '@/lib/realtime';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { Text, useAppTheme } from '@/ui';
@@ -37,11 +38,16 @@ export function useOnlineFriends(): { friends: FriendEntry[]; loaded: boolean } 
       );
     void load();
     const timer = setInterval(() => void load(), POLL_MS);
+    // Live: friends coming online or starting a game, and new friendships.
+    const offPresence = onPresence(() => void load());
+    const offSocial = onSocialEvent((e) => e.kind !== 'message' && void load());
     const sub = AppState.addEventListener('change', (s) => s === 'active' && void load());
     return () => {
       alive = false;
       clearInterval(timer);
       sub.remove();
+      offPresence();
+      offSocial();
     };
   }, [me]);
 

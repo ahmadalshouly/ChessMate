@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 
 import { notificationsApi, onNotificationsAccountChange } from './api';
+import { playClient } from '../playClient';
 import { currentPushStatus, disablePush, enablePush, pushSupported, type PushStatus } from './push';
 import { translate } from '@/i18n';
 
@@ -158,6 +159,21 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (p) setPrefs(p);
   }, []);
   useEffect(() => void loadPrefs(), [loadPrefs]);
+
+  // Live: the server pushes each new notification over the socket, so the inbox,
+  // badge and in-app banner update at once instead of on the next poll.
+  useEffect(
+    () =>
+      playClient.onServerMessage((m) => {
+        if (m.t !== 'notification') return;
+        const n = m.notification;
+        setItems((prev) => [n, ...prev.filter((p) => p.id !== n.id)]);
+        setUnread(m.unread);
+        seen.current?.add(n.id);
+        setIncoming(n);
+      }),
+    [],
+  );
 
   // A different account (or none): start from an empty inbox and load theirs.
   useEffect(
