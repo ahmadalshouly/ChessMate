@@ -47,6 +47,10 @@ export const home: Messages<typeof en> = {
     none: 'لا يوجد أصدقاء متصلون الآن',
     all: 'كل الأصدقاء',
   },
+  dailyPuzzle: {
+    whiteToMove: 'دور الأبيض. اعثر على أفضل نقلة.',
+    blackToMove: 'دور الأسود. اعثر على أفضل نقلة.',
+  },
   liveBoard: {
     title: 'مباريات مباشرة',
     watch: 'شاهد المباراة',

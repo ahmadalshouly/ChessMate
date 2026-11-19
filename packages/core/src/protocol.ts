@@ -123,7 +123,7 @@ export type ClientMessage =
   | { t: 'chat'; gameId: string; text?: string; quick?: QuickMessageId }
   | { t: 'report'; playerId: string; gameId?: string; reason: ReportReason; note?: string }
   // Engine analysis (refused while the player has a live game).
-  | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number }
+  | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number; /** Think-time cap, ms (server clamps to ANALYSIS_LIMITS.maxMoveTimeMs). */ movetimeMs?: number }
   | { t: 'analyzeStop'; id: number }
   | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string }
   /** A game just ended on the device (computer or local play): grade it now so Review opens instantly. No reply. */

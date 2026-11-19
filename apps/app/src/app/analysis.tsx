@@ -12,7 +12,8 @@ import {
 } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -26,8 +27,9 @@ import { translate, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
 import { useEngine } from '@/lib/useEngine';
+import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
+import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 
 const EVAL_BAR = 20;
 /** Depth an engine result needs before it is used to grade moves. */
@@ -45,13 +47,20 @@ export default function Analysis() {
   const [cursor, setCursor] = useState(() => clampPly(Number(params.ply ?? line.length), line.length));
   const [flip, setFlip] = useState(false);
   const [engineOn, setEngineOn] = useState(true);
-  const [multipv, setMultipv] = useState(3);
+  const settings = useEngineSettings();
+  const multipv = settings.lines;
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const t = useTheme();
   const tr = useT();
-  const size = useBoardSize(300) - EVAL_BAR - 6;
+  const { width: winW, height: winH } = useWindowDimensions();
+  // Wide screens (web, tablets): board on the left, panel scrolls on the right.
+  // Phones: board and move buttons stay put; the panel scrolls underneath.
+  const wide = winW >= 900;
+  const boardSpace = wide ? Math.min(winH - 150, winW - 420 - 48, 720) : Math.min(winW - 24, winH * 0.56, 640);
+  const size = Math.max(200, Math.floor((boardSpace - EVAL_BAR - 6) / 8) * 8);
   const engine = useEngine();
 
   const history = useMemo(() => Game.fromUciMoves(line, start).history(), [line, start]);
@@ -80,9 +89,9 @@ export default function Analysis() {
   const { analyze, stop } = engine;
   useEffect(() => {
     if (!engineOn) return stop();
-    const id = setTimeout(() => analyze(fen, multipv), 120);
+    const id = setTimeout(() => analyze(fen, multipv, { depth: settings.depth, movetimeMs: settings.seconds * 1000 }), 120);
     return () => clearTimeout(id);
-  }, [fen, engineOn, multipv, analyze, stop]);
+  }, [fen, engineOn, multipv, settings.depth, settings.seconds, analyze, stop]);
 
   // Arrow keys step through the line on web.
   useEffect(() => {
@@ -106,7 +115,8 @@ export default function Analysis() {
     if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
   }
   const openings = useMemo(() => openingTimeline(line, start), [line, start]);
-  const grades = useMemo(() => gradeLine(start, history, seen, openings), [start, history, seen, openings]);
+  const allGrades = useMemo(() => gradeLine(start, history, seen, openings), [start, history, seen, openings]);
+  const grades = settings.grades ? allGrades : [];
   const lastGrade = cursor > 0 ? grades[cursor - 1] : undefined;
 
   const analysis = engineOn && engine.state.analysis?.fen === new Game(fen).fen ? engine.state.analysis : null;
@@ -140,49 +150,65 @@ export default function Analysis() {
     return ply % 2 === 0 ? `${num}.` : i === 0 ? `${num}…` : '';
   };
 
+  const boardArea = (
+    <View style={{ width: size + EVAL_BAR + 6, gap: 10 }}>
+      <View style={[styles.boardRow, { direction: 'ltr' }]}>
+        <EvalBar score={engineOn ? (top?.score ?? null) : null} orientation={orientation} height={size} width={EVAL_BAR} />
+        <View style={{ width: size, height: size }}>
+          <Board
+            fen={fen}
+            orientation={orientation}
+            size={size}
+            selected={interaction.selected}
+            targets={interaction.targets}
+            lastMove={last ? { from: last.from, to: last.to } : null}
+            checkSquare={checkSquareOf(fen)}
+            onSquarePress={interaction.onSquarePress}
+            {...interaction.dragProps}
+          />
+          {engineOn && settings.arrows && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
+          {engineOn && last && lastGrade && <BoardMoveBadge square={last.to} cls={lastGrade.classification} size={size} orientation={orientation} />}
+        </View>
+      </View>
+
+      {/* Move navigation follows the board, which stays left-to-right in every language. */}
+      <View style={[styles.row, { direction: 'ltr', flexWrap: 'nowrap' }]}>
+        <NavButton label="⏮" onPress={() => setCursor(0)} disabled={cursor === 0} />
+        <NavButton label="◀" onPress={() => setCursor(cursor - 1)} disabled={cursor === 0} />
+        <NavButton label="▶" onPress={() => setCursor(cursor + 1)} disabled={cursor >= line.length} />
+        <NavButton label="⏭" onPress={() => setCursor(line.length)} disabled={cursor >= line.length} />
+        <NavButton label="⇅" onPress={() => setFlip((f) => !f)} />
+      </View>
+    </View>
+  );
+
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
-          <View style={[styles.boardRow, { direction: 'ltr' }]}>
-            <EvalBar score={engineOn ? (top?.score ?? null) : null} orientation={orientation} height={size} width={EVAL_BAR} />
-            <View style={{ width: size, height: size }}>
-              <Board
-                fen={fen}
-                orientation={orientation}
-                size={size}
-                selected={interaction.selected}
-                targets={interaction.targets}
-                lastMove={last ? { from: last.from, to: last.to } : null}
-                checkSquare={checkSquareOf(fen)}
-                onSquarePress={interaction.onSquarePress}
-                {...interaction.dragProps}
-              />
-              {engineOn && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
-              {engineOn && last && lastGrade && <BoardMoveBadge square={last.to} cls={lastGrade.classification} size={size} orientation={orientation} />}
-            </View>
-          </View>
-
-          {/* Move navigation follows the board, which stays left-to-right in every language. */}
-          <View style={[styles.row, { direction: 'ltr' }]}>
-            <NavButton label="⏮" onPress={() => setCursor(0)} disabled={cursor === 0} />
-            <NavButton label="◀" onPress={() => setCursor(cursor - 1)} disabled={cursor === 0} />
-            <NavButton label="▶" onPress={() => setCursor(cursor + 1)} disabled={cursor >= line.length} />
-            <NavButton label="⏭" onPress={() => setCursor(line.length)} disabled={cursor >= line.length} />
-            <NavButton label="⇅" onPress={() => setFlip((f) => !f)} />
-          </View>
-
+      <View style={[styles.layout, wide && styles.layoutWide]}>
+        <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
+        <ScrollView
+          style={[styles.panel, wide && { flex: 0, width: 404 }]}
+          contentContainerStyle={[styles.panelContent, { width: wide ? 400 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
+          keyboardShouldPersistTaps="handled">
           <Card>
             <View style={styles.row}>
               <Label bold size={18}>
                 {analysis?.terminal ? terminalText(analysis.terminal) : top ? formatEval(top.score) : engineOn ? '…' : tr('analysis.engineOff')}
               </Label>
-              {!!analysis?.depth && <Label muted>{tr('analysis.depth', { n: analysis.depth })}</Label>}
+              {!!analysis?.depth && <Label muted>{tr('analysis.depthOf', { n: analysis.depth, max: settings.depth })}</Label>}
               <View style={styles.toggle}>
-                <Pressable onPress={() => setMultipv((m) => (m === 1 ? 3 : 1))} accessibilityRole="button">
+                <Pressable onPress={() => setEngineSettings({ lines: multipv === 1 ? 3 : 1 })} accessibilityRole="button">
                   <Label muted>{tr('analysis.lines', { count: multipv })}</Label>
                 </Pressable>
                 <Switch value={engineOn} onValueChange={setEngineOn} accessibilityLabel={tr('analysis.engine')} />
+                <Pressable
+                  onPress={() => setSettingsOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr('analysis.settings.title')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.gear, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
+                  <Ionicons name="options-outline" size={18} color={t.text} />
+                </Pressable>
               </View>
             </View>
             {engineOn && last && lastGrade && (
@@ -267,8 +293,9 @@ export default function Analysis() {
               FEN: {fen}
             </Text>
           </Card>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
+      <EngineSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} engineOn={engineOn} onEngineOn={setEngineOn} />
     </Screen>
   );
 }
@@ -368,7 +395,12 @@ function clampPly(n: number, max: number) {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 12, alignItems: 'center' },
+  layout: { flex: 1 },
+  layoutWide: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingHorizontal: 16 },
+  fixed: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
+  panel: { flex: 1, flexGrow: 1 },
+  panelContent: { gap: 12, paddingVertical: 12, paddingHorizontal: 2, paddingBottom: 32 },
+  gear: { width: 32, height: 32, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   // `direction` goes inline: StyleSheet.create rejects it on the web.
   boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },

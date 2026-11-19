@@ -86,7 +86,7 @@ export class AnalysisService {
   }
 
   /** Streams analysis of one position. A new request from the same client replaces the old one. */
-  async analyze(key: string, req: { id: number; fen: string; multipv?: number; depth?: number }, send: Send): Promise<void> {
+  async analyze(key: string, req: { id: number; fen: string; multipv?: number; depth?: number; movetimeMs?: number }, send: Send): Promise<void> {
     const c = this.client(key);
     c.analysis?.ctrl.abort();
     let fen: string;
@@ -102,6 +102,7 @@ export class AnalysisService {
     }
     const multipv = clamp(Math.round(req.multipv ?? 1), 1, ANALYSIS_LIMITS.maxMultiPv);
     const depth = clamp(Math.round(req.depth ?? ANALYSIS_LIMITS.defaultDepth), 1, ANALYSIS_LIMITS.maxDepth);
+    const movetimeMs = clamp(Math.round(req.movetimeMs ?? ANALYSIS_LIMITS.maxMoveTimeMs), 500, ANALYSIS_LIMITS.maxMoveTimeMs);
     const ctrl = new AbortController();
     const entry = { id: req.id, ctrl };
     c.analysis = entry;
@@ -131,7 +132,7 @@ export class AnalysisService {
 
     try {
       await this.pool.run(
-        (engine) => engine.search(fen, { multipv, depth, movetimeMs: ANALYSIS_LIMITS.maxMoveTimeMs }, onInfo, ctrl.signal),
+        (engine) => engine.search(fen, { multipv, depth, movetimeMs }, onInfo, ctrl.signal),
         ctrl.signal,
       );
       if (pending) clearTimeout(pending);

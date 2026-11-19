@@ -44,6 +44,10 @@ export const home = {
     none: 'No friends online right now',
     all: 'All friends',
   },
+  dailyPuzzle: {
+    whiteToMove: 'White to move. Find the best move.',
+    blackToMove: 'Black to move. Find the best move.',
+  },
   liveBoard: {
     title: 'Live games',
     watch: 'Watch game',

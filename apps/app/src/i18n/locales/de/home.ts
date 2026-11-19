@@ -47,6 +47,10 @@ export const home: Messages<typeof en> = {
     none: 'Gerade ist kein Freund online',
     all: 'Alle Freunde',
   },
+  dailyPuzzle: {
+    whiteToMove: 'Weiß am Zug. Finde den besten Zug.',
+    blackToMove: 'Schwarz am Zug. Finde den besten Zug.',
+  },
   liveBoard: {
     title: 'Live-Partien',
     watch: 'Partie ansehen',

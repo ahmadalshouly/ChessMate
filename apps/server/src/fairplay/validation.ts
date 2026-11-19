@@ -76,6 +76,8 @@ export function validateClientMessage(m: ClientMessage): string | null {
       return msg.quick === undefined || typeof msg.quick === 'string' ? null : 'Invalid quick message';
     case 'analyze':
       if (!isInt(msg.id, 0, Number.MAX_SAFE_INTEGER)) return 'Invalid request id';
+      if (msg.depth !== undefined && !isInt(msg.depth, 1, 99)) return 'Invalid depth';
+      if (msg.movetimeMs !== undefined && !isInt(msg.movetimeMs, 1, 600_000)) return 'Invalid think time';
       return typeof msg.fen === 'string' && msg.fen.length <= 128 ? null : 'Invalid position';
     case 'analyzeStop':
       return isInt(msg.id, 0, Number.MAX_SAFE_INTEGER) ? null : 'Invalid request id';

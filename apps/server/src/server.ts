@@ -610,7 +610,11 @@ export class ChessServer {
     if (msg.t === 'analyze') {
       if (typeof msg.fen !== 'string' || msg.fen.length > 120) return this.send(ws, { ...err('bad_request', 'Invalid position'), id });
       if (this.isLivePosition(msg.fen)) return locked();
-      void analysis.analyze(player.id, { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined }, send);
+      void analysis.analyze(
+        player.id,
+        { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined, movetimeMs: Number(msg.movetimeMs) || undefined },
+        send,
+      );
       return;
     }
 

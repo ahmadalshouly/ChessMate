@@ -5,6 +5,7 @@ import { router, type Href } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { DailyPuzzleCard } from '@/components/DailyPuzzleCard';
 import { LiveBoard } from '@/components/LiveBoard';
 import { OnlineFriends } from '@/components/OnlineFriends';
 import { GameSetupSheet } from '@/components/play/GameSetupSheet';
@@ -113,9 +114,14 @@ export default function Home() {
         <LiveBoard width={Math.min(content, 1080) - 32} />
       </View>
 
-      <ModeSection index={3} title={tr('nav.play')} modes={PLAY} cols={cols} />
-      <ModeSection index={4} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
-      <ModeSection index={5} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+      <View style={{ gap: t.space.md }}>
+        <SectionHeader index={3} title={tr('puzzles.daily')} />
+        <DailyPuzzleCard width={Math.min(content, 1080) - 32} />
+      </View>
+
+      <ModeSection index={4} title={tr('nav.play')} modes={PLAY} cols={cols} />
+      <ModeSection index={5} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
+      <ModeSection index={6} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
       <GameSetupSheet
         timeControl={setupTc}
         visible={setupTc !== null}
