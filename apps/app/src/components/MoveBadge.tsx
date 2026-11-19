@@ -65,7 +65,7 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
             {symbolOnly ? (
               <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.5)} depth={1.8}>
                 {(fill) => (
-                  <SvgText x="50" y="66" fill={fill} fontSize="34" fontWeight="700" fontFamily="Montserrat_700Bold" letterSpacing={-2} textAnchor="middle">
+                  <SvgText x="50" y="66" fill={fill} fontSize="34" fontWeight="700" fontFamily="Inter_700Bold" letterSpacing={-2} textAnchor="middle">
                     {c.glyph}
                   </SvgText>
                 )}
@@ -80,7 +80,7 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
             {c.glyph && !symbolOnly && (
               <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.5)} depth={1.4}>
                 {(fill) => (
-                  <SvgText x="50" y="87" fill={fill} fontSize={c.glyph!.length > 2 ? 17 : 19} fontWeight="700" fontFamily="Montserrat_700Bold" textAnchor="middle">
+                  <SvgText x="50" y="87" fill={fill} fontSize={c.glyph!.length > 2 ? 17 : 19} fontWeight="700" fontFamily="Inter_700Bold" textAnchor="middle">
                     {c.glyph}
                   </SvgText>
                 )}
@@ -98,7 +98,7 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
             strokeWidth="1.2"
             fontSize={c.glyph!.length > 2 ? 34 : c.glyph!.length > 1 ? 44 : 52}
             fontWeight="700"
-            fontFamily="Montserrat_700Bold"
+            fontFamily="Inter_700Bold"
             letterSpacing={c.glyph!.length > 1 ? -2 : 0}
             textAnchor="middle">
             {c.glyph}
@@ -128,7 +128,7 @@ function Embossed({ ink, relief, depth = 1, children }: { ink: string; relief: s
   );
 }
 
-/** Approximate advance widths of Montserrat Bold capitals, in ems. */
+/** Approximate advance widths of bold capitals (Inter Bold), in ems. */
 const CAP_WIDTH: Record<string, number> = {
   ' ': 0.3, I: 0.3, J: 0.55, L: 0.58, E: 0.64, F: 0.62, T: 0.62, S: 0.64, Z: 0.66, Y: 0.7, K: 0.72, B: 0.74, P: 0.72, R: 0.73,
   X: 0.72, V: 0.74, A: 0.77, U: 0.77, N: 0.8, H: 0.8, D: 0.8, O: 0.82, C: 0.76, G: 0.8, Q: 0.82, M: 0.92, W: 1.0,
@@ -165,7 +165,7 @@ function ArcLabel({ text, fill }: { text: string; fill: string }) {
             fill={fill}
             fontSize={fontSize}
             fontWeight="700"
-            fontFamily="Montserrat_700Bold"
+            fontFamily="Inter_700Bold"
             textAnchor="middle"
             transform={`rotate(${deg.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)})`}>
             {ch}

@@ -9,6 +9,7 @@ import { DailyPuzzleCard } from '@/components/DailyPuzzleCard';
 import { LiveBoard } from '@/components/LiveBoard';
 import { OnlineFriends } from '@/components/OnlineFriends';
 import { GameSetupSheet } from '@/components/play/GameSetupSheet';
+import { BrandLine } from '@/components/shell/BrandLine';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
 import { Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
@@ -68,8 +69,8 @@ export default function Home() {
             {greeting()}
             {user.displayName ? `, ${user.displayName}` : ''}
           </Text>
-          <Text variant="display" style={width < 420 && { fontSize: 32, lineHeight: 38 }}>
-            {tr('home.heroTitle')}
+          <Text variant="display" style={width < 420 && { fontSize: 32, lineHeight: 40 }}>
+            {tr('brand.slogan')}
           </Text>
           <Text tone="muted" style={{ maxWidth: 520 }}>
             {tr('home.heroBody')}
@@ -122,6 +123,7 @@ export default function Home() {
       <ModeSection index={4} title={tr('nav.play')} modes={PLAY} cols={cols} />
       <ModeSection index={5} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
       <ModeSection index={6} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+      <BrandLine />
       <GameSetupSheet
         timeControl={setupTc}
         visible={setupTc !== null}

@@ -29,6 +29,7 @@ export function Sidebar() {
     <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingStart: insets.left + 14 }]}>
       <View style={styles.logo}>
         <Logo size={30} />
+        <Text style={[styles.tagline, { color: t.textTertiary }]}>{tr('brand.tagline')}</Text>
       </View>
       <Text style={[styles.section, { color: t.textTertiary }]}>{tr('nav.section')}</Text>
       <View accessibilityRole="tablist" style={styles.nav}>
@@ -73,6 +74,7 @@ export function Sidebar() {
 }
 
 const styles = StyleSheet.create({
+  tagline: { fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: 2.2, textTransform: 'uppercase', marginTop: 6 },
   panel: { paddingEnd: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
   logo: { paddingHorizontal: 8, paddingBottom: 30 },
   section: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 1.4, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 10 },

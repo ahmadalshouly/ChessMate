@@ -5,33 +5,34 @@ import { Platform, StyleSheet, type StyleProp, type TextStyle } from 'react-nati
 import { i18nStore } from '@/i18n/store';
 
 /**
- * ChessMate type families.
+ * ChessMate type families (brand card: Playfair Display + Inter).
  *
- * - Sans (Geist): every piece of UI text.
- * - Display (Montserrat, the ChessMate wordmark face): headlines, titles, the wordmark.
- * - Mono (Geist Mono): clocks, ratings, time controls, overlines. Anything that counts.
+ * - Display (Playfair Display): headlines, titles, the ChessMate wordmark and the slogan.
+ * - Sans (Inter): body text and every piece of UI.
+ * - Mono role (Inter with tabular figures): clocks, ratings, time controls, overlines.
+ *   Anything that counts keeps fixed-width digits through `fontVariant: ['tabular-nums']`.
  * - Arabic (IBM Plex Sans Arabic): replaces Sans and Display while the app is in Arabic.
- *   Geist and Montserrat have no Arabic glyphs; Plex Arabic shares their clean, geometric
- *   shapes and ships its own Latin, so mixed text (names, "Elo 1500") stays consistent.
+ *   Inter and Playfair have no Arabic glyphs; Plex Arabic ships its own Latin, so mixed
+ *   text (names, "Elo 1500") stays consistent.
+ *
+ * Inter and Playfair Display are bundled from assets/fonts (SIL Open Font License, see the
+ * licence files there), trimmed to Latin.
  *
  * Custom fonts on native need one family per weight, so a weight is a family name here.
  * Screens never pick these directly: `<Text variant>` does, and plain `fontWeight` styles
  * are mapped to the matching family by `resolveFontStyle`.
  */
 export const FONT_FILES = {
-  Geist_400Regular: require('@expo-google-fonts/geist/400Regular/Geist_400Regular.ttf'),
-  Geist_500Medium: require('@expo-google-fonts/geist/500Medium/Geist_500Medium.ttf'),
-  Geist_600SemiBold: require('@expo-google-fonts/geist/600SemiBold/Geist_600SemiBold.ttf'),
-  Geist_700Bold: require('@expo-google-fonts/geist/700Bold/Geist_700Bold.ttf'),
-  Geist_800ExtraBold: require('@expo-google-fonts/geist/800ExtraBold/Geist_800ExtraBold.ttf'),
-  GeistMono_400Regular: require('@expo-google-fonts/geist-mono/400Regular/GeistMono_400Regular.ttf'),
-  GeistMono_500Medium: require('@expo-google-fonts/geist-mono/500Medium/GeistMono_500Medium.ttf'),
-  GeistMono_600SemiBold: require('@expo-google-fonts/geist-mono/600SemiBold/GeistMono_600SemiBold.ttf'),
-  GeistMono_700Bold: require('@expo-google-fonts/geist-mono/700Bold/GeistMono_700Bold.ttf'),
-  Montserrat_400Regular: require('@expo-google-fonts/montserrat/400Regular/Montserrat_400Regular.ttf'),
-  Montserrat_500Medium: require('@expo-google-fonts/montserrat/500Medium/Montserrat_500Medium.ttf'),
-  Montserrat_600SemiBold: require('@expo-google-fonts/montserrat/600SemiBold/Montserrat_600SemiBold.ttf'),
-  Montserrat_700Bold: require('@expo-google-fonts/montserrat/700Bold/Montserrat_700Bold.ttf'),
+  Inter_400Regular: require('../../../assets/fonts/Inter-Regular.otf'),
+  Inter_500Medium: require('../../../assets/fonts/Inter-Medium.otf'),
+  Inter_600SemiBold: require('../../../assets/fonts/Inter-SemiBold.otf'),
+  Inter_700Bold: require('../../../assets/fonts/Inter-Bold.otf'),
+  PlayfairDisplay_400Regular: require('../../../assets/fonts/PlayfairDisplay-Regular.ttf'),
+  PlayfairDisplay_500Medium: require('../../../assets/fonts/PlayfairDisplay-Medium.ttf'),
+  PlayfairDisplay_600SemiBold: require('../../../assets/fonts/PlayfairDisplay-SemiBold.ttf'),
+  PlayfairDisplay_700Bold: require('../../../assets/fonts/PlayfairDisplay-Bold.ttf'),
+  /** The slogan ("Think. Move. Win.") and the brand line are set in italic. */
+  PlayfairDisplay_500MediumItalic: require('../../../assets/fonts/PlayfairDisplay-MediumItalic.ttf'),
 } as const;
 
 /** Arabic faces. Bundled on native; fetched on web only once someone switches to Arabic. */
@@ -45,27 +46,18 @@ export const ARABIC_FONT_FILES = {
 export type FontFamilyName = keyof typeof FONT_FILES | keyof typeof ARABIC_FONT_FILES;
 
 const SANS: Record<number, FontFamilyName> = {
-  100: 'Geist_400Regular',
-  200: 'Geist_400Regular',
-  300: 'Geist_400Regular',
-  400: 'Geist_400Regular',
-  500: 'Geist_500Medium',
-  600: 'Geist_600SemiBold',
-  700: 'Geist_700Bold',
-  800: 'Geist_800ExtraBold',
-  900: 'Geist_800ExtraBold',
+  100: 'Inter_400Regular',
+  200: 'Inter_400Regular',
+  300: 'Inter_400Regular',
+  400: 'Inter_400Regular',
+  500: 'Inter_500Medium',
+  600: 'Inter_600SemiBold',
+  700: 'Inter_700Bold',
+  800: 'Inter_700Bold',
+  900: 'Inter_700Bold',
 };
-const MONO: Record<number, FontFamilyName> = {
-  100: 'GeistMono_400Regular',
-  200: 'GeistMono_400Regular',
-  300: 'GeistMono_400Regular',
-  400: 'GeistMono_400Regular',
-  500: 'GeistMono_500Medium',
-  600: 'GeistMono_600SemiBold',
-  700: 'GeistMono_700Bold',
-  800: 'GeistMono_700Bold',
-  900: 'GeistMono_700Bold',
-};
+/** Same faces as Sans: the card has two families. Counting text adds tabular figures. */
+const MONO: Record<number, FontFamilyName> = SANS;
 
 const ARABIC: Record<number, FontFamilyName> = {
   400: 'IBMPlexSansArabic_400Regular',
@@ -80,11 +72,13 @@ export const families = {
   sans: SANS,
   mono: MONO,
   display: {
-    400: 'Montserrat_400Regular',
-    500: 'Montserrat_500Medium',
-    600: 'Montserrat_600SemiBold',
-    700: 'Montserrat_700Bold',
+    400: 'PlayfairDisplay_400Regular',
+    500: 'PlayfairDisplay_500Medium',
+    600: 'PlayfairDisplay_600SemiBold',
+    700: 'PlayfairDisplay_700Bold',
   } as Record<400 | 500 | 600 | 700, FontFamilyName>,
+  /** The slogan face. */
+  displayItalic: 'PlayfairDisplay_500MediumItalic' as FontFamilyName,
 };
 
 /** Generic family aliases a style may use instead of a family name. */
@@ -109,8 +103,8 @@ const cache = new Map<string, TextStyle>();
  * through untouched. Weight is reset to normal so browsers don't fake-bold a bold face.
  *
  * In Arabic, Sans and Display become IBM Plex Sans Arabic of the same weight, and letter
- * spacing is cleared (any tracking breaks the joins between Arabic letters). Mono keeps
- * Geist Mono for digits, with Plex Arabic as the web fallback for any Arabic in it.
+ * spacing is cleared (any tracking breaks the joins between Arabic letters). Counting text
+ * uses Plex Arabic too; its Latin digits keep numbers readable.
  */
 export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextStyle> {
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
@@ -122,24 +116,24 @@ export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
     const plainWeight = flat.fontWeight === undefined || flat.fontWeight === 'normal';
     if (plainWeight && !arabic) return [style, NEUTRAL_WEIGHT];
     const ownWeight = /_(\d)00/.exec(fam)?.[1];
-    fam = fam.startsWith('GeistMono') ? 'mono' : fam.startsWith('Montserrat') ? 'display' : 'sans';
+    // The italic slogan face has no other weights: keep it as it is.
+    if (fam === families.displayItalic && !arabic) return [style, NEUTRAL_WEIGHT];
+    fam = fam.startsWith('PlayfairDisplay') ? 'display' : 'sans';
     if (plainWeight && ownWeight) weightStyle = `${ownWeight}00` as TextStyle['fontWeight'];
   }
   const weight = weightOf(weightStyle);
   const italic = flat.fontStyle === 'italic';
   const mono = !!fam && fam !== 'display' && fam !== 'sans' && (fam === 'mono' || MONO_HINT.test(fam));
   let family: FontFamilyName;
-  if (mono) family = MONO[weight] ?? 'GeistMono_400Regular';
+  if (mono && !arabic) family = MONO[weight] ?? 'Inter_400Regular';
   else if (arabic) family = arabicFor(weight);
   else if (fam === 'display') family = families.display[Math.min(700, Math.max(400, weight)) as 400 | 500 | 600 | 700] ?? families.display[600];
-  else family = SANS[weight] ?? 'Geist_400Regular';
+  else family = SANS[weight] ?? 'Inter_400Regular';
   const key = family + (italic ? 'i' : '') + (arabic ? 'ar' : '');
   let patch = cache.get(key);
   if (!patch) {
-    // Web gets Plex Arabic as a per-glyph fallback inside Geist Mono (native falls back to the system).
-    const webMonoFallback = arabic && mono && Platform.OS === 'web';
     patch = {
-      fontFamily: webMonoFallback ? `${family}, ${arabicFor(weight)}` : family,
+      fontFamily: family,
       fontWeight: 'normal',
       ...(arabic ? { letterSpacing: 0 } : null),
     };
