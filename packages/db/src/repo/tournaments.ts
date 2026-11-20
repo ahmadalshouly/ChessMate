@@ -56,6 +56,7 @@ export async function saveTournamentPlayer(db: Database, p: typeof tournamentPla
         disqualified: p.disqualified,
         paid: p.paid,
         rulesAcceptedAt: p.rulesAcceptedAt,
+        state: p.state,
       },
     });
 }

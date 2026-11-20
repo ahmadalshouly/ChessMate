@@ -1,5 +1,9 @@
 import {
   arenaPoints,
+  nextRun,
+  swissPairings,
+  swissPoints,
+  tournamentSettings,
   formatMoney,
   validatePayoutRequest,
   validateSponsorApplication,
@@ -18,6 +22,8 @@ import {
   type TournamentStatus,
   type TournamentSummary,
   type TournamentViewer,
+  type TournamentSettings,
+  type TournamentResult,
   PAYOUT_STATUSES,
   SPONSOR_STATUSES,
 } from '@chessmate/core';
@@ -63,8 +69,8 @@ export interface TournamentBridge {
   liveGameOf(userId: string): string | null;
   /** Rating and number of rated games in this speed. */
   rating(userId: string, tc: TimeControl): { rating: number; games: number };
-  /** Starts a tournament game; returns its id, or null when it could not start. */
-  startGame(whiteId: string, blackId: string, tc: TimeControl, rated: boolean, tournamentId: string): string | null;
+  /** Starts a tournament game (frenzy: players may halve their clock); returns its id, or null when it could not start. */
+  startGame(whiteId: string, blackId: string, tc: TimeControl, rated: boolean, tournamentId: string, frenzy?: boolean): string | null;
   /** In-app and push notice to a player. */
   notify(userId: string, title: string, body: string, url: string): void;
 }
@@ -78,7 +84,14 @@ interface Player {
   wins: number;
   draws: number;
   losses: number;
+  /** Wins in a row. */
   streak: number;
+  drawRun: number;
+  lossRun: number;
+  /** Swiss: opponents met (one per round played), colours had and byes. */
+  opponents: string[];
+  colors: ('w' | 'b')[];
+  byes: number;
   withdrawn: boolean;
   disqualified: boolean;
   paid: boolean;
@@ -95,10 +108,14 @@ interface Entry {
   players: Map<string, Player>;
   /** Live tournament games: game id → players. */
   games: Map<string, { white: string; black: string }>;
+  /** Swiss: when the last game of the current round ended. */
+  roundDoneAt: number;
 }
 
 /** A player waits this long after a game before the next pairing, to see the result. */
 const REST_MS = 4_000;
+/** Swiss: pause between rounds, to read the standings. */
+const SWISS_BREAK_MS = 15_000;
 
 const ms = (d: Date | string | null | undefined) => (d ? new Date(d).getTime() : 0);
 
@@ -164,6 +181,11 @@ export class TournamentService {
           draws: p.draws,
           losses: p.losses,
           streak: p.streak,
+          drawRun: p.state?.drawRun ?? 0,
+          lossRun: p.state?.lossRun ?? 0,
+          opponents: p.state?.opponents ?? [],
+          colors: p.state?.colors ?? [],
+          byes: p.state?.byes ?? 0,
           withdrawn: p.withdrawn,
           disqualified: p.disqualified,
           paid: p.paid,
@@ -171,7 +193,7 @@ export class TournamentService {
           joinedAt: ms(p.joinedAt),
         });
       }
-      this.entries.set(row.id, { row, players, games: new Map() });
+      this.entries.set(row.id, { row, players, games: new Map(), roundDoneAt: 0 });
     }
     for (const r of await listPayoutRequests(this.db, 1000)) this.payouts.set(`${r.tournamentId}:${r.userId}`, r);
   }
@@ -193,6 +215,19 @@ export class TournamentService {
     return ms(row.startsAt) + row.durationMinutes * 60_000;
   }
 
+  private settings(e: Entry): TournamentSettings {
+    return tournamentSettings(e.row.settings);
+  }
+
+  private swiss(e: Entry) {
+    return this.settings(e).format === 'swiss';
+  }
+
+  /** Points as players see them: Swiss points are stored doubled (½ points). */
+  private shown(e: Entry, score: number) {
+    return this.swiss(e) ? score / 2 : score;
+  }
+
   private get(id: string): Entry {
     const e = this.entries.get(id);
     if (!e) throw new TournamentError(404, 'No such tournament');
@@ -211,6 +246,7 @@ export class TournamentService {
       draws: p.draws,
       losses: p.losses,
       streak: p.streak,
+      state: { drawRun: p.drawRun, lossRun: p.lossRun, opponents: p.opponents, colors: p.colors, byes: p.byes },
       withdrawn: p.withdrawn,
       disqualified: p.disqualified,
       paid: p.paid,
@@ -239,12 +275,71 @@ export class TournamentService {
           if (this.active(p)) this.bridge?.notify(p.userId, `${e.row.name} has started`, 'Open the tournament to get your first game.', `/tournaments/${e.row.id}`);
         }
       }
-      if (e.row.status === 'running' && this.endsAt(e.row) <= now) {
-        this.setStatus(e, 'finished');
-        this.announceWinners(e);
+      if (e.row.status !== 'running') continue;
+      const s = this.settings(e);
+      if (this.endsAt(e.row) <= now) {
+        // Time is up. "timer" ends now (running games do not count); "wait" lets them finish first.
+        if (s.endMode === 'timer' || e.games.size === 0) this.finish(e);
+        continue;
       }
-      if (e.row.status === 'running') this.pair(e, now);
+      if (s.format === 'swiss') {
+        if (e.games.size === 0 && now - e.roundDoneAt >= SWISS_BREAK_MS) {
+          if (e.row.currentRound >= s.rounds) this.finish(e);
+          else this.pairSwissRound(e, now);
+        }
+      } else this.pair(e, now);
     }
+  }
+
+  private finish(e: Entry) {
+    e.games.clear();
+    this.setStatus(e, 'finished');
+    this.announceWinners(e);
+  }
+
+  /** Who may be paired now: active, paid when there is a fee, online and not in another game. */
+  private available(e: Entry, p: Player) {
+    const b = this.bridge;
+    return !!b && this.active(p) && (e.row.entryFeeCents === 0 || p.paid) && b.isOnline(p.userId) && !b.liveGameOf(p.userId);
+  }
+
+  /**
+   * Starts the next Swiss round: everyone available plays a player on a
+   * similar score they have not met; an odd player out gets a bye (a win).
+   * Players who are away sit the round out with no points.
+   */
+  private pairSwissRound(e: Entry, now: number) {
+    const b = this.bridge;
+    if (!b) return;
+    const ready = [...e.players.values()].filter((p) => this.available(e, p));
+    if (ready.length < 2) return;
+    const round = e.row.currentRound + 1;
+    e.row = { ...e.row, currentRound: round };
+    void updateTournament(this.db, e.row.id, { currentRound: round }).catch((err) => console.error('could not save tournament round', err));
+    const { pairs, bye } = swissPairings(ready.map((p) => ({ id: p.userId, score: p.score, rating: p.rating, opponents: p.opponents, colors: p.colors, byes: p.byes })));
+    const s = this.settings(e);
+    if (bye) {
+      const p = e.players.get(bye)!;
+      p.byes += 1;
+      p.score += swissPoints('win');
+      this.persistPlayer(e.row.id, p);
+      b.notify(p.userId, `${e.row.name}: round ${round}`, 'You have a bye this round: it counts as a win.', `/tournaments/${e.row.id}`);
+    }
+    for (const [whiteId, blackId] of pairs) {
+      const gameId = b.startGame(whiteId, blackId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs }, e.row.rated, e.row.id, s.frenzy);
+      if (!gameId) continue;
+      e.games.set(gameId, { white: whiteId, black: blackId });
+      const white = e.players.get(whiteId)!;
+      const black = e.players.get(blackId)!;
+      white.opponents.push(blackId);
+      black.opponents.push(whiteId);
+      white.colors.push('w');
+      black.colors.push('b');
+      this.persistPlayer(e.row.id, white);
+      this.persistPlayer(e.row.id, black);
+    }
+    // Nobody could start (players left between checks): try again after the break.
+    if (e.games.size === 0) e.roundDoneAt = now;
   }
 
   /** Tells prize winners they won and how to ask for their prize. */
@@ -259,15 +354,14 @@ export class TournamentService {
     }
   }
 
-  /** Pairs every waiting player it can: by score, then rating, avoiding an immediate rematch. */
+  /** Arena: pairs every waiting player it can, by score, then rating, avoiding an immediate rematch. */
   private pair(e: Entry, now: number) {
     const b = this.bridge;
     if (!b) return;
-    // No new games in the last minute: they could not finish in time.
-    if (this.endsAt(e.row) - now < 60_000) return;
-    const waiting = [...e.players.values()].filter(
-      (p) => this.active(p) && (e.row.entryFeeCents === 0 || p.paid) && b.isOnline(p.userId) && !b.liveGameOf(p.userId) && now - (p.freeSince ?? 0) >= REST_MS,
-    );
+    const s = this.settings(e);
+    // Ending on the timer: no new games in the last minute, they could not finish in time.
+    if (s.endMode === 'timer' && this.endsAt(e.row) - now < 60_000) return;
+    const waiting = [...e.players.values()].filter((p) => this.available(e, p) && now - (p.freeSince ?? 0) >= REST_MS);
     waiting.sort((x, y) => y.score - x.score || y.rating - x.rating);
     const used = new Set<string>();
     for (let i = 0; i < waiting.length; i++) {
@@ -288,7 +382,7 @@ export class TournamentService {
       // Whoever had black last time gets white.
       const aWhite = a.lastColor === 'b' || (a.lastColor !== 'w' && pick.lastColor !== 'b');
       const [white, black] = aWhite ? [a, pick] : [pick, a];
-      const gameId = b.startGame(white.userId, black.userId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs }, e.row.rated, e.row.id);
+      const gameId = b.startGame(white.userId, black.userId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs }, e.row.rated, e.row.id, s.frenzy);
       if (!gameId) continue;
       used.add(a.userId).add(pick.userId);
       e.games.set(gameId, { white: white.userId, black: black.userId });
@@ -299,14 +393,18 @@ export class TournamentService {
     }
   }
 
-  /** Scores a finished tournament game. Aborted games score nothing. */
-  gameEnded(tournamentId: string, gameId: string, outcome: GameOutcome) {
+  /**
+   * Scores a finished tournament game. Aborted games score nothing, and
+   * neither do games still running when a tournament ended on its timer.
+   */
+  gameEnded(tournamentId: string, gameId: string, outcome: GameOutcome, frenzy: { w: boolean; b: boolean } = { w: false, b: false }) {
     const e = this.entries.get(tournamentId);
     if (!e) return;
     const g = e.games.get(gameId);
     e.games.delete(gameId);
     if (!g) return;
     const now = this.now();
+    const s = this.settings(e);
     for (const [id, color] of [
       [g.white, 'w'],
       [g.black, 'b'],
@@ -314,20 +412,21 @@ export class TournamentService {
       const p = e.players.get(id);
       if (!p) continue;
       p.freeSince = now;
-      if (outcome.reason === 'aborted' || p.disqualified) continue;
-      const result = outcome.winner === null ? 'draw' : outcome.winner === color ? 'win' : 'loss';
-      p.score += arenaPoints(result, p.streak);
+      if (e.row.status !== 'running' || outcome.reason === 'aborted' || p.disqualified) continue;
+      const result: TournamentResult = outcome.winner === null ? 'draw' : outcome.winner === color ? 'win' : 'loss';
+      if (s.format === 'swiss') p.score += swissPoints(result);
+      else p.score = Math.max(0, p.score + arenaPoints(result, { wins: p.streak, draws: p.drawRun, losses: p.lossRun }, s, frenzy[color]));
+      const run = nextRun({ wins: p.streak, draws: p.drawRun, losses: p.lossRun }, result);
+      p.streak = run.wins;
+      p.drawRun = run.draws;
+      p.lossRun = run.losses;
       p.games += 1;
-      if (result === 'win') {
-        p.wins += 1;
-        p.streak += 1;
-      } else {
-        if (result === 'draw') p.draws += 1;
-        else p.losses += 1;
-        p.streak = 0;
-      }
+      if (result === 'win') p.wins += 1;
+      else if (result === 'draw') p.draws += 1;
+      else p.losses += 1;
       this.persistPlayer(tournamentId, p);
     }
+    if (e.games.size === 0) e.roundDoneAt = now;
   }
 
   // ---------------------------------------------------------------- players
@@ -373,6 +472,11 @@ export class TournamentService {
       draws: 0,
       losses: 0,
       streak: 0,
+      drawRun: 0,
+      lossRun: 0,
+      opponents: [],
+      colors: [],
+      byes: 0,
       withdrawn: false,
       disqualified: false,
       paid: opts.paid,
@@ -534,6 +638,9 @@ export class TournamentService {
       lateJoin: r.lateJoin,
       rules: r.rules,
       sponsor: r.sponsorName ? { name: r.sponsorName, url: r.sponsorUrl, logoPath: this.logoPath(r) } : null,
+      settings: this.settings(e),
+      round: r.currentRound,
+      finishing: r.status === 'running' && this.endsAt(r) <= this.now(),
       players: [...e.players.values()].filter((p) => (this.active(p) || p.games > 0) && !p.disqualified).length,
       joined: !!viewer && !!e.players.get(viewer) && this.active(e.players.get(viewer)!),
       winner: r.status === 'finished' && standings[0] && standings[0].games > 0 ? standings[0].username : null,
@@ -543,19 +650,28 @@ export class TournamentService {
   private standings(e: Entry): TournamentStanding[] {
     const playing = new Set<string>();
     for (const g of e.games.values()) playing.add(g.white).add(g.black);
-    const list = [...e.players.values()].filter((p) => !p.disqualified && (this.active(p) || p.games > 0));
-    list.sort((a, b) => b.score - a.score || b.wins - a.wins || b.rating - a.rating || a.joinedAt - b.joinedAt);
+    const s = this.settings(e);
+    const swiss = s.format === 'swiss';
+    const list = [...e.players.values()].filter((p) => !p.disqualified && (this.active(p) || p.games > 0 || p.byes > 0));
+    // Swiss tie-break: Buchholz, the sum of the opponents' scores.
+    const buchholz = new Map<string, number>();
+    if (swiss) for (const p of list) buchholz.set(p.userId, p.opponents.reduce((sum, id) => sum + (e.players.get(id)?.score ?? 0), 0));
+    list.sort(
+      (a, b) =>
+        b.score - a.score || (buchholz.get(b.userId) ?? 0) - (buchholz.get(a.userId) ?? 0) || b.wins - a.wins || b.rating - a.rating || a.joinedAt - b.joinedAt,
+    );
     return list.map((p, i) => ({
       rank: i + 1,
       userId: p.userId,
       username: p.username,
       rating: p.rating,
-      score: p.score,
+      score: this.shown(e, p.score),
       games: p.games,
       wins: p.wins,
       draws: p.draws,
       losses: p.losses,
-      onFire: p.streak >= 2,
+      onFire: !swiss && s.winStreak && p.streak >= 2,
+      ...(swiss ? { buchholz: (buchholz.get(p.userId) ?? 0) / 2, byes: p.byes } : {}),
       withdrawn: p.withdrawn,
       playing: playing.has(p.userId),
     }));
@@ -608,7 +724,7 @@ export class TournamentService {
           userId: p.userId,
           username: p.username,
           rating: p.rating,
-          score: p.score,
+          score: this.shown(e, p.score),
           games: p.games,
           withdrawn: p.withdrawn,
           disqualified: p.disqualified,
@@ -631,7 +747,7 @@ export class TournamentService {
     p.withdrawn = true;
     this.persistPlayer(id, p);
     this.bridge?.notify(userId, `Removed from ${e.row.name}`, 'Tournament staff removed you from this tournament.', `/tournaments/${id}`);
-    return { userId: p.userId, username: p.username, rating: p.rating, score: p.score, games: p.games, withdrawn: p.withdrawn, disqualified: true, paid: p.paid, rulesAcceptedAt: p.rulesAcceptedAt, joinedAt: p.joinedAt, playing: false };
+    return { userId: p.userId, username: p.username, rating: p.rating, score: this.shown(e, p.score), games: p.games, withdrawn: p.withdrawn, disqualified: true, paid: p.paid, rulesAcceptedAt: p.rulesAcceptedAt, joinedAt: p.joinedAt, playing: false };
   }
 
   async create(input: unknown, createdBy: string): Promise<TournamentDetail> {
@@ -645,7 +761,7 @@ export class TournamentService {
       status: 'scheduled',
       createdBy,
     });
-    this.entries.set(row.id, { row, players: new Map(), games: new Map() });
+    this.entries.set(row.id, { row, players: new Map(), games: new Map(), roundDoneAt: 0 });
     return this.detail(null, row.id);
   }
 
@@ -670,6 +786,7 @@ export class TournamentService {
       rules: v.rules,
       sponsorName: v.sponsorName,
       sponsorUrl: v.sponsorUrl,
+      settings: { ...v.settings } as Record<string, unknown>,
     };
   }
 
@@ -693,6 +810,7 @@ export class TournamentService {
       rules: row.rules,
       sponsorName: row.sponsorName,
       sponsorUrl: row.sponsorUrl,
+      settings: tournamentSettings(row.settings),
     };
   }
 
@@ -720,6 +838,8 @@ export class TournamentService {
         minRating: e.row.minRating,
         maxRating: e.row.maxRating,
         minRatedGames: e.row.minRatedGames,
+        // Format and scoring are what players signed up for.
+        settings: e.row.settings,
       };
     }
     if (v.value.sponsorLogo !== undefined) cols.sponsorLogo = v.value.sponsorLogo;

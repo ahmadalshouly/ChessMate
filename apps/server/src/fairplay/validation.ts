@@ -88,6 +88,8 @@ export function validateClientMessage(m: ClientMessage): string | null {
       if (typeof msg.playerId !== 'string' || msg.playerId.length > 128) return 'Invalid player id';
       if (msg.gameId !== undefined && !isGameId(msg.gameId)) return 'Invalid game id';
       return msg.note === undefined || (typeof msg.note === 'string' && msg.note.length <= 2000) ? null : 'Invalid report note';
+    case 'frenzy':
+      return isGameId(msg.gameId) ? null : 'Invalid game id';
     case 'secretPick':
       return isGameId(msg.gameId) && typeof msg.square === 'string' && /^[a-h][1-8]$/.test(msg.square) ? null : 'Invalid pick';
     default:

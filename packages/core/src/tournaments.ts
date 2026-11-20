@@ -1,14 +1,71 @@
 import type { TimeControl } from './timeControl';
 
 /**
- * Arena tournaments: staff create and schedule them; players join. While a
- * tournament runs, the server pairs waiting players (similar scores first) as
- * soon as they finish a game, until the time is up. Most points wins.
+ * Tournaments: staff create and schedule them; players join.
  *
- * Points: win 2, draw 1, loss 0. After two wins in a row a player is "on
- * fire": wins and draws count double until they fail to win.
+ * Arena: while it runs, the server pairs waiting players (similar scores
+ * first) as soon as they finish a game, until the time is up. Most points
+ * wins. Points: win 2, draw 1, loss 0, changed by the streak and frenzy
+ * options in `TournamentSettings` (see `arenaPoints`).
+ *
+ * Swiss: a fixed number of rounds; everyone plays once per round against a
+ * player on a similar score they have not met. Win 1, draw ½, bye 1.
+ *
+ * End mode: "wait" lets games still running at the end finish and count;
+ * "timer" ends the tournament on time and running games do not count.
  */
 export type TournamentStatus = 'scheduled' | 'running' | 'finished' | 'cancelled';
+
+export const TOURNAMENT_FORMATS = ['arena', 'swiss'] as const;
+export type TournamentFormat = (typeof TOURNAMENT_FORMATS)[number];
+export const TOURNAMENT_END_MODES = ['wait', 'timer'] as const;
+export type TournamentEndMode = (typeof TOURNAMENT_END_MODES)[number];
+
+/** How a tournament is played and scored. */
+export interface TournamentSettings {
+  format: TournamentFormat;
+  /** Swiss: number of rounds. */
+  rounds: number;
+  /** wait: games running at the end finish and count. timer: the tournament ends on time. */
+  endMode: TournamentEndMode;
+  /** Arena: after two wins in a row, a win is 4 points instead of 2. */
+  winStreak: boolean;
+  /** Arena: after two draws in a row, a draw scores nothing. */
+  drawStreak: boolean;
+  /** Arena: after two losses in a row, a loss costs a point. */
+  lossStreak: boolean;
+  /** Arena: a player may halve their clock (no increment) for an extra point on a win or draw. */
+  frenzy: boolean;
+}
+
+export const SWISS_ROUNDS = { min: 3, max: 15 } as const;
+
+export const DEFAULT_TOURNAMENT_SETTINGS: TournamentSettings = {
+  format: 'arena',
+  rounds: 7,
+  endMode: 'wait',
+  winStreak: true,
+  drawStreak: false,
+  lossStreak: false,
+  frenzy: false,
+};
+
+/** Fills stored or partial settings with the defaults (older tournaments have none). */
+export function tournamentSettings(raw: unknown): TournamentSettings {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof TournamentSettings, unknown>>;
+  const d = DEFAULT_TOURNAMENT_SETTINGS;
+  const bool = (v: unknown, def: boolean) => (typeof v === 'boolean' ? v : def);
+  const rounds = Math.round(Number(r.rounds));
+  return {
+    format: (TOURNAMENT_FORMATS as readonly unknown[]).includes(r.format) ? (r.format as TournamentFormat) : d.format,
+    rounds: Number.isFinite(rounds) ? Math.min(SWISS_ROUNDS.max, Math.max(SWISS_ROUNDS.min, rounds)) : d.rounds,
+    endMode: (TOURNAMENT_END_MODES as readonly unknown[]).includes(r.endMode) ? (r.endMode as TournamentEndMode) : d.endMode,
+    winStreak: bool(r.winStreak, d.winStreak),
+    drawStreak: bool(r.drawStreak, d.drawStreak),
+    lossStreak: bool(r.lossStreak, d.lossStreak),
+    frenzy: bool(r.frenzy, d.frenzy),
+  };
+}
 
 export interface TournamentPrize {
   place: number;
@@ -57,6 +114,11 @@ export interface TournamentSummary {
   /** Extra rules from the organisers, accepted when joining. */
   rules: string | null;
   sponsor: TournamentSponsor | null;
+  settings: TournamentSettings;
+  /** Swiss: the round being played (0 before the first). */
+  round: number;
+  /** The time is up and the last games are being played ("wait" end mode). */
+  finishing: boolean;
   players: number;
   /** Signed-in viewer has joined (and not withdrawn). */
   joined: boolean;
@@ -74,8 +136,12 @@ export interface TournamentStanding {
   wins: number;
   draws: number;
   losses: number;
-  /** Two or more wins in a row: the next win or draw counts double. */
+  /** Arena with win streaks: two or more wins in a row, so the next win is worth 4. */
   onFire: boolean;
+  /** Swiss: sum of the opponents' scores, the first tie-break. */
+  buchholz?: number;
+  /** Swiss: rounds without an opponent (each scores a win). */
+  byes?: number;
   withdrawn: boolean;
   /** In a tournament game right now. */
   playing: boolean;
@@ -124,6 +190,7 @@ export interface TournamentInput {
   sponsorUrl: string | null;
   /** Logo as a data URL; null removes it, undefined keeps the current one. */
   sponsorLogo?: string | null;
+  settings: TournamentSettings;
 }
 
 export const TOURNAMENT_LIMITS = {
@@ -143,10 +210,103 @@ export const TOURNAMENT_LIMITS = {
 /** PNG, JPEG or WebP only: an SVG served from the API could carry script. */
 const LOGO_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 
-/** Points for one result, given the player's current win streak. */
-export function arenaPoints(result: 'win' | 'draw' | 'loss', streak: number): number {
-  const base = result === 'win' ? 2 : result === 'draw' ? 1 : 0;
-  return streak >= 2 ? base * 2 : base;
+export type TournamentResult = 'win' | 'draw' | 'loss';
+
+/** Same results in a row before this game (only one of them is above 0). */
+export interface ArenaRun {
+  wins: number;
+  draws: number;
+  losses: number;
+}
+
+/**
+ * Arena points for one result. Base: win 2, draw 1, loss 0. With the streak
+ * options, after two of the same result in a row: a win is 4, a draw 0, a
+ * loss -1. Frenzy adds a point to a win or draw that scored.
+ */
+export function arenaPoints(result: TournamentResult, run: ArenaRun, s: Pick<TournamentSettings, 'winStreak' | 'drawStreak' | 'lossStreak' | 'frenzy'>, frenzied = false): number {
+  let pts: number;
+  if (result === 'win') pts = s.winStreak && run.wins >= 2 ? 4 : 2;
+  else if (result === 'draw') pts = s.drawStreak && run.draws >= 2 ? 0 : 1;
+  else pts = s.lossStreak && run.losses >= 2 ? -1 : 0;
+  if (frenzied && s.frenzy && pts > 0) pts += 1;
+  return pts;
+}
+
+export function nextRun(run: ArenaRun, result: TournamentResult): ArenaRun {
+  return {
+    wins: result === 'win' ? run.wins + 1 : 0,
+    draws: result === 'draw' ? run.draws + 1 : 0,
+    losses: result === 'loss' ? run.losses + 1 : 0,
+  };
+}
+
+/** Swiss points are kept doubled (win 2, draw 1) so they stay whole numbers. */
+export const swissPoints = (result: TournamentResult) => (result === 'win' ? 2 : result === 'draw' ? 1 : 0);
+
+export interface SwissEntrant {
+  id: string;
+  /** Doubled points. */
+  score: number;
+  rating: number;
+  opponents: string[];
+  colors: ('w' | 'b')[];
+  byes: number;
+}
+
+/**
+ * Pairs one Swiss round: players sorted by score then rating, each paired
+ * with the closest player they have not met (with backtracking); with an odd
+ * number, the lowest-ranked player without a bye sits out with a bye. Falls
+ * back to allowing a rematch when no clean pairing exists. Colours go to
+ * whoever has had that colour less.
+ */
+export function swissPairings(entrants: SwissEntrant[]): { pairs: [white: string, black: string][]; bye: string | null } {
+  const list = [...entrants].sort((a, b) => b.score - a.score || b.rating - a.rating || a.id.localeCompare(b.id));
+  let bye: string | null = null;
+  if (list.length % 2 === 1) {
+    let idx = list.length - 1;
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]!.byes === 0) {
+        idx = i;
+        break;
+      }
+    }
+    bye = list.splice(idx, 1)[0]!.id;
+  }
+  const met = (a: SwissEntrant, b: SwissEntrant) => a.opponents.includes(b.id);
+  let budget = 50_000;
+  const solve = (rest: SwissEntrant[]): [SwissEntrant, SwissEntrant][] | null => {
+    if (!rest.length) return [];
+    if (--budget < 0) return null;
+    const [a, ...others] = rest;
+    for (let j = 0; j < others.length; j++) {
+      const b = others[j]!;
+      if (met(a!, b)) continue;
+      const tail = solve(others.filter((_, k) => k !== j));
+      if (tail) return [[a!, b], ...tail];
+    }
+    return null;
+  };
+  let pairs = solve(list);
+  if (!pairs) {
+    // Everyone has met everyone nearby: pair neighbours, rematches allowed.
+    pairs = [];
+    for (let i = 0; i + 1 < list.length; i += 2) pairs.push([list[i]!, list[i + 1]!]);
+  }
+  const whites = (p: SwissEntrant) => p.colors.filter((c) => c === 'w').length - p.colors.filter((c) => c === 'b').length;
+  return {
+    bye,
+    pairs: pairs.map(([a, b]) => {
+      const da = whites(a);
+      const db = whites(b);
+      const la = a.colors.at(-1);
+      const lb = b.colors.at(-1);
+      // Fewer whites so far gets white; then whoever had black last; then the higher-ranked player.
+      const aWhite = da !== db ? da < db : la !== lb ? la === 'b' || lb === 'w' : true;
+      return aWhite ? [a.id, b.id] : [b.id, a.id];
+    }),
+  };
 }
 
 /** Validates staff input for a new or edited tournament. `partial` allows missing fields (edits). */
@@ -241,6 +401,17 @@ export function validateTournamentInput(
   }
   if (sponsorLogo && !sponsorName) return { error: 'Name the sponsor for the logo', field: 'sponsorName' };
 
+  const rawSettings = (pick('settings') ?? {}) as Record<string, unknown>;
+  if (typeof rawSettings !== 'object') return { error: 'Invalid tournament settings', field: 'settings' };
+  const baseSettings = base?.settings ?? DEFAULT_TOURNAMENT_SETTINGS;
+  if (rawSettings.format !== undefined && !(TOURNAMENT_FORMATS as readonly unknown[]).includes(rawSettings.format)) return { error: 'Choose Arena or Swiss', field: 'format' };
+  if (rawSettings.endMode !== undefined && !(TOURNAMENT_END_MODES as readonly unknown[]).includes(rawSettings.endMode)) return { error: 'Choose how the tournament ends', field: 'endMode' };
+  if (rawSettings.rounds !== undefined) {
+    const n = Number(rawSettings.rounds);
+    if (!Number.isInteger(n) || n < SWISS_ROUNDS.min || n > SWISS_ROUNDS.max) return { error: `Rounds must be ${SWISS_ROUNDS.min} to ${SWISS_ROUNDS.max}`, field: 'rounds' };
+  }
+  const settings = tournamentSettings({ ...baseSettings, ...rawSettings });
+
   return {
     value: {
       name,
@@ -262,6 +433,7 @@ export function validateTournamentInput(
       sponsorName,
       sponsorUrl,
       ...(sponsorLogo !== undefined ? { sponsorLogo } : {}),
+      settings,
     },
   };
 }

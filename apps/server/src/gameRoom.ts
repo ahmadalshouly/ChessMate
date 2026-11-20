@@ -45,6 +45,9 @@ export class GameRoom {
   readonly createdAt: number;
   /** Set for games a tournament started; the tournament scores the result. */
   tournamentId: string | null = null;
+  /** Tournament games where a player may go frenzy: half the clock, no increment, an extra point. */
+  frenzyAllowed = false;
+  readonly frenzy: Record<Color, boolean> = { w: false, b: false };
   /** Server-measured think time per ply (ms), for fair-play timing analysis. */
   readonly thinkMs: number[] = [];
   private lastMoveAt: number;
@@ -79,6 +82,20 @@ export class GameRoom {
     const g = this.secret;
     if (!color || !g || this.outcome) return false;
     return g.pick(color, square);
+  }
+
+  /** Frenzy: before their first move, a player halves their own clock and gives up the increment. */
+  goFrenzy(playerId: string): boolean {
+    const color = this.colorOf(playerId);
+    if (!color || !this.frenzyAllowed || this.outcome || this.frenzy[color]) return false;
+    if (this.game.ply > (color === 'w' ? 0 : 1)) return false;
+    this.frenzy[color] = true;
+    this.clock = {
+      ...this.clock,
+      remainingMs: { ...this.clock.remainingMs, [color]: Math.floor(this.timeControl.initialMs / 2) },
+      noIncrement: { ...this.clock.noIncrement, [color]: true },
+    };
+    return true;
   }
 
   colorOf(playerId: string): Color | null {
@@ -248,6 +265,7 @@ export class GameRoom {
       outcome: this.outcome,
       firstMoveDeadline: this.abortable ? (this.clock.startedAt ?? this.createdAt) + FIRST_MOVE_TIMEOUT_MS : null,
       tournamentId: this.tournamentId,
+      ...(this.frenzyAllowed ? { frenzyAllowed: true, frenzy: { ...this.frenzy } } : {}),
       ...(this.secret
         ? {
             variant: 'secretQueen' as const,

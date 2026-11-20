@@ -659,9 +659,21 @@ export const tournaments = pgTable(
     sponsorUrl: text('sponsor_url'),
     /** Logo as a data URL (PNG/JPEG/WebP, at most ~300 KB), served at /api/tournaments/:id/logo. */
     sponsorLogo: text('sponsor_logo'),
+    /** Format, rounds, end mode and arena scoring options (core `TournamentSettings`); {} = defaults. */
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    /** Swiss: the round being played (0 before the first). */
+    currentRound: integer('current_round').notNull().default(0),
   },
   (t) => [index('tournaments_starts_idx').on(t.startsAt)],
 );
+
+export interface TournamentPlayerState {
+  drawRun?: number;
+  lossRun?: number;
+  opponents?: string[];
+  colors?: ('w' | 'b')[];
+  byes?: number;
+}
 
 export const tournamentPlayers = pgTable(
   'tournament_players',
@@ -686,6 +698,8 @@ export const tournamentPlayers = pgTable(
     /** Entry fee paid (paid tournaments only). */
     paid: boolean('paid').notNull().default(false),
     rulesAcceptedAt: ts('rules_accepted_at'),
+    /** Draw and loss runs (arena streak options) and Swiss history: opponents, colours, byes. */
+    state: jsonb('state').$type<TournamentPlayerState>().notNull().default({}),
   },
   (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
 );

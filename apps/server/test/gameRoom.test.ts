@@ -123,3 +123,23 @@ describe('Matchmaker', () => {
     expect(m.tick(60_000)).toHaveLength(0);
   });
 });
+
+describe('frenzy', () => {
+  it('halves the clock and drops the increment, only before your first move', () => {
+    const { r } = room('3+2');
+    expect(r.goFrenzy(W.id)).toBe(false); // not a frenzy tournament
+    r.frenzyAllowed = true;
+    expect(r.goFrenzy(W.id)).toBe(true);
+    expect(r.goFrenzy(W.id)).toBe(false); // once
+    expect(r.clock.remainingMs.w).toBe(90_000);
+    expect(r.snapshot(0).frenzy).toEqual({ w: true, b: false });
+    r.move(W.id, 'e2e4', 0, 1000);
+    expect(r.goFrenzy(B.id)).toBe(true); // black has not moved yet
+    r.move(B.id, 'e7e5', 1, 2000);
+    r.move(W.id, 'g1f3', 2, 3000);
+    // Both went frenzy: no increment for either side.
+    expect(r.clock.remainingMs.w).toBe(89_000);
+    r.move(B.id, 'b8c6', 3, 4000);
+    expect(r.clock.remainingMs.b).toBe(89_000);
+  });
+});

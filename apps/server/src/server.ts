@@ -266,11 +266,11 @@ export class ChessServer {
           const r = this.ratings.forTimeControl(id, tc, this.now());
           return { rating: r.rating, games: r.games };
         },
-        startGame: (whiteId, blackId, tc, rated, tournamentId) => {
+        startGame: (whiteId, blackId, tc, rated, tournamentId, frenzy) => {
           const w = this.store.get(whiteId);
           const b = this.store.get(blackId);
           if (!w || !b || this.activeRoomOf(whiteId) || this.activeRoomOf(blackId)) return null;
-          return this.createGame(w, b, tc, rated, this.now(), { tournamentId }).id;
+          return this.createGame(w, b, tc, rated, this.now(), { tournamentId, frenzy }).id;
         },
         notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'tournament', title, body, url }),
       });
@@ -588,6 +588,12 @@ export class ChessServer {
         return void this.withRoom(ws, msg.gameId, (r) => r.resign(player.id, now));
       case 'abort':
         return void this.withRoom(ws, msg.gameId, (r) => r.abort(player.id, now));
+      case 'frenzy':
+        return void this.withRoom(ws, msg.gameId, (r) => {
+          const ok = r.goFrenzy(player.id);
+          if (ok) this.broadcast(r, { t: 'gameState', game: r.snapshot(now) });
+          return ok;
+        });
       case 'offerDraw':
         return void this.withRoom(ws, msg.gameId, (r) => r.offerDraw(player.id));
       case 'acceptDraw':
@@ -994,7 +1000,7 @@ export class ChessServer {
     }
   }
 
-  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number, extra: { tournamentId?: string; variant?: GameVariant } = {}): GameRoom {
+  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number, extra: { tournamentId?: string; variant?: GameVariant; frenzy?: boolean } = {}): GameRoom {
     const id = randomUUID().slice(0, 8);
     for (const p of [white, black]) {
       this.matchmaker.remove(p.id);
@@ -1030,7 +1036,7 @@ export class ChessServer {
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
         const { change: ratingChange, unrated } = this.applyRatings(r);
-        if (r.tournamentId) this.opts.tournaments?.gameEnded(r.tournamentId, r.id, outcome);
+        if (r.tournamentId) this.opts.tournaments?.gameEnded(r.tournamentId, r.id, outcome, { ...r.frenzy });
         // Streaks and play limits count every finished game of an account.
         if (outcome.reason !== 'aborted') {
           for (const p of [r.white, r.black]) {
@@ -1079,6 +1085,7 @@ export class ChessServer {
       },
     }, undefined, extra.variant ?? 'standard');
     room.tournamentId = extra.tournamentId ?? null;
+    room.frenzyAllowed = !!extra.tournamentId && !!extra.frenzy;
     this.rooms.set(id, room);
     this.opts.persistence?.gameStarted(room);
     // No engine help once a live game starts.

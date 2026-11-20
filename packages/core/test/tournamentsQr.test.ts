@@ -1,14 +1,64 @@
 import { describe, expect, it } from 'vitest';
 
-import { arenaPoints, formatMoney, profilePath, qrMatrix, qrPath, usernameFromLink, validatePayoutRequest, validateSponsorApplication, validateTournamentInput } from '../src';
+import { arenaPoints, nextRun, swissPairings, tournamentSettings, DEFAULT_TOURNAMENT_SETTINGS, formatMoney, profilePath, qrMatrix, qrPath, usernameFromLink, validatePayoutRequest, validateSponsorApplication, validateTournamentInput } from '../src';
 
 describe('arena points', () => {
-  it('doubles wins and draws on a streak', () => {
-    expect(arenaPoints('win', 0)).toBe(2);
-    expect(arenaPoints('draw', 1)).toBe(1);
-    expect(arenaPoints('win', 2)).toBe(4);
-    expect(arenaPoints('draw', 3)).toBe(2);
-    expect(arenaPoints('loss', 5)).toBe(0);
+  const run = (wins = 0, draws = 0, losses = 0) => ({ wins, draws, losses });
+  const all = { winStreak: true, drawStreak: true, lossStreak: true, frenzy: true };
+  const none = { winStreak: false, drawStreak: false, lossStreak: false, frenzy: false };
+  it('scores win 2, draw 1, loss 0 without streak options', () => {
+    expect(arenaPoints('win', run(5), none)).toBe(2);
+    expect(arenaPoints('draw', run(0, 5), none)).toBe(1);
+    expect(arenaPoints('loss', run(0, 0, 5), none)).toBe(0);
+  });
+  it('applies each streak after two in a row', () => {
+    expect(arenaPoints('win', run(1), all)).toBe(2);
+    expect(arenaPoints('win', run(2), all)).toBe(4);
+    expect(arenaPoints('draw', run(0, 1), all)).toBe(1);
+    expect(arenaPoints('draw', run(0, 2), all)).toBe(0);
+    expect(arenaPoints('loss', run(0, 0, 1), all)).toBe(0);
+    expect(arenaPoints('loss', run(0, 0, 2), all)).toBe(-1);
+  });
+  it('adds a frenzy point to a win or draw that scored', () => {
+    expect(arenaPoints('win', run(), all, true)).toBe(3);
+    expect(arenaPoints('win', run(2), all, true)).toBe(5);
+    expect(arenaPoints('draw', run(), all, true)).toBe(2);
+    expect(arenaPoints('draw', run(0, 2), all, true)).toBe(0);
+    expect(arenaPoints('loss', run(), all, true)).toBe(0);
+    expect(arenaPoints('win', run(), { ...all, frenzy: false }, true)).toBe(2);
+  });
+  it('tracks runs of the same result', () => {
+    expect(nextRun(run(2), 'win')).toEqual(run(3));
+    expect(nextRun(run(2), 'draw')).toEqual(run(0, 1));
+    expect(nextRun(run(0, 0, 1), 'loss')).toEqual(run(0, 0, 2));
+  });
+  it('fills missing settings with the defaults', () => {
+    expect(tournamentSettings(null)).toEqual(DEFAULT_TOURNAMENT_SETTINGS);
+    expect(tournamentSettings({ format: 'swiss', rounds: 99 })).toMatchObject({ format: 'swiss', rounds: 15 });
+  });
+});
+
+describe('swiss pairings', () => {
+  const p = (id: string, score: number, rating: number, opponents: string[] = [], colors: ('w' | 'b')[] = [], byes = 0) => ({ id, score, rating, opponents, colors, byes });
+  it('pairs neighbours and gives the lowest player the bye', () => {
+    const r = swissPairings([p('a', 0, 2000), p('b', 0, 1900), p('c', 0, 1800), p('d', 0, 1700), p('e', 0, 1600)]);
+    expect(r.bye).toBe('e');
+    expect(r.pairs.map((x) => [...x].sort().join(''))).toEqual(['ab', 'cd']);
+  });
+  it('avoids rematches and repeated byes', () => {
+    const r = swissPairings([p('a', 2, 2000, ['b'], ['w']), p('b', 0, 1900, ['a'], ['b']), p('c', 2, 1800, ['d'], ['w']), p('d', 0, 1700, ['c'], ['b'])]);
+    const keys = r.pairs.map((x) => [...x].sort().join(''));
+    expect(keys).toEqual(['ac', 'bd']);
+    const r2 = swissPairings([p('a', 2, 2000), p('b', 2, 1900), p('c', 2, 1800, [], [], 1)]);
+    expect(r2.bye).toBe('b');
+  });
+  it('balances colours', () => {
+    const r = swissPairings([p('a', 2, 2000, ['x'], ['w']), p('b', 2, 1900, ['y'], ['b'])]);
+    expect(r.pairs[0]).toEqual(['b', 'a']);
+  });
+  it('falls back to a rematch when nothing else works', () => {
+    const r = swissPairings([p('a', 2, 2000, ['b']), p('b', 0, 1900, ['a'])]);
+    expect(r.pairs).toHaveLength(1);
   });
 });
 

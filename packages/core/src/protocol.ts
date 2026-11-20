@@ -40,6 +40,10 @@ export interface GameSnapshot {
   firstMoveDeadline?: number | null;
   /** The tournament this game belongs to, if any. */
   tournamentId?: string | null;
+  /** Tournament allows frenzy (half clock, no increment, extra point) before a player's first move. */
+  frenzyAllowed?: boolean;
+  /** Who went frenzy. */
+  frenzy?: { w: boolean; b: boolean };
   /** Rules variant; absent means standard chess. */
   variant?: GameVariant;
   /**
@@ -113,6 +117,7 @@ export type ClientMessage =
   | { t: 'acceptDraw'; gameId: string }
   | { t: 'declineDraw'; gameId: string }
   | { t: 'abort'; gameId: string }
+  | { t: 'frenzy'; gameId: string }
   // Challenges: `to` is a player id for a direct challenge; omit it for an open invite link.
   | { t: 'challengeCreate'; to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }
   | { t: 'challengeGet'; id: string }

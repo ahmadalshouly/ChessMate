@@ -12,6 +12,8 @@ export interface ClockState {
   running: Color | null;
   /** Timestamp (ms) at which the running clock last started. */
   startedAt: number | null;
+  /** Sides that get no increment (a tournament player who went frenzy). */
+  noIncrement?: Partial<Record<Color, boolean>>;
 }
 
 export function createClock(tc: TimeControl): ClockState {
@@ -53,7 +55,7 @@ export function pressClock(
   return {
     clock: {
       ...clock,
-      remainingMs: { ...clock.remainingMs, [color]: left + clock.incrementMs },
+      remainingMs: { ...clock.remainingMs, [color]: left + (clock.noIncrement?.[color] ? 0 : clock.incrementMs) },
       running: opponent,
       startedAt: now,
     },
