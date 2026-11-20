@@ -9,26 +9,14 @@ import {
   newlyEarned,
   timeCategory,
   type AwardGameFacts,
-  type AwardProgress,
+  type Game,
+  type AwardsView,
+  type EarnedAward,
   type AwardStats,
   type EarnedLevel,
   type MateType,
 } from '@chessmate/core';
 import { addUserAwards, awardHistory, getAwardStats, getUser, listUserAwards, saveAwardStats, type Database } from '@chessmate/db';
-
-export interface EarnedAward extends EarnedLevel {
-  earnedAt: number;
-  gameId: string | null;
-}
-
-export interface AwardsView {
-  userId: string;
-  progress: AwardProgress[];
-  earned: EarnedAward[];
-  /** Opponents' countries (ISO codes), for the country awards. */
-  countries: string[];
-  countriesBeaten: string[];
-}
 
 /** A finished game from one player's side, as the server knows it. */
 export interface AwardGameInput {
@@ -172,7 +160,7 @@ export function gameFacts(
     id: string;
     initialFen: string;
     timeControl: { initialMs: number; incrementMs: number };
-    game: { uciHistory(): string[]; ply: number; raw: { history(o: { verbose: true }): { before: string; from: string; to: string; promotion?: string }[] } };
+    game: Game;
   },
   outcome: { winner: 'w' | 'b' | null; reason: string },
   color: 'w' | 'b',

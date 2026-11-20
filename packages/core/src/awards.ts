@@ -272,6 +272,22 @@ export interface EarnedLevel {
   level: number;
 }
 
+export interface EarnedAward extends EarnedLevel {
+  earnedAt: number;
+  gameId: string | null;
+}
+
+/** What GET /api/awards returns for a player. */
+export interface AwardsView {
+  userId: string;
+  progress: AwardProgress[];
+  /** Levels earned, newest first. */
+  earned: EarnedAward[];
+  /** Opponents' countries (ISO codes), for the country awards. */
+  countries: string[];
+  countriesBeaten: string[];
+}
+
 /** Levels reached in `after` that were not in `before`. */
 export function newlyEarned(before: AwardStats, after: AwardStats): EarnedLevel[] {
   const out: EarnedLevel[] = [];

@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
+import { AwardsListener } from '@/features/awards/AwardsListener';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider, setNotificationsTokenProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
@@ -50,6 +51,7 @@ function Navigator() {
           <AccountSettingsBridge />
           <RootStack />
           <InAppBanner />
+          <AwardsListener />
         </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
@@ -152,6 +154,7 @@ function RootStack() {
         <Stack.Screen name="privacy" options={{ title: tr('pages.privacy.title') }} />
         <Stack.Screen name="fair-play" options={{ title: tr('pages.fairPlay.title') }} />
         <Stack.Screen name="play-limits" options={{ title: tr('limits.title') }} />
+        <Stack.Screen name="awards" options={{ title: tr('awards.title') }} />
         <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
         {/* Staff console: its own layout (side rail on wide screens). */}
         <Stack.Screen name="admin" options={{ headerShown: false, title: tr('admin.title') }} />

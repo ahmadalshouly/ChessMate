@@ -16,6 +16,7 @@ export const more = {
   forum: 'Forum',
   profile: 'Profile',
   limits: 'Play limits',
+  awards: 'Awards',
   settings: 'Settings',
   about: 'About ChessMate',
   support: 'Support',

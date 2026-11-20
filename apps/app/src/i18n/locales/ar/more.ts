@@ -16,6 +16,7 @@ export const more = {
   forum: 'المنتدى',
   profile: 'الملف الشخصي',
   limits: 'حدود اللعب',
+  awards: 'الجوائز',
   settings: 'الإعدادات',
   about: 'عن ChessMate',
   support: 'الدعم',
