@@ -21,14 +21,14 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 /**
  * The signed-in player's play limit and streak.
  *
- *   GET  /api/me/habits?tz=60          { habits }  (tz: minutes east of UTC)
- *   POST /api/me/habits                { enabled?, maxGames?, windowMinutes?, cooldownMinutes? } → { habits }
- *   POST /api/me/habits/computer-game  { plies } → { habits, lockedNow }  a finished game against the computer
+ *   GET  /api/habits?tz=60          { habits }  (tz: minutes east of UTC)
+ *   POST /api/habits                { enabled?, maxGames?, windowMinutes?, cooldownMinutes? } → { habits }
+ *   POST /api/habits/computer-game  { plies } → { habits, lockedNow }  a finished game against the computer
  */
 export function habitsRoutes(habits: PlayHabitsService, resolveUser: ResolveUser, onLock?: (userId: string, until: number) => void): HttpRoute {
   return async (req, res, url) => {
     const p = url.pathname;
-    if (p !== '/api/me/habits' && p !== '/api/me/habits/computer-game') return false;
+    if (p !== '/api/habits' && p !== '/api/habits/computer-game') return false;
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
     res.setHeader('access-control-allow-headers', 'authorization, content-type');
@@ -45,12 +45,12 @@ export function habitsRoutes(habits: PlayHabitsService, resolveUser: ResolveUser
       const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
       const viewer = token ? await resolveUser(token) : null;
       if (!viewer || !isAccountId(viewer)) return json(401, { error: 'Sign in to use play limits and streaks' });
-      if (p === '/api/me/habits' && req.method === 'GET') {
+      if (p === '/api/habits' && req.method === 'GET') {
         const tz = url.searchParams.has('tz') ? Number(url.searchParams.get('tz')) : undefined;
         return json(200, { habits: await habits.view(viewer, tz) });
       }
-      if (p === '/api/me/habits' && req.method === 'POST') return json(200, { habits: await habits.update(viewer, await readJson(req)) });
-      if (p === '/api/me/habits/computer-game' && req.method === 'POST') {
+      if (p === '/api/habits' && req.method === 'POST') return json(200, { habits: await habits.update(viewer, await readJson(req)) });
+      if (p === '/api/habits/computer-game' && req.method === 'POST') {
         const r = await habits.computerGame(viewer, Number((await readJson(req)).plies));
         if (r.lockedNow && r.view.lockedUntil) onLock?.(viewer, r.view.lockedUntil);
         return json(200, { habits: r.view, lockedNow: r.lockedNow });

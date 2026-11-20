@@ -61,7 +61,7 @@ const tz = () => -new Date().getTimezoneOffset();
 export async function refreshHabits(): Promise<HabitsView | null> {
   let r: { habits: HabitsView };
   try {
-    r = await apiRequest<{ habits: HabitsView }>('GET', `/api/me/habits?tz=${tz()}`);
+    r = await apiRequest<{ habits: HabitsView }>('GET', `/api/habits?tz=${tz()}`);
   } catch (e) {
     set({ error: e instanceof Error ? e.message : String(e) });
     return null;
@@ -72,7 +72,7 @@ export async function refreshHabits(): Promise<HabitsView | null> {
 }
 
 export async function saveLimits(input: Partial<PlayLimitSettings>): Promise<HabitsView> {
-  const r = await apiRequest<{ habits: HabitsView }>('POST', '/api/me/habits', input);
+  const r = await apiRequest<{ habits: HabitsView }>('POST', '/api/habits', input);
   set({ habits: r.habits });
   rememberLock(r.habits.lockedUntil);
   return r.habits;
@@ -80,7 +80,7 @@ export async function saveLimits(input: Partial<PlayLimitSettings>): Promise<Hab
 
 /** A game against the computer finished on this device: counts for the streak and the limit. */
 export async function reportComputerGame(plies: number): Promise<void> {
-  const r = await apiRequest<{ habits: HabitsView }>('POST', '/api/me/habits/computer-game', { plies }).catch(() => null);
+  const r = await apiRequest<{ habits: HabitsView }>('POST', '/api/habits/computer-game', { plies }).catch(() => null);
   if (!r) return;
   set({ habits: r.habits });
   rememberLock(r.habits.lockedUntil);
