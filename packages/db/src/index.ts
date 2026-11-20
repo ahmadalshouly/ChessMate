@@ -12,3 +12,4 @@ export * from './repo/messages';
 export * from './repo/tournaments';
 export * from './repo/community';
 export * from './repo/habits';
+export * from './repo/awards';

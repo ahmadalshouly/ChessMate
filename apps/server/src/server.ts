@@ -43,6 +43,8 @@ import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
 import { messageRoutes } from './messages/http';
 import { tournamentRoutes } from './tournaments/http';
 import { communityRoutes } from './community/http';
+import { awardsRoutes } from './awards/http';
+import { AwardsService, gameFacts } from './awards/service';
 import { habitsRoutes } from './habits/http';
 import { PlayHabitsService } from './habits/service';
 import type { CommunityService } from './community/service';
@@ -121,6 +123,7 @@ export interface ServerOptions {
   community?: CommunityService;
   /** Play limits and streaks. In memory when not given. */
   habits?: PlayHabitsService;
+  awards?: AwardsService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -188,6 +191,7 @@ export class ChessServer {
   readonly notifications: NotificationService;
   /** Play limits and streaks. */
   readonly habits: PlayHabitsService;
+  readonly awards: AwardsService;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
@@ -246,6 +250,19 @@ export class ChessServer {
       routes.push(adminRoutes(opts.admin, opts.auth));
       routes.push(titleRoutes(opts.admin.titles, opts.auth));
     }
+    this.awards = opts.awards ?? new AwardsService();
+    this.awards.attach({
+      earned: (userId, earned, gameId) => {
+        for (const ws of this.sockets.get(userId) ?? []) this.send(ws, { t: 'awards', gameId, earned });
+        void this.notifications.notify(userId, {
+          kind: 'system',
+          title: earned.length === 1 ? 'Award unlocked' : `${earned.length} awards unlocked`,
+          body: 'See your new award in Awards.',
+          url: '/awards',
+        });
+      },
+    });
+    routes.push(awardsRoutes(this.awards, opts.resolveUser ?? devResolveUser));
     this.habits = opts.habits ?? new PlayHabitsService();
     routes.push(habitsRoutes(this.habits, opts.resolveUser ?? devResolveUser, (id, until) => this.startBreak(id, until)));
     if (opts.community) {
@@ -1047,6 +1064,17 @@ export class ChessServer {
                 if (lockedNow && view.lockedUntil) this.startBreak(p.id, view.lockedUntil);
               })
               .catch((e) => console.warn(`habits update failed for ${p.id}:`, e));
+          }
+        }
+        // Awards: standard games of accounts (Secret Queen positions do not follow normal rules).
+        if (outcome.reason !== 'aborted' && !r.secret) {
+          for (const [p, c, opp] of [
+            [r.white, 'w', r.black],
+            [r.black, 'b', r.white],
+          ] as const) {
+            if (!isAccountId(p.id)) continue;
+            const facts = gameFacts(r, outcome, c, ratingChange?.[c].after.rating ?? null, isAccountId(opp.id) ? opp.id : null);
+            void this.awards.gameFinished(p.id, facts).catch((e) => console.warn(`awards update failed for ${p.id}:`, e));
           }
         }
         if (!r.secret) this.opts.persistence?.gameEnded(r, outcome, ratingChange);

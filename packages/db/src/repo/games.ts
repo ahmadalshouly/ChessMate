@@ -59,6 +59,8 @@ export interface GameEnd {
   plyCount: number;
   ratingsAfter?: Partial<Record<Color, number>>;
   ratingsBefore?: Partial<Record<Color, number>>;
+  /** Opening from the book, when recognised. */
+  opening?: { eco: string; name: string } | null;
   endedAt?: Date;
 }
 
@@ -77,6 +79,7 @@ export async function finishGame(db: Database, id: string, e: GameEnd): Promise<
       ...(e.ratingsBefore?.b !== undefined ? { blackRatingBefore: e.ratingsBefore.b } : {}),
       whiteRatingAfter: e.ratingsAfter?.w,
       blackRatingAfter: e.ratingsAfter?.b,
+      ...(e.opening ? { eco: e.opening.eco, openingName: e.opening.name } : {}),
       endedAt: e.endedAt ?? new Date(),
     })
     .where(eq(games.id, id));

@@ -151,6 +151,8 @@ export type ServerMessage =
     }
   /** The play limit locked (until = ms) or unlocked (null) while connected. */
   | { t: 'playLock'; until: number | null }
+  /** Award levels a finished game just unlocked (core `AWARDS`). */
+  | { t: 'awards'; gameId: string; earned: { id: string; level: number }[] }
   /** The account was restricted (or the restriction lifted, reason null) while connected. */
   | { t: 'restricted'; reason: AccountRestriction | null }
   | { t: 'pong'; id: number; serverNow: number }

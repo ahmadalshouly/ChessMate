@@ -883,3 +883,31 @@ export const playHabits = pgTable('play_habits', {
 });
 
 export type PlayHabits = typeof playHabits.$inferSelect;
+
+/**
+ * Award counters per player (core `AwardStats`), updated after every finished
+ * game. Built from the player's game history the first time it is needed.
+ */
+export const awardStats = pgTable('award_stats', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  stats: jsonb('stats').$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Award levels earned, with when and in which game. */
+export const userAwards = pgTable(
+  'user_awards',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    awardId: text('award_id').notNull(),
+    level: smallint('level').notNull(),
+    gameId: text('game_id'),
+    earnedAt: ts('earned_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.awardId, t.level] }), index('user_awards_recent_idx').on(t.userId, t.earnedAt)],
+);
+export type UserAward = typeof userAwards.$inferSelect;
