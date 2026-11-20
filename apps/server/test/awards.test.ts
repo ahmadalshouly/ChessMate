@@ -43,9 +43,9 @@ describe('awards service', () => {
     expect(v.countries).toEqual(['NL']);
     const won = v.progress.find((p) => p.id === 'games.won')!;
     expect(won).toMatchObject({ level: 1, value: 1 });
-    // Alice lost: no wins, but she played someone from Germany.
+    // Alice lost: no wins, only her rating (1520) counts; she played someone from Germany.
     const a = await svc.view(alice);
-    expect(a.earned).toEqual([]);
+    expect(a.earned.map((e) => `${e.id}:${e.level}`).sort()).toEqual(['rating.blitz:1', 'rating.blitz:2']);
     expect(a.countries).toEqual(['DE']);
   });
 
