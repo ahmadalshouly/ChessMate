@@ -160,7 +160,8 @@ export function gameFacts(
     id: string;
     initialFen: string;
     timeControl: { initialMs: number; incrementMs: number };
-    game: Game;
+    /** Standard games only have `raw`; others get no checkmate patterns. */
+    game: { uciHistory(): string[]; ply: number } & Partial<Pick<Game, 'raw'>>;
   },
   outcome: { winner: 'w' | 'b' | null; reason: string },
   color: 'w' | 'b',
@@ -170,7 +171,7 @@ export function gameFacts(
   const result = outcome.winner === null ? 'draw' : outcome.winner === color ? 'win' : 'loss';
   let mateTypes: MateType[] = [];
   if (outcome.reason === 'checkmate' && result === 'win') {
-    const last = room.game.raw.history({ verbose: true }).at(-1);
+    const last = room.game.raw?.history({ verbose: true }).at(-1);
     if (last) mateTypes = checkmatePatterns(last.before, `${last.from}${last.to}${last.promotion ?? ''}`, room.game.ply);
   }
   return {
