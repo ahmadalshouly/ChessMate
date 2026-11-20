@@ -22,6 +22,10 @@ export const awards = {
     other: '{count} Auszeichnungen freigeschaltet',
   },
   view: 'Ansehen',
+  andMore: {
+    one: 'und {count} weitere',
+    other: 'und {count} weitere',
+  },
   filters: {
     all: 'Alle',
     earned: 'Erreicht',

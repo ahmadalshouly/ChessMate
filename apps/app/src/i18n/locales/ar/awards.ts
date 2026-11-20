@@ -21,6 +21,9 @@ export const awards = {
     other: 'حصلت على {count} جوائز',
   },
   view: 'عرض',
+  andMore: {
+    other: 'و{count} أخرى',
+  },
   filters: {
     all: 'الكل',
     earned: 'المحققة',

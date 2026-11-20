@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
+import { AwardDropBanner } from '@/features/awards/AwardDropBanner';
 import { useAppTheme } from '@/ui';
 
 /**
@@ -30,6 +31,8 @@ export function ResultPopup({ visible, onClose, children }: { visible: boolean; 
           {effects}
         </View>
       )}
+      {/* Awards this game unlocked drop in over the result. */}
+      <AwardDropBanner openOnTap={false} />
     </Modal>
   );
 }

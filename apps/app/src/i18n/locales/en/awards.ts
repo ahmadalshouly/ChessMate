@@ -22,6 +22,10 @@ export const awards = {
     other: '{count} awards unlocked',
   },
   view: 'View',
+  andMore: {
+    one: 'and {count} more',
+    other: 'and {count} more',
+  },
   filters: {
     all: 'All',
     earned: 'Earned',
