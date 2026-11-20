@@ -1,4 +1,4 @@
-import { TOURNAMENT_CURRENCIES, formatMoney, formatTimeControl, type TournamentCurrency, type TournamentInput, type TournamentPrize, type TournamentSummary } from '@chessmate/core';
+import { DEFAULT_TOURNAMENT_SETTINGS, TOURNAMENT_CURRENCIES, formatMoney, type TournamentSettings, formatTimeControl, type TournamentCurrency, type TournamentInput, type TournamentPrize, type TournamentSummary } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
@@ -10,7 +10,7 @@ import { logoUrl } from '@/lib/tournamentsApi';
 
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, ErrorLine, PageHeader, Section, useLoad } from '@/features/admin/ui';
-import { tournamentClock } from '@/features/tournaments/format';
+import { formatLabel, settingsOf, tournamentClock } from '@/features/tournaments/format';
 import { formatDateTime, useT } from '@/i18n';
 import { Badge, Button, GlassView, Modal, Row, Stack, Switch, Text, TextField, useAppTheme, useToast } from '@/ui';
 
@@ -57,6 +57,10 @@ interface Form {
   logo: string | null | undefined;
   /** Current logo on the server, for the preview. */
   logoPath: string | null;
+  /** Format, end mode and arena scoring. */
+  settings: TournamentSettings;
+  /** Swiss rounds as typed. */
+  rounds: string;
 }
 
 /** Reads a picked image file as a data URL (web and phones). */
@@ -121,6 +125,8 @@ function emptyForm(): Form {
     sponsorUrl: '',
     logo: undefined,
     logoPath: null,
+    settings: { ...DEFAULT_TOURNAMENT_SETTINGS },
+    rounds: String(DEFAULT_TOURNAMENT_SETTINGS.rounds),
   };
 }
 
@@ -148,6 +154,8 @@ function formOf(t: TournamentSummary): Form {
     sponsorUrl: t.sponsor?.url ?? '',
     logo: undefined,
     logoPath: t.sponsor?.logoPath ?? null,
+    settings: settingsOf(t),
+    rounds: String(settingsOf(t).rounds),
   };
 }
 
@@ -172,6 +180,7 @@ function inputOf(f: Form): TournamentInput {
     sponsorName: f.sponsorName.trim() || null,
     sponsorUrl: f.sponsorUrl.trim() || null,
     ...(f.logo !== undefined ? { sponsorLogo: f.logo } : {}),
+    settings: { ...f.settings, rounds: f.settings.format === 'swiss' ? Number(f.rounds) : f.settings.rounds },
   };
 }
 
@@ -242,7 +251,7 @@ function TournamentRow({ t, onEdit, onDone }: { t: TournamentSummary; onEdit: ()
               <Badge label={tr(`admin.tournaments.status.${t.status}`)} tone={tone} />
             </Row>
             <Text variant="caption" tone="muted">
-              {formatTimeControl(t.timeControl)} · {t.rated ? tr('play.rated') : tr('play.casual')} · {formatDateTime(t.startsAt)} · {tr('tournaments.minutes', { count: t.durationMinutes })} ·{' '}
+              {formatLabel(t)} · {formatTimeControl(t.timeControl)} · {t.rated ? tr('play.rated') : tr('play.casual')} · {formatDateTime(t.startsAt)} · {tr('tournaments.minutes', { count: t.durationMinutes })} ·{' '}
               {tr('tournaments.players', { count: t.players, n: t.players })}
             </Text>
             <Text variant="caption" tone="muted">
@@ -278,6 +287,7 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((x) => ({ ...x, [k]: v }));
+  const setRule = <K extends keyof TournamentSettings>(k: K, v: TournamentSettings[K]) => setF((x) => ({ ...x, settings: { ...x.settings, [k]: v } }));
   const setPrize = (i: number, patch: Partial<Form['prizes'][number]>) => setF((x) => ({ ...x, prizes: x.prizes.map((p, j) => (j === i ? { ...p, ...patch } : p)) }));
 
   const save = async () => {
@@ -312,6 +322,60 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
         <TextField label={tr('admin.tournaments.name')} value={f.name} onChangeText={(v) => set('name', v)} maxLength={60} />
         <TextField label={tr('admin.tournaments.description')} value={f.description} onChangeText={(v) => set('description', v)} multiline maxLength={600} />
         {started && <Text variant="caption" tone="muted">{tr('admin.tournaments.lockedHint')}</Text>}
+        <Section title={tr('admin.tournaments.format')} padding="none">
+          <Stack gap="md">
+            <Segmented
+              value={f.settings.format}
+              onChange={(v) => setRule('format', v)}
+              options={[
+                { value: 'arena', label: tr('admin.tournaments.formatArena'), disabled: started },
+                { value: 'swiss', label: tr('admin.tournaments.formatSwiss'), disabled: started },
+              ]}
+            />
+            <Text variant="caption" tone="muted">
+              {f.settings.format === 'swiss' ? tr('admin.tournaments.swissHint') : tr('admin.tournaments.arenaHint')}
+            </Text>
+            {f.settings.format === 'swiss' && (
+              <Stack gap="xs">
+                <TextField label={tr('admin.tournaments.rounds')} value={f.rounds} onChangeText={(v) => set('rounds', v)} keyboardType="number-pad" editable={!started} />
+                <Text variant="caption" tone="muted">
+                  {tr('admin.tournaments.roundsHint')}
+                </Text>
+              </Stack>
+            )}
+            <Text variant="label">{tr('admin.tournaments.endTitle')}</Text>
+            <Segmented
+              value={f.settings.endMode}
+              onChange={(v) => setRule('endMode', v)}
+              options={[
+                { value: 'wait', label: tr('admin.tournaments.endWait'), disabled: started },
+                { value: 'timer', label: tr('admin.tournaments.endTimer'), disabled: started },
+              ]}
+            />
+            <Text variant="caption" tone="muted">
+              {f.settings.endMode === 'wait' ? tr('admin.tournaments.endWaitHint') : tr('admin.tournaments.endTimerHint')}
+            </Text>
+            {f.settings.format === 'arena' && (
+              <>
+                <Text variant="label">{tr('admin.tournaments.scoring')}</Text>
+                {(['winStreak', 'drawStreak', 'lossStreak', 'frenzy'] as const).map((k) => (
+                  <Row key={k} justify="space-between" gap="md">
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Row gap="xs">
+                        {k === 'frenzy' && <Ionicons name="flash" size={14} color={c.warning} />}
+                        <Text variant="body">{tr(`admin.tournaments.${k}`)}</Text>
+                      </Row>
+                      <Text variant="caption" tone="muted">
+                        {tr(`admin.tournaments.${k}Hint`)}
+                      </Text>
+                    </View>
+                    <Switch value={f.settings[k]} onValueChange={(v) => setRule(k, v)} disabled={started} />
+                  </Row>
+                ))}
+              </>
+            )}
+          </Stack>
+        </Section>
         <Section title={tr('admin.tournaments.schedule')} padding="none">
           <Stack gap="md">
             <Row gap="sm">

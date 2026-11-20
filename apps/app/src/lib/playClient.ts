@@ -100,6 +100,9 @@ export interface GameView {
   firstMoveDeadline: number | null;
   /** The tournament this game belongs to, if any. */
   tournamentId: string | null;
+  /** Tournament frenzy: a player may halve their clock before their first move for an extra point. */
+  frenzyAllowed: boolean;
+  frenzy: Record<Color, boolean>;
   variant: GameVariant;
   /** Secret Queen: your secret pawn (only you know it), null once revealed, captured or before you pick. */
   secret: Square | null;
@@ -414,6 +417,8 @@ class PlayClient {
         premoves: prev?.premoves ?? [],
         firstMoveDeadline: s.outcome ? null : (s.firstMoveDeadline ?? null),
         tournamentId: s.tournamentId ?? null,
+        frenzyAllowed: !!s.frenzyAllowed,
+        frenzy: s.frenzy ?? { w: false, b: false },
         variant: s.variant ?? 'standard',
         secret: prev?.secret ?? null,
         canPickSecret: prev?.canPickSecret ?? (secretQueen && !s.outcome),
@@ -569,13 +574,15 @@ class PlayClient {
     if (this.state.game?.premoves.length) this.patchGame({ premoves: [] });
   }
 
-  private gameAction(t: 'resign' | 'abort' | 'offerDraw' | 'acceptDraw' | 'declineDraw' | 'rematch' | 'declineRematch') {
+  private gameAction(t: 'resign' | 'abort' | 'frenzy' | 'offerDraw' | 'acceptDraw' | 'declineDraw' | 'rematch' | 'declineRematch') {
     const id = this.state.game?.gameId;
     if (id) this.send({ t, gameId: id });
   }
 
   resign = () => this.gameAction('resign');
   abort = () => this.gameAction('abort');
+  /** Tournament frenzy: half my clock, no increment, an extra point for a win or draw. */
+  frenzy = () => this.gameAction('frenzy');
   offerDraw = () => this.gameAction('offerDraw');
   acceptDraw = () => this.gameAction('acceptDraw');
   declineDraw = () => this.gameAction('declineDraw');

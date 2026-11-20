@@ -13,7 +13,7 @@ import { tournamentsApi } from '@/lib/tournamentsApi';
 import { Badge, Button, GlassView, ListGroup, ListRow, SectionHeader, Text, useAppTheme } from '@/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 
-import { tournamentClock } from '@/features/tournaments/format';
+import { formatLabel, formatScore, scoringRules, settingsOf, tournamentClock } from '@/features/tournaments/format';
 import { JoinSheet } from '@/features/tournaments/JoinSheet';
 import { PayoutSheet } from '@/features/tournaments/PayoutSheet';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
@@ -119,6 +119,7 @@ export default function TournamentScreen() {
     !tour.lateJoin ? tr('tournaments.noLateJoin') : null,
   ].filter((x): x is string => !!x);
   const category = tr(`common.category.${timeCategory(tour.timeControl)}`);
+  const settings = settingsOf(tour);
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -138,9 +139,11 @@ export default function TournamentScreen() {
           <Text variant="title">{tour.name}</Text>
           {tour.description ? <Text tone="muted">{tour.description}</Text> : null}
           <View style={styles.facts}>
+            <Fact icon={settings.format === 'swiss' ? 'git-network-outline' : 'flash-outline'} label={formatLabel(tour)} />
             <Fact icon="time-outline" label={`${formatTimeControl(tour.timeControl)} · ${category}`} />
             <Fact icon="stats-chart-outline" label={tour.rated ? tr('play.rated') : tr('play.casual')} />
             <Fact icon="hourglass-outline" label={tr('tournaments.minutes', { count: tour.durationMinutes })} />
+            <Fact icon="flag-outline" label={settings.endMode === 'wait' ? tr('tournaments.lastGamesCount') : tr('tournaments.endsOnTime')} />
             <Fact icon="calendar-outline" label={formatDateTime(tour.startsAt)} />
             <Fact icon="people-outline" label={tour.maxPlayers ? tr('tournaments.playersOf', { n: tour.players, max: tour.maxPlayers }) : tr('tournaments.players', { count: tour.players, n: tour.players })} />
             <Fact icon={fee ? 'card-outline' : 'pricetag-outline'} label={fee ? tr('tournaments.entryFee', { fee }) : tr('tournaments.free')} />
@@ -201,6 +204,20 @@ export default function TournamentScreen() {
           </GlassView>
         )}
 
+        <View style={{ gap: t.space.md }}>
+          <SectionHeader title={tr('tournaments.scoring.title')} />
+          <GlassView padding="lg" radius="xl" style={{ gap: t.space.sm }}>
+            {scoringRules(tour).map((line) => (
+              <View key={line} style={styles.rule}>
+                <Text tone="muted">•</Text>
+                <Text tone="muted" style={{ flex: 1 }}>
+                  {line}
+                </Text>
+              </View>
+            ))}
+          </GlassView>
+        </View>
+
         {(tour.prizePool || tour.prizes.length > 0) && (
           <View style={{ gap: t.space.md }}>
             <SectionHeader title={tr('tournaments.prizes')} />
@@ -251,12 +268,12 @@ export default function TournamentScreen() {
                     </Text>
                   }
                   title={`${s.username}${s.userId === me?.userId ? ` (${tr('messages.you')})` : ''}`}
-                  subtitle={`${s.rating} · ${tr('tournaments.record', { w: s.wins, d: s.draws, l: s.losses })}${s.playing ? ` · ${tr('tournaments.playingNow')}` : ''}${s.withdrawn ? ` · ${tr('tournaments.paused')}` : ''}`}
+                  subtitle={`${s.rating} · ${tr('tournaments.record', { w: s.wins, d: s.draws, l: s.losses })}${s.buchholz !== undefined ? ` · ${tr('tournaments.buchholz', { n: formatScore(s.buchholz) })}` : ''}${s.byes ? ` · ${tr('tournaments.byes', { count: s.byes })}` : ''}${s.playing ? ` · ${tr('tournaments.playingNow')}` : ''}${s.withdrawn ? ` · ${tr('tournaments.paused')}` : ''}`}
                   right={
                     <View style={styles.row}>
                       {s.onFire && <Ionicons name="flame" size={16} color={c.warning} accessibilityLabel={tr('tournaments.onFire')} />}
                       <Text variant="figure" style={{ fontSize: 20, lineHeight: 24 }}>
-                        {s.score}
+                        {formatScore(s.score)}
                       </Text>
                     </View>
                   }
@@ -299,5 +316,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   fact: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },
+  rule: { flexDirection: 'row', gap: 8 },
   prize: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
 });

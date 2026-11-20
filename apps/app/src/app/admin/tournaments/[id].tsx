@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, ErrorLine, PageHeader, Section, useLoad } from '@/features/admin/ui';
-import { tournamentClock } from '@/features/tournaments/format';
+import { formatLabel, formatScore, tournamentClock } from '@/features/tournaments/format';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { formatDateTime, useT } from '@/i18n';
 import { Badge, Button, GlassView, Row, Stack, Text, useToast } from '@/ui';
@@ -46,7 +46,7 @@ export default function AdminTournamentMonitor() {
       <RouterStack.Screen options={{ title: t?.name ?? tr('admin.nav.tournaments') }} />
       <PageHeader
         title={t?.name ?? '…'}
-        subtitle={t ? `${formatTimeControl(t.timeControl)} · ${tournamentClock(t)} · ${formatDateTime(t.startsAt)}` : undefined}
+        subtitle={t ? `${formatLabel(t)} · ${formatTimeControl(t.timeControl)} · ${tournamentClock(t)} · ${formatDateTime(t.startsAt)}` : undefined}
         right={<Button size="sm" variant="ghost" title={tr('admin.tournaments.view')} onPress={() => router.push({ pathname: '/tournaments/[id]', params: { id: id! } })} />}
       />
       <ErrorLine message={error} />
@@ -91,7 +91,7 @@ export default function AdminTournamentMonitor() {
                         {t.entryFeeCents > 0 && <Badge size="sm" tone={p.paid ? 'solid' : 'outline'} label={p.paid ? tr('admin.tournaments.paid') : tr('admin.tournaments.unpaid')} />}
                       </Row>
                       <Text variant="caption" tone="muted">
-                        {`${p.rating} · ${tr('admin.tournaments.scoreLine', { score: p.score, games: p.games })} · ${p.rulesAcceptedAt ? tr('admin.tournaments.rulesAccepted', { date: formatDateTime(p.rulesAcceptedAt) }) : tr('admin.tournaments.rulesNotAccepted')}`}
+                        {`${p.rating} · ${tr('admin.tournaments.scoreLine', { score: formatScore(p.score), games: p.games })} · ${p.rulesAcceptedAt ? tr('admin.tournaments.rulesAccepted', { date: formatDateTime(p.rulesAcceptedAt) }) : tr('admin.tournaments.rulesNotAccepted')}`}
                       </Text>
                     </Stack>
                     <Row gap="sm">

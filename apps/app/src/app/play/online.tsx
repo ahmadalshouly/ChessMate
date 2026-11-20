@@ -36,7 +36,7 @@ import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
 
-type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch';
+type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'frenzy';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
@@ -224,6 +224,8 @@ export default function OnlinePlay() {
     fn();
   };
 
+  // Frenzy: in tournaments that allow it, before your own first move.
+  const canFrenzy = !over && view.frenzyAllowed && !view.frenzy[you] && history.length < (you === 'w' ? 1 : 2);
   const actions: GameAction[] = [
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     { key: 'chat', icon: 'chat-outline', label: tr('game.action.chat'), onPress: () => toggle('chat'), active: panel === 'chat', dot: unread },
@@ -232,6 +234,9 @@ export default function OnlinePlay() {
         ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: () => toggle('abort'), active: panel === 'abort' }]
         : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: () => toggle('draw'), active: panel === 'draw', disabled: view.drawOfferBy === you || view.drawOfferBy === opp, dot: view.drawOfferBy === opp }]
       : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), onPress: openReview, disabled: !reviewable }]),
+    ...(canFrenzy
+      ? [{ key: 'frenzy', icon: 'lightning-bolt' as const, label: tr('tournaments.frenzy.button'), onPress: () => toggle('frenzy'), active: panel === 'frenzy' }]
+      : []),
     !over
       ? { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => toggle('resign'), active: panel === 'resign', disabled: history.length < 2, danger: true }
       : {
@@ -309,7 +314,8 @@ export default function OnlinePlay() {
     (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null || (secretQueen && (board.picking || (!!view.secret && history.length < 2))))) ||
     (secretQueen && view.lastReveals.length > 0) ||
     !!s.error;
-  const firstMoveStatus = (c: Color) => (firstMoveIn !== null && c === toMove ? tr('play.online.firstMoveCountdown', { n: firstMoveIn }) : null);
+  const firstMoveStatus = (c: Color) =>
+    [firstMoveIn !== null && c === toMove ? tr('play.online.firstMoveCountdown', { n: firstMoveIn }) : null, view.frenzy[c] ? `⚡ ${tr('tournaments.frenzy.active')}` : null].filter(Boolean).join(' · ') || null;
   const oppName = players[opp].name;
 
   const popover =
@@ -321,6 +327,8 @@ export default function OnlinePlay() {
       <OptionsPanel title={tr('game.more.title')} onClose={() => setPanel(null)} items={moreItems.map((it) => ({ ...it, onPress: confirmThen(it.onPress) }))} />
     ) : panel === 'draw' ? (
       <ConfirmPanel icon="handshake-outline" title={tr('game.confirm.drawTitle')} body={tr('game.confirm.drawBody')} confirmLabel={tr('game.confirm.draw')} onConfirm={confirmThen(playClient.offerDraw)} onCancel={() => setPanel(null)} />
+    ) : panel === 'frenzy' ? (
+      <ConfirmPanel icon="lightning-bolt" title={tr('tournaments.frenzy.button')} body={tr('tournaments.frenzy.hint')} confirmLabel={tr('tournaments.frenzy.button')} onConfirm={confirmThen(playClient.frenzy)} onCancel={() => setPanel(null)} />
     ) : panel === 'abort' ? (
       <ConfirmPanel icon="close-circle-outline" title={tr('game.confirm.abortTitle')} body={tr('game.confirm.abortBody')} confirmLabel={tr('game.confirm.abort')} onConfirm={confirmThen(playClient.abort)} onCancel={() => setPanel(null)} danger />
     ) : panel === 'resign' ? (

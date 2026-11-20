@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useT } from '@/i18n';
 import { Button, Modal, Text, useAppTheme } from '@/ui';
+import { scoringRules, settingsOf } from './format';
 
 /**
  * Join step: the arena rules and the organisers' own rules, which the player
@@ -28,12 +29,13 @@ export function JoinSheet({
   const tr = useT();
   const [accepted, setAccepted] = useState(false);
   const fee = tournament.entryFeeCents > 0 ? formatMoney(tournament.entryFeeCents, tournament.currency) : null;
+  const swiss = settingsOf(tournament).format === 'swiss';
   const standard = [
-    tr('tournaments.rules.pairing'),
-    tr('tournaments.rules.points'),
+    tr(swiss ? 'tournaments.rules.pairingSwiss' : 'tournaments.rules.pairing'),
+    ...scoringRules(tournament),
     tr('tournaments.rules.fairPlay'),
     tr('tournaments.rules.conduct'),
-    tr('tournaments.rules.pause'),
+    tr(swiss ? 'tournaments.rules.pauseSwiss' : 'tournaments.rules.pause'),
     ...(fee ? [tr('tournaments.rules.fee', { fee })] : []),
     ...(tournament.prizes.length || tournament.prizePool ? [tr('tournaments.rules.prizes')] : []),
   ];

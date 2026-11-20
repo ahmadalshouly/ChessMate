@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useTicker } from '@/components/PlayerBar';
 import { Page } from '@/components/shell/Page';
-import { tournamentClock } from '@/features/tournaments/format';
+import { formatLabel, tournamentClock } from '@/features/tournaments/format';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { formatNumber, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
@@ -120,7 +120,7 @@ function TournamentCard({ t: x, now }: { t: TournamentSummary; now: number }) {
               <Badge tone={x.entryFeeCents > 0 ? 'solid' : 'neutral'} size="sm" label={x.entryFeeCents > 0 ? formatMoney(x.entryFeeCents, x.currency) : tr('tournaments.free')} />
             </View>
             <Text variant="caption" tone="muted">
-              {formatTimeControl(x.timeControl)} · {category} · {x.rated ? tr('play.rated') : tr('play.casual')} · {tr('tournaments.minutes', { count: x.durationMinutes })}
+              {formatLabel(x)} · {formatTimeControl(x.timeControl)} · {category} · {x.rated ? tr('play.rated') : tr('play.casual')} · {tr('tournaments.minutes', { count: x.durationMinutes })}
             </Text>
             <Text variant="caption" tone="muted">
               {tournamentClock(x, now)} · {tr('tournaments.players', { count: x.players, n: formatNumber(x.players) })}
