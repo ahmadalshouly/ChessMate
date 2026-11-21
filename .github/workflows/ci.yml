@@ -43,6 +43,9 @@ jobs:
       EXPO_PUBLIC_SERVER_URL: ${{ vars.EXPO_PUBLIC_SERVER_URL || 'wss://chessmate-server.fly.dev/ws' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Two commits deep, so a pull request's own latest commit message can be read (HEAD^2 of the merge).
+          fetch-depth: 2
       - uses: pnpm/action-setup@v4
         with:
           version: 12
@@ -58,13 +61,18 @@ jobs:
           path: apps/app/dist
           retention-days: 7
       # Optional: screenshots of the Watch screens with sample data, on commits whose message has [screenshots].
+      - name: Screenshots requested?
+        id: shots
+        run: |
+          msg=$( (git log -1 --format=%B HEAD^2 2>/dev/null || git log -1 --format=%B HEAD) )
+          if echo "$msg" | grep -q '\[screenshots\]'; then echo "on=true" >> "$GITHUB_OUTPUT"; fi
       - name: Watch screenshots
-        if: contains(github.event.head_commit.message, '[screenshots]')
+        if: steps.shots.outputs.on == 'true'
         run: |
           scripts/watch-screenshots/run.sh apps/app/dist screenshots
           for f in screenshots/*.png; do echo "SHOT-BEGIN $(basename "$f")"; base64 -w 120 "$f"; echo "SHOT-END"; done
       - uses: actions/upload-artifact@v4
-        if: contains(github.event.head_commit.message, '[screenshots]')
+        if: steps.shots.outputs.on == 'true'
         with:
           name: watch-screenshots
           path: screenshots
