@@ -135,6 +135,14 @@ class Handler(BaseHTTPRequestHandler):
             m = re.match(r'^/api/watch/streamers/([\w-]+)$', path)
             if m: return self.send_json(200, {'streamer': next((s for s in streamers() if s['userId']==m.group(1)), None)})
             return self.send_json(404, {'error':'Not found'})
+        # Phone-sized frame: headless Chrome will not make its window narrower than ~500px,
+        # so mobile screenshots render the page inside a frame of the phone's width.
+        if path == '/__phone':
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            w = int(q.get('w', ['430'])[0]); h = int(q.get('h', ['932'])[0]); src = q.get('p', ['/'])[0]
+            html = f'<!doctype html><html><body style="margin:0;background:#fff"><iframe src="{src}" style="width:{w}px;height:{h}px;border:0;display:block"></iframe></body></html>'.encode()
+            self.send_response(200); self.send_header('content-type','text/html'); self.send_header('content-length',str(len(html))); self.end_headers(); self.wfile.write(html); return
         # static site
         rel = path.lstrip('/') or 'index.html'
         cands = [rel, rel + '.html', os.path.join(rel, 'index.html')]

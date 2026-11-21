@@ -25,8 +25,11 @@ for _ in $(seq 1 50); do curl -sf http://127.0.0.1:8099/api/watch/me >/dev/null 
 
 CHROME=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
 shot() { # name width height scale path
+  local url="http://127.0.0.1:8099$5"
+  # Phones: inside a frame of the phone's width (Chrome's window has a minimum width).
+  if [ "$2" -lt 600 ]; then url="http://127.0.0.1:8099/__phone?w=$2&h=$3&p=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$5")"; fi
   "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor="$4" \
-    --window-size="$2,$3" --virtual-time-budget=12000 --screenshot="$OUT/$1.png" "http://127.0.0.1:8099$5" >/dev/null 2>&1 || true
+    --window-size="$2,$3" --virtual-time-budget=12000 --screenshot="$OUT/$1.png" "$url" >/dev/null 2>&1 || true
   echo "captured $1"
 }
 shot mobile-1-watch 430 1400 2 /watch
