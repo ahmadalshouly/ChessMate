@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { PostImage, pictureUri } from '@/features/media/MediaFields';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatDate, useT } from '@/i18n';
 import { countryFlag } from '@/lib/leaderboardApi';
@@ -65,6 +66,7 @@ export function EventCard({ e, onPress, compact }: { e: EventSummary; onPress?: 
     <Pressable accessibilityRole="button" accessibilityLabel={e.name} onPress={open} style={compact ? { width: 280 } : undefined}>
       {({ pressed }) => (
         <GlassView padding="md" radius="lg" style={{ gap: t.space.sm, opacity: pressed ? 0.85 : 1 }}>
+          {!compact && e.coverPath ? <PostImage uri={pictureUri(e.coverPath)!} maxHeight={180} /> : null}
           <Row gap="md">
             <EventLogo path={e.logoPath} name={e.name} />
             <Stack gap="xxs" style={{ flex: 1, minWidth: 0 }}>

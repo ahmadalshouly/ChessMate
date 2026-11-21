@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Database } from '../client';
 import { forumReplies, forumTopics, newsComments, newsLikes, newsPosts, users, type ForumReply, type ForumTopic, type NewsComment, type NewsPost } from '../schema';
 
@@ -27,13 +27,23 @@ const toAuthor = (id: string, r: { username: string | null; displayName: string 
 
 // ---------------------------------------------------------------- news
 
-export type NewsRow = NewsPost & { author: Author };
+export type NewsRow = Omit<NewsPost, 'image'> & { hasImage: boolean; author: Author };
+
+/** News columns without the picture itself (lists and pages load it from its own URL). */
+const { image: imageColumn, ...newsColumns } = getTableColumns(newsPosts);
+void imageColumn;
+const newsSelect = { ...newsColumns, hasImage: sql<boolean>`${newsPosts.image} is not null` };
+
+export async function getNewsImage(db: Database, id: string): Promise<{ image: string | null; at: Date } | undefined> {
+  const [row] = await db.select({ image: newsPosts.image, at: sql<Date>`coalesce(${newsPosts.updatedAt}, ${newsPosts.createdAt})` }).from(newsPosts).where(and(eq(newsPosts.id, id), isNull(newsPosts.deletedAt)));
+  return row;
+}
 
 export async function listNews(db: Database, opts: { limit?: number; before?: Date } = {}): Promise<NewsRow[]> {
   const conds = [isNull(newsPosts.deletedAt)];
   if (opts.before) conds.push(lt(newsPosts.createdAt, opts.before));
   const rows = await db
-    .select({ post: newsPosts, ...author })
+    .select({ post: newsSelect, ...author })
     .from(newsPosts)
     .leftJoin(users, eq(users.id, newsPosts.authorId))
     .where(and(...conds))
@@ -44,19 +54,29 @@ export async function listNews(db: Database, opts: { limit?: number; before?: Da
 
 export async function getNews(db: Database, id: string): Promise<NewsRow | undefined> {
   const [r] = await db
-    .select({ post: newsPosts, ...author })
+    .select({ post: newsSelect, ...author })
     .from(newsPosts)
     .leftJoin(users, eq(users.id, newsPosts.authorId))
     .where(and(eq(newsPosts.id, id), isNull(newsPosts.deletedAt)));
   return r && { ...r.post, author: toAuthor(r.post.authorId, r) };
 }
 
-export async function insertNews(db: Database, p: { authorId: string; title: string; body: string; pinned?: boolean }): Promise<NewsPost> {
-  const [row] = await db.insert(newsPosts).values({ authorId: p.authorId, title: p.title, body: p.body, pinned: !!p.pinned }).returning();
+export async function insertNews(
+  db: Database,
+  p: { authorId: string; title: string; body: string; pinned?: boolean; image?: string | null; links?: { label: string; url: string }[] },
+): Promise<NewsPost> {
+  const [row] = await db
+    .insert(newsPosts)
+    .values({ authorId: p.authorId, title: p.title, body: p.body, pinned: !!p.pinned, image: p.image ?? null, links: p.links ?? [] })
+    .returning();
   return row!;
 }
 
-export async function updateNews(db: Database, id: string, patch: { title?: string; body?: string; pinned?: boolean }): Promise<void> {
+export async function updateNews(
+  db: Database,
+  id: string,
+  patch: { title?: string; body?: string; pinned?: boolean; image?: string | null; links?: { label: string; url: string }[] },
+): Promise<void> {
   await db
     .update(newsPosts)
     .set({ ...patch, updatedAt: new Date() })

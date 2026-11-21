@@ -37,7 +37,13 @@ describe('news', () => {
   it('only staff write news; everyone reads, likes and comments', async () => {
     await fails(svc.writeNews(ids.ana!, { title: 'Hello', body: 'x' }), 403);
     const post = await svc.writeNews(ids.staffer!, { title: 'Launch day', body: 'Welcome to ChessMate!', pinned: true });
-    expect(post).toMatchObject({ title: 'Launch day', pinned: true, likeCount: 0, author: { username: 'staffer', staff: true } });
+    expect(post).toMatchObject({ title: 'Launch day', pinned: true, likeCount: 0, author: { username: 'staffer', staff: true }, imagePath: null, links: [] });
+    // A picture and links; the list carries only the picture's address.
+    const edited = await svc.editNews(ids.staffer!, post.id, { image: 'data:image/png;base64,iVBORw0KGgo=', links: [{ label: 'Read more', url: 'chessmate.example/launch' }] });
+    expect(edited.imagePath).toMatch(new RegExp(`^/api/news/${post.id}/image\\?v=`));
+    expect(edited.links).toEqual([{ label: 'Read more', url: 'https://chessmate.example/launch' }]);
+    expect((await svc.newsImage(post.id))!.mime).toBe('image/png');
+    await fails(svc.editNews(ids.staffer!, post.id, { image: 'data:image/gif;base64,AAAA' }), 400);
 
     expect(await svc.like(ids.ana!, post.id, true)).toEqual({ liked: true, likeCount: 1 });
     expect(await svc.like(ids.ana!, post.id, true)).toEqual({ liked: true, likeCount: 1 });

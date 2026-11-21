@@ -79,14 +79,16 @@ def berlin():
       'startsAt':now()-2*D,'endsAt':now()+4*D,'format':'swiss','timeControl':'90+30','status':'live','featured':True,'published':True,'hidden':False,'source':'chessmate','sourceUrl':None,
       'logoPath':None,'playerCount':12,'roundCount':7,'liveGames':4,'currentRound':{'id':'r3','number':3,'name':'Round 3'},
       'description':'The Berlin Spring Open brings twelve strong players to the city for seven rounds of classical chess. Games start at 15:00 CET every day, with live commentary on our partner streams.',
-      'website':'https://example.org/berlin-open','rounds':strip(rounds),
+      'website':'https://example.org/berlin-open','coverPath':None,
+      'links':[{'label':'Pairings','url':'https://example.org/pairings'},{'label':'Live commentary','url':'https://twitch.tv/example'},{'label':'','url':'https://example.org/photos'}],
+      'rounds':strip(rounds),
       'players':[{'id':p[0],'name':p[1],'title':p[2],'rating':p[3],'federation':p[4],'fideId':str(1000000+i*137),'userId':None,'username':'lindqvist' if p[0]=='p1' else None} for i,p in enumerate(sorted(PLAYERS,key=lambda p:-p[3]))],
       'standings':standings(rounds),
-      'news':[{'id':'n2','title':'Round 3 under way','body':'Lindqvist and Sato have started with the Ruy Lopez on board one. Moreau leads after two rounds with a perfect start in the Najdorf.','author':{'id':'u1','username':'berlinopen','displayName':'Berlin Open'},'createdAt':now()-90*60_000},
-               {'id':'n1','title':'Welcome to the Berlin Spring Open','body':'Pairings for round 1 are online. All games are broadcast live on ChessMate.','author':{'id':'u1','username':'berlinopen','displayName':'Berlin Open'},'createdAt':now()-2*D}],
+      'news':[{'id':'n2','title':'Round 3 under way','body':'Lindqvist and Sato have started with the Ruy Lopez on board one. Moreau leads after two rounds with a perfect start in the Najdorf.','author':{'id':'u1','username':'berlinopen','displayName':'Berlin Open'},'createdAt':now()-90*60_000,'imagePath':None,'links':[{'label':'Round 3 pairings','url':'https://example.org/r3'}]},
+               {'id':'n1','title':'Welcome to the Berlin Spring Open','body':'Pairings for round 1 are online. All games are broadcast live on ChessMate.','author':{'id':'u1','username':'berlinopen','displayName':'Berlin Open'},'createdAt':now()-2*D,'imagePath':None,'links':[]}],
       'canManage':False}, rounds
 
-SUMMARY_KEYS = ['id','name','shortDescription','location','startsAt','endsAt','format','timeControl','status','featured','published','hidden','source','sourceUrl','logoPath','playerCount','roundCount','liveGames','currentRound']
+SUMMARY_KEYS = ['id','name','shortDescription','location','startsAt','endsAt','format','timeControl','status','featured','published','hidden','source','sourceUrl','logoPath','coverPath','playerCount','roundCount','liveGames','currentRound']
 def summ(e): return {k:e[k] for k in SUMMARY_KEYS}
 def others():
     return [

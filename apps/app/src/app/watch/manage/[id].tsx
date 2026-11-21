@@ -4,6 +4,7 @@ import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
+import { ImageField, LinksEditor, filledLinks } from '@/features/media/MediaFields';
 import { EventLogo, StatusPill } from '@/features/watch/components';
 import { fromLocalInput, toLocalInput } from '@/features/watch/forms';
 import { formatAgo, useT } from '@/i18n';
@@ -208,15 +209,18 @@ function DetailsForm({ ctx, event, onSaved }: { ctx: Ctx; event: EventDetail | n
     website: event?.website ?? '',
   }));
   const [logo, setLogo] = useState<string | null | undefined>(undefined);
+  const [cover, setCover] = useState<string | null | undefined>(undefined);
+  const [links, setLinks] = useState(event?.links ?? []);
   const set = (k: keyof typeof f) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   const save = () =>
     ctx.run('details', async () => {
       const startsAt = fromLocalInput(f.starts);
       const endsAt = fromLocalInput(f.ends);
       if (!startsAt || !endsAt) throw new Error(tr('watch.apply.dateFormat'));
-      const body = { ...f, startsAt, endsAt, website: f.website.trim() || null, ...(logo !== undefined ? { logo } : {}) };
+      const body = { ...f, startsAt, endsAt, website: f.website.trim() || null, links: filledLinks(links), ...(logo !== undefined ? { logo } : {}), ...(cover !== undefined ? { cover } : {}) };
       const saved = event ? await watchApi.updateEvent(event.id, body) : await watchApi.createEvent(body);
       setLogo(undefined);
+      setCover(undefined);
       onSaved(saved);
       return saved;
     });
@@ -262,6 +266,18 @@ function DetailsForm({ ctx, event, onSaved }: { ctx: Ctx; event: EventDetail | n
         />
         {preview ? <Button title={tr('watch.manage.removeLogo')} variant="ghost" size="sm" onPress={() => setLogo(null)} /> : null}
       </Row>
+      <ImageField
+        label={tr('media.cover')}
+        current={event?.coverPath ?? null}
+        value={cover}
+        onChange={setCover}
+        onError={(m) =>
+          void ctx.run('details', async () => {
+            throw new Error(m);
+          })
+        }
+      />
+      <LinksEditor value={links} onChange={setLinks} />
       <ErrorText ctx={ctx} section="details" />
       <Button title={event ? tr('watch.save') : tr('watch.manage.create')} loading={ctx.busy === 'details'} onPress={() => void save()} />
     </Panel>
@@ -563,10 +579,24 @@ function NewsPanel({ ctx, event }: { ctx: Ctx; event: EventDetail }) {
   const tr = useT();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [image, setImage] = useState<string | null | undefined>(undefined);
+  const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
   return (
     <Panel title={tr('watch.tabs.news')}>
       <TextField value={title} onChangeText={setTitle} placeholder={tr('watch.manage.newsTitle')} maxLength={140} accessibilityLabel={tr('watch.manage.newsTitle')} />
       <TextField value={body} onChangeText={setBody} placeholder={tr('watch.manage.newsBody')} multiline numberOfLines={4} maxLength={8000} accessibilityLabel={tr('watch.manage.newsBody')} />
+      <ImageField
+        label={tr('media.image')}
+        current={null}
+        value={image}
+        onChange={setImage}
+        onError={(m) =>
+          void ctx.run('news', async () => {
+            throw new Error(m);
+          })
+        }
+      />
+      <LinksEditor value={links} onChange={setLinks} />
       <ErrorText ctx={ctx} section="news" />
       <Button
         title={tr('watch.manage.post')}
@@ -575,9 +605,11 @@ function NewsPanel({ ctx, event }: { ctx: Ctx; event: EventDetail }) {
         disabled={!title.trim() || !body.trim()}
         onPress={() =>
           void ctx.run('news', async () => {
-            const e = await watchApi.addNews(event.id, { title: title.trim(), body: body.trim() });
+            const e = await watchApi.addNews(event.id, { title: title.trim(), body: body.trim(), image: image ?? null, links: filledLinks(links) });
             setTitle('');
             setBody('');
+            setImage(undefined);
+            setLinks([]);
             return e;
           })
         }

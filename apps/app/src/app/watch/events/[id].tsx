@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 're
 
 import { useTicker } from '@/components/PlayerBar';
 import { TitleBadge } from '@/features/titles/TitleBadge';
+import { LinkList, PostImage, pictureUri } from '@/features/media/MediaFields';
 import { EventLogo, GameThumb, StatusPill, dateRange, openLink } from '@/features/watch/components';
 import { formatAgo, formatDateTime, useT } from '@/i18n';
 import { countryFlag } from '@/lib/leaderboardApi';
@@ -56,6 +57,7 @@ export default function EventScreen() {
     <Screen scroll width="wide">
       <RouterStack.Screen options={{ title: e.name }} />
       <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
+        {e.coverPath ? <PostImage uri={pictureUri(e.coverPath)!} maxHeight={320} /> : null}
         <Row gap="md">
           <EventLogo path={e.logoPath} name={e.name} size={64} />
           <Stack gap="xxs" style={{ flex: 1, minWidth: 0 }}>
@@ -67,6 +69,7 @@ export default function EventScreen() {
           </Stack>
         </Row>
         {e.shortDescription ? <Text tone="muted">{e.shortDescription}</Text> : null}
+        <LinkList links={e.links} />
         <Row gap="sm" wrap>
           {!e.published && <Badge label={tr('watch.draft')} tone="warning" />}
           {e.hidden && <Badge label={tr('watch.hidden')} tone="danger" />}
@@ -224,7 +227,9 @@ export default function EventScreen() {
                 <Text variant="caption" tone="muted">
                   {[n.author?.displayName, formatAgo(n.createdAt)].filter(Boolean).join(' · ')}
                 </Text>
+                {n.imagePath ? <PostImage uri={pictureUri(n.imagePath)!} /> : null}
                 <Text selectable>{n.body}</Text>
+                <LinkList links={n.links} />
               </GlassView>
             ))}
           </Stack>

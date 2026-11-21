@@ -1,4 +1,7 @@
 import {
+  cleanImage,
+  cleanLinks,
+  type PostLink,
   COMMUNITY_LIMITS,
   cleanBody,
   cleanTitle,
@@ -16,6 +19,7 @@ import {
   deleteReply,
   deleteTopic,
   getNews,
+  getNewsImage,
   getNewsComment,
   getReply,
   getTopic,
@@ -119,6 +123,8 @@ export class CommunityService {
       id: r.id,
       title: r.title,
       body: r.body,
+      imagePath: r.hasImage ? `/api/news/${r.id}/image?v=${(r.updatedAt ?? r.createdAt).getTime()}` : null,
+      links: r.links ?? [],
       author: this.author(r.author),
       pinned: r.pinned,
       likeCount: r.likeCount,
@@ -144,19 +150,32 @@ export class CommunityService {
     const me = this.requireStaff(viewer);
     const title = this.ok(cleanTitle(input.title));
     const body = this.ok(cleanBody(input.body, COMMUNITY_LIMITS.postBodyMax));
-    const row = await insertNews(this.db, { authorId: me, title, body, pinned: input.pinned === true });
+    const image = this.ok(cleanImage(input.image)) ?? null;
+    const links = this.ok(cleanLinks(input.links));
+    const row = await insertNews(this.db, { authorId: me, title, body, pinned: input.pinned === true, image, links });
     return (await this.newsPost(me, row.id)).post;
   }
 
   async editNews(viewer: string | null, id: string, input: Record<string, unknown>): Promise<NewsPostView> {
     this.requireStaff(viewer);
     if (!(await getNews(this.db, id))) throw new CommunityError(404, 'This post is no longer available');
-    const patch: { title?: string; body?: string; pinned?: boolean } = {};
+    const patch: { title?: string; body?: string; pinned?: boolean; image?: string | null; links?: PostLink[] } = {};
+    const image = this.ok(cleanImage(input.image));
+    if (image !== undefined) patch.image = image;
+    if (input.links !== undefined) patch.links = this.ok(cleanLinks(input.links));
     if (input.title !== undefined) patch.title = this.ok(cleanTitle(input.title));
     if (input.body !== undefined) patch.body = this.ok(cleanBody(input.body, COMMUNITY_LIMITS.postBodyMax));
     if (typeof input.pinned === 'boolean') patch.pinned = input.pinned;
     await updateNews(this.db, id, patch);
     return (await this.newsPost(viewer, id)).post;
+  }
+
+  /** The picture of a news post, for its image URL. */
+  async newsImage(id: string): Promise<{ mime: string; data: Buffer; etag: string } | null> {
+    const r = await getNewsImage(this.db, id);
+    const m = r?.image ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(r.image) : null;
+    if (!r || !m) return null;
+    return { mime: m[1]!, data: Buffer.from(m[2]!, 'base64'), etag: `"${new Date(r.at).getTime()}"` };
   }
 
   async removeNews(viewer: string | null, id: string) {

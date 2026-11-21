@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import { useT } from '@/i18n';
+import { ImageField, LinksEditor, filledLinks } from '@/features/media/MediaFields';
 import { serverText } from '@/i18n/serverMessages';
 import { newsApi } from '@/lib/communityApi';
 import { Button, Modal, Switch, Text, TextField, useAppTheme } from '@/ui';
@@ -14,6 +15,9 @@ export function NewsEditor({ visible, onClose, post, onSaved }: { visible: boole
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [pinned, setPinned] = useState(false);
+  // undefined keeps the saved picture, null removes it.
+  const [image, setImage] = useState<string | null | undefined>(undefined);
+  const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,13 +26,16 @@ export function NewsEditor({ visible, onClose, post, onSaved }: { visible: boole
     setTitle(post?.title ?? '');
     setBody(post?.body ?? '');
     setPinned(post?.pinned ?? false);
+    setImage(undefined);
+    setLinks(post?.links ?? []);
     setError(null);
   }, [visible, post]);
 
   const save = async () => {
     setBusy(true);
     try {
-      const r = post ? await newsApi.edit(post.id, { title, body, pinned }) : await newsApi.write({ title, body, pinned });
+      const extra = { links: filledLinks(links), ...(image !== undefined ? { image } : {}) };
+      const r = post ? await newsApi.edit(post.id, { title, body, pinned, ...extra }) : await newsApi.write({ title, body, pinned, ...extra });
       onSaved(r.post);
       onClose();
     } catch (e) {
@@ -65,6 +72,8 @@ export function NewsEditor({ visible, onClose, post, onSaved }: { visible: boole
             accessibilityLabel={tr('news.bodyLabel')}
           />
         </View>
+        <ImageField label={tr('media.image')} current={post?.imagePath ?? null} value={image} onChange={setImage} onError={setError} />
+        <LinksEditor value={links} onChange={setLinks} />
         <View style={styles.row}>
           <Text style={{ flex: 1 }}>{tr('news.pin')}</Text>
           <Switch value={pinned} onValueChange={setPinned} accessibilityLabel={tr('news.pin')} />

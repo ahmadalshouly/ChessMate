@@ -64,7 +64,7 @@ export const watchApi = {
   game: (gameId: string) => api<{ game: EventGameDetail }>('GET', `/games/${gameId}`, undefined, true).then((r) => r.game),
   setResult: (gameId: string, result: string) => api<E>('POST', `/games/${gameId}`, { result }).then((r) => r.event),
   removeGame: (gameId: string) => api<E>('DELETE', `/games/${gameId}`).then((r) => r.event),
-  addNews: (id: string, body: { title: string; body: string }) => api<E>('POST', `/events/${id}/news`, body).then((r) => r.event),
+  addNews: (id: string, body: { title: string; body: string; image?: string | null; links?: { label: string; url: string }[] }) => api<E>('POST', `/events/${id}/news`, body).then((r) => r.event),
   removeNews: (newsId: string) => api<E>('DELETE', `/news/${newsId}`).then((r) => r.event),
   // Applications to broadcast
   myEventApplications: () => api<{ applications: EventApplicationView[] }>('GET', '/event-applications').then((r) => r.applications),

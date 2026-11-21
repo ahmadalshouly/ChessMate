@@ -44,7 +44,9 @@ import {
   getAppSetting,
   getEvent,
   getEventApplication,
+  getEventCover,
   getEventLogo,
+  getEventNewsImage,
   getEventNews,
   getBroadcastGame,
   getPlayer,
@@ -312,6 +314,7 @@ export class EventService {
       source: row.source as EventSummary['source'],
       sourceUrl: row.sourceUrl,
       logoPath: row.logoUrl ?? (row.hasLogo ? `/api/watch/events/${row.id}/logo?v=${row.updatedAt.getTime()}` : null),
+      coverPath: row.hasCover ? `/api/watch/events/${row.id}/cover?v=${row.updatedAt.getTime()}` : null,
       playerCount: playerViews.length || standings.length,
       roundCount: roundViews.length,
       liveGames: games.filter((g) => g.result === '*' && g.ply > 0).length,
@@ -325,6 +328,7 @@ export class EventService {
         ...summary,
         description: row.description,
         website: row.website,
+        links: row.links ?? [],
         rounds: roundViews,
         players: playerViews,
         standings,
@@ -332,6 +336,8 @@ export class EventService {
           id: n.id,
           title: n.title,
           body: n.body,
+          imagePath: n.hasImage ? `/api/watch/news/${n.id}/image` : null,
+          links: n.links ?? [],
           author: n.authorId && n.username ? { id: n.authorId, username: n.username, displayName: n.displayName || n.username } : null,
           createdAt: n.createdAt.getTime(),
         })),
@@ -400,6 +406,21 @@ export class EventService {
     return { ...gameSummary(g), eventId: g.eventId, eventName: b.row.name, roundName: round?.name ?? '', initialFen: g.initialFen, moves: g.moves, clocks: g.clocks };
   }
 
+  async cover(eventId: string): Promise<{ mime: string; data: Buffer; etag: string } | null> {
+    const r = await getEventCover(this.db, eventId);
+    const m = r?.cover ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(r.cover) : null;
+    if (!r || !m) return null;
+    return { mime: m[1]!, data: Buffer.from(m[2]!, 'base64'), etag: `"c${r.updatedAt.getTime()}"` };
+  }
+
+  /** Pictures of event news never change (a post is replaced, not edited). */
+  async newsImage(newsId: string): Promise<{ mime: string; data: Buffer; etag: string } | null> {
+    const image = await getEventNewsImage(this.db, newsId);
+    const m = image ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(image) : null;
+    if (!m) return null;
+    return { mime: m[1]!, data: Buffer.from(m[2]!, 'base64'), etag: `"n${newsId}"` };
+  }
+
   async logo(eventId: string): Promise<{ mime: string; data: Buffer; etag: string } | null> {
     const r = await getEventLogo(this.db, eventId);
     const m = r?.logo ? /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(r.logo) : null;
@@ -426,6 +447,8 @@ export class EventService {
       timeControl: v.timeControl,
       website: v.website,
       logo: v.logo ?? null,
+      cover: v.cover ?? null,
+      links: v.links,
       createdBy: viewer,
     });
     this.listCache = null;
@@ -448,7 +471,9 @@ export class EventService {
       format: v.format,
       timeControl: v.timeControl,
       website: v.website,
+      links: v.links,
       ...(v.logo !== undefined ? { logo: v.logo } : {}),
+      ...(v.cover !== undefined ? { cover: v.cover } : {}),
     });
     if (!row) throw new WatchError(404, 'Event not found');
     this.invalidate(eventId);

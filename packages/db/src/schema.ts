@@ -781,6 +781,9 @@ export const newsPosts = pgTable(
     authorId: text('author_id').notNull(),
     title: text('title').notNull(),
     body: text('body').notNull(),
+    /** Picture (data URL), served at /api/news/:id/image. */
+    image: text('image'),
+    links: jsonb('links').$type<{ label: string; url: string }[]>().notNull().default([]),
     pinned: boolean('pinned').notNull().default(false),
     likeCount: integer('like_count').notNull().default(0),
     commentCount: integer('comment_count').notNull().default(0),
@@ -967,6 +970,9 @@ export const broadcastEvents = pgTable(
     website: text('website'),
     /** Data URL, served at /api/events/:id/logo. */
     logo: text('logo'),
+    /** Cover picture (data URL), served at /api/watch/events/:id/cover. */
+    cover: text('cover'),
+    links: jsonb('links').$type<{ label: string; url: string }[]>().notNull().default([]),
     published: boolean('published').notNull().default(false),
     featured: boolean('featured').notNull().default(false),
     hidden: boolean('hidden').notNull().default(false),
@@ -1085,6 +1091,9 @@ export const broadcastNews = pgTable(
     authorId: text('author_id'),
     title: text('title').notNull(),
     body: text('body').notNull(),
+    /** Picture (data URL), served at /api/watch/news/:id/image. */
+    image: text('image'),
+    links: jsonb('links').$type<{ label: string; url: string }[]>().notNull().default([]),
     createdAt: createdAt(),
   },
   (t) => [index('broadcast_news_event_idx').on(t.eventId, t.createdAt)],

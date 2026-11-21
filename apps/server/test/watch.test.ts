@@ -153,7 +153,13 @@ describe('events', () => {
     await svc.addPlayer(org, eventId, { name: 'Ann Alpha', title: 'FM', rating: 2300, federation: 'DE' });
     await svc.addOrganizer(org, eventId, 'cohost');
     expect(svc.canManage(ids.cohost!, eventId)).toBe(true);
-    await svc.addNews(org, eventId, { title: 'Round 1 pairings', body: 'Pairings are up.' });
+    const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+    await svc.addNews(org, eventId, { title: 'Round 1 pairings', body: 'Pairings are up.', image: PNG, links: [{ label: 'Pairings', url: 'example.org/pairings' }] });
+    expect(await err(svc.addNews(org, eventId, { title: 'Bad link', body: 'x', links: [{ url: 'javascript:alert(1)' }] }))).toBe(400);
+    const withCover = await svc.update(org, eventId, { ...d, cover: PNG, links: [{ label: 'Live commentary', url: 'https://twitch.tv/club' }] });
+    expect(withCover.coverPath).toMatch(new RegExp(`^/api/watch/events/${eventId}/cover\\?v=`));
+    expect(withCover.links).toEqual([{ label: 'Live commentary', url: 'https://twitch.tv/club' }]);
+    expect((await svc.cover(eventId))!.mime).toBe('image/png');
     await svc.setFlags(org, eventId, { published: true });
     // Organisers cannot feature, hide or delete, nor touch other events.
     expect(await err(svc.setFlags(org, eventId, { featured: true }))).toBe(403);
@@ -163,7 +169,10 @@ describe('events', () => {
     expect(list.managed.map((m) => m.id)).toContain(eventId);
     expect(list.upcoming.map((m) => m.id)).toContain(eventId);
     expect((await svc.list(ids.outsider!)).managed).toEqual([]);
-    expect((await svc.detail(null, eventId)).news[0]).toMatchObject({ title: 'Round 1 pairings', author: { username: 'organiser' } });
+    const post = (await svc.detail(null, eventId)).news[0]!;
+    expect(post).toMatchObject({ title: 'Round 1 pairings', author: { username: 'organiser' }, links: [{ label: 'Pairings', url: 'https://example.org/pairings' }] });
+    expect(post.imagePath).toBe(`/api/watch/news/${post.id}/image`);
+    expect((await svc.newsImage(post.id))!.data.length).toBeGreaterThan(0);
   });
 });
 

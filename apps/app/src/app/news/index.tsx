@@ -11,6 +11,7 @@ import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { newsApi } from '@/lib/communityApi';
+import { PostImage, pictureUri } from '@/features/media/MediaFields';
 import { Button, GlassView, Text, useAppTheme } from '@/ui';
 
 /** News from the ChessMate team, newest first (pinned posts on top). Staff can write posts here. */
@@ -89,6 +90,7 @@ export default function NewsScreen() {
                       </Text>
                     </View>
                   )}
+                  {p.imagePath ? <PostImage uri={pictureUri(p.imagePath)!} maxHeight={240} /> : null}
                   <Text variant="heading">{p.title}</Text>
                   <AuthorLine author={p.author} at={p.createdAt} />
                   <Text tone="muted" numberOfLines={4}>

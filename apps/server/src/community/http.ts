@@ -32,6 +32,7 @@ const route = (method: string, pattern: string) => ({ method, re: new RegExp(`^$
  *   GET    /api/news/:id                       { post, comments }
  *   POST   /api/news/:id                       staff: edit { title?, body?, pinned? }
  *   DELETE /api/news/:id                       staff
+ *   GET    /api/news/:id/image                 the post's picture
  *   POST   /api/news/:id/like                  { like: boolean } → { liked, likeCount }
  *   POST   /api/news/:id/comments              { body } → { comment }
  *   DELETE /api/news/comments/:id              own or staff
@@ -49,6 +50,7 @@ export function communityRoutes(community: CommunityService, resolveUser: Resolv
     newsWrite: route('POST', '/api/news'),
     commentDelete: route('DELETE', `/api/news/comments/${ID}`),
     newsLike: route('POST', `/api/news/${ID}/like`),
+    newsImage: route('GET', `/api/news/${ID}/image`),
     newsComment: route('POST', `/api/news/${ID}/comments`),
     newsGet: route('GET', `/api/news/${ID}`),
     newsEdit: route('POST', `/api/news/${ID}`),
@@ -83,12 +85,24 @@ export function communityRoutes(community: CommunityService, resolveUser: Resolv
       const num = (k: string) => (url.searchParams.has(k) ? Number(url.searchParams.get(k)) || undefined : undefined);
       let m: RegExpExecArray | null;
       if (match(R.newsList)) return json(200, { posts: await community.news(viewer, num('before')) });
-      if (match(R.newsWrite)) return json(200, { post: await community.writeNews(viewer, await readJson(req)) });
+      // Staff posts can carry a picture (about 1 MB).
+      if (match(R.newsWrite)) return json(200, { post: await community.writeNews(viewer, await readJson(req, 2 * 1024 * 1024)) });
+      if ((m = match(R.newsImage))) {
+        const img = await community.newsImage(m[1]!);
+        if (!img) return json(404, { error: 'No picture' });
+        if (req.headers['if-none-match'] === img.etag) {
+          res.writeHead(304).end();
+          return true;
+        }
+        res.writeHead(200, { 'content-type': img.mime, 'cache-control': 'public, max-age=86400', etag: img.etag, 'x-content-type-options': 'nosniff' });
+        res.end(img.data);
+        return true;
+      }
       if ((m = match(R.commentDelete))) return json(200, await community.removeComment(viewer, m[1]!));
       if ((m = match(R.newsLike))) return json(200, await community.like(viewer, m[1]!, (await readJson(req)).like !== false));
       if ((m = match(R.newsComment))) return json(200, { comment: await community.comment(viewer, m[1]!, await readJson(req)) });
       if ((m = match(R.newsGet))) return json(200, await community.newsPost(viewer, m[1]!));
-      if ((m = match(R.newsEdit))) return json(200, { post: await community.editNews(viewer, m[1]!, await readJson(req)) });
+      if ((m = match(R.newsEdit))) return json(200, { post: await community.editNews(viewer, m[1]!, await readJson(req, 2 * 1024 * 1024)) });
       if ((m = match(R.newsDelete))) return json(200, await community.removeNews(viewer, m[1]!));
       if (match(R.topics)) return json(200, { topics: await community.topics(viewer, { category: url.searchParams.get('category') ?? undefined, before: num('before') }) });
       if (match(R.topicStart)) return json(200, { topic: await community.startTopic(viewer, await readJson(req)) });

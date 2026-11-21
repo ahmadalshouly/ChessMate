@@ -10,6 +10,7 @@ import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { newsApi } from '@/lib/communityApi';
+import { LinkList, PostImage, pictureUri } from '@/features/media/MediaFields';
 import { GlassView, Text } from '@/ui';
 
 /** One news post: the full text, likes, comments, and the team's edit tools. */
@@ -55,11 +56,13 @@ export default function NewsPostScreen() {
           {post && (
             <>
               <GlassView radius="xl" padding="lg" style={{ gap: 12 }}>
+                {post.imagePath ? <PostImage uri={pictureUri(post.imagePath)!} /> : null}
                 <Text variant="title">{post.title}</Text>
                 <AuthorLine author={post.author} at={post.createdAt} />
                 <Text selectable style={{ lineHeight: 24 }}>
                   {post.body}
                 </Text>
+                <LinkList links={post.links} />
                 <View style={styles.actions}>
                   <Action icon={post.liked ? 'heart' : 'heart-outline'} label={tr('news.likes', { count: post.likeCount })} active={post.liked} onPress={toggleLike} />
                   {staff && (

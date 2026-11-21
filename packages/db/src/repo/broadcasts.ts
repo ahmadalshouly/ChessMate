@@ -180,6 +180,8 @@ const eventCols = {
   timeControl: broadcastEvents.timeControl,
   website: broadcastEvents.website,
   hasLogo: sql<boolean>`${broadcastEvents.logo} is not null`,
+  hasCover: sql<boolean>`${broadcastEvents.cover} is not null`,
+  links: broadcastEvents.links,
   /** Imported events keep the source's image link instead of an uploaded logo. */
   logoUrl: sql<string | null>`case when ${broadcastEvents.logo} like 'https://%' then ${broadcastEvents.logo} else null end`,
   published: broadcastEvents.published,
@@ -192,7 +194,7 @@ const eventCols = {
   createdAt: broadcastEvents.createdAt,
   updatedAt: broadcastEvents.updatedAt,
 };
-export type EventListRow = Omit<BroadcastEventRow, 'logo'> & { hasLogo: boolean; logoUrl: string | null };
+export type EventListRow = Omit<BroadcastEventRow, 'logo' | 'cover'> & { hasLogo: boolean; hasCover: boolean; logoUrl: string | null };
 
 export async function getEvent(db: Database, id: string): Promise<EventListRow | undefined> {
   const [row] = await db.select(eventCols).from(broadcastEvents).where(eq(broadcastEvents.id, id));
@@ -213,6 +215,11 @@ export async function findEventByExternal(db: Database, source: string, external
     .select(eventCols)
     .from(broadcastEvents)
     .where(and(eq(broadcastEvents.source, source), eq(broadcastEvents.externalId, externalId)));
+  return row;
+}
+
+export async function getEventCover(db: Database, id: string): Promise<{ cover: string | null; updatedAt: Date } | undefined> {
+  const [row] = await db.select({ cover: broadcastEvents.cover, updatedAt: broadcastEvents.updatedAt }).from(broadcastEvents).where(eq(broadcastEvents.id, id));
   return row;
 }
 
@@ -409,11 +416,22 @@ export async function deleteGame(db: Database, id: string): Promise<void> {
 
 // News
 
-export type NewsWithAuthor = BroadcastNewsRow & { username: string | null; displayName: string | null };
+export type NewsWithAuthor = Omit<BroadcastNewsRow, 'image'> & { hasImage: boolean; username: string | null; displayName: string | null };
+
+const newsCols = {
+  id: broadcastNews.id,
+  eventId: broadcastNews.eventId,
+  authorId: broadcastNews.authorId,
+  title: broadcastNews.title,
+  body: broadcastNews.body,
+  links: broadcastNews.links,
+  createdAt: broadcastNews.createdAt,
+  hasImage: sql<boolean>`${broadcastNews.image} is not null`,
+};
 
 export async function listEventNews(db: Database, eventId: string): Promise<NewsWithAuthor[]> {
   const rows = await db
-    .select({ n: broadcastNews, username: users.username, displayName: users.displayName })
+    .select({ n: newsCols, username: users.username, displayName: users.displayName })
     .from(broadcastNews)
     .leftJoin(users, eq(users.id, broadcastNews.authorId))
     .where(eq(broadcastNews.eventId, eventId))
@@ -422,7 +440,15 @@ export async function listEventNews(db: Database, eventId: string): Promise<News
   return rows.map((r) => ({ ...r.n, username: r.username, displayName: r.displayName }));
 }
 
-export async function insertEventNews(db: Database, v: { eventId: string; authorId: string; title: string; body: string }): Promise<BroadcastNewsRow> {
+export async function getEventNewsImage(db: Database, id: string): Promise<string | null> {
+  const [row] = await db.select({ image: broadcastNews.image }).from(broadcastNews).where(eq(broadcastNews.id, id));
+  return row?.image ?? null;
+}
+
+export async function insertEventNews(
+  db: Database,
+  v: { eventId: string; authorId: string; title: string; body: string; image?: string | null; links?: { label: string; url: string }[] },
+): Promise<BroadcastNewsRow> {
   const [row] = await db.insert(broadcastNews).values(v).returning();
   return row!;
 }

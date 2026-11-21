@@ -66,9 +66,10 @@ export function watchRoutes(deps: { streamers: StreamerService; events: EventSer
   // Events
   on('GET', '/events', async ({ viewer }) => events.list(viewer));
   on('GET', '/events/all', async ({ me }) => ({ events: await events.adminList(me()) }));
-  on('POST', '/events', async ({ me, body }) => ({ event: await events.create(me(), await body()) }), 1024 * KB);
+  // Event details carry a logo and a cover picture.
+  on('POST', '/events', async ({ me, body }) => ({ event: await events.create(me(), await body()) }), 3 * 1024 * KB);
   on('GET', `/events/${ID}`, async ({ viewer, params }) => ({ event: await events.detail(viewer, params[0]!) }));
-  on('POST', `/events/${ID}`, async ({ me, params, body }) => ({ event: await events.update(me(), params[0]!, await body()) }), 1024 * KB);
+  on('POST', `/events/${ID}`, async ({ me, params, body }) => ({ event: await events.update(me(), params[0]!, await body()) }), 3 * 1024 * KB);
   on('DELETE', `/events/${ID}`, async ({ me, params }) => {
     await events.remove(me(), params[0]!);
     return { ok: true };
@@ -92,7 +93,7 @@ export function watchRoutes(deps: { streamers: StreamerService; events: EventSer
   on('GET', `/games/${ID}`, async ({ viewer, params }) => ({ game: await events.game(viewer, params[0]!) }));
   on('POST', `/games/${ID}`, async ({ me, params, body }) => ({ event: await events.setResult(me(), params[0]!, (await body()).result) }));
   on('DELETE', `/games/${ID}`, async ({ me, params }) => ({ event: await events.removeGame(me(), params[0]!) }));
-  on('POST', `/events/${ID}/news`, async ({ me, params, body }) => ({ event: await events.addNews(me(), params[0]!, await body()) }));
+  on('POST', `/events/${ID}/news`, async ({ me, params, body }) => ({ event: await events.addNews(me(), params[0]!, await body()) }), 2 * 1024 * KB);
   on('DELETE', `/news/${ID}`, async ({ me, params }) => ({ event: await events.removeNews(me(), params[0]!) }));
 
   // Applications to broadcast
@@ -124,11 +125,12 @@ export function watchRoutes(deps: { streamers: StreamerService; events: EventSer
       return true;
     }
     try {
-      // The logo is an image, not JSON.
-      const logo = req.method === 'GET' ? new RegExp(`^/api/watch/events/${ID}/logo$`).exec(p) : null;
-      if (logo) {
-        const img = await events.logo(logo[1]!);
-        if (!img) return json(404, { error: 'No logo' });
+      // Logo, cover and news pictures are images, not JSON.
+      const pic = req.method === 'GET' ? new RegExp(`^/api/watch/(events|news)/${ID}/(logo|cover|image)$`).exec(p) : null;
+      if (pic) {
+        const [, kind, id, what] = pic;
+        const img = kind === 'news' ? (what === 'image' ? await events.newsImage(id!) : null) : what === 'logo' ? await events.logo(id!) : what === 'cover' ? await events.cover(id!) : null;
+        if (!img) return json(404, { error: 'No picture' });
         if (req.headers['if-none-match'] === img.etag) {
           res.writeHead(304).end();
           return true;

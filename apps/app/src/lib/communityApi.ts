@@ -11,8 +11,8 @@ export const newsApi = {
   like: (id: string, like: boolean) => apiRequest<{ liked: boolean; likeCount: number }>('POST', `/api/news/${encodeURIComponent(id)}/like`, { like }),
   comment: (id: string, body: string) => apiRequest<{ comment: CommentView }>('POST', `/api/news/${encodeURIComponent(id)}/comments`, { body }),
   deleteComment: (id: string) => apiRequest<{ ok: true }>('DELETE', `/api/news/comments/${encodeURIComponent(id)}`),
-  write: (input: { title: string; body: string; pinned?: boolean }) => apiRequest<{ post: NewsPostView }>('POST', '/api/news', input),
-  edit: (id: string, input: { title?: string; body?: string; pinned?: boolean }) => apiRequest<{ post: NewsPostView }>('POST', `/api/news/${encodeURIComponent(id)}`, input),
+  write: (input: { title: string; body: string; pinned?: boolean; image?: string | null; links?: { label: string; url: string }[] }) => apiRequest<{ post: NewsPostView }>('POST', '/api/news', input),
+  edit: (id: string, input: { title?: string; body?: string; pinned?: boolean; image?: string | null; links?: { label: string; url: string }[] }) => apiRequest<{ post: NewsPostView }>('POST', `/api/news/${encodeURIComponent(id)}`, input),
   remove: (id: string) => apiRequest<{ ok: true }>('DELETE', `/api/news/${encodeURIComponent(id)}`),
 };
 

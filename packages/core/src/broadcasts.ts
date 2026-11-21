@@ -16,6 +16,7 @@ import { Chess } from 'chess.js';
 
 import { isChessTitle, type ChessTitle } from './titles';
 import { COUNTRY_CODES } from './profile';
+import { cleanImage, cleanLinks, type PostLink } from './media';
 import { splitPgn } from './pgn';
 import type { GameResult } from './types';
 
@@ -244,6 +245,8 @@ export interface EventSummary {
   /** Where an imported event came from (credit link). */
   sourceUrl: string | null;
   logoPath: string | null;
+  /** Cover picture shown at the top of the event. */
+  coverPath: string | null;
   playerCount: number;
   roundCount: number;
   liveGames: number;
@@ -333,6 +336,8 @@ export interface EventNewsView {
   id: string;
   title: string;
   body: string;
+  imagePath: string | null;
+  links: PostLink[];
   author: { id: string; username: string; displayName: string } | null;
   createdAt: number;
 }
@@ -340,6 +345,8 @@ export interface EventNewsView {
 export interface EventDetail extends EventSummary {
   description: string;
   website: string | null;
+  /** Extra links (pairings, live commentary, photos…). */
+  links: PostLink[];
   rounds: EventRoundView[];
   players: EventPlayerView[];
   standings: EventStandingRow[];
@@ -362,6 +369,9 @@ export interface EventInput {
   website: string | null;
   /** Data URL; null removes it, undefined keeps it. */
   logo?: string | null;
+  /** Cover picture as a data URL; null removes it, undefined keeps it. */
+  cover?: string | null;
+  links: PostLink[];
 }
 
 const LOGO_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -397,6 +407,10 @@ export function cleanEventInput(raw: unknown): Clean<EventInput> {
     if (r.logo.length > EVENT_LIMITS.logoMaxChars) return { error: 'The logo is too large (300 KB at most)', field: 'logo' };
     logo = r.logo;
   }
+  const cover = cleanImage(r.cover, 'cover');
+  if ('error' in cover) return cover;
+  const links = cleanLinks(r.links);
+  if ('error' in links) return links;
   return {
     value: {
       name: name.value,
@@ -409,6 +423,8 @@ export function cleanEventInput(raw: unknown): Clean<EventInput> {
       timeControl: timeControl.value,
       website,
       ...(logo !== undefined ? { logo } : {}),
+      ...(cover.value !== undefined ? { cover: cover.value } : {}),
+      links: links.value,
     },
   };
 }
@@ -492,13 +508,17 @@ export function cleanRoundInput(raw: unknown): Clean<RoundInput> {
   return { value: { number, name: name.value || `Round ${number}`, startsAt: startsAt === null ? null : Math.round(startsAt), source: { kind, url, lichessRoundId } } };
 }
 
-export function cleanEventNews(raw: unknown): Clean<{ title: string; body: string }> {
+export function cleanEventNews(raw: unknown): Clean<{ title: string; body: string; image: string | null; links: PostLink[] }> {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const title = text(r.title, 'title', 'Title', 3, EVENT_LIMITS.newsTitle);
   if ('error' in title) return title;
   const body = text(r.body, 'body', 'Text', 1, EVENT_LIMITS.newsBody);
   if ('error' in body) return body;
-  return { value: { title: title.value, body: body.value } };
+  const image = cleanImage(r.image);
+  if ('error' in image) return image;
+  const links = cleanLinks(r.links);
+  if ('error' in links) return links;
+  return { value: { title: title.value, body: body.value, image: image.value ?? null, links: links.value } };
 }
 
 export interface EventApplicationInput {
@@ -815,5 +835,6 @@ export function lichessTourToEvent(tour: LichessBroadcastTour, rounds: LichessBr
     format,
     timeControl: (tour.info?.tc ?? tour.info?.fideTc ?? '').slice(0, EVENT_LIMITS.timeControl),
     website: tour.info?.website && /^https:\/\//.test(tour.info.website) ? tour.info.website.slice(0, 300) : null,
+    links: [],
   };
 }

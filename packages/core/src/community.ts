@@ -2,6 +2,7 @@
  * News (posts by the ChessMate team that players like and comment on) and the
  * forum (topics players start and discuss, moderated by staff).
  */
+import type { PostLink } from './media';
 
 export interface CommunityAuthor {
   id: string;
@@ -15,6 +16,9 @@ export interface NewsPostView {
   id: string;
   title: string;
   body: string;
+  /** Picture at the top of the post. */
+  imagePath: string | null;
+  links: PostLink[];
   author: CommunityAuthor;
   pinned: boolean;
   likeCount: number;
