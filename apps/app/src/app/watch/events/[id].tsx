@@ -30,8 +30,11 @@ export default function EventScreen() {
   const round = e?.rounds.find((r) => r.id === (roundId ?? e.currentRound?.id)) ?? e?.rounds[e.rounds.length - 1];
   const games = useMemo(() => [...(round?.games ?? [])].sort((a, b) => a.board - b.board), [round]);
   const now = useTicker(games.some((g) => g.status === 'live'));
-  const cols = width > 1100 ? 4 : width > 760 ? 3 : 2;
-  const thumb = Math.floor((Math.min(width, 1200) - 48 - (cols - 1) * 20) / cols);
+  // Boards fill the measured width: 2 per row on phones, up to 4 on wide screens.
+  const [gridW, setGridW] = useState(0);
+  const GAP = 16;
+  const cols = gridW > 1000 ? 4 : gridW > 680 ? 3 : 2;
+  const thumb = Math.max(120, Math.floor((gridW - (cols - 1) * GAP) / cols));
 
   if (!e) {
     return (
@@ -97,10 +100,11 @@ export default function EventScreen() {
               <Empty text={tr('watch.noGamesYet')} />
             ) : (
               <>
-                <View style={[styles.grid, { gap: 20 }]}>
-                  {games.slice(0, MAX_BOARDS).map((g) => (
-                    <GameThumb key={g.id} g={g} size={thumb} now={now} />
-                  ))}
+                <View style={[styles.grid, { gap: GAP }]} onLayout={(ev) => setGridW(Math.floor(ev.nativeEvent.layout.width))}>
+                  {gridW > 0 &&
+                    games.slice(0, MAX_BOARDS).map((g) => (
+                      <GameThumb key={g.id} g={g} size={thumb} now={now} />
+                    ))}
                 </View>
                 {games.length > MAX_BOARDS && (
                   <GlassView radius="lg" padding="none">

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Game, formatClock, type Color, type EventGameDetail, type EventGamePlayer } from '@chessmate/core';
 import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { useTicker } from '@/components/PlayerBar';
@@ -23,7 +23,10 @@ export default function BroadcastGameScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(() => watchApi.game(String(id)), [id]);
   const { data: g, error, refresh } = usePolled<EventGameDetail>(id ? load : null, { fastMs: 3_000, slowMs: 60_000, isLive: (d) => d.status === 'live' });
-  const { wide, size, panel } = useWideBoard({ panel: 360, reserve: 200, phoneReserve: 300 });
+  const { wide, size: wantSize, panel } = useWideBoard({ panel: 360, reserve: 200, phoneReserve: 300 });
+  // On phones, never wider than the screen minus the page padding.
+  const { width } = useWindowDimensions();
+  const size = wide ? wantSize : Math.min(wantSize, Math.floor((width - 2 * 20) / 8) * 8);
   const [orientation, setOrientation] = useState<Color>('w');
   // null = follow the latest move.
   const [ply, setPly] = useState<number | null>(null);

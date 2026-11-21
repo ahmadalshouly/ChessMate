@@ -90,14 +90,6 @@ export default function WatchScreen() {
         </Stack>
       )}
 
-      {data && data.live.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: t.space.md }}>
-          {data.live.slice(1).map((e) => (
-            <EventCard key={e.id} e={e} compact />
-          ))}
-        </ScrollView>
-      )}
-
       {/* Streamers */}
       <Stack gap="sm">
         <SectionHeader title={tr('watch.streamers')} action={<Button title={tr('watch.seeAll')} variant="ghost" size="sm" onPress={() => router.push('/watch/streamers')} />} />
