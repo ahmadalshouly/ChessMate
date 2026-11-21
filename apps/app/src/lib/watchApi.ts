@@ -108,9 +108,9 @@ export function usePolled<T>(load: (() => Promise<T>) | null, opts: { fastMs: nu
     }
   }, []);
 
-  const key = load ? 1 : 0;
   useEffect(() => {
-    if (!key) return;
+    if (!load) return;
+    setLoading(true);
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let active = AppState.currentState === 'active';
@@ -133,7 +133,7 @@ export function usePolled<T>(load: (() => Promise<T>) | null, opts: { fastMs: nu
       if (timer) clearTimeout(timer);
       sub.remove();
     };
-  }, [key, refresh, fastMs, slowMs]);
+  }, [load, refresh, fastMs, slowMs]);
 
   return { data, setData, error, loading, refresh };
 }

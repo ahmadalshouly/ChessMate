@@ -29,7 +29,8 @@ export default function WatchScreen() {
 
   // The first live event (featured ones first) shows its boards here.
   const top = events.data?.live[0] ?? null;
-  const loadTop = useCallback(() => watchApi.event(top!.id), [top?.id]);
+  const topId = top?.id ?? null;
+  const loadTop = useCallback(() => watchApi.event(topId!), [topId]);
   const topDetail = usePolled<EventDetail>(top ? loadTop : null, { fastMs: 6_000, slowMs: 30_000, isLive: (d) => d.status === 'live' });
   const round = topDetail.data?.rounds.find((r) => r.id === topDetail.data?.currentRound?.id);
   const boards = (round?.games ?? []).filter((g) => g.status !== 'notStarted').slice(0, 4);
