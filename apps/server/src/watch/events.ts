@@ -46,7 +46,7 @@ import {
   getEventApplication,
   getEventLogo,
   getEventNews,
-  getGame,
+  getBroadcastGame,
   getPlayer,
   getRound,
   insertAudit,
@@ -76,7 +76,7 @@ import {
   type EventApplicationWithUser,
   type EventListRow,
   type GameSummaryRow,
-  type NewGame,
+  type NewBroadcastGame,
   type PlayerWithUser,
 } from '@chessmate/db';
 
@@ -392,7 +392,7 @@ export class EventService {
   }
 
   async game(viewer: string | null, gameId: string): Promise<EventGameDetail> {
-    const g = await getGame(this.db, gameId);
+    const g = await getBroadcastGame(this.db, gameId);
     if (!g) throw new WatchError(404, 'Game not found');
     const b = await this.build(g.eventId);
     if (!b || !this.visible(b, viewer)) throw new WatchError(404, 'Game not found');
@@ -664,7 +664,7 @@ export class EventService {
   }
 
   async setResult(viewer: string, gameId: string, result: unknown): Promise<EventDetail> {
-    const g = await getGame(this.db, gameId);
+    const g = await getBroadcastGame(this.db, gameId);
     if (!g) throw new WatchError(404, 'Game not found');
     this.requireManager(viewer, g.eventId);
     if (!RESULTS.includes(result as GameResult)) throw new WatchError(400, 'Choose a result', 'result');
@@ -674,7 +674,7 @@ export class EventService {
   }
 
   async removeGame(viewer: string, gameId: string): Promise<EventDetail> {
-    const g = await getGame(this.db, gameId);
+    const g = await getBroadcastGame(this.db, gameId);
     if (!g) throw new WatchError(404, 'Game not found');
     this.requireManager(viewer, g.eventId);
     await deleteGame(this.db, gameId);
@@ -719,7 +719,7 @@ export class EventService {
     const existing = new Map((await listGameSummaries(this.db, eventId)).filter((g) => g.roundId === round.id).map((g) => [g.board, g]));
     const used = new Set<number>();
     let nextBoard = 1;
-    const rows: NewGame[] = [];
+    const rows: NewBroadcastGame[] = [];
     let total = 0;
     let finished = 0;
     for (const g of games) {

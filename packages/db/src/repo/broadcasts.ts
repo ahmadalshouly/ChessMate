@@ -316,7 +316,7 @@ export async function deleteRound(db: Database, id: string): Promise<void> {
 
 // Games
 
-export type NewGame = typeof broadcastGames.$inferInsert;
+export type NewBroadcastGame = typeof broadcastGames.$inferInsert;
 /** Game rows without moves and clocks (lists). */
 export type GameSummaryRow = Omit<BroadcastGameRow, 'moves' | 'clocks'>;
 
@@ -350,13 +350,13 @@ export async function listGameSummaries(db: Database, eventId: string): Promise<
   return db.select(gameSummaryCols).from(broadcastGames).where(eq(broadcastGames.eventId, eventId)).orderBy(asc(broadcastGames.board));
 }
 
-export async function getGame(db: Database, id: string): Promise<BroadcastGameRow | undefined> {
+export async function getBroadcastGame(db: Database, id: string): Promise<BroadcastGameRow | undefined> {
   const [row] = await db.select().from(broadcastGames).where(eq(broadcastGames.id, id));
   return row;
 }
 
 /** Inserts or updates games by board in one round; returns how many rows changed. */
-export async function upsertGames(db: Database, rows: NewGame[]): Promise<number> {
+export async function upsertGames(db: Database, rows: NewBroadcastGame[]): Promise<number> {
   if (!rows.length) return 0;
   const set = {
     whiteName: sql`excluded.white_name`,
@@ -398,7 +398,7 @@ export async function deleteGamesExcept(db: Database, roundId: string, keep: num
   await db.delete(broadcastGames).where(and(eq(broadcastGames.roundId, roundId), keep.length ? notInArray(broadcastGames.board, keep) : undefined));
 }
 
-export async function updateGame(db: Database, id: string, patch: Partial<NewGame>): Promise<BroadcastGameRow | undefined> {
+export async function updateGame(db: Database, id: string, patch: Partial<NewBroadcastGame>): Promise<BroadcastGameRow | undefined> {
   const [row] = await db.update(broadcastGames).set({ ...patch, updatedAt: new Date() }).where(eq(broadcastGames.id, id)).returning();
   return row;
 }

@@ -19,6 +19,7 @@ import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { ProfileActions } from './ProfileActions';
 import { HeadToHeadCard } from '@/components/HeadToHead';
 import { AwardsSummary } from '@/features/awards/AwardsSummary';
+import { ProfileStreamer } from '@/features/watch/ProfileStreamer';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
@@ -134,6 +135,8 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
       </GlassView>
 
       {!profile.isMe && signedIn && <HeadToHeadCard userId={profile.id} name={profile.displayName} />}
+
+      <ProfileStreamer userId={profile.id} />
 
       <AwardsSummary username={profile.username} isMe={profile.isMe} />
 

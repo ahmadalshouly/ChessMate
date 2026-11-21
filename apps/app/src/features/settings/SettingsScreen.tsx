@@ -145,6 +145,14 @@ export function SettingsScreen() {
             </Section>
           )}
 
+          {session.signedIn && (
+            <Section title={tr('watch.streamer.title')}>
+              <Row title={tr('watch.streamer.settingsRow')} detail={tr('watch.streamer.settingsDetail')}>
+                <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/streamer')} />
+              </Row>
+            </Section>
+          )}
+
           {staffRole && (
             <Section title={tr('admin.staffSection')}>
               <Text style={[styles.label, { color: t.muted }]}>{tr('admin.staffDetail', { role: tr(`admin.roles.${staffRole}`) })}</Text>
