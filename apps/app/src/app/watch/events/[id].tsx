@@ -21,10 +21,11 @@ export default function EventScreen() {
   const tr = useT();
   const t = useAppTheme();
   const { width } = useWindowDimensions();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const load = useCallback(() => watchApi.event(String(id)), [id]);
   const { data: e, error, loading, refresh } = usePolled<EventDetail>(id ? load : null, { fastMs: 5_000, slowMs: 30_000, isLive: (d) => d.status === 'live' });
-  const [tab, setTab] = useState<Tab>('games');
+  // ?tab=standings opens a tab directly (shared links).
+  const [tab, setTab] = useState<Tab>(() => (['games', 'standings', 'players', 'news', 'about'].includes(String(tabParam)) ? (tabParam as Tab) : 'games'));
   const [roundId, setRoundId] = useState<string | null>(null);
   const round = e?.rounds.find((r) => r.id === (roundId ?? e.currentRound?.id)) ?? e?.rounds[e.rounds.length - 1];
   const games = useMemo(() => [...(round?.games ?? [])].sort((a, b) => a.board - b.board), [round]);
