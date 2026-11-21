@@ -1,0 +1,840 @@
+/**
+ * Watch: streamers and broadcast chess events.
+ *
+ * Streamers: players apply with their channels; staff approve them (streamer
+ * badge). Approved streamers keep a profile (headline, channels) and switch
+ * "live" on and off.
+ *
+ * Events: tournaments ChessMate broadcasts. An event has players, rounds and
+ * games, news and standings (computed from the results). Games arrive by
+ * pasted PGN, a live PGN link the server polls (DGT boards, LiveChessCloud)
+ * or a Lichess broadcast round. Official Lichess broadcasts can be imported
+ * automatically. Staff manage every event; an approved organiser manages
+ * only the events they were given.
+ */
+import { Chess } from 'chess.js';
+
+import { isChessTitle, type ChessTitle } from './titles';
+import { COUNTRY_CODES } from './profile';
+import { cleanImage, cleanLinks, type PostLink } from './media';
+import { splitPgn } from './pgn';
+import type { GameResult } from './types';
+
+type Clean<T> = { value: T } | { error: string; field?: string };
+
+const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+function text(v: unknown, field: string, label: string, min: number, max: number): Clean<string> {
+  const s = str(v);
+  if (s.length < min) return { error: min <= 1 ? `${label} is required` : `${label} needs at least ${min} characters`, field };
+  if (s.length > max) return { error: `${label} can be at most ${max} characters`, field };
+  return { value: s };
+}
+
+function httpsUrl(v: unknown, field: string, max = 500): Clean<string> {
+  let s = str(v);
+  if (!s) return { error: 'Enter a link', field };
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  if (s.length > max) return { error: 'This link is too long', field };
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error();
+    if (!u.hostname.includes('.')) throw new Error();
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    return { value: u.toString() };
+  } catch {
+    return { error: 'Enter a valid link', field };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Streamers
+
+export const STREAM_PLATFORMS = ['twitch', 'youtube', 'kick', 'other'] as const;
+export type StreamPlatform = (typeof STREAM_PLATFORMS)[number];
+
+const PLATFORM_HOSTS: Record<Exclude<StreamPlatform, 'other'>, string[]> = {
+  twitch: ['twitch.tv', 'www.twitch.tv', 'm.twitch.tv'],
+  youtube: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
+  kick: ['kick.com', 'www.kick.com'],
+};
+
+export interface StreamChannel {
+  platform: StreamPlatform;
+  url: string;
+}
+
+export const STREAMER_LIMITS = {
+  headline: 120,
+  about: 1000,
+  channels: 5,
+  liveTitle: 120,
+  /** Live switches itself off after this long. */
+  liveHours: 12,
+  /** Applications a player may send in 30 days. */
+  applicationsPer30d: 3,
+} as const;
+
+/** The platform a channel link belongs to. */
+export function platformOf(url: string): StreamPlatform {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    for (const [p, hosts] of Object.entries(PLATFORM_HOSTS)) if (hosts.includes(host)) return p as StreamPlatform;
+  } catch {
+    // not a URL
+  }
+  return 'other';
+}
+
+/** A channel link: https, and on the platform's own site unless "other". */
+export function cleanChannel(raw: unknown): Clean<StreamChannel> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as { platform?: unknown; url?: unknown };
+  const url = httpsUrl(r.url, 'channels', 300);
+  if ('error' in url) return url;
+  const detected = platformOf(url.value);
+  const asked = (STREAM_PLATFORMS as readonly unknown[]).includes(r.platform) ? (r.platform as StreamPlatform) : detected;
+  if (asked !== 'other' && detected !== asked) return { error: `That is not a ${asked[0]!.toUpperCase()}${asked.slice(1)} link`, field: 'channels' };
+  return { value: { platform: detected === 'other' ? asked : detected, url: url.value } };
+}
+
+function cleanChannels(raw: unknown): Clean<StreamChannel[]> {
+  if (!Array.isArray(raw) || raw.length === 0) return { error: 'Add at least one channel', field: 'channels' };
+  if (raw.length > STREAMER_LIMITS.channels) return { error: `At most ${STREAMER_LIMITS.channels} channels`, field: 'channels' };
+  const out: StreamChannel[] = [];
+  for (const c of raw) {
+    const r = cleanChannel(c);
+    if ('error' in r) return r;
+    if (!out.some((x) => x.url === r.value.url)) out.push(r.value);
+  }
+  return { value: out };
+}
+
+export interface StreamerApplicationInput {
+  channels: StreamChannel[];
+  about: string;
+}
+
+export function cleanStreamerApplication(raw: unknown): Clean<StreamerApplicationInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const channels = cleanChannels(r.channels);
+  if ('error' in channels) return channels;
+  const about = text(r.about, 'about', 'Tell us about your streams', 20, STREAMER_LIMITS.about);
+  if ('error' in about) return about;
+  return { value: { channels: channels.value, about: about.value } };
+}
+
+export interface StreamerProfileInput {
+  headline: string;
+  channels: StreamChannel[];
+}
+
+export function cleanStreamerProfile(raw: unknown): Clean<StreamerProfileInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const headline = text(r.headline, 'headline', 'Headline', 0, STREAMER_LIMITS.headline);
+  if ('error' in headline) return headline;
+  const channels = cleanChannels(r.channels);
+  if ('error' in channels) return channels;
+  return { value: { headline: headline.value, channels: channels.value } };
+}
+
+export interface GoLiveInput {
+  title: string;
+  url: string;
+}
+
+/** Going live: a title and one of the streamer's channels (or another link on a known platform). */
+export function cleanGoLive(raw: unknown, channels: StreamChannel[]): Clean<GoLiveInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const title = text(r.title, 'title', 'Stream title', 0, STREAMER_LIMITS.liveTitle);
+  if ('error' in title) return title;
+  let link = channels[0]?.url ?? '';
+  if (r.url !== undefined && r.url !== null && r.url !== '') {
+    const c = cleanChannel({ url: r.url });
+    if ('error' in c) return { error: c.error, field: 'url' };
+    link = c.value.url;
+  }
+  if (!link) return { error: 'Add a channel first', field: 'url' };
+  const known = channels.some((c) => c.url === link) || platformOf(link) !== 'other';
+  if (!known) return { error: 'Use one of your channels or a Twitch, YouTube or Kick link', field: 'url' };
+  return { value: { title: title.value, url: link } };
+}
+
+export interface StreamerLive {
+  since: number;
+  title: string;
+  url: string;
+  platform: StreamPlatform;
+}
+
+export interface StreamerView {
+  userId: string;
+  username: string;
+  displayName: string;
+  title: ChessTitle | null;
+  country: string | null;
+  headline: string;
+  channels: StreamChannel[];
+  live: StreamerLive | null;
+}
+
+export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
+
+export interface StreamerApplicationView {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  channels: StreamChannel[];
+  about: string;
+  status: ApplicationStatus;
+  note: string | null;
+  createdAt: number;
+  reviewedAt: number | null;
+}
+
+/** What Settings → Streamer shows the signed-in player. */
+export interface MyStreamerState {
+  streamer: StreamerView | null;
+  application: StreamerApplicationView | null;
+  canApply: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Events
+
+export const EVENT_FORMATS = ['swiss', 'roundRobin', 'knockout', 'team', 'arena', 'match', 'other'] as const;
+export type EventFormat = (typeof EVENT_FORMATS)[number];
+export type EventStatus = 'upcoming' | 'live' | 'finished';
+export type EventSource = 'chessmate' | 'lichess';
+export const ROUND_SOURCE_KINDS = ['manual', 'pgnUrl', 'lichess'] as const;
+export type RoundSourceKind = (typeof ROUND_SOURCE_KINDS)[number];
+
+export const EVENT_LIMITS = {
+  name: 120,
+  short: 200,
+  description: 8000,
+  location: 120,
+  timeControl: 60,
+  logoMaxChars: 400_000,
+  players: 1000,
+  rounds: 60,
+  gamesPerRound: 500,
+  pgnChars: 3_000_000,
+  newsTitle: 140,
+  newsBody: 8000,
+  applicationsPer30d: 3,
+  organizers: 10,
+} as const;
+
+export interface EventSummary {
+  id: string;
+  name: string;
+  shortDescription: string;
+  location: string;
+  startsAt: number;
+  endsAt: number;
+  format: EventFormat;
+  timeControl: string;
+  status: EventStatus;
+  featured: boolean;
+  /** Visible to everyone (organisers and staff also see unpublished events). */
+  published: boolean;
+  /** Taken down by staff: only staff see it. */
+  hidden: boolean;
+  source: EventSource;
+  /** Where an imported event came from (credit link). */
+  sourceUrl: string | null;
+  logoPath: string | null;
+  /** Cover picture shown at the top of the event. */
+  coverPath: string | null;
+  playerCount: number;
+  roundCount: number;
+  liveGames: number;
+  /** The round being played, or the next one. */
+  currentRound: { id: string; number: number; name: string } | null;
+}
+
+export interface EventPlayerView {
+  id: string;
+  name: string;
+  title: ChessTitle | null;
+  rating: number | null;
+  federation: string | null;
+  fideId: string | null;
+  /** Linked ChessMate account. */
+  userId: string | null;
+  username: string | null;
+}
+
+export interface EventGamePlayer {
+  name: string;
+  title: ChessTitle | null;
+  rating: number | null;
+  federation: string | null;
+  playerId: string | null;
+}
+
+export type EventGameStatus = 'notStarted' | 'live' | 'finished';
+
+export interface EventGameSummary {
+  id: string;
+  roundId: string;
+  board: number;
+  white: EventGamePlayer;
+  black: EventGamePlayer;
+  result: GameResult;
+  status: EventGameStatus;
+  fen: string;
+  lastMove: string | null;
+  ply: number;
+  /** Clocks at the last update (ms), when the source has them. */
+  whiteClockMs: number | null;
+  blackClockMs: number | null;
+  /** When the clocks were read (server time, ms). */
+  clockAt: number | null;
+}
+
+export interface EventGameDetail extends EventGameSummary {
+  eventId: string;
+  eventName: string;
+  roundName: string;
+  initialFen: string;
+  moves: string[];
+  /** Clock after each ply (ms), when known. */
+  clocks: (number | null)[];
+}
+
+export interface EventRoundView {
+  id: string;
+  number: number;
+  name: string;
+  startsAt: number | null;
+  status: EventStatus;
+  games: EventGameSummary[];
+  /** Managers only: where games come from. */
+  source?: { kind: RoundSourceKind; url: string | null; lichessRoundId: string | null; lastSyncAt: number | null; syncError: string | null };
+}
+
+export interface EventStandingRow {
+  rank: number;
+  playerId: string | null;
+  name: string;
+  title: ChessTitle | null;
+  rating: number | null;
+  federation: string | null;
+  points: number;
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  buchholz: number;
+  /** Rough performance rating: average opponent rating + 400 × (wins − losses) / games. */
+  performance: number | null;
+}
+
+export interface EventNewsView {
+  id: string;
+  title: string;
+  body: string;
+  imagePath: string | null;
+  links: PostLink[];
+  author: { id: string; username: string; displayName: string } | null;
+  createdAt: number;
+}
+
+export interface EventDetail extends EventSummary {
+  description: string;
+  website: string | null;
+  /** Extra links (pairings, live commentary, photos…). */
+  links: PostLink[];
+  rounds: EventRoundView[];
+  players: EventPlayerView[];
+  standings: EventStandingRow[];
+  news: EventNewsView[];
+  /** The viewer may edit this event (staff or one of its organisers). */
+  canManage: boolean;
+  /** Managers only. */
+  organizers?: { userId: string; username: string; displayName: string }[];
+}
+
+export interface EventInput {
+  name: string;
+  shortDescription: string;
+  description: string;
+  location: string;
+  startsAt: number;
+  endsAt: number;
+  format: EventFormat;
+  timeControl: string;
+  website: string | null;
+  /** Data URL; null removes it, undefined keeps it. */
+  logo?: string | null;
+  /** Cover picture as a data URL; null removes it, undefined keeps it. */
+  cover?: string | null;
+  links: PostLink[];
+}
+
+const LOGO_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+export function cleanEventInput(raw: unknown): Clean<EventInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const name = text(r.name, 'name', 'Event name', 3, EVENT_LIMITS.name);
+  if ('error' in name) return name;
+  const short = text(r.shortDescription, 'shortDescription', 'Summary', 0, EVENT_LIMITS.short);
+  if ('error' in short) return short;
+  const description = text(r.description, 'description', 'Description', 0, EVENT_LIMITS.description);
+  if ('error' in description) return description;
+  const location = text(r.location, 'location', 'Location', 0, EVENT_LIMITS.location);
+  if ('error' in location) return location;
+  const timeControl = text(r.timeControl, 'timeControl', 'Time control', 0, EVENT_LIMITS.timeControl);
+  if ('error' in timeControl) return timeControl;
+  const startsAt = Number(r.startsAt);
+  const endsAt = Number(r.endsAt);
+  if (!Number.isFinite(startsAt) || startsAt <= 0) return { error: 'Choose a start date', field: 'startsAt' };
+  if (!Number.isFinite(endsAt) || endsAt < startsAt) return { error: 'The end must be after the start', field: 'endsAt' };
+  if (endsAt - startsAt > 120 * 86_400_000) return { error: 'An event can last at most 120 days', field: 'endsAt' };
+  const format = (EVENT_FORMATS as readonly unknown[]).includes(r.format) ? (r.format as EventFormat) : 'other';
+  let website: string | null = null;
+  if (str(r.website)) {
+    const w = httpsUrl(r.website, 'website', 300);
+    if ('error' in w) return w;
+    website = w.value;
+  }
+  let logo: string | null | undefined;
+  if (r.logo === null) logo = null;
+  else if (r.logo !== undefined) {
+    if (typeof r.logo !== 'string' || !LOGO_DATA_URL.test(r.logo)) return { error: 'The logo must be a PNG, JPEG or WebP image', field: 'logo' };
+    if (r.logo.length > EVENT_LIMITS.logoMaxChars) return { error: 'The logo is too large (300 KB at most)', field: 'logo' };
+    logo = r.logo;
+  }
+  const cover = cleanImage(r.cover, 'cover');
+  if ('error' in cover) return cover;
+  const links = cleanLinks(r.links);
+  if ('error' in links) return links;
+  return {
+    value: {
+      name: name.value,
+      shortDescription: short.value,
+      description: description.value,
+      location: location.value,
+      startsAt: Math.round(startsAt),
+      endsAt: Math.round(endsAt),
+      format,
+      timeControl: timeControl.value,
+      website,
+      ...(logo !== undefined ? { logo } : {}),
+      ...(cover.value !== undefined ? { cover: cover.value } : {}),
+      links: links.value,
+    },
+  };
+}
+
+export interface EventPlayerInput {
+  name: string;
+  title: ChessTitle | null;
+  rating: number | null;
+  federation: string | null;
+  fideId: string | null;
+  /** ChessMate username to link, or null. */
+  username: string | null;
+}
+
+export function cleanPlayerInput(raw: unknown): Clean<EventPlayerInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const name = text(r.name, 'name', 'Player name', 2, 80);
+  if ('error' in name) return name;
+  const title = str(r.title).toUpperCase();
+  if (title && !isChessTitle(title)) return { error: 'Unknown title', field: 'title' };
+  let rating: number | null = null;
+  if (r.rating !== null && r.rating !== undefined && r.rating !== '') {
+    rating = Number(r.rating);
+    if (!Number.isInteger(rating) || rating < 0 || rating > 3500) return { error: 'Rating must be 0 to 3500', field: 'rating' };
+  }
+  const fed = str(r.federation).toUpperCase();
+  if (fed && !COUNTRY_CODES.has(fed)) return { error: 'Unknown federation', field: 'federation' };
+  const fide = str(r.fideId);
+  if (fide && !/^\d{1,12}$/.test(fide)) return { error: 'A FIDE ID is digits only', field: 'fideId' };
+  const username = str(r.username).replace(/^@/, '');
+  return { value: { name: name.value, title: title ? (title as ChessTitle) : null, rating, federation: fed || null, fideId: fide || null, username: username || null } };
+}
+
+export interface RoundInput {
+  number: number;
+  name: string;
+  startsAt: number | null;
+  source: { kind: RoundSourceKind; url: string | null; lichessRoundId: string | null };
+}
+
+/** A Lichess broadcast round id from an id or a broadcast link (the last 8-character path part). */
+export function lichessRoundIdOf(input: string): string | null {
+  const s = input.trim();
+  if (/^[A-Za-z0-9]{8}$/.test(s)) return s;
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+    if (!/(^|\.)lichess\.org$/i.test(u.hostname)) return null;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const i = parts.indexOf('broadcast');
+    if (i < 0) return null;
+    const last = parts[parts.length - 1]!;
+    return parts.length - i >= 4 && /^[A-Za-z0-9]{8}$/.test(last) ? last : null;
+  } catch {
+    return null;
+  }
+}
+
+export function cleanRoundInput(raw: unknown): Clean<RoundInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const number = Number(r.number);
+  if (!Number.isInteger(number) || number < 1 || number > 99) return { error: 'Round number must be 1 to 99', field: 'number' };
+  const name = text(r.name, 'name', 'Round name', 0, 60);
+  if ('error' in name) return name;
+  let startsAt: number | null = null;
+  if (r.startsAt !== null && r.startsAt !== undefined && r.startsAt !== '') {
+    startsAt = Number(r.startsAt);
+    if (!Number.isFinite(startsAt) || startsAt <= 0) return { error: 'Invalid start time', field: 'startsAt' };
+  }
+  const s = (r.source && typeof r.source === 'object' ? r.source : {}) as Record<string, unknown>;
+  const kind = (ROUND_SOURCE_KINDS as readonly unknown[]).includes(s.kind) ? (s.kind as RoundSourceKind) : 'manual';
+  let url: string | null = null;
+  let lichessRoundId: string | null = null;
+  if (kind === 'pgnUrl') {
+    const u = httpsUrl(s.url, 'source');
+    if ('error' in u) return u;
+    url = u.value;
+  } else if (kind === 'lichess') {
+    lichessRoundId = lichessRoundIdOf(str(s.lichessRoundId ?? s.url));
+    if (!lichessRoundId) return { error: 'Paste a Lichess broadcast round link', field: 'source' };
+  }
+  return { value: { number, name: name.value || `Round ${number}`, startsAt: startsAt === null ? null : Math.round(startsAt), source: { kind, url, lichessRoundId } } };
+}
+
+export function cleanEventNews(raw: unknown): Clean<{ title: string; body: string; image: string | null; links: PostLink[] }> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const title = text(r.title, 'title', 'Title', 3, EVENT_LIMITS.newsTitle);
+  if ('error' in title) return title;
+  const body = text(r.body, 'body', 'Text', 1, EVENT_LIMITS.newsBody);
+  if ('error' in body) return body;
+  const image = cleanImage(r.image);
+  if ('error' in image) return image;
+  const links = cleanLinks(r.links);
+  if ('error' in links) return links;
+  return { value: { title: title.value, body: body.value, image: image.value ?? null, links: links.value } };
+}
+
+export interface EventApplicationInput {
+  eventName: string;
+  organization: string;
+  website: string | null;
+  location: string;
+  startsAt: number;
+  endsAt: number;
+  description: string;
+  /** How the games will be sent (DGT boards, PGN link, Lichess, by hand…). */
+  coverage: string;
+}
+
+export function cleanEventApplication(raw: unknown): Clean<EventApplicationInput> {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const eventName = text(r.eventName, 'eventName', 'Event name', 3, EVENT_LIMITS.name);
+  if ('error' in eventName) return eventName;
+  const organization = text(r.organization, 'organization', 'Organiser', 2, 120);
+  if ('error' in organization) return organization;
+  const location = text(r.location, 'location', 'Location', 2, EVENT_LIMITS.location);
+  if ('error' in location) return location;
+  const description = text(r.description, 'description', 'Description', 20, 2000);
+  if ('error' in description) return description;
+  const coverage = text(r.coverage, 'coverage', 'How games will be sent', 0, 500);
+  if ('error' in coverage) return coverage;
+  const startsAt = Number(r.startsAt);
+  const endsAt = Number(r.endsAt);
+  if (!Number.isFinite(startsAt) || startsAt <= 0) return { error: 'Choose a start date', field: 'startsAt' };
+  if (!Number.isFinite(endsAt) || endsAt < startsAt) return { error: 'The end must be after the start', field: 'endsAt' };
+  let website: string | null = null;
+  if (str(r.website)) {
+    const w = httpsUrl(r.website, 'website', 300);
+    if ('error' in w) return w;
+    website = w.value;
+  }
+  return { value: { eventName: eventName.value, organization: organization.value, website, location: location.value, startsAt: Math.round(startsAt), endsAt: Math.round(endsAt), description: description.value, coverage: coverage.value } };
+}
+
+export interface EventApplicationView extends EventApplicationInput {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  status: ApplicationStatus;
+  note: string | null;
+  /** The event created for an approved application. */
+  eventId: string | null;
+  createdAt: number;
+  reviewedAt: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// PGN from broadcasts
+
+export interface BroadcastPgnGame {
+  white: string;
+  black: string;
+  whiteTitle: ChessTitle | null;
+  blackTitle: ChessTitle | null;
+  whiteElo: number | null;
+  blackElo: number | null;
+  whiteFideId: string | null;
+  blackFideId: string | null;
+  whiteFed: string | null;
+  blackFed: string | null;
+  result: GameResult;
+  initialFen: string;
+  moves: string[];
+  /** Clock after each ply from [%clk] comments (ms), null where missing. */
+  clocks: (number | null)[];
+  board: number | null;
+  round: string | null;
+}
+
+const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const RESULTS: readonly GameResult[] = ['1-0', '0-1', '1/2-1/2', '*'];
+
+function clockMs(comment: string): number | null {
+  const m = /\[%clk\s+(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)\]/.exec(comment);
+  return m ? Math.round((Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000) : null;
+}
+
+const fed = (v: string | undefined) => {
+  const s = (v ?? '').trim().toUpperCase();
+  return s && COUNTRY_CODES.has(s) ? s : null;
+};
+const elo = (v: string | undefined) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 && n < 4000 ? n : null;
+};
+const title = (v: string | undefined) => {
+  const s = (v ?? '').trim().toUpperCase();
+  return s && isChessTitle(s) ? (s as ChessTitle) : null;
+};
+
+/**
+ * Games from a broadcast PGN file: players, ratings, titles, moves, clocks,
+ * board and round. Games still in progress (result "*") are kept. Games that
+ * do not parse are skipped.
+ */
+export function parseBroadcastPgn(textIn: string): BroadcastPgnGame[] {
+  const out: BroadcastPgnGame[] = [];
+  for (const chunk of splitPgn(textIn)) {
+    try {
+      const chess = new Chess();
+      chess.loadPgn(chunk);
+      const h = chess.getHeaders() as Record<string, string | undefined>;
+      const fenOf = new Map<string, string>();
+      for (const c of chess.getComments()) fenOf.set(c.fen, c.comment);
+      const history = chess.history({ verbose: true });
+      const moves = history.map((m) => `${m.from}${m.to}${m.promotion ?? ''}`);
+      const clocks = history.map((m) => {
+        const c = fenOf.get(m.after);
+        return c ? clockMs(c) : null;
+      });
+      const result = RESULTS.includes(h.Result as GameResult) ? (h.Result as GameResult) : '*';
+      const boardTag = h.Board ?? (h.Round?.includes('.') ? h.Round.split('.').pop() : undefined);
+      const board = Number(boardTag);
+      out.push({
+        white: (h.White ?? '').trim() || 'White',
+        black: (h.Black ?? '').trim() || 'Black',
+        whiteTitle: title(h.WhiteTitle),
+        blackTitle: title(h.BlackTitle),
+        whiteElo: elo(h.WhiteElo),
+        blackElo: elo(h.BlackElo),
+        whiteFideId: /^\d+$/.test(h.WhiteFideId ?? '') ? h.WhiteFideId! : null,
+        blackFideId: /^\d+$/.test(h.BlackFideId ?? '') ? h.BlackFideId! : null,
+        whiteFed: fed(h.WhiteFed ?? h.WhiteTeamCountry),
+        blackFed: fed(h.BlackFed ?? h.BlackTeamCountry),
+        result,
+        initialFen: h.FEN && h.SetUp !== '0' ? h.FEN : START,
+        moves,
+        clocks,
+        board: Number.isInteger(board) && board > 0 ? board : null,
+        round: h.Round && h.Round !== '?' ? h.Round : null,
+      });
+    } catch {
+      // A broken game in a live file: skip it, the rest still counts.
+    }
+  }
+  return out;
+}
+
+export function gameStatusOf(result: GameResult, ply: number): EventGameStatus {
+  return result !== '*' ? 'finished' : ply > 0 ? 'live' : 'notStarted';
+}
+
+/** A round is finished when every game has a result, live once a game has started (or its time has come). */
+export function roundStatusOf(games: { result: GameResult; ply: number }[], startsAt: number | null, now: number): EventStatus {
+  if (games.length && games.every((g) => g.result !== '*')) return 'finished';
+  if (games.some((g) => g.result === '*' && g.ply > 0)) return 'live';
+  if (games.length && startsAt !== null && now >= startsAt) return 'live';
+  return 'upcoming';
+}
+
+export function eventStatusOf(e: { startsAt: number; endsAt: number }, rounds: { status: EventStatus }[], now: number): EventStatus {
+  if (rounds.some((r) => r.status === 'live')) return 'live';
+  if (rounds.length && rounds.every((r) => r.status === 'finished') && now >= e.startsAt) return 'finished';
+  if (now < e.startsAt) return 'upcoming';
+  // A day after the last day with nothing live, call it finished.
+  return now > e.endsAt + 86_400_000 ? 'finished' : 'live';
+}
+
+// ---------------------------------------------------------------------------
+// Standings
+
+export interface StandingGame {
+  white: { name: string; playerId: string | null; rating: number | null };
+  black: { name: string; playerId: string | null; rating: number | null };
+  result: GameResult;
+}
+
+const nameKey = (n: string) => n.toLowerCase().replace(/[^a-z0-9À-ɏЀ-ӿ؀-ۿ]+/g, ' ').trim();
+
+/**
+ * Standings from finished games: points (1, ½, 0), Buchholz and a rough
+ * performance rating. Players are matched by id when games are linked to the
+ * player list, otherwise by name; listed players with no games appear too.
+ */
+export function computeStandings(players: Pick<EventPlayerView, 'id' | 'name' | 'title' | 'rating' | 'federation'>[], games: StandingGame[]): EventStandingRow[] {
+  interface Acc {
+    playerId: string | null;
+    name: string;
+    title: ChessTitle | null;
+    rating: number | null;
+    federation: string | null;
+    points: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    opponents: string[];
+    oppRatings: number[];
+  }
+  const rows = new Map<string, Acc>();
+  const byName = new Map<string, string>();
+  for (const p of players) {
+    const key = `p:${p.id}`;
+    rows.set(key, { playerId: p.id, name: p.name, title: p.title, rating: p.rating, federation: p.federation, points: 0, wins: 0, draws: 0, losses: 0, opponents: [], oppRatings: [] });
+    byName.set(nameKey(p.name), key);
+  }
+  const keyOf = (s: StandingGame['white']) => {
+    if (s.playerId && rows.has(`p:${s.playerId}`)) return `p:${s.playerId}`;
+    const k = byName.get(nameKey(s.name));
+    if (k) return k;
+    const key = `n:${nameKey(s.name)}`;
+    if (!rows.has(key)) {
+      rows.set(key, { playerId: null, name: s.name, title: null, rating: s.rating, federation: null, points: 0, wins: 0, draws: 0, losses: 0, opponents: [], oppRatings: [] });
+      byName.set(nameKey(s.name), key);
+    }
+    return key;
+  };
+  for (const g of games) {
+    if (g.result === '*') continue;
+    const w = keyOf(g.white);
+    const b = keyOf(g.black);
+    const W = rows.get(w)!;
+    const B = rows.get(b)!;
+    W.opponents.push(b);
+    B.opponents.push(w);
+    if (g.black.rating ?? B.rating) W.oppRatings.push((g.black.rating ?? B.rating)!);
+    if (g.white.rating ?? W.rating) B.oppRatings.push((g.white.rating ?? W.rating)!);
+    if (g.result === '1-0') {
+      W.points += 1;
+      W.wins += 1;
+      B.losses += 1;
+    } else if (g.result === '0-1') {
+      B.points += 1;
+      B.wins += 1;
+      W.losses += 1;
+    } else {
+      W.points += 0.5;
+      B.points += 0.5;
+      W.draws += 1;
+      B.draws += 1;
+    }
+  }
+  const list = [...rows.values()].map((r) => {
+    const games = r.wins + r.draws + r.losses;
+    const buchholz = r.opponents.reduce((s, k) => s + (rows.get(k)?.points ?? 0), 0);
+    const avg = r.oppRatings.length ? r.oppRatings.reduce((a, b) => a + b, 0) / r.oppRatings.length : null;
+    const performance = avg !== null && games > 0 ? Math.round(avg + (400 * (r.wins - r.losses)) / games) : null;
+    return { ...r, games, buchholz, performance };
+  });
+  list.sort((a, b) => b.points - a.points || b.buchholz - a.buchholz || b.wins - a.wins || (b.rating ?? 0) - (a.rating ?? 0) || a.name.localeCompare(b.name));
+  return list.map((r, i) => ({
+    rank: i + 1,
+    playerId: r.playerId,
+    name: r.name,
+    title: r.title,
+    rating: r.rating,
+    federation: r.federation,
+    points: r.points,
+    games: r.games,
+    wins: r.wins,
+    draws: r.draws,
+    losses: r.losses,
+    buchholz: r.buchholz,
+    performance: r.performance,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Lichess broadcasts (official, public API)
+
+export const LICHESS_ORIGIN = 'https://lichess.org';
+
+/** The parts of Lichess's broadcast JSON we read. */
+export interface LichessBroadcastTour {
+  id: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  url?: string;
+  tier?: number;
+  dates?: number[];
+  info?: { format?: string; tc?: string; location?: string; website?: string; players?: string; fideTc?: string };
+  image?: string;
+}
+
+export interface LichessBroadcastRound {
+  id: string;
+  name: string;
+  slug?: string;
+  startsAt?: number;
+  finished?: boolean;
+  ongoing?: boolean;
+  url?: string;
+}
+
+/** An imported event's fields from a Lichess tournament. */
+export function lichessTourToEvent(tour: LichessBroadcastTour, rounds: LichessBroadcastRound[]): EventInput {
+  const starts = tour.dates?.[0] ?? rounds.find((r) => r.startsAt)?.startsAt ?? Date.now();
+  const ends = tour.dates?.[1] ?? rounds.reduce((m, r) => Math.max(m, r.startsAt ?? 0), starts);
+  const fmt = (tour.info?.format ?? '').toLowerCase();
+  const format: EventFormat = fmt.includes('swiss')
+    ? 'swiss'
+    : fmt.includes('round') || fmt.includes('rr')
+      ? 'roundRobin'
+      : fmt.includes('knock') || fmt.includes('ko')
+        ? 'knockout'
+        : fmt.includes('team')
+          ? 'team'
+          : fmt.includes('match')
+            ? 'match'
+            : 'other';
+  return {
+    name: tour.name.slice(0, EVENT_LIMITS.name),
+    shortDescription: [tour.info?.format, tour.info?.players].filter(Boolean).join(' · ').slice(0, EVENT_LIMITS.short),
+    description: (tour.description ?? '').slice(0, EVENT_LIMITS.description),
+    location: (tour.info?.location ?? '').slice(0, EVENT_LIMITS.location),
+    startsAt: starts,
+    endsAt: Math.max(ends, starts),
+    format,
+    timeControl: (tour.info?.tc ?? tour.info?.fideTc ?? '').slice(0, EVENT_LIMITS.timeControl),
+    website: tour.info?.website && /^https:\/\//.test(tour.info.website) ? tour.info.website.slice(0, 300) : null,
+    links: [],
+  };
+}

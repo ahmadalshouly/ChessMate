@@ -19,6 +19,8 @@ export const review: Messages<typeof en> = {
   white: 'الأبيض',
   black: 'الأسود',
   moves: 'النقلات',
+  play: 'تشغيل',
+  pause: 'إيقاف مؤقت',
   flip: 'قلب الرقعة',
   first: 'النقلة الأولى',
   prev: 'النقلة السابقة',

@@ -16,6 +16,8 @@ export const review = {
   white: 'White',
   black: 'Black',
   moves: 'Moves',
+  play: 'Play',
+  pause: 'Pause',
   flip: 'Flip board',
   first: 'First move',
   prev: 'Previous move',

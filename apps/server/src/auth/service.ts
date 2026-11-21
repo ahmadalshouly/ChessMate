@@ -88,6 +88,9 @@ export function toPublicUser(u: UserRecord): PublicUser {
   return { id: u.id, username: u.username, email: u.email ?? '', hasPassword: !!u.passwordHash, createdAt: new Date(u.createdAt).toISOString(), role: u.role ?? 'user' };
 }
 
+/** Closure reasons that still allow signing in (the account is restricted, not locked). */
+export const SIGN_IN_ALLOWED: ReadonlySet<string> = new Set(['fair_play']);
+
 /** Message shown on the sign-in screen for a closed account. The app translates it by code and reason. */
 export function closedAccountError(reason: string | null | undefined): AuthError {
   return new AuthError(
@@ -130,7 +133,8 @@ export function validatePassword(v: unknown, context: string[] = [], field = 'pa
  */
 export class AuthService {
   readonly store: AuthStore;
-  private readonly mailer: Mailer;
+  /** Shared with the admin service for moderation emails. */
+  readonly mailer: Mailer;
   private readonly secret: string;
   private readonly now: () => number;
   private readonly oauth: OAuthVerifier | undefined;
@@ -317,10 +321,14 @@ export class AuthService {
     return u && !this.closedReason(u) ? toPublicUser(u) : null;
   }
 
-  /** Why the account is closed, or null when it is open. */
+  /**
+   * Why the account cannot sign in, or null when it can. Accounts closed for
+   * fair play can still sign in (history, puzzles, appeals); the game server
+   * keeps them out of online play instead.
+   */
   private closedReason(u: UserRecord): string | null {
-    if (u.closedAt) return u.closedReason ?? 'other';
-    return this.accountGuard?.(u.id)?.reason ?? null;
+    const reason = u.closedAt ? (u.closedReason ?? 'other') : (this.accountGuard?.(u.id)?.reason ?? null);
+    return reason && !SIGN_IN_ALLOWED.has(reason) ? reason : null;
   }
 
   private assertOpen(u: UserRecord) {
@@ -336,7 +344,8 @@ export class AuthService {
   verifyAccessToken(token: string): AccessIdentity | null {
     const claims = verifyJwt(token, this.secret, Math.floor(this.now() / 1000));
     if (!claims || claims.typ !== 'access' || typeof claims.name !== 'string') return null;
-    if (this.accountGuard?.(claims.sub)) return null;
+    const guard = this.accountGuard?.(claims.sub);
+    if (guard && !SIGN_IN_ALLOWED.has(guard.reason)) return null;
     return { userId: claims.sub, username: claims.name };
   }
 

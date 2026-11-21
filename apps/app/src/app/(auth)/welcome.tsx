@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SocialSignIn } from '@/components/auth/SocialSignIn';
+import { BrandLine } from '@/components/shell/BrandLine';
 import { Logo } from '@/components/shell/Logo';
 import { useAuth } from '@/lib/auth';
 import { Backdrop, Button, GlassView, Text, useAppTheme } from '@/ui';
@@ -31,9 +32,12 @@ export default function Welcome() {
           <View style={styles.column}>
             <View style={styles.hero}>
               <Logo size={88} wordmark={false} />
-              <Text style={[styles.word, { color: c.text, fontFamily: t.fonts.displayMedium }]}>CHESSMATE</Text>
+              <Text style={[styles.word, { color: c.text, fontFamily: t.fonts.displayMedium }]}>ChessMate</Text>
               <Text variant="overline" tone="muted" style={{ letterSpacing: 3 }}>
-                {tr('auth.welcome.tagline')}
+                {tr('brand.tagline')}
+              </Text>
+              <Text variant="slogan" style={{ marginTop: 6 }}>
+                {tr('brand.slogan')}
               </Text>
             </View>
 
@@ -71,6 +75,7 @@ export default function Welcome() {
                 {tr('auth.welcome.guestNote')}
               </Text>
             </View>
+            <BrandLine />
             <LanguageChips />
           </View>
         </ScrollView>
@@ -83,7 +88,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16, paddingVertical: 40 },
   column: { width: '100%', maxWidth: 420, gap: 28 },
   hero: { alignItems: 'center', gap: 10 },
-  word: { fontSize: 30, lineHeight: 36, letterSpacing: 5, marginTop: 8 },
+  word: { fontSize: 40, lineHeight: 48, letterSpacing: 0, marginTop: 8 },
   feature: { flexDirection: 'row', gap: 14, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18 },
   icon: { width: 38, height: 38, borderRadius: 19, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   actions: { gap: 10, alignItems: 'stretch' },

@@ -6,6 +6,7 @@ export const nav: Messages<typeof en> = {
   learn: 'تعلّم',
   learnTitle: 'التعلّم والتدريب',
   social: 'اجتماعي',
+  tournaments: 'البطولات',
   profile: 'الملف الشخصي',
   unrated: 'غير مصنّف',
   signInToSave: 'سجّل الدخول لحفظ المباريات',

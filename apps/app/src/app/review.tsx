@@ -1,4 +1,4 @@
-import { START_FEN, evalBarFraction, parseUci, type MoveClass, type ReviewedMove, type Square } from '@chessmate/core';
+import { Game, START_FEN, evalBarFraction, parseUci, type MoveClass, type ReviewedMove, type Square } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -16,7 +16,7 @@ import { ActionBar } from '@/components/game/ActionBar';
 import { moveFeedbackText } from '@/i18n/chess';
 import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
@@ -37,8 +37,13 @@ export default function Review() {
   const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string }>();
   const engine = useEngine();
   const t = useTheme();
-  const size = useBoardSize(300) - EVAL_BAR - 6;
+  const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 190 });
+  const size = boardSpace - EVAL_BAR - 6;
+  // The review beside the board scrolls within the window height (web).
+  const [fillH, onFill] = useFillHeight();
   const [ply, setPly] = useState(0);
+  // Play: steps through the game a move at a time, pieces sliding as if it were being played.
+  const [autoplay, setAutoplay] = useState(false);
   const [flip, setFlip] = useState(params.orientation === 'b');
   const request = useMemo(
     () => ({
@@ -56,8 +61,36 @@ export default function Review() {
 
   const review = engine.state.review;
   const moves = review?.moves ?? [];
+
+  // While the engine works, the board plays the game through move by move,
+  // so there is something to watch instead of a bare progress bar.
+  const preview = useMemo(() => {
+    try {
+      return Game.fromUciMoves(request.moves, request.initialFen).history();
+    } catch {
+      return [];
+    }
+  }, [request]);
+  const [previewPly, setPreviewPly] = useState(0);
+  const reviewing = !review && !engine.state.error && preview.length > 0;
+  useEffect(() => {
+    if (!reviewing || previewPly >= preview.length) return;
+    const id = setTimeout(() => setPreviewPly((p) => p + 1), 450);
+    return () => clearTimeout(id);
+  }, [reviewing, previewPly, preview.length]);
+  // Results in: carry on from where the preview got to, now with grades, unless it already finished.
+  const [handedOver, setHandedOver] = useState<typeof review>(null);
+  if (review && review !== handedOver) {
+    setHandedOver(review);
+    if (previewPly > 0 && previewPly < review.moves.length) {
+      setPly(previewPly);
+      setAutoplay(true);
+    }
+  }
+  const previewMove = reviewing && previewPly > 0 ? preview[previewPly - 1] : undefined;
+
   const current: ReviewedMove | undefined = moves[ply - 1];
-  const fen = current ? current.fenAfter : (review?.initialFen ?? request.initialFen);
+  const fen = previewMove ? previewMove.fenAfter : current ? current.fenAfter : (review?.initialFen ?? request.initialFen);
   const score = current ? current.scoreAfter : moves[0]?.scoreBefore ?? null;
   const orientation = flip ? 'b' : 'w';
 
@@ -70,6 +103,16 @@ export default function Review() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [moves.length]);
+
+  useEffect(() => {
+    if (!autoplay) return;
+    if (ply >= moves.length) {
+      setAutoplay(false);
+      return;
+    }
+    const id = setTimeout(() => setPly((p) => p + 1), 900);
+    return () => clearTimeout(id);
+  }, [autoplay, ply, moves.length]);
 
   // Show what the engine preferred when the played move was not the best.
   const arrows: Arrow[] = [];
@@ -92,10 +135,11 @@ export default function Review() {
   }
 
   const progress = engine.state.reviewProgress;
-  return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+  const step = (fn: (p: number) => number) => {
+    setAutoplay(false);
+    setPly(fn);
+  };
+  const boardRow = (
           <View style={styles.boardRow}>
             <EvalBar score={review ? score : null} orientation={orientation} height={size} width={EVAL_BAR} />
             <View style={{ width: size, height: size }}>
@@ -103,14 +147,44 @@ export default function Review() {
                 fen={fen}
                 orientation={orientation}
                 size={size}
-                lastMove={current ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square } : null}
+                lastMove={
+                  previewMove
+                    ? { from: previewMove.from, to: previewMove.to }
+                    : current
+                      ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square }
+                      : null
+                }
                 checkSquare={checkSquareOf(fen)}
               />
               <BoardArrows arrows={arrows} size={size} orientation={orientation} />
               {current && <BoardMoveBadge square={current.uci.slice(2, 4) as Square} cls={current.judgement.classification} size={size} orientation={orientation} />}
             </View>
           </View>
-
+  );
+  const bar = review ? (
+              <ActionBar
+                actions={[
+                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => step(() => 0), disabled: ply === 0 },
+                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => step((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
+                  {
+                    key: 'play',
+                    icon: autoplay ? 'pause' : 'play',
+                    label: autoplay ? tr('review.pause') : tr('review.play'),
+                    active: autoplay,
+                    disabled: moves.length === 0,
+                    onPress: () => {
+                      if (!autoplay && ply >= moves.length) setPly(0);
+                      setAutoplay((a) => !a);
+                    },
+                  },
+                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => step((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
+                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => step(() => moves.length), disabled: ply >= moves.length },
+                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+                ]}
+              />
+  ) : null;
+  const panel = (
+    <>
           {!review && (
             <Card>
               {engine.state.error ? (
@@ -134,19 +208,8 @@ export default function Review() {
               )}
             </Card>
           )}
-
           {review && (
             <>
-              <ActionBar
-                actions={[
-                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setPly(0), disabled: ply === 0 },
-                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setPly((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
-                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setPly((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
-                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setPly(moves.length), disabled: ply >= moves.length },
-                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
-                ]}
-              />
-
               <Card>
                 {current ? (
                   <>
@@ -248,8 +311,31 @@ export default function Review() {
               </Card>
             </>
           )}
+    </>
+  );
+
+  return (
+    <Screen>
+      {wide ? (
+        // Web and tablets: a big board with the controls under it, the review beside it.
+        <View style={styles.wide} onLayout={onFill}>
+          <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {boardRow}
+            {bar}
+          </View>
+          <ScrollView style={{ width: panelWidth, flexGrow: 0, height: fillH ? fillH - 32 : undefined, alignSelf: 'stretch' }} contentContainerStyle={styles.widePanel}>
+            {panel}
+          </ScrollView>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.page}>
+          <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {boardRow}
+            {bar}
+            {panel}
+          </View>
+        </ScrollView>
+      )}
     </Screen>
   );
 }
@@ -296,6 +382,8 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
 }
 
 const styles = StyleSheet.create({
+  wide: { flex: 1, minHeight: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, padding: 16 },
+  widePanel: { gap: 12, paddingBottom: 32 },
   page: { padding: 12, alignItems: 'center' },
   boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },

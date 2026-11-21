@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "puzzles:import": "tsx src/puzzles/import.ts",
-    "admin:grant": "tsx --env-file-if-exists=../../.env src/admin/grant.ts"
+    "admin:grant": "tsx --env-file-if-exists=../../.env src/admin/grant.ts",
+    "loadtest": "tsx scripts/loadtest.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

@@ -10,6 +10,7 @@ import { Backdrop } from '@/ui';
 
 import { AppHeader } from './AppHeader';
 import { BottomTabBar, useTabBarSpace } from './BottomTabBar';
+import { RestrictionBanner } from './RestrictionBanner';
 import { Sidebar } from './Sidebar';
 
 function useActiveTab() {
@@ -46,6 +47,7 @@ export function AppShell() {
           {wide && <Sidebar />}
           <View style={styles.fill}>
             <AppHeader title={tr(tab.title)} withSidebar={wide} />
+            <RestrictionBanner style={styles.banner} />
             {wide ? (
               <TabSlot style={styles.fill} />
             ) : (
@@ -70,4 +72,5 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row' },
   hidden: { display: 'none' },
+  banner: { marginHorizontal: 12, marginTop: 4, marginBottom: 4 },
 });

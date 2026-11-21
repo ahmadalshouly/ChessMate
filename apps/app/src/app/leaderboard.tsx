@@ -2,6 +2,7 @@ import type { TimeCategory } from '@chessmate/core';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
+import { fonts } from '@/ui';
 
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 8, alignItems: 'stretch' },
   headerWrap: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center', gap: 12, marginBottom: 4 },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center' },
-  caption: { fontSize: 12, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  caption: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },
   segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 14, padding: 3 },
   segmentItem: { flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: 'center' },

@@ -11,9 +11,11 @@ import { useAccountSession } from '@/features/account/session';
 import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
+import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
+import { AwardsListener } from '@/features/awards/AwardsListener';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
-import { NotificationsProvider } from '@/lib/notifications';
+import { NotificationsProvider, setNotificationsTokenProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
 
 // Web: when Google's sign-in pop-up returns to the app, hand the result to the opener and close it.
@@ -45,9 +47,11 @@ function Navigator() {
       <AuthProvider>
         <NotificationsProvider>
           <PlayAuthBridge />
+          <SocialAuthBridge />
           <AccountSettingsBridge />
           <RootStack />
           <InAppBanner />
+          <AwardsListener />
         </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>
@@ -69,11 +73,45 @@ function PlayAuthBridge() {
     prev.current = signedIn;
     playClient.setTokenProvider(signedIn ? getAccessToken : null, changed);
   }, [signedIn, getAccessToken]);
+  // Keep the live connection open on every screen, not only while playing:
+  // notifications, friend requests, challenges and messages arrive over it.
+  useEffect(() => {
+    const unsubscribe = playClient.subscribe(() => undefined);
+    return () => void unsubscribe();
+  }, []);
+  return null;
+}
+
+/**
+ * Friends, messages and tournaments act as the signed-in account: no separate
+ * username to pick. Signing out clears it.
+ */
+function SocialAuthBridge() {
+  const { status, user, getAccessToken } = useAuth();
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status !== 'signedIn' || !user) {
+      setSocialTokenProvider(null);
+      setSocialIdentity(null);
+      setNotificationsTokenProvider(null);
+      return;
+    }
+    setSocialTokenProvider(getAccessToken);
+    // The notification inbox (warnings, tournament news, ...) belongs to the signed-in account.
+    setNotificationsTokenProvider(getAccessToken, user.id);
+    let live = true;
+    void getAccessToken().then((token) => {
+      if (live && token) setSocialToken(token, user.id, user.username);
+    });
+    return () => {
+      live = false;
+    };
+  }, [status, user, getAccessToken]);
   return null;
 }
 
 /** Routes anyone may open without a session: the auth flow and emailed reset links. */
-const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password']);
+const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'fair-play', 'about', 'support']);
 
 function RootStack() {
   const { status } = useAuth();
@@ -106,6 +144,17 @@ function RootStack() {
         <Stack.Screen name="reset-password" options={{ headerShown: false, title: tr('auth.newPassword') }} />
         <Stack.Screen name="analysis" options={{ title: tr('titles.analysis') }} />
         <Stack.Screen name="review" options={{ title: tr('titles.review') }} />
+        <Stack.Screen name="news/index" options={{ title: tr('news.title') }} />
+        <Stack.Screen name="news/[id]" options={{ title: tr('news.title') }} />
+        <Stack.Screen name="forum/index" options={{ title: tr('forum.title') }} />
+        <Stack.Screen name="forum/[id]" options={{ title: tr('forum.title') }} />
+        <Stack.Screen name="about" options={{ title: tr('pages.about.title') }} />
+        <Stack.Screen name="support" options={{ title: tr('pages.support.title') }} />
+        <Stack.Screen name="donate" options={{ title: tr('pages.donate.title') }} />
+        <Stack.Screen name="privacy" options={{ title: tr('pages.privacy.title') }} />
+        <Stack.Screen name="fair-play" options={{ title: tr('pages.fairPlay.title') }} />
+        <Stack.Screen name="play-limits" options={{ title: tr('limits.title') }} />
+        <Stack.Screen name="awards" options={{ title: tr('awards.title') }} />
         <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
         {/* Staff console: its own layout (side rail on wide screens). */}
         <Stack.Screen name="admin" options={{ headerShown: false, title: tr('admin.title') }} />

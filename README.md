@@ -41,6 +41,10 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
 | `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
 | `puzzle.ts` | Puzzle CSV parsing, solving and hints, server-side grading, puzzle rating, streak/rush ladders, theme labels |
+| `secretQueen.ts` | Secret Queen variant: hidden queen-pawns, reveals, truth-based legality ([docs/secret-queen.md](docs/secret-queen.md)) |
+| `tournaments.ts` | Arena tournaments: points, streaks, staff input validation |
+| `messages.ts` | Direct message types and validation |
+| `qr.ts` | Dependency-free QR encoder for profile codes |
 
 ### Design decisions
 
@@ -50,6 +54,9 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
 - **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
+- **Tournaments.** Staff create arena tournaments in `/admin/tournaments` (schedule, length, player limit, prize pool and prizes per place). Players join from the Tournaments tab; while it runs the server pairs free players with similar scores. Win 2, draw 1, double after two wins in a row.
+- **Messages.** Direct messages between players (who may message you follows Settings → Privacy), plus a read-only "ChessMate team" thread for staff messages and announcements (`/admin/messages`). Game chat is separate.
+- **Profiles.** Add friend, Message and a QR code on every profile; players pick their own tag (separate from staff role tags). A profile QR code holds `/u/<username>`, so any phone camera opens it.
 - **Boards and pieces.** Players pick from 16 board themes and 8 piece sets in Settings > Board, saved to their account (or the device for guests) and used on every board. Piece artwork comes from openly licensed sets by their original authors (Apache 2.0, MIT, CC BY, CC BY-SA, CC0; never non-commercial or GPL art), plus ChessMate's own Glass set. Sources, credits and how to add a set: [apps/app/art/pieces/README.md](apps/app/art/pieces/README.md).
 
 ## Languages

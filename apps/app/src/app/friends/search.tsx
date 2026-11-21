@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Pill, SearchField, UserRow } from '@/components/social';
-import { DevSignIn } from '@/components/SocialSignIn';
+import { SignInPrompt } from '@/components/SocialSignIn';
 import { Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
@@ -44,7 +44,7 @@ export default function SearchScreen() {
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.inner}>
           {!me ? (
-            <DevSignIn />
+            <SignInPrompt />
           ) : (
             <>
               <SearchField placeholder={tr('friends.searchPlaceholder')} value={q} onChangeText={setQ} autoFocus returnKeyType="search" />

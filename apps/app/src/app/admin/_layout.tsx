@@ -26,6 +26,10 @@ export default function AdminLayout() {
       <Stack.Screen name="titles/index" options={{ title: tr('admin.nav.titles'), headerShown: !wide }} />
       <Stack.Screen name="games/index" options={{ title: tr('admin.nav.games'), headerShown: !wide }} />
       <Stack.Screen name="audit" options={{ title: tr('admin.nav.audit'), headerShown: !wide }} />
+      <Stack.Screen name="tournaments/index" options={{ title: tr('admin.nav.tournaments'), headerShown: !wide }} />
+      <Stack.Screen name="sponsors" options={{ title: tr('admin.nav.sponsors'), headerShown: !wide }} />
+      <Stack.Screen name="payouts" options={{ title: tr('admin.nav.payouts'), headerShown: !wide }} />
+      <Stack.Screen name="messages" options={{ title: tr('admin.nav.messages'), headerShown: !wide }} />
     </Stack>
   );
   return (

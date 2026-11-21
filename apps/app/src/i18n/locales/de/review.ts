@@ -19,6 +19,8 @@ export const review: Messages<typeof en> = {
   white: 'Weiß',
   black: 'Schwarz',
   moves: 'Züge',
+  play: 'Abspielen',
+  pause: 'Pause',
   flip: 'Brett drehen',
   first: 'Erster Zug',
   prev: 'Vorheriger Zug',

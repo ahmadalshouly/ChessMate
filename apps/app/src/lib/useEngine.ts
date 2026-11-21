@@ -96,11 +96,11 @@ export function useEngine(token?: string) {
   }, [identity]);
 
   const analyze = useCallback(
-    (fen: string, multipv = 1) => {
+    (fen: string, multipv = 1, limits: { depth?: number; movetimeMs?: number } = {}) => {
       const id = nextId.current++;
       analysisId.current = id;
       setState((s) => ({ ...s, analyzing: true, analysis: s.analysis?.fen === fen ? s.analysis : null }));
-      send({ t: 'analyze', id, fen, multipv });
+      send({ t: 'analyze', id, fen, multipv, ...limits });
     },
     [send],
   );

@@ -1,4 +1,4 @@
-import type { Avatar, ChessTitle, GameEndReason, RoleTag, GameResult, TimeCategory, UserSettings } from '@chessmate/core';
+import type { Avatar, ChessTitle, GameEndReason, PlayerTag, RoleTag, GameResult, TimeCategory, UserSettings } from '@chessmate/core';
 import type { IncomingMessage } from 'node:http';
 
 /** A signed-in account, as the auth service knows it. */
@@ -72,6 +72,8 @@ export interface ProfileRecord {
   bio: string | null;
   country: string | null;
   avatar: Avatar;
+  /** Tag the player picked for themselves. */
+  playerTag?: PlayerTag | null;
   settings: UserSettings;
   updatedAt: number;
 }

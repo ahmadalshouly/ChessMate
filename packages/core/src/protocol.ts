@@ -7,7 +7,8 @@ import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
 import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
-import type { Color } from './types';
+import type { GameVariant, SecretReveal, SecretSquares } from './secretQueen';
+import type { Color, Square } from './types';
 
 /** Wire protocol between clients and the realtime game server (JSON over WebSocket). */
 export const PROTOCOL_VERSION = 1;
@@ -32,6 +33,27 @@ export interface GameSnapshot {
   serverNow: number;
   drawOfferBy: Color | null;
   outcome: GameOutcome | null;
+  /**
+   * Server time by which the side to move must make its first move, or the
+   * game is aborted. Null once both sides have moved.
+   */
+  firstMoveDeadline?: number | null;
+  /** The tournament this game belongs to, if any. */
+  tournamentId?: string | null;
+  /** Tournament allows frenzy (half clock, no increment, extra point) before a player's first move. */
+  frenzyAllowed?: boolean;
+  /** Who went frenzy. */
+  frenzy?: { w: boolean; b: boolean };
+  /** Rules variant; absent means standard chess. */
+  variant?: GameVariant;
+  /**
+   * Secret Queen only: the public moves with the position after each (pawns
+   * can move like queens, so `moves` cannot be replayed with standard rules),
+   * the current public position, and what has been revealed so far.
+   */
+  positions?: { uci: string; san: string; fen: string }[];
+  fen?: string;
+  reveals?: SecretReveal[];
 }
 
 /** Colour a custom game's creator wants to play. */
@@ -73,7 +95,13 @@ export type ClientMessage =
       ratingRange?: [number, number];
       /** Fixed rating window (± points). Omit to let the window widen while waiting. */
       range?: number;
+      /** Side the player wants; omitted or 'random' pairs with anyone. Two players wanting the same side are not paired. */
+      color?: ColorChoice;
+      /** Rules variant; Secret Queen games are always casual. */
+      variant?: GameVariant;
     }
+  /** Secret Queen: pick (or change) your secret pawn before your first move. */
+  | { t: 'secretPick'; gameId: string; square: Square }
   | { t: 'cancelSeek' }
   | { t: 'lobbySub' }
   | { t: 'lobbyUnsub' }
@@ -89,6 +117,7 @@ export type ClientMessage =
   | { t: 'acceptDraw'; gameId: string }
   | { t: 'declineDraw'; gameId: string }
   | { t: 'abort'; gameId: string }
+  | { t: 'frenzy'; gameId: string }
   // Challenges: `to` is a player id for a direct challenge; omit it for an open invite link.
   | { t: 'challengeCreate'; to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }
   | { t: 'challengeGet'; id: string }
@@ -99,7 +128,7 @@ export type ClientMessage =
   | { t: 'chat'; gameId: string; text?: string; quick?: QuickMessageId }
   | { t: 'report'; playerId: string; gameId?: string; reason: ReportReason; note?: string }
   // Engine analysis (refused while the player has a live game).
-  | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number }
+  | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number; /** Think-time cap, ms (server clamps to ANALYSIS_LIMITS.maxMoveTimeMs). */ movetimeMs?: number }
   | { t: 'analyzeStop'; id: number }
   | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string }
   /** A game just ended on the device (computer or local play): grade it now so Review opens instantly. No reply. */
@@ -115,7 +144,17 @@ export type ServerMessage =
       player: PlayerInfo;
       /** Guests only: send this as the token on reconnect to stay the same player. */
       resumeToken?: string;
+      /** Set when the account may not play online (closed for fair play). */
+      restricted?: AccountRestriction | null;
+      /** The player's own play limit is in force until this time (ms); no games until then. */
+      playLock?: number | null;
     }
+  /** The play limit locked (until = ms) or unlocked (null) while connected. */
+  | { t: 'playLock'; until: number | null }
+  /** Award levels a finished game just unlocked (core `AWARDS`). */
+  | { t: 'awards'; gameId: string; earned: { id: string; level: number }[] }
+  /** The account was restricted (or the restriction lifted, reason null) while connected. */
+  | { t: 'restricted'; reason: AccountRestriction | null }
   | { t: 'pong'; id: number; serverNow: number }
   | { t: 'seeking'; timeControl: TimeControl }
   | { t: 'seekCancelled' }
@@ -128,7 +167,20 @@ export type ServerMessage =
   | { t: 'rematchDeclined'; gameId: string }
   | { t: 'gameStart'; game: GameSnapshot; you: Color }
   | { t: 'gameState'; game: GameSnapshot }
-  | { t: 'moved'; gameId: string; uci: string; san: string; ply: number; clock: ClockState; serverNow: number }
+  | {
+      t: 'moved';
+      gameId: string;
+      uci: string;
+      san: string;
+      ply: number;
+      clock: ClockState;
+      serverNow: number;
+      /** Secret Queen: public position after the move and anything it revealed. */
+      fen?: string;
+      reveals?: SecretReveal[];
+    }
+  /** Secret Queen, to the owner only: where your secret pawn is (null once revealed or gone) and whether you can still change it. */
+  | { t: 'secret'; gameId: string; square: Square | null; canPick: boolean }
   | { t: 'drawOffered'; gameId: string; by: Color }
   | { t: 'drawDeclined'; gameId: string }
   | {
@@ -138,6 +190,8 @@ export type ServerMessage =
       ratingChange?: Record<Color, { before: Rating; after: Rating; delta?: number }>;
       /** Why ratings did not change, when they didn't ('casual', 'guest', 'too_short', ...). */
       unrated?: string;
+      /** Secret Queen: where both secret pawns were when the game ended (null if revealed or captured earlier). */
+      secrets?: SecretSquares;
     }
   | {
       t: 'opponentConnection';
@@ -177,7 +231,13 @@ export type ErrorCode =
   | 'chat_restricted'
   | 'engine_locked'
   | 'engine_unavailable'
-  | 'forbidden';
+  | 'forbidden'
+  | 'account_restricted'
+  /** The player's own play limit is in force: no new games until it ends. */
+  | 'play_locked';
+
+/** Why an account that can still sign in may not play online. */
+export type AccountRestriction = 'fair_play';
 
 export function encode(msg: ClientMessage | ServerMessage): string {
   return JSON.stringify(msg);

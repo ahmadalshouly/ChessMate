@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Who the social screens act as. Sign-in sets the real access token with
- * `setSocialToken`; until then development builds can pick a dev identity
- * ("dev:<id>:<name>"), which the dev server turns into an account.
+ * Who the social screens (friends, messages, tournaments) act as: the
+ * signed-in account. The app's auth bridge sets it at sign-in and clears it at
+ * sign-out; requests ask `freshSocialToken()` so an expired access token is
+ * refreshed first.
  */
 export interface SocialIdentity {
   token: string;
@@ -12,41 +13,44 @@ export interface SocialIdentity {
   name: string;
 }
 
-const KEY = 'chessmate.socialIdentity';
-let current: SocialIdentity | null = load();
+let current: SocialIdentity | null = null;
 const listeners = new Set<() => void>();
+let tokenProvider: (() => Promise<string | null>) | null = null;
 
-function load(): SocialIdentity | null {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
-    return raw ? (JSON.parse(raw) as SocialIdentity) : null;
-  } catch {
-    return null;
-  }
+// Earlier builds saved a picked test identity here; signed-in accounts replace it.
+try {
+  if (typeof localStorage !== 'undefined') localStorage.removeItem('chessmate.socialIdentity');
+} catch {
+  // Storage is optional.
 }
 
 export function setSocialIdentity(id: SocialIdentity | null) {
+  if (id?.token === current?.token && id?.userId === current?.userId) return;
   current = id;
-  try {
-    if (typeof localStorage !== 'undefined') {
-      if (id) localStorage.setItem(KEY, JSON.stringify(id));
-      else localStorage.removeItem(KEY);
-    }
-  } catch {
-    // Storage is a convenience only.
-  }
   for (const l of listeners) l();
+}
+
+/** The signed-in account's token source (refreshes when needed); null when signed out. */
+export function setSocialTokenProvider(fn: (() => Promise<string | null>) | null) {
+  tokenProvider = fn;
+}
+
+/** A valid token for the current identity, refreshed if it expired. */
+export async function freshSocialToken(): Promise<string | null> {
+  if (tokenProvider) {
+    try {
+      const t = await tokenProvider();
+      if (t) return t;
+    } catch {
+      // Fall back to the last known token.
+    }
+  }
+  return current?.token ?? null;
 }
 
 /** For the sign-in flow: act as this account. */
 export function setSocialToken(token: string, userId: string, name: string) {
   setSocialIdentity({ token, userId, name });
-}
-
-export function devIdentity(name: string): SocialIdentity {
-  const clean = name.trim().replace(/[^\w-]/g, '_').slice(0, 20);
-  const id = `dev-${clean.toLowerCase()}`;
-  return { token: `dev:${id}:${clean}`, userId: id, name: clean };
 }
 
 export function getSocialIdentity() {

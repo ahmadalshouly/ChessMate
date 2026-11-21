@@ -6,6 +6,7 @@ import {
   type ChallengeColor,
   type ChallengeEndReason,
   type PlayerInfo,
+  type SocialUser,
   type TimeControl,
 } from '@chessmate/core';
 import { useEffect, useState } from 'react';
@@ -18,6 +19,9 @@ import { challengeLink, copyText, shareLink } from '@/lib/links';
 import { translate, useT, type TKey } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
+import { Avatar } from '@/components/social';
+import { useOnlineFriends } from '@/components/OnlineFriends';
+import { socialApi } from '@/lib/social/api';
 
 type Actions = {
   createChallenge: (o: { to?: string; timeControl: TimeControl; rated: boolean; color: ChallengeColor }) => void;
@@ -80,9 +84,21 @@ export function CreateChallenge({ me, actions, initialTo, initialTc }: { me: Pla
   const [tc, setTc] = useState<TimeControl>(initialTc ?? PRESET_TIME_CONTROLS[5]!);
   const [color, setColor] = useState<ChallengeColor>('random');
   const [rated, setRated] = useState(false);
-  const [to, setTo] = useState(initialTo ?? '');
+  const [to, setTo] = useState<SocialUser | null>(null);
   const guest = isGuestId(me?.id);
-  const target = to.trim();
+  // A `to=<id>` link (e.g. from a friend's page) preselects that player.
+  useEffect(() => {
+    if (!initialTo) return;
+    let live = true;
+    socialApi.user(initialTo).then(
+      (u) => live && setTo({ id: u.id, username: u.username, displayName: u.displayName, country: u.country }),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [initialTo]);
+  const target = to?.id ?? '';
 
   return (
     <View style={{ gap: 12 }}>
@@ -112,22 +128,106 @@ export function CreateChallenge({ me, actions, initialTo, initialTc }: { me: Pla
       </View>
       <Button title={tr('challenge.createLink')} onPress={() => actions.createChallenge({ timeControl: tc, rated: rated && !guest, color })} />
       <Label muted>{tr('challenge.orDirect')}</Label>
-      <TextInput
-        value={to}
-        onChangeText={setTo}
-        placeholder={tr('challenge.playerId')}
-        placeholderTextColor={t.muted}
-        autoCapitalize="none"
-        autoCorrect={false}
-        style={[styles.input, { color: t.text, borderColor: t.glassBorder, backgroundColor: t.surface }]}
-      />
+      <PlayerPicker selected={to} onSelect={setTo} meId={me?.id ?? null} />
       <Button
         variant="secondary"
-        title={tr('challenge.send')}
+        title={to ? tr('challenge.sendTo', { name: to.displayName || to.username }) : tr('challenge.send')}
         disabled={!target || target === me?.id}
         onPress={() => actions.createChallenge({ to: target, timeControl: tc, rated: rated && !guest, color })}
       />
-      {me && <Label muted>{tr('challenge.yourId', { id: me.id })}</Label>}
+    </View>
+  );
+}
+
+/**
+ * Finds the player to challenge by username: online friends first, then search
+ * results as you type. No player IDs to copy around.
+ */
+function PlayerPicker({ selected, onSelect, meId }: { selected: SocialUser | null; onSelect: (u: SocialUser | null) => void; meId: string | null }) {
+  const t = useTheme();
+  const tr = useT();
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState<SocialUser[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { friends } = useOnlineFriends();
+  const query = q.trim().replace(/^@/, '');
+
+  useEffect(() => {
+    if (query.length < 2) {
+      setResults(null);
+      setError(null);
+      return;
+    }
+    let live = true;
+    const id = setTimeout(() => {
+      socialApi.search(query).then(
+        (list) => {
+          if (!live) return;
+          setResults(list.filter((u) => u.id !== meId && !u.relationship.blocked));
+          setError(null);
+        },
+        (e: Error) => live && setError(e.message),
+      );
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [query, meId]);
+
+  if (selected) {
+    return (
+      <View style={[styles.picked, { borderColor: t.glassBorder, backgroundColor: t.surface }]}>
+        <Avatar user={selected} size={36} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Label bold>
+            {selected.displayName || selected.username}
+          </Label>
+          <Label muted>
+            @{selected.username}
+          </Label>
+        </View>
+        <Pressable accessibilityRole="button" onPress={() => onSelect(null)} hitSlop={8}>
+          <Label muted>{tr('challenge.change')}</Label>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const list: SocialUser[] = query.length >= 2 ? (results ?? []) : friends.map((f) => f.user).slice(0, 5);
+  return (
+    <View style={{ gap: 8 }}>
+      <TextInput
+        value={q}
+        onChangeText={setQ}
+        placeholder={tr('challenge.searchPlayer')}
+        placeholderTextColor={t.muted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        accessibilityLabel={tr('challenge.searchPlayer')}
+        style={[styles.input, { color: t.text, borderColor: t.glassBorder, backgroundColor: t.surface }]}
+      />
+      {query.length < 2 && list.length > 0 && <Label muted>{tr('challenge.friendsOnline')}</Label>}
+      {list.map((u) => (
+        <Pressable
+          key={u.id}
+          accessibilityRole="button"
+          onPress={() => {
+            onSelect(u);
+            setQ('');
+          }}
+          style={({ pressed }) => [styles.picked, { borderColor: t.glassBorder, backgroundColor: pressed ? t.glassBorder : 'transparent' }]}>
+          <Avatar user={u} size={32} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Label>{u.displayName || u.username}</Label>
+            <Label muted>
+              @{u.username}
+            </Label>
+          </View>
+        </Pressable>
+      ))}
+      {query.length >= 2 && results !== null && results.length === 0 && <Label muted>{tr('challenge.noPlayers')}</Label>}
+      {error && <Label muted>{serverText(error)}</Label>}
     </View>
   );
 }
@@ -234,6 +334,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   segment: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
+  picked: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 10 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   link: { borderWidth: 1, borderRadius: 12, padding: 10, fontSize: 13 },
 });

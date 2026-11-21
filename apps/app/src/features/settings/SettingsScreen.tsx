@@ -105,6 +105,12 @@ export function SettingsScreen() {
               onChange={(confirmMoves) => set({ gameplay: { confirmMoves } })}
             />
             <ToggleRow
+              title={tr('settings.gameplay.autoQueen')}
+              detail={tr('settings.gameplay.autoQueenDetail')}
+              value={s.gameplay.autoQueen}
+              onChange={(v) => set({ gameplay: { autoQueen: v } })}
+            />
+            <ToggleRow
               title={tr('settings.gameplay.premoves')}
               detail={tr('settings.gameplay.premovesDetail')}
               value={s.gameplay.premoves}
@@ -135,6 +141,14 @@ export function SettingsScreen() {
             <Section title={tr('chessTitle.screen')}>
               <Row title={tr('chessTitle.apply')} detail={tr('chessTitle.settingsDetail')}>
                 <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/title')} />
+              </Row>
+            </Section>
+          )}
+
+          {session.signedIn && (
+            <Section title={tr('watch.streamer.title')}>
+              <Row title={tr('watch.streamer.settingsRow')} detail={tr('watch.streamer.settingsDetail')}>
+                <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/streamer')} />
               </Row>
             </Section>
           )}
