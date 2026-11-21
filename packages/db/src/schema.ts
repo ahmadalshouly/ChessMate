@@ -911,3 +911,216 @@ export const userAwards = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.awardId, t.level] }), index('user_awards_recent_idx').on(t.userId, t.earnedAt)],
 );
 export type UserAward = typeof userAwards.$inferSelect;
+
+/** Server-wide switches staff can change (key → JSON value). */
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').$type<unknown>().notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Approved streamers: their channels and whether they are live now. */
+export const streamers = pgTable('streamers', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  headline: text('headline').notNull().default(''),
+  channels: jsonb('channels').$type<{ platform: string; url: string }[]>().notNull().default([]),
+  liveTitle: text('live_title'),
+  liveUrl: text('live_url'),
+  liveSince: ts('live_since'),
+  approvedAt: createdAt(),
+});
+
+/** Requests to become a streamer. */
+export const streamerApplications = pgTable(
+  'streamer_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    channels: jsonb('channels').$type<{ platform: string; url: string }[]>().notNull(),
+    about: text('about').notNull(),
+    status: text('status').notNull().default('pending'),
+    note: text('note'),
+    reviewedBy: text('reviewed_by'),
+    createdAt: createdAt(),
+    reviewedAt: ts('reviewed_at'),
+  },
+  (t) => [index('streamer_applications_user_idx').on(t.userId), index('streamer_applications_status_idx').on(t.status)],
+);
+
+/** Chess events ChessMate broadcasts (created by staff or organisers, or imported). */
+export const broadcastEvents = pgTable(
+  'broadcast_events',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    shortDescription: text('short_description').notNull().default(''),
+    description: text('description').notNull().default(''),
+    location: text('location').notNull().default(''),
+    startsAt: ts('starts_at').notNull(),
+    endsAt: ts('ends_at').notNull(),
+    format: text('format').notNull().default('other'),
+    timeControl: text('time_control').notNull().default(''),
+    website: text('website'),
+    /** Data URL, served at /api/events/:id/logo. */
+    logo: text('logo'),
+    published: boolean('published').notNull().default(false),
+    featured: boolean('featured').notNull().default(false),
+    hidden: boolean('hidden').notNull().default(false),
+    source: text('source').notNull().default('chessmate'),
+    /** Id at the source (Lichess tournament id) for imported events. */
+    externalId: text('external_id'),
+    sourceUrl: text('source_url'),
+    createdBy: text('created_by'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('broadcast_events_starts_idx').on(t.startsAt), uniqueIndex('broadcast_events_external_idx').on(t.source, t.externalId)],
+);
+
+/** Organisers allowed to manage one event. */
+export const broadcastOrganizers = pgTable(
+  'broadcast_organizers',
+  {
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    addedBy: text('added_by'),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.eventId, t.userId] }), index('broadcast_organizers_user_idx').on(t.userId)],
+);
+
+export const broadcastPlayers = pgTable(
+  'broadcast_players',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    title: text('title'),
+    rating: integer('rating'),
+    federation: text('federation'),
+    fideId: text('fide_id'),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('broadcast_players_event_idx').on(t.eventId)],
+);
+
+export const broadcastRounds = pgTable(
+  'broadcast_rounds',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    name: text('name').notNull(),
+    startsAt: ts('starts_at'),
+    /** manual | pgnUrl | lichess */
+    sourceKind: text('source_kind').notNull().default('manual'),
+    sourceUrl: text('source_url'),
+    lichessRoundId: text('lichess_round_id'),
+    /** Lichess says the round is over: stop polling it. */
+    sourceFinished: boolean('source_finished').notNull().default(false),
+    lastSyncAt: ts('last_sync_at'),
+    syncError: text('sync_error'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('broadcast_rounds_event_idx').on(t.eventId)],
+);
+
+export const broadcastGames = pgTable(
+  'broadcast_games',
+  {
+    id: id(),
+    roundId: text('round_id')
+      .notNull()
+      .references(() => broadcastRounds.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    board: integer('board').notNull(),
+    whiteName: text('white_name').notNull(),
+    blackName: text('black_name').notNull(),
+    whiteTitle: text('white_title'),
+    blackTitle: text('black_title'),
+    whiteRating: integer('white_rating'),
+    blackRating: integer('black_rating'),
+    whiteFed: text('white_fed'),
+    blackFed: text('black_fed'),
+    whitePlayerId: text('white_player_id'),
+    blackPlayerId: text('black_player_id'),
+    result: text('result').notNull().default('*'),
+    initialFen: text('initial_fen').notNull(),
+    moves: jsonb('moves').$type<string[]>().notNull().default([]),
+    clocks: jsonb('clocks').$type<(number | null)[]>().notNull().default([]),
+    /** Summary for lists, so they need not read the moves. */
+    fen: text('fen').notNull(),
+    ply: integer('ply').notNull().default(0),
+    lastMove: text('last_move'),
+    whiteClockMs: integer('white_clock_ms'),
+    blackClockMs: integer('black_clock_ms'),
+    clockAt: ts('clock_at'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('broadcast_games_round_board_idx').on(t.roundId, t.board), index('broadcast_games_event_idx').on(t.eventId)],
+);
+
+export const broadcastNews = pgTable(
+  'broadcast_news',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    authorId: text('author_id'),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('broadcast_news_event_idx').on(t.eventId, t.createdAt)],
+);
+
+/** Requests to broadcast an event on ChessMate. */
+export const broadcastApplications = pgTable(
+  'broadcast_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    eventName: text('event_name').notNull(),
+    organization: text('organization').notNull(),
+    website: text('website'),
+    location: text('location').notNull(),
+    startsAt: ts('starts_at').notNull(),
+    endsAt: ts('ends_at').notNull(),
+    description: text('description').notNull(),
+    coverage: text('coverage').notNull().default(''),
+    status: text('status').notNull().default('pending'),
+    note: text('note'),
+    eventId: text('event_id'),
+    reviewedBy: text('reviewed_by'),
+    createdAt: createdAt(),
+    reviewedAt: ts('reviewed_at'),
+  },
+  (t) => [index('broadcast_applications_user_idx').on(t.userId), index('broadcast_applications_status_idx').on(t.status)],
+);
+
+export type BroadcastEventRow = typeof broadcastEvents.$inferSelect;
+export type BroadcastPlayerRow = typeof broadcastPlayers.$inferSelect;
+export type BroadcastRoundRow = typeof broadcastRounds.$inferSelect;
+export type BroadcastGameRow = typeof broadcastGames.$inferSelect;
+export type BroadcastNewsRow = typeof broadcastNews.$inferSelect;
+export type BroadcastApplicationRow = typeof broadcastApplications.$inferSelect;
+export type StreamerRow = typeof streamers.$inferSelect;
+export type StreamerApplicationRow = typeof streamerApplications.$inferSelect;

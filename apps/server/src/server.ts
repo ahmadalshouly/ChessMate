@@ -44,6 +44,10 @@ import { messageRoutes } from './messages/http';
 import { tournamentRoutes } from './tournaments/http';
 import { communityRoutes } from './community/http';
 import { awardsRoutes } from './awards/http';
+import type { EventService } from './watch/events';
+import { watchRoutes } from './watch/http';
+import type { StreamerService } from './watch/streamers';
+import type { BroadcastSync } from './watch/sync';
 import { AwardsService, gameFacts } from './awards/service';
 import { habitsRoutes } from './habits/http';
 import { PlayHabitsService } from './habits/service';
@@ -121,6 +125,10 @@ export interface ServerOptions {
   tournaments?: TournamentService;
   /** News and forum (database mode). */
   community?: CommunityService;
+  /** Watch: streamers and broadcast events. */
+  streamers?: StreamerService;
+  events?: EventService;
+  broadcastSync?: BroadcastSync;
   /** Play limits and streaks. In memory when not given. */
   habits?: PlayHabitsService;
   awards?: AwardsService;
@@ -249,6 +257,30 @@ export class ChessServer {
       opts.admin.attach(this.adminBridge(fp.analyzer === undefined ? !!process.env.STOCKFISH_PATH : !!fp.analyzer));
       routes.push(adminRoutes(opts.admin, opts.auth));
       routes.push(titleRoutes(opts.admin.titles, opts.auth));
+    }
+    if (opts.streamers && opts.events) {
+      const notify = (userId: string, title: string, body: string, url: string | null) => void this.notifications.notify(userId, { kind: 'system', title, body, url });
+      const titles = opts.admin?.titles;
+      opts.streamers.attach({
+        notify,
+        // The streamer badge, unless the player already wears another official tag.
+        setStreamerTag: async (userId, on) => {
+          if (!titles) return;
+          const tag = titles.roleTagOf(userId);
+          if (on && !tag) await titles.setRoleTag(userId, 'streamer');
+          if (!on && tag === 'streamer') await titles.setRoleTag(userId, null);
+        },
+      });
+      opts.events.attach({ notify });
+      routes.push(
+        watchRoutes({
+          streamers: opts.streamers,
+          events: opts.events,
+          sync: opts.broadcastSync,
+          resolveUser: opts.resolveUser ?? devResolveUser,
+          roleOf: (id) => opts.admin?.roleOf(id) ?? 'user',
+        }),
+      );
     }
     this.awards = opts.awards ?? new AwardsService();
     this.awards.attach({

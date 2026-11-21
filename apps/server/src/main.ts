@@ -21,6 +21,9 @@ import { ChessServer, devResolveUser, type ServerOptions } from './server';
 import { SocialService } from './social/service';
 import { CommunityService } from './community/service';
 import { AwardsService } from './awards/service';
+import { EventService } from './watch/events';
+import { StreamerService } from './watch/streamers';
+import { BroadcastSync } from './watch/sync';
 import { PlayHabitsService } from './habits/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
@@ -122,6 +125,13 @@ async function start() {
   const habits = new PlayHabitsService({ db: db.db });
   await habits.load();
   const awards = new AwardsService({ db: db.db });
+  // Watch: streamers and broadcast events, kept in sync with live PGN sources and Lichess.
+  const streamers = new StreamerService({ db: db.db, roleOf: (id) => admin.roleOf(id) });
+  const events = new EventService({ db: db.db, roleOf: (id) => admin.roleOf(id) });
+  await events.load();
+  const broadcastSync = new BroadcastSync({ db: db.db, events });
+  broadcastSync.start();
+  setInterval(() => void streamers.sweep().catch((e) => console.warn('streamer sweep failed', e)), 10 * 60_000).unref();
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
@@ -140,6 +150,9 @@ async function start() {
       community,
       habits,
       awards,
+      streamers,
+      events,
+      broadcastSync,
       // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
       // tokens also get an account row on first use so friends and search can be tried.
       resolveUser: async (token) => {

@@ -50,6 +50,10 @@ export const ADMIN_PERMISSIONS = [
   'messages.broadcast',
   /** Create, schedule, edit and cancel tournaments and their prizes. Admins only. */
   'tournaments.manage',
+  /** Approve or reject streamer applications and remove streamers. */
+  'streamers.review',
+  /** Create, edit, feature, hide and delete broadcast events; approve organisers; import settings. Admins only. */
+  'broadcasts.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -69,6 +73,7 @@ const MODERATOR: readonly AdminPermission[] = [
   'audit.view',
   'titles.review',
   'messages.send',
+  'streamers.review',
 ];
 
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly AdminPermission[]> = {

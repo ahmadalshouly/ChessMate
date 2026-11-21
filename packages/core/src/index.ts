@@ -34,3 +34,4 @@ export * from './qr';
 export * from './community';
 export * from './habits';
 export * from './awards';
+export * from './broadcasts';
