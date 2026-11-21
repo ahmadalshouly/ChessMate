@@ -929,7 +929,7 @@ export const streamers = pgTable('streamers', {
   liveTitle: text('live_title'),
   liveUrl: text('live_url'),
   liveSince: ts('live_since'),
-  approvedAt: createdAt(),
+  approvedAt: ts('approved_at').notNull().defaultNow(),
 });
 
 /** Requests to become a streamer. */
