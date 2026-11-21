@@ -154,6 +154,9 @@ class Handler(BaseHTTPRequestHandler):
             fp = os.path.join(DIST, c)
             if os.path.isfile(fp):
                 data = open(fp,'rb').read()
+                if fp.endswith('.html'):
+                    # Skip the welcome screen: browse as a guest.
+                    data = data.replace(b'<head>', b"<head><script>try{localStorage.setItem('chessmate.auth.guest','Guest4821')}catch(e){}</script>", 1)
                 ct = 'text/html' if fp.endswith('.html') else 'application/javascript' if fp.endswith('.js') else 'text/css' if fp.endswith('.css') else 'image/png' if fp.endswith('.png') else 'font/ttf' if fp.endswith('.ttf') else 'font/otf' if fp.endswith('.otf') else 'application/octet-stream'
                 self.send_response(200); self.send_header('content-type', ct); self.send_header('content-length', str(len(data))); self.end_headers(); self.wfile.write(data); return
         self.send_response(404); self.end_headers()
