@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ChessServer } from '../src/server';
 import { WatchError } from '../src/watch/errors';
+import { Game } from '@chessmate/core';
+import { BroadcastAnalyzer } from '../src/watch/analysis';
 import { EventService, lastClocks } from '../src/watch/events';
 import { StreamerService } from '../src/watch/streamers';
 import { BroadcastSync, type Fetcher } from '../src/watch/sync';
@@ -225,6 +227,46 @@ describe('broadcast sync', () => {
     await events.saveSettings(ids.wadmin!, { lichessImport: false });
     expect(await sync.importLichess()).toBe(0);
     expect(await err(events.saveSettings(ids.outsider!, { lichessImport: true }))).toBe(403);
+  });
+});
+
+describe('live broadcast analysis', () => {
+  it('analyses the newest position first, then fills in grades', async () => {
+    const svc = new EventService({ db: h.db, now, roleOf });
+    await svc.load();
+    const changed: string[] = [];
+    svc.attach({ notify: () => {}, gamesChanged: (ids) => changed.push(...ids) });
+    const e = await svc.create(ids.wadmin!, { name: 'Analysed Open', startsAt: clock, endsAt: clock + 86_400_000 });
+    const round = (await svc.addRound(ids.wadmin!, e.id, { number: 1 })).rounds[0]!;
+    await svc.pastePgn(ids.wadmin!, round.id, { pgn: ROUND_PGN });
+    expect(changed).toHaveLength(2);
+    // A stand-in engine: the first legal move is "best"; mate scores in finished positions come from the analyzer.
+    const asked: string[] = [];
+    const engine = {
+      evaluate: async (fen: string) => {
+        asked.push(fen);
+        const m = new Game(fen).legalMoves()[0];
+        return { score: { cp: 20 }, bestMove: m ? `${m.from}${m.to}` : undefined, pv: m ? [`${m.from}${m.to}`] : [], depth: 12 };
+      },
+    };
+    const updates: string[] = [];
+    const analyzer = new BroadcastAnalyzer({ db: h.db, engine, onUpdate: (id) => updates.push(id) });
+    const live = (await svc.detail(ids.wadmin!, e.id)).rounds[0]!.games.find((g) => g.board === 2)!;
+    // First step: the newest position (after 1. d4 d5).
+    await analyzer.step(live.id);
+    const finalFen = (await svc.game(ids.wadmin!, live.id)).fen;
+    expect(asked[0]).toBe(finalFen);
+    // Keep going until every position is analysed.
+    for (let i = 0; i < 5; i++) await analyzer.step(live.id);
+    const g = await svc.game(ids.wadmin!, live.id);
+    expect(g.analysis.scores.every((sc) => sc !== null)).toBe(true);
+    expect(g.analysis.grades).toHaveLength(2);
+    expect(g.analysis.grades.every((x) => typeof x === 'string')).toBe(true);
+    expect(g.analysis.best[0]).toBeTruthy();
+    expect(updates).toContain(e.id);
+    const summary = (await svc.detail(ids.wadmin!, e.id)).rounds[0]!.games.find((x) => x.id === live.id)!;
+    expect(summary.evalScore).toEqual({ cp: 20 });
+    expect(summary.lastGrade).toBe(g.analysis.grades[1]);
   });
 });
 

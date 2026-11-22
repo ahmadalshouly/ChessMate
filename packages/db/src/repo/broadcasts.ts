@@ -13,6 +13,7 @@ import {
   streamers,
   users,
   type BroadcastApplicationRow,
+  type BroadcastEvalEntry,
   type BroadcastEventRow,
   type BroadcastGameRow,
   type BroadcastNewsRow,
@@ -325,7 +326,7 @@ export async function deleteRound(db: Database, id: string): Promise<void> {
 
 export type NewBroadcastGame = typeof broadcastGames.$inferInsert;
 /** Game rows without moves and clocks (lists). */
-export type GameSummaryRow = Omit<BroadcastGameRow, 'moves' | 'clocks'>;
+export type GameSummaryRow = Omit<BroadcastGameRow, 'moves' | 'clocks' | 'evals' | 'grades'>;
 
 const gameSummaryCols = {
   id: broadcastGames.id,
@@ -350,6 +351,8 @@ const gameSummaryCols = {
   whiteClockMs: broadcastGames.whiteClockMs,
   blackClockMs: broadcastGames.blackClockMs,
   clockAt: broadcastGames.clockAt,
+  evalScore: broadcastGames.evalScore,
+  lastGrade: broadcastGames.lastGrade,
   updatedAt: broadcastGames.updatedAt,
 };
 
@@ -362,9 +365,9 @@ export async function getBroadcastGame(db: Database, id: string): Promise<Broadc
   return row;
 }
 
-/** Inserts or updates games by board in one round; returns how many rows changed. */
-export async function upsertGames(db: Database, rows: NewBroadcastGame[]): Promise<number> {
-  if (!rows.length) return 0;
+/** Inserts or updates games by board in one round; returns the ids of the rows written. */
+export async function upsertGames(db: Database, rows: NewBroadcastGame[]): Promise<string[]> {
+  if (!rows.length) return [];
   const set = {
     whiteName: sql`excluded.white_name`,
     blackName: sql`excluded.black_name`,
@@ -388,16 +391,36 @@ export async function upsertGames(db: Database, rows: NewBroadcastGame[]): Promi
     clockAt: sql`excluded.clock_at`,
     updatedAt: sql`excluded.updated_at`,
   };
-  let changed = 0;
+  const ids: string[] = [];
   for (let i = 0; i < rows.length; i += 200) {
     const r = await db
       .insert(broadcastGames)
       .values(rows.slice(i, i + 200))
       .onConflictDoUpdate({ target: [broadcastGames.roundId, broadcastGames.board], set })
       .returning({ id: broadcastGames.id });
-    changed += r.length;
+    ids.push(...r.map((x) => x.id));
   }
-  return changed;
+  return ids;
+}
+
+/** Saves live engine analysis of a game. */
+export async function saveGameAnalysis(
+  db: Database,
+  id: string,
+  v: { evals: (BroadcastEvalEntry | null)[]; grades: (string | null)[]; evalScore: { cp?: number; mate?: number } | null; lastGrade: string | null },
+): Promise<void> {
+  await db.update(broadcastGames).set(v).where(eq(broadcastGames.id, id));
+}
+
+/** Recently active games whose analysis is behind their moves. */
+export async function gamesNeedingAnalysis(db: Database, since: Date, limit = 50): Promise<string[]> {
+  const rows = await db
+    .select({ id: broadcastGames.id })
+    .from(broadcastGames)
+    .where(and(gte(broadcastGames.updatedAt, since), sql`(jsonb_array_length(${broadcastGames.evals}) < ${broadcastGames.ply} + 1 or jsonb_array_length(${broadcastGames.grades}) < ${broadcastGames.ply})`))
+    .orderBy(desc(broadcastGames.updatedAt))
+    .limit(limit);
+  return rows.map((r) => r.id);
 }
 
 /** Removes games of a round whose boards are not in `keep` (they left the source file). */

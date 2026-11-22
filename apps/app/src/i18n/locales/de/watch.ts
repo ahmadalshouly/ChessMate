@@ -53,6 +53,7 @@ export const watch: Messages<typeof en> = {
   noDescription: 'Keine Beschreibung.',
   notStarted: 'Nicht begonnen',
   noMovesYet: 'Noch keine Züge',
+  analysis: { eval: 'Bewertung {score}', best: 'Bester Zug: {move}', pending: 'Engine analysiert…' },
   player: 'Spieler',
   pts: 'Pkt.',
   games: 'Partien',

@@ -26,6 +26,8 @@ import {
   type EventRoundView,
   type EventSummary,
   type GameResult,
+  type MoveClass,
+  type Score,
   type LichessBroadcastRound,
   type LichessBroadcastTour,
   type StaffRole,
@@ -93,6 +95,8 @@ export interface EventServiceOptions {
 
 export interface EventHooks {
   notify(userId: string, title: string, body: string, url: string | null): void;
+  /** New moves or results in these games (live analysis picks them up). */
+  gamesChanged?(ids: string[]): void;
 }
 
 export interface WatchSettings {
@@ -108,7 +112,7 @@ export interface PgnApplyResult {
   allFinished: boolean;
 }
 
-const DETAIL_TTL_MS = 4_000;
+const DETAIL_TTL_MS = 2_000;
 const LIST_TTL_MS = 8_000;
 const SETTINGS_KEY = 'watch.settings';
 const RESULTS: readonly GameResult[] = ['1-0', '0-1', '1/2-1/2', '*'];
@@ -139,6 +143,8 @@ function gameSummary(g: GameSummaryRow): EventGameSummary {
     whiteClockMs: g.whiteClockMs,
     blackClockMs: g.blackClockMs,
     clockAt: g.clockAt?.getTime() ?? null,
+    evalScore: (g.evalScore as Score | null) ?? null,
+    lastGrade: (g.lastGrade as MoveClass | null) ?? null,
   };
 }
 
@@ -403,7 +409,20 @@ export class EventService {
     const b = await this.build(g.eventId);
     if (!b || !this.visible(b, viewer)) throw new WatchError(404, 'Game not found');
     const round = b.detail.rounds.find((r) => r.id === g.roundId);
-    return { ...gameSummary(g), eventId: g.eventId, eventName: b.row.name, roundName: round?.name ?? '', initialFen: g.initialFen, moves: g.moves, clocks: g.clocks };
+    return {
+      ...gameSummary(g),
+      eventId: g.eventId,
+      eventName: b.row.name,
+      roundName: round?.name ?? '',
+      initialFen: g.initialFen,
+      moves: g.moves,
+      clocks: g.clocks,
+      analysis: {
+        scores: g.evals.map((e) => (e ? (e.s as Score) : null)),
+        best: g.evals.map((e) => e?.b ?? null),
+        grades: g.grades.map((x) => (x as MoveClass | null) ?? null),
+      },
+    };
   }
 
   async cover(eventId: string): Promise<{ mime: string; data: Buffer; etag: string } | null> {
@@ -741,7 +760,10 @@ export class EventService {
     }
     const playerOf = (name: string, fideId: string | null) => (fideId ? byFide.get(fideId) : undefined) ?? byName.get(nameKey(name)) ?? null;
 
-    const existing = new Map((await listGameSummaries(this.db, eventId)).filter((g) => g.roundId === round.id).map((g) => [g.board, g]));
+    const roundGames = (await listGameSummaries(this.db, eventId)).filter((g) => g.roundId === round.id);
+    const existing = new Map(roundGames.map((g) => [g.board, g]));
+    // Without a board number (live streams send one game at a time), a game keeps the board it had.
+    const boardByPair = new Map(roundGames.map((g) => [`${nameKey(g.whiteName)}|${nameKey(g.blackName)}`, g.board]));
     const used = new Set<number>();
     let nextBoard = 1;
     const rows: NewBroadcastGame[] = [];
@@ -750,7 +772,12 @@ export class EventService {
     for (const g of games) {
       let board = g.board && !used.has(g.board) ? g.board : 0;
       if (!board) {
-        while (used.has(nextBoard)) nextBoard++;
+        const known = boardByPair.get(`${nameKey(g.white)}|${nameKey(g.black)}`);
+        if (known && !used.has(known)) board = known;
+      }
+      if (!board) {
+        // A new game: the next board nobody uses (when adding to a round, nor any game already in it).
+        while (used.has(nextBoard) || (!opts.replace && existing.has(nextBoard))) nextBoard++;
         board = nextBoard;
       }
       used.add(board);
@@ -797,10 +824,12 @@ export class EventService {
         updatedAt: now,
       });
     }
-    const changed = await upsertGames(this.db, rows);
+    const ids = await upsertGames(this.db, rows);
     if (opts.replace && total > 0) await deleteGamesExcept(this.db, round.id, [...used]);
-    if (changed || opts.replace) this.invalidate(eventId);
-    return { games: total, changed, allFinished: total > 0 && finished === total };
+    if (ids.length || opts.replace) this.invalidate(eventId);
+    if (ids.length) this.hooks.gamesChanged?.(ids);
+    const finishedInRound = opts.replace ? finished === total : [...existing.values()].every((g) => g.result !== '*') && finished === total;
+    return { games: total, changed: ids.length, allFinished: total > 0 && finishedInRound };
   }
 
   // News

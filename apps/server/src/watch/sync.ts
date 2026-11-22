@@ -3,7 +3,10 @@ import { listSyncedRounds, type BroadcastRoundRow, type Database } from '@chessm
 
 import type { EventService } from './events';
 
-export type Fetcher = (url: string, init: { signal: AbortSignal; headers: Record<string, string> }) => Promise<{ status: number; ok: boolean; text(): Promise<string> }>;
+export type Fetcher = (
+  url: string,
+  init: { signal: AbortSignal; headers: Record<string, string> },
+) => Promise<{ status: number; ok: boolean; text(): Promise<string>; body?: ReadableStream<Uint8Array> | null }>;
 
 export interface BroadcastSyncOptions {
   db: Database;
@@ -20,7 +23,13 @@ const TICK_MS = 4_000;
 const IMPORT_EVERY_MS = 30 * 60_000;
 const FETCH_TIMEOUT_MS = 12_000;
 /** Poll intervals: a round with games in progress, one not started yet, and after an error. */
-const LIVE_MS = { pgnUrl: 8_000, lichess: 12_000 } as const;
+const LIVE_MS = { pgnUrl: 5_000, lichess: 12_000 } as const;
+/** While a Lichess round is streamed, polling only double-checks it now and then. */
+const STREAMED_POLL_MS = 90_000;
+/** Moves arrive whole; a pause this long after data means the game's PGN is complete. */
+const STREAM_FLUSH_MS = 400;
+const STREAM_RETRY_MS = 5_000;
+const MAX_STREAMS = 24;
 const IDLE_MS = 45_000;
 const ERROR_MS = 60_000;
 /** A round whose games are all decided and unchanged this long stops being polled. */
@@ -42,6 +51,11 @@ export class BroadcastSync {
   private readonly settledSince = new Map<string, number>();
   private lichessPausedUntil = 0;
   private lastImport = 0;
+  /** Live Lichess streams by round id. */
+  private readonly streams = new Map<string, AbortController>();
+  /** Rounds that cannot be streamed (no stream support), and when a stream may be retried. */
+  private readonly noStream = new Set<string>();
+  private readonly streamRetryAt = new Map<string, number>();
 
   constructor(private readonly opts: BroadcastSyncOptions) {}
 
@@ -64,12 +78,16 @@ export class BroadcastSync {
   stop() {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    for (const c of this.streams.values()) c.abort();
+    this.streams.clear();
   }
 
   /** Lets "Sync now" fetch a round on the next tick. */
   wake(roundId: string) {
     this.nextAt.delete(roundId);
     this.settledSince.delete(roundId);
+    this.noStream.delete(roundId);
+    this.streamRetryAt.delete(roundId);
   }
 
   async tick(): Promise<void> {
@@ -80,7 +98,9 @@ export class BroadcastSync {
         this.lastImport = this.now();
         await this.importLichess().catch((e) => console.warn('lichess import failed:', e instanceof Error ? e.message : e));
       }
-      for (const r of await listSyncedRounds(this.opts.db)) {
+      const rounds = await listSyncedRounds(this.opts.db);
+      this.manageStreams(rounds);
+      for (const r of rounds) {
         if (!(await this.due(r))) continue;
         await this.syncRound(r);
       }
@@ -107,6 +127,86 @@ export class BroadcastSync {
     }
     if (r.sourceKind === 'lichess' && now < this.lichessPausedUntil) return false;
     return true;
+  }
+
+  /** Opens a live stream for each Lichess round in play and closes the ones that are over. */
+  private manageStreams(rounds: BroadcastRoundRow[]) {
+    const now = this.now();
+    const live = new Set<string>();
+    for (const r of rounds) {
+      if (r.sourceKind !== 'lichess' || !r.lichessRoundId || this.noStream.has(r.id)) continue;
+      if (r.startsAt && now < r.startsAt.getTime() - 10 * 60_000) continue;
+      live.add(r.id);
+      if (this.streams.has(r.id) || this.streams.size >= MAX_STREAMS) continue;
+      if ((this.streamRetryAt.get(r.id) ?? 0) > now || now < this.lichessPausedUntil) continue;
+      void this.openStream(r);
+    }
+    for (const [id, ctrl] of this.streams) {
+      if (!live.has(id)) {
+        ctrl.abort();
+        this.streams.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Follows a Lichess round as it is played: Lichess sends every game's PGN
+   * first, then a game's full PGN again each time a move is made.
+   */
+  private async openStream(r: BroadcastRoundRow) {
+    const ctrl = new AbortController();
+    this.streams.set(r.id, ctrl);
+    const f: Fetcher = this.opts.fetch ?? ((u, init) => fetch(u, init));
+    let buffer = '';
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastMark = 0;
+    let chain: Promise<unknown> = Promise.resolve();
+    const flush = () => {
+      flushTimer = null;
+      const text = buffer;
+      buffer = '';
+      if (!text.trim()) return;
+      chain = chain.then(async () => {
+        try {
+          await this.opts.events.applyPgn(r, text, { replace: false });
+          if (this.now() - lastMark > 30_000) {
+            lastMark = this.now();
+            await this.opts.events.markSynced(r, {});
+          }
+        } catch (e) {
+          console.warn('broadcast stream update failed:', e instanceof Error ? e.message : e);
+        }
+      });
+    };
+    try {
+      const res = await f(`${this.origin}/api/stream/broadcast/round/${r.lichessRoundId}.pgn`, {
+        signal: ctrl.signal,
+        headers: { 'user-agent': USER_AGENT, accept: 'application/x-chess-pgn' },
+      });
+      if (res.status === 429) this.lichessPausedUntil = this.now() + LICHESS_PAUSE_MS;
+      if (!res.ok) throw new Error(`stream answered ${res.status}`);
+      if (!res.body) {
+        // No streaming here (tests, odd runtimes): keep polling instead.
+        this.noStream.add(r.id);
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        if (flushTimer) clearTimeout(flushTimer);
+        flushTimer = setTimeout(flush, STREAM_FLUSH_MS);
+      }
+    } catch (e) {
+      if (!ctrl.signal.aborted) console.warn(`broadcast stream for round ${r.id} ended:`, e instanceof Error ? e.message : e);
+    } finally {
+      if (flushTimer) clearTimeout(flushTimer);
+      flush();
+      if (this.streams.get(r.id) === ctrl) this.streams.delete(r.id);
+      this.streamRetryAt.set(r.id, this.now() + STREAM_RETRY_MS);
+    }
   }
 
   private async get(url: string): Promise<string> {
@@ -153,7 +253,12 @@ export class BroadcastSync {
       } else this.settledSince.delete(r.id);
       await this.opts.events.markSynced(r, { error: res.games ? null : 'No games in the source yet', finished });
       const live = res.games > 0 && !res.allFinished;
-      this.nextAt.set(r.id, now + (live ? LIVE_MS[r.sourceKind === 'lichess' ? 'lichess' : 'pgnUrl'] : IDLE_MS));
+      if (finished) {
+        this.streams.get(r.id)?.abort();
+        this.streams.delete(r.id);
+      }
+      const streamed = this.streams.has(r.id);
+      this.nextAt.set(r.id, now + (streamed ? STREAMED_POLL_MS : live ? LIVE_MS[r.sourceKind === 'lichess' ? 'lichess' : 'pgnUrl'] : IDLE_MS));
     } catch (e) {
       await this.opts.events.markSynced(r, { error: e instanceof Error ? e.message.slice(0, 200) : 'Sync failed' });
       this.nextAt.set(r.id, now + ERROR_MS);

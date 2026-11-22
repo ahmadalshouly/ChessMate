@@ -148,6 +148,23 @@ export class AnalysisService {
     }
   }
 
+  /**
+   * One position's evaluation for shared analysis (broadcast games): runs at
+   * low priority so players' own analysis and reviews go first.
+   */
+  async evaluate(fen: string, o: { depth?: number; movetimeMs?: number; signal?: AbortSignal } = {}): Promise<PositionEval> {
+    const term = terminalState(fen);
+    if (term) return { score: terminalScore(fen, term), pv: [], depth: 0 };
+    const ctrl = new AbortController();
+    o.signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
+    const res = await this.pool.run(
+      (engine) => engine.search(fen, { multipv: REVIEW_DEFAULTS.multipv, depth: o.depth ?? 16, movetimeMs: o.movetimeMs ?? 1200 }, undefined, ctrl.signal),
+      ctrl.signal,
+      { priority: 'low', maxQueue: 16 },
+    );
+    return positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null);
+  }
+
   stop(key: string, id?: number) {
     const c = this.clients.get(key);
     if (c?.analysis && (id === undefined || c.analysis.id === id)) c.analysis.ctrl.abort();

@@ -1044,6 +1044,20 @@ export const broadcastRounds = pgTable(
   (t) => [index('broadcast_rounds_event_idx').on(t.eventId)],
 );
 
+/** One analysed position of a broadcast game. */
+export interface BroadcastEvalEntry {
+  /** Position key (first four FEN fields), to notice when the moves changed. */
+  f: string;
+  /** Score, White's view. */
+  s: { cp?: number; mate?: number };
+  /** Best move (UCI) and the start of the best line. */
+  b?: string;
+  pv?: string[];
+  d: number;
+  /** Second-best score (White's view), to spot only moves. */
+  s2?: { cp?: number; mate?: number };
+}
+
 export const broadcastGames = pgTable(
   'broadcast_games',
   {
@@ -1076,6 +1090,13 @@ export const broadcastGames = pgTable(
     whiteClockMs: integer('white_clock_ms'),
     blackClockMs: integer('black_clock_ms'),
     clockAt: ts('clock_at'),
+    /** Engine evaluation of each position (index = plies played), filled in live. */
+    evals: jsonb('evals').$type<(BroadcastEvalEntry | null)[]>().notNull().default([]),
+    /** Move grades (core MoveClass) for the moves analysed so far, index = ply - 1. */
+    grades: jsonb('grades').$type<(string | null)[]>().notNull().default([]),
+    /** Summary for lists: evaluation of the latest position and the last move's grade. */
+    evalScore: jsonb('eval_score').$type<{ cp?: number; mate?: number } | null>(),
+    lastGrade: text('last_grade'),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('broadcast_games_round_board_idx').on(t.roundId, t.board), index('broadcast_games_event_idx').on(t.eventId)],

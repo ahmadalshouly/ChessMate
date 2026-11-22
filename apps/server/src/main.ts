@@ -23,6 +23,7 @@ import { CommunityService } from './community/service';
 import { AwardsService } from './awards/service';
 import { EventService } from './watch/events';
 import { StreamerService } from './watch/streamers';
+import { BroadcastAnalyzer } from './watch/analysis';
 import { BroadcastSync } from './watch/sync';
 import { PlayHabitsService } from './habits/service';
 import { MessageService } from './messages/service';
@@ -131,6 +132,9 @@ async function start() {
   await events.load();
   const broadcastSync = new BroadcastSync({ db: db.db, events });
   broadcastSync.start();
+  // Shared engine analysis of broadcast games (low priority: players' analysis goes first).
+  const broadcastAnalyzer = new BroadcastAnalyzer({ db: db.db, engine: analysis, onUpdate: (eventId) => events.invalidate(eventId) });
+  broadcastAnalyzer.start();
   setInterval(() => void streamers.sweep().catch((e) => console.warn('streamer sweep failed', e)), 10 * 60_000).unref();
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
@@ -153,6 +157,7 @@ async function start() {
       streamers,
       events,
       broadcastSync,
+      broadcastAnalyzer,
       // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
       // tokens also get an account row on first use so friends and search can be tried.
       resolveUser: async (token) => {

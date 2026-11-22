@@ -16,6 +16,7 @@ import { Chess } from 'chess.js';
 
 import { isChessTitle, type ChessTitle } from './titles';
 import { COUNTRY_CODES } from './profile';
+import type { MoveClass, Score } from './evaluation';
 import { cleanImage, cleanLinks, type PostLink } from './media';
 import { splitPgn } from './pgn';
 import type { GameResult } from './types';
@@ -292,6 +293,10 @@ export interface EventGameSummary {
   blackClockMs: number | null;
   /** When the clocks were read (server time, ms). */
   clockAt: number | null;
+  /** Engine evaluation of the current position (White's view), once analysed. */
+  evalScore: Score | null;
+  /** Grade of the last move, once analysed. */
+  lastGrade: MoveClass | null;
 }
 
 export interface EventGameDetail extends EventGameSummary {
@@ -302,6 +307,15 @@ export interface EventGameDetail extends EventGameSummary {
   moves: string[];
   /** Clock after each ply (ms), when known. */
   clocks: (number | null)[];
+  /** Live engine analysis, shared by every viewer and filled in as moves arrive. */
+  analysis: {
+    /** Score of each position (index = plies played), White's view. */
+    scores: (Score | null)[];
+    /** Engine's best move in each position. */
+    best: (string | null)[];
+    /** Grade of each move (index = ply - 1). */
+    grades: (MoveClass | null)[];
+  };
 }
 
 export interface EventRoundView {

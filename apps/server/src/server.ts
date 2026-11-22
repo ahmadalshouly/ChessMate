@@ -47,6 +47,7 @@ import { awardsRoutes } from './awards/http';
 import type { EventService } from './watch/events';
 import { watchRoutes } from './watch/http';
 import type { StreamerService } from './watch/streamers';
+import type { BroadcastAnalyzer } from './watch/analysis';
 import type { BroadcastSync } from './watch/sync';
 import { AwardsService, gameFacts } from './awards/service';
 import { habitsRoutes } from './habits/http';
@@ -129,6 +130,8 @@ export interface ServerOptions {
   streamers?: StreamerService;
   events?: EventService;
   broadcastSync?: BroadcastSync;
+  /** Live engine analysis of broadcast games. */
+  broadcastAnalyzer?: BroadcastAnalyzer;
   /** Play limits and streaks. In memory when not given. */
   habits?: PlayHabitsService;
   awards?: AwardsService;
@@ -271,7 +274,7 @@ export class ChessServer {
           if (!on && tag === 'streamer') await titles.setRoleTag(userId, null);
         },
       });
-      opts.events.attach({ notify });
+      opts.events.attach({ notify, gamesChanged: (ids) => opts.broadcastAnalyzer?.gamesChanged(ids) });
       routes.push(
         watchRoutes({
           streamers: opts.streamers,

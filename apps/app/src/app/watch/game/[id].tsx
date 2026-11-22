@@ -1,14 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Game, formatClock, type Color, type EventGameDetail, type EventGamePlayer } from '@chessmate/core';
+import { Game, formatClock, formatScore, type Color, type EventGameDetail, type EventGamePlayer, type Square } from '@chessmate/core';
 import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { EvalBar } from '@/components/EvalBar';
+import { BoardMoveBadge } from '@/components/MoveBadge';
+import { MOVE_CLASS } from '@/constants/analysis';
 import { useTicker } from '@/components/PlayerBar';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { TitleBadge } from '@/features/titles/TitleBadge';
-import { LiveDot, clockNow } from '@/features/watch/components';
+import { LiveDot, SHOWN_GRADES, clockNow } from '@/features/watch/components';
 import { useT } from '@/i18n';
 import { countryFlag } from '@/lib/leaderboardApi';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
@@ -22,7 +25,7 @@ export default function BroadcastGameScreen() {
   const t = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(() => watchApi.game(String(id)), [id]);
-  const { data: g, error, refresh } = usePolled<EventGameDetail>(id ? load : null, { fastMs: 3_000, slowMs: 60_000, isLive: (d) => d.status === 'live' });
+  const { data: g, error, refresh } = usePolled<EventGameDetail>(id ? load : null, { fastMs: 2_000, slowMs: 60_000, isLive: (d) => d.status === 'live' });
   const { wide, size: wantSize, panel } = useWideBoard({ panel: 360, reserve: 200, phoneReserve: 300 });
   // On phones, never wider than the screen minus the page padding.
   const { width } = useWindowDimensions();
@@ -88,11 +91,33 @@ export default function BroadcastGameScreen() {
   const top: Color = orientation === 'w' ? 'b' : 'w';
   const bar = (c: Color) => <PlayerLine p={c === 'w' ? g.white : g.black} clock={clockAt(c)} running={live && ply === null && toMove === c} result={resultFor(c)} />;
 
+  // Live engine analysis (shared by everyone watching), for the position shown.
+  const score = g.analysis?.scores[shown] ?? null;
+  const best = g.analysis?.best[shown] ?? null;
+  const grade = shown > 0 ? (g.analysis?.grades[shown - 1] ?? null) : null;
+  const arrows = best && g.result === '*' && shown === history.length ? [{ from: best.slice(0, 2) as Square, to: best.slice(2, 4) as Square, color: 'rgba(63,111,196,0.75)' }] : [];
+  const boardSize = size - EVAL_W - 6;
   const board = (
     <View style={{ gap: t.space.sm, width: size }}>
       {bar(top)}
-      <Board fen={fen} orientation={orientation} size={size} lastMove={last} checkSquare={checkSquareOf(fen)} />
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        <EvalBar score={score} orientation={orientation} height={boardSize} width={EVAL_W} />
+        <View style={{ width: boardSize, height: boardSize }}>
+          <Board fen={fen} orientation={orientation} size={boardSize} lastMove={last} checkSquare={checkSquareOf(fen)} arrows={arrows} />
+          {grade && SHOWN_GRADES.has(grade) && last ? <BoardMoveBadge square={last.to as Square} cls={grade} size={boardSize} orientation={orientation} /> : null}
+        </View>
+      </View>
       {bar(top === 'w' ? 'b' : 'w')}
+      <Row gap="sm" justify="space-between">
+        <Text variant="caption" tone="muted">
+          {score ? tr('watch.analysis.eval', { score: formatScore(score) }) : tr('watch.analysis.pending')}
+        </Text>
+        {best ? (
+          <Text variant="caption" tone="muted">
+            {tr('watch.analysis.best', { move: sanOf(fen, best) })}
+          </Text>
+        ) : null}
+      </Row>
     </View>
   );
 
@@ -114,7 +139,16 @@ export default function BroadcastGameScreen() {
           </Text>
         </GlassView>
       </Pressable>
-      <MoveStrip sans={history.map((m) => m.san)} shown={shown} onSelect={go} onLive={() => setPly(null)} empty={tr('watch.noMovesYet')} />
+      <MoveStrip
+        sans={history.map((m, i) => {
+          const gr = g.analysis?.grades[i];
+          return gr && SHOWN_GRADES.has(gr) ? `${m.san}${MOVE_CLASS[gr].glyph ?? ''}` : m.san;
+        })}
+        shown={shown}
+        onSelect={go}
+        onLive={() => setPly(null)}
+        empty={tr('watch.noMovesYet')}
+      />
       <Row gap="sm" justify="center">
         <NavButton icon="play-skip-back" label={tr('watch.nav.first')} onPress={() => go(0)} disabled={shown === 0} />
         <NavButton icon="chevron-back" label={tr('watch.nav.prev')} onPress={() => go(shown - 1)} disabled={shown === 0} />
@@ -142,6 +176,18 @@ export default function BroadcastGameScreen() {
       )}
     </Screen>
   );
+}
+
+const EVAL_W = 14;
+
+/** A UCI move in this position as SAN ("Nf3"), or the UCI text if it cannot be played. */
+function sanOf(fen: string, uci: string): string {
+  try {
+    const g = new Game(fen);
+    return g.move(uci)?.san ?? uci;
+  } catch {
+    return uci;
+  }
 }
 
 function PlayerLine({ p, clock, running, result }: { p: EventGamePlayer; clock: number | null; running: boolean; result: string | null }) {

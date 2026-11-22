@@ -24,7 +24,7 @@ export default function EventScreen() {
   const { width } = useWindowDimensions();
   const { id, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const load = useCallback(() => watchApi.event(String(id)), [id]);
-  const { data: e, error, loading, refresh } = usePolled<EventDetail>(id ? load : null, { fastMs: 5_000, slowMs: 30_000, isLive: (d) => d.status === 'live' });
+  const { data: e, error, loading, refresh } = usePolled<EventDetail>(id ? load : null, { fastMs: 3_000, slowMs: 30_000, isLive: (d) => d.status === 'live' });
   // ?tab=standings opens a tab directly (shared links).
   const [tab, setTab] = useState<Tab>(() => (['games', 'standings', 'players', 'news', 'about'].includes(String(tabParam)) ? (tabParam as Tab) : 'games'));
   const [roundId, setRoundId] = useState<string | null>(null);

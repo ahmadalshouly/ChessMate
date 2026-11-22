@@ -1,9 +1,11 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { formatClock, type EventGameSummary, type EventStatus, type EventSummary, type StreamPlatform, type StreamerView } from '@chessmate/core';
+import { formatClock, type MoveClass, type Square, type EventGameSummary, type EventStatus, type EventSummary, type StreamPlatform, type StreamerView } from '@chessmate/core';
 import { router } from 'expo-router';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { EvalBar } from '@/components/EvalBar';
+import { BoardMoveBadge } from '@/components/MoveBadge';
 import { PostImage, pictureUri } from '@/features/media/MediaFields';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatDate, useT } from '@/i18n';
@@ -155,11 +157,18 @@ export function clockNow(ms: number | null, at: number | null, running: boolean,
   return running && at ? Math.max(0, ms - (now - at)) : ms;
 }
 
-/** A game of an event as a small board with names, clocks and result. */
+/** Move grades worth pointing out on live boards. */
+export const SHOWN_GRADES = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'blunder']);
+
+/** A game of an event as a small board with names, clocks, evaluation and result. */
 export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number; now: number }) {
   const t = useAppTheme();
   const toMove = g.fen.split(' ')[1] === 'b' ? 'b' : 'w';
   const live = g.status === 'live';
+  // A slim evaluation bar beside the board.
+  const BAR = 6;
+  const BAR_GAP = 3;
+  const board = size - BAR - BAR_GAP;
   const last = g.lastMove ? { from: g.lastMove.slice(0, 2) as never, to: g.lastMove.slice(2, 4) as never } : null;
   const side = (color: 'w' | 'b') => {
     const p = color === 'w' ? g.white : g.black;
@@ -168,11 +177,7 @@ export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number;
     return (
       <Row gap="xs" justify="space-between" style={{ width: size }}>
         <Row gap="xxs" style={{ flex: 1, minWidth: 0 }}>
-          {p.title && (
-            <Text variant="caption" tone="accent">
-              {p.title}
-            </Text>
-          )}
+          <TitleBadge title={p.title} size="sm" />
           <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
             {p.name}
           </Text>
@@ -197,8 +202,12 @@ export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number;
       {({ pressed }) => (
         <View style={{ gap: 4, opacity: pressed ? 0.85 : 1 }}>
           {side('b')}
-          <View style={{ borderRadius: t.radii.sm, overflow: 'hidden' }}>
-            <Board fen={g.fen} orientation="w" size={size} lastMove={last} hideCoordinates />
+          <View style={{ flexDirection: 'row', gap: BAR_GAP }}>
+            <EvalBar score={g.evalScore} orientation="w" height={board} width={BAR} />
+            <View style={{ width: board, height: board, borderRadius: t.radii.sm, overflow: 'hidden' }}>
+              <Board fen={g.fen} orientation="w" size={board} lastMove={last} hideCoordinates />
+              {g.lastGrade && SHOWN_GRADES.has(g.lastGrade) && g.lastMove ? <BoardMoveBadge square={g.lastMove.slice(2, 4) as Square} cls={g.lastGrade} size={board} orientation="w" /> : null}
+            </View>
           </View>
           {side('w')}
         </View>

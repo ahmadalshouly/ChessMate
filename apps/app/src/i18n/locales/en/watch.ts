@@ -50,6 +50,7 @@ export const watch = {
   noDescription: 'No description.',
   notStarted: 'Not started',
   noMovesYet: 'No moves yet',
+  analysis: { eval: 'Eval {score}', best: 'Best: {move}', pending: 'Engine analysing…' },
   player: 'Player',
   pts: 'Pts',
   games: 'Games',

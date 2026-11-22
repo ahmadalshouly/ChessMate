@@ -50,6 +50,7 @@ export const watch: Messages<typeof en> = {
   noDescription: 'لا يوجد وصف.',
   notStarted: 'لم تبدأ',
   noMovesYet: 'لا نقلات بعد',
+  analysis: { eval: 'التقييم {score}', best: 'الأفضل: {move}', pending: 'المحرك يحلل…' },
   player: 'اللاعب',
   pts: 'النقاط',
   games: 'المباريات',
