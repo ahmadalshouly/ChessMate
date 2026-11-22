@@ -33,6 +33,7 @@ shot() { # name width height scale path
   echo "captured $1"
 }
 shot mobile-1-watch 430 1400 2 /watch
+shot mobile-6-puzzles 430 1700 2 /puzzles
 shot mobile-2-event-games 430 1700 2 /watch/events/berlin
 shot mobile-3-event-standings 430 1400 2 "/watch/events/berlin?tab=standings"
 shot mobile-4-event-news 430 1100 2 "/watch/events/berlin?tab=news"
@@ -45,4 +46,5 @@ shot desktop-4-analysis-1366 1366 768 1 /analysis
 shot desktop-5-analysis-1920 1920 1080 1 /analysis
 shot desktop-6-watch-game-1920 1920 1080 1 /watch/game/g30
 shot desktop-7-finished-game 1366 900 1 /watch/game/g34
+shot desktop-8-puzzles 1366 1100 1 /puzzles
 ls -la "$OUT"

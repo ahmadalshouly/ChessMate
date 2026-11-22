@@ -116,6 +116,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path.startswith('/api/'):
             e, rounds = berlin()
+            if path == '/api/puzzles/me': return self.send_json(200, {'rating':1642,'rd':60,'provisional':False,'attempts':318,'solved':247,'bestStreak':23,'bestRush':31})
+            if path == '/api/puzzles/daily': return self.send_json(200, {'day':'2026-11-22','attempted':False,'puzzle':{'id':'0000D','fen':'5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 2 27','moves':['d3d6','f8d8','d6d8','f6d8'],'rating':1640,'themes':['advantage','endgame','short'],'plays':14767}})
+            if path == '/api/puzzles/themes': return self.send_json(200, {'total':20700,'counts':{'mateIn1':2210,'mateIn2':2456,'mateIn3':690,'fork':2901,'pin':1520,'skewer':610,'discoveredAttack':1180,'sacrifice':2003,'hangingPiece':980,'endgame':6020,'middlegame':10230,'opening':1780,'backRankMate':720,'deflection':940,'attraction':530,'defensiveMove':1310,'quietMove':800,'advancedPawn':1100,'kingsideAttack':1450,'short':9300,'long':5100,'crushing':8200,'advantage':7600}})
             if path == '/api/watch/me': return self.send_json(200, {'signedIn':False,'isAdmin':False,'canReviewStreamers':False})
             if path == '/api/watch/events':
                 o = others()

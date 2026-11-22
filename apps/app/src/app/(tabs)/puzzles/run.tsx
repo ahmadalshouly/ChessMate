@@ -9,6 +9,7 @@ import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { puzzleApi } from '@/lib/puzzleApi';
 import { useWideBoard } from '@/lib/useWideBoard';
+import { NO_SWIPE_BACK, useNoSwipeBack } from '@/lib/useNoSwipeBack';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
 import { translate, useT, type TKey } from '@/i18n';
 
@@ -42,6 +43,8 @@ export default function PuzzleRun() {
   const [exhausted, setExhausted] = useState(false);
   const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxMisses = mode === 'rush' ? RUSH_LIVES : 1;
+  // Leave with the back button only: dragging a piece must never swipe the run away.
+  useNoSwipeBack();
 
   const fetchMore = useCallback(
     async (offset: number) => {
@@ -135,7 +138,7 @@ export default function PuzzleRun() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: tr(COPY[mode].title) }} />
+      <Stack.Screen options={{ title: tr(COPY[mode].title), ...NO_SWIPE_BACK }} />
       {phase === 'playing' ? (
         <PuzzleBoard
           view={view}

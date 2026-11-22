@@ -389,7 +389,7 @@ Cloud builds count against the Expo account's build quota, so they only run when
 
 ### Puzzles
 
-A fresh checkout has 14 original starter puzzles, loaded automatically into `apps/server/data/puzzles.db` the first time the server starts. For the real collection, import the Lichess puzzle database (CC0, about 5 million puzzles):
+The server ships with about 20,700 well-tested puzzles from the Lichess puzzle database (CC0; popularity 80+, 300+ plays, ratings about 600 to 2700) in `apps/server/data/puzzles-lichess.csv.gz`, plus 14 original starter puzzles. They are loaded into `apps/server/data/puzzles.db` the first time the server starts (about a minute, once). Puzzles come in random order and players don't see the same puzzle again soon (the last 500 for signed-in players, the last 300 on the device for guests). For the full collection, import the whole Lichess puzzle database (millions of puzzles):
 
 ```bash
 pnpm puzzles:import                                  # downloads lichess_db_puzzle.csv.zst (~250 MB) and imports it
@@ -399,7 +399,7 @@ pnpm puzzles:import --limit 100000                   # quicker partial import fo
 
 By default it keeps well-tested puzzles (popularity 50+, 100+ plays, rating deviation 100 or less); change with `--min-popularity`, `--min-plays`, `--max-rd`. Re-running is safe (puzzles are updated by id). Restart `pnpm dev:server` afterwards. Set `PUZZLE_DB` to store the database elsewhere.
 
-In the app, open **Puzzles** on the home screen: daily puzzle, rated training with a theme filter and hints, streak (one mistake ends it) and rush (3 minutes, 3 lives).
+In the app, open **Puzzles** on the home screen: your rating and records, rated training, streak (one mistake ends it), rush (3 minutes, 3 lives), the daily puzzle, and themes (one tap starts training on a theme). Puzzle screens are left with the back button only, so dragging a piece near the edge never swipes the puzzle away.
 
 ### Web
 

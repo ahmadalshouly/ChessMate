@@ -7,6 +7,7 @@ import { PuzzleBoard } from '@/components/PuzzleBoard';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { puzzleApi } from '@/lib/puzzleApi';
 import { useWideBoard } from '@/lib/useWideBoard';
+import { NO_SWIPE_BACK, useNoSwipeBack } from '@/lib/useNoSwipeBack';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
 import { translate, useT } from '@/i18n';
 import { puzzleThemeLabel } from '@/i18n/chess';
@@ -24,6 +25,8 @@ export default function PuzzleTrainer() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ solved: boolean; delta?: number; rating?: number } | null>(null);
   const seen = useRef<string[]>([]);
+  // Leave with the back button only: dragging a piece must never swipe the puzzle away.
+  useNoSwipeBack();
   // Big board on wide screens (panel beside it); phones keep room below for hints and results.
   const { wide, size } = useWideBoard({ panel: 380, reserve: 116, phoneReserve: 330, sidebar: true });
 
@@ -59,7 +62,7 @@ export default function PuzzleTrainer() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{ title, ...NO_SWIPE_BACK }} />
       {error ? (
         <ScrollView contentContainerStyle={styles.page}>
           <Card style={{ width: Math.min(size, 560) }}>
