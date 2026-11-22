@@ -1,8 +1,9 @@
-import type { StreamerApplicationView } from '@chessmate/core';
+import type { StreamerApplicationView, StreamerView } from '@chessmate/core';
 import { useState } from 'react';
 
 import { AdminPage, EmptyState, ErrorLine, PageHeader, Section, useLoad } from '@/features/admin/ui';
 import { StreamerCard, openLink } from '@/features/watch/components';
+import { ChannelEditor, type ChannelDraft } from '@/features/watch/forms';
 import { formatAgo, useT } from '@/i18n';
 import { watchApi } from '@/lib/watchApi';
 import { Badge, Button, Row, Stack, Tabs, Text, TextField, useAppTheme } from '@/ui';
@@ -24,14 +25,15 @@ export default function AdminStreamers() {
       <ErrorLine message={apps.error ?? streamers.error} />
       {tab === 'streamers' ? (
         streamers.data && streamers.data.length === 0 ? (
-          <EmptyState icon="videocam-outline" title={tr('watch.noStreamers')} />
+          <Stack gap="md" style={{ marginTop: t.space.sm }}>
+            <StaffStreamerForm onDone={streamers.reload} />
+            <EmptyState icon="videocam-outline" title={tr('watch.noStreamers')} />
+          </Stack>
         ) : (
           <Stack gap="md" style={{ marginTop: t.space.sm }}>
+            <StaffStreamerForm onDone={streamers.reload} />
             {(streamers.data ?? []).map((s) => (
-              <Stack key={s.userId} gap="xs">
-                <StreamerCard s={s} />
-                <RemoveStreamer userId={s.userId} onDone={streamers.reload} />
-              </Stack>
+              <StreamerRow key={s.userId} s={s} onDone={streamers.reload} />
             ))}
           </Stack>
         )
@@ -45,6 +47,84 @@ export default function AdminStreamers() {
         </Stack>
       )}
     </AdminPage>
+  );
+}
+
+/** A streamer with their card, links editing and removal. */
+function StreamerRow({ s, onDone }: { s: StreamerView; onDone: () => void }) {
+  const tr = useT();
+  const [editing, setEditing] = useState(false);
+  return (
+    <Stack gap="xs">
+      <StreamerCard s={s} />
+      {editing ? (
+        <StaffStreamerForm
+          existing={s}
+          onDone={() => {
+            setEditing(false);
+            onDone();
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <Row gap="sm">
+          <Button title={tr('watch.admin.editLinks')} variant="ghost" size="sm" onPress={() => setEditing(true)} />
+          <RemoveStreamer userId={s.userId} onDone={onDone} />
+        </Row>
+      )}
+    </Stack>
+  );
+}
+
+/** Staff: give a player the streamer badge with their links (no application), or edit a streamer's links. */
+function StaffStreamerForm({ existing, onDone, onCancel }: { existing?: StreamerView; onDone: () => void; onCancel?: () => void }) {
+  const tr = useT();
+  const [user, setUser] = useState(existing ? existing.username : '');
+  const [headline, setHeadline] = useState(existing?.headline ?? '');
+  const [channels, setChannels] = useState<ChannelDraft[]>(existing?.channels.length ? existing.channels : [{ platform: 'twitch', url: '' }]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      const s = await watchApi.setStreamerByStaff({ user: existing ? existing.userId : user.trim(), headline: headline.trim(), channels: channels.filter((c) => c.url.trim()) });
+      if (!existing) {
+        setDone(tr('watch.admin.added', { name: s.displayName }));
+        setUser('');
+        setHeadline('');
+        setChannels([{ platform: 'twitch', url: '' }]);
+      }
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title={existing ? tr('watch.admin.editLinks') : tr('watch.admin.addStreamer')}>
+      <Stack gap="sm">
+        {!existing && (
+          <>
+            <Text variant="caption" tone="muted">
+              {tr('watch.admin.addStreamerHint')}
+            </Text>
+            <TextField value={user} onChangeText={setUser} placeholder={tr('watch.admin.username')} autoCapitalize="none" autoCorrect={false} accessibilityLabel={tr('watch.admin.username')} />
+          </>
+        )}
+        <TextField value={headline} onChangeText={setHeadline} placeholder={tr('watch.streamer.headline')} maxLength={120} accessibilityLabel={tr('watch.streamer.headline')} />
+        <ChannelEditor value={channels} onChange={setChannels} />
+        {error ? <Text tone="danger">{error}</Text> : null}
+        {done ? <Text tone="success">{done}</Text> : null}
+        <Row gap="sm">
+          <Button title={existing ? tr('watch.save') : tr('watch.admin.addStreamer')} size="sm" loading={busy} disabled={!existing && !user.trim()} onPress={() => void save()} />
+          {onCancel ? <Button title={tr('common.cancel')} variant="ghost" size="sm" onPress={onCancel} /> : null}
+        </Row>
+      </Stack>
+    </Section>
   );
 }
 

@@ -23,6 +23,7 @@ import { CommunityService } from './community/service';
 import { AwardsService } from './awards/service';
 import { EventService } from './watch/events';
 import { StreamerService } from './watch/streamers';
+import { LiveChecker, liveCheckConfigFromEnv } from './watch/live';
 import { BroadcastAnalyzer } from './watch/analysis';
 import { BroadcastSync } from './watch/sync';
 import { PlayHabitsService } from './habits/service';
@@ -136,6 +137,21 @@ async function start() {
   const broadcastAnalyzer = new BroadcastAnalyzer({ db: db.db, engine: analysis, onUpdate: (eventId) => events.invalidate(eventId) });
   broadcastAnalyzer.start();
   setInterval(() => void streamers.sweep().catch((e) => console.warn('streamer sweep failed', e)), 10 * 60_000).unref();
+  // Live detection: streamers show as live (with viewers) when they stream, no button needed.
+  const liveChecker = new LiveChecker(liveCheckConfigFromEnv(process.env));
+  const livePlatforms = liveChecker.platforms();
+  console.log(`Streamer live check: Twitch ${livePlatforms.twitch ? 'on' : 'off (set TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET)'}; YouTube ${livePlatforms.youtube === 'full' ? 'on with viewers' : 'on (viewers need YOUTUBE_API_KEY)'}; Kick ${livePlatforms.kick === 'full' ? 'on' : 'basic (set KICK_CLIENT_ID, KICK_CLIENT_SECRET)'}`);
+  let liveBusy = false;
+  const detectLive = () => {
+    if (liveBusy) return;
+    liveBusy = true;
+    void streamers
+      .detectLive(liveChecker)
+      .catch((e) => console.warn('live check failed', e))
+      .finally(() => (liveBusy = false));
+  };
+  setTimeout(detectLive, 15_000).unref();
+  setInterval(detectLive, 60_000).unref();
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;

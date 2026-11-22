@@ -42,6 +42,9 @@ export const watchApi = {
   streamerApplications: (status?: string) => api<{ applications: StreamerApplicationView[] }>('GET', `/streamer-applications${status ? `?status=${status}` : ''}`).then((r) => r.applications),
   reviewStreamer: (id: string, approve: boolean, note?: string) => api<{ application: StreamerApplicationView }>('POST', `/streamer-applications/${id}`, { approve, note }),
   removeStreamer: (userId: string) => api('DELETE', `/streamers/${userId}`),
+  /** Staff: make a player a streamer (no application) or change a streamer's links. `user`: username or id. */
+  setStreamerByStaff: (body: { user: string; headline: string; channels: { platform: string; url: string }[] }) =>
+    api<{ streamer: StreamerView }>('POST', '/streamers/staff', body).then((r) => r.streamer),
   // Events
   events: () => api<EventLists>('GET', '/events', undefined, true),
   allEvents: () => api<{ events: EventSummary[] }>('GET', '/events/all').then((r) => r.events),

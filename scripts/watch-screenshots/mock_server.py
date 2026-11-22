@@ -99,7 +99,7 @@ def others():
 
 def streamers():
     return [
-      {'userId':'s1','username':'queenside_qing','displayName':'Qing Hart','title':'IM','country':'CA','headline':'Daily blitz and opening ideas','channels':[{'platform':'twitch','url':'https://twitch.tv/example'},{'platform':'youtube','url':'https://youtube.com/@example'}],'live':{'since':now()-40*60_000,'title':'Berlin Open live commentary · Round 3','url':'https://twitch.tv/example','platform':'twitch'}},
+      {'userId':'s1','username':'queenside_qing','displayName':'Qing Hart','title':'IM','country':'CA','headline':'Daily blitz and opening ideas','channels':[{'platform':'twitch','url':'https://twitch.tv/example'},{'platform':'youtube','url':'https://youtube.com/@example'}],'live':{'since':now()-40*60_000,'title':'Berlin Open live commentary · Round 3','url':'https://twitch.tv/example','platform':'twitch','viewers':1284,'thumbnail':None,'embed':None,'auto':True}},
       {'userId':'s2','username':'endgame_ella','displayName':'Ella Marsh','title':'WFM','country':'GB','headline':'Endgame lessons every Sunday','channels':[{'platform':'youtube','url':'https://youtube.com/@example2'}],'live':None},
       {'userId':'s3','username':'blitzbaron','displayName':'Tomás Reyes','title':None,'country':'MX','headline':'Speedruns from 800 to 2000','channels':[{'platform':'kick','url':'https://kick.com/example'},{'platform':'twitch','url':'https://twitch.tv/example3'}],'live':None},
     ]

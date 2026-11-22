@@ -68,7 +68,7 @@ export interface StreamChannel {
 export const STREAMER_LIMITS = {
   headline: 120,
   about: 1000,
-  channels: 5,
+  channels: 10,
   liveTitle: 120,
   /** Live switches itself off after this long. */
   liveHours: 12,
@@ -165,6 +165,42 @@ export interface StreamerLive {
   title: string;
   url: string;
   platform: StreamPlatform;
+  /** Viewers now, when the platform tells (detected streams). */
+  viewers: number | null;
+  thumbnail: string | null;
+  /** For an embedded player: the platform and its channel or video id. */
+  embed: { platform: 'twitch' | 'youtube' | 'kick'; id: string } | null;
+  /** Found by ChessMate's live check rather than switched on by hand. */
+  auto: boolean;
+}
+
+/** A channel as the platform knows it: Twitch login, Kick slug, YouTube handle ("@name") or channel id ("UC…"). */
+export function channelHandle(url: string): { platform: 'twitch' | 'youtube' | 'kick'; handle: string } | null {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const platform = platformOf(url);
+  const parts = u.pathname.split('/').filter(Boolean);
+  if (platform === 'twitch' || platform === 'kick') {
+    const name = parts[0]?.toLowerCase();
+    if (!name || !/^[a-z0-9_-]{2,40}$/.test(name) || ['videos', 'directory', 'search', 'categories', 'browse'].includes(name)) return null;
+    return { platform, handle: name };
+  }
+  if (platform === 'youtube') {
+    if (parts[0]?.startsWith('@')) return { platform, handle: parts[0] };
+    if (parts[0] === 'channel' && parts[1] && /^UC[\w-]{20,}$/.test(parts[1])) return { platform, handle: parts[1] };
+    if ((parts[0] === 'c' || parts[0] === 'user') && parts[1]) return { platform, handle: `${parts[0]}/${parts[1]}` };
+  }
+  return null;
+}
+
+/** Parses a stored embed ("twitch:name"). */
+export function parseEmbed(v: string | null | undefined): StreamerLive['embed'] {
+  const m = /^(twitch|youtube|kick):(.+)$/.exec(v ?? '');
+  return m ? { platform: m[1] as 'twitch' | 'youtube' | 'kick', id: m[2]! } : null;
 }
 
 export interface StreamerView {

@@ -8,7 +8,7 @@ import { EvalBar } from '@/components/EvalBar';
 import { BoardMoveBadge } from '@/components/MoveBadge';
 import { PostImage, pictureUri } from '@/features/media/MediaFields';
 import { TitleBadge } from '@/features/titles/TitleBadge';
-import { formatDate, useT } from '@/i18n';
+import { formatDate, formatNumber, useT } from '@/i18n';
 import { countryFlag } from '@/lib/leaderboardApi';
 import { eventLogoUri } from '@/lib/watchApi';
 import { Avatar, Badge, Button, GlassView, Row, Stack, Text, useAppTheme } from '@/ui';
@@ -145,7 +145,19 @@ export function StreamerCard({ s, compact }: { s: StreamerView; compact?: boolea
             </Pressable>
           ))}
         </Row>
-        {s.live && <Button title={tr('watch.watchStream')} size="sm" leftIcon={<MaterialCommunityIcons name="play" size={16} color={c.textInverse} />} onPress={() => openLink(s.live!.url)} />}
+        {s.live && (
+          <Row gap="sm">
+            {s.live.viewers !== null ? (
+              <Row gap="xxs" accessibilityLabel={tr('watch.viewers', { count: formatNumber(s.live.viewers) })}>
+                <MaterialCommunityIcons name="eye-outline" size={15} color={c.muted} />
+                <Text variant="caption" tone="muted">
+                  {formatNumber(s.live.viewers)}
+                </Text>
+              </Row>
+            ) : null}
+            <Button title={tr('watch.watchStream')} size="sm" leftIcon={<MaterialCommunityIcons name="play" size={16} color={c.textInverse} />} onPress={() => openLink(s.live!.url)} />
+          </Row>
+        )}
       </Row>
     </GlassView>
   );

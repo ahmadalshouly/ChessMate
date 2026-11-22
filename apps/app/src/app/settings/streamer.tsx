@@ -94,10 +94,22 @@ export default function StreamerSettings() {
                   <Text variant="bodyStrong">{tr('watch.streamer.liveSince', { when: formatAgo(s.live.since) })}</Text>
                 </Row>
                 <Text tone="muted">{s.live.title}</Text>
-                <Button title={tr('watch.streamer.endLive')} variant="danger" loading={busy} onPress={() => void run(() => watchApi.endLive())} />
+                {s.live.viewers !== null ? <Text variant="caption">{tr('watch.viewers', { count: s.live.viewers })}</Text> : null}
+                {s.live.auto ? (
+                  // Found on the platform: it ends by itself when the stream stops.
+                  <Text variant="caption" tone="muted">
+                    {tr('watch.streamer.autoFound')}
+                  </Text>
+                ) : (
+                  <Button title={tr('watch.streamer.endLive')} variant="danger" loading={busy} onPress={() => void run(() => watchApi.endLive())} />
+                )}
               </>
             ) : (
               <>
+                <Text variant="bodyStrong">{tr('watch.streamer.autoTitle')}</Text>
+                <Text variant="caption" tone="muted">
+                  {tr('watch.streamer.autoHint')}
+                </Text>
                 <Text variant="bodyStrong">{tr('watch.streamer.goLiveTitle')}</Text>
                 <Text variant="caption" tone="muted">
                   {tr('watch.streamer.goLiveHint')}

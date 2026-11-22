@@ -932,6 +932,14 @@ export const streamers = pgTable('streamers', {
   liveTitle: text('live_title'),
   liveUrl: text('live_url'),
   liveSince: ts('live_since'),
+  /** Viewers watching now, as the platform reports it (detected streams). */
+  liveViewers: integer('live_viewers'),
+  /** Preview picture of the stream. */
+  liveThumbnail: text('live_thumbnail'),
+  /** What a player embeds: "twitch:<channel>", "youtube:<video id>" or "kick:<channel>". */
+  liveEmbed: text('live_embed'),
+  /** True when ChessMate found the stream itself (it also ends it when the stream stops). */
+  liveAuto: boolean('live_auto').notNull().default(false),
   approvedAt: ts('approved_at').notNull().defaultNow(),
 });
 

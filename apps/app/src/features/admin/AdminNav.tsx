@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { AdminPermission } from '@chessmate/core';
 import { router, usePathname, type Href } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Glass } from '@/components/shell/Glass';
@@ -53,7 +53,8 @@ export function AdminRail() {
           {tr('admin.title')}
         </Text>
       </View>
-      <View style={{ gap: 2, flex: 1 }}>
+      {/* The list scrolls on short windows, so it never runs under the footer. */}
+      <ScrollView style={styles.list} contentContainerStyle={{ gap: 2, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
         {ADMIN_SECTIONS.filter((s) => can(s.needs)).map((s) => {
           const on = s.key === current;
           return (
@@ -73,7 +74,7 @@ export function AdminRail() {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
       <View style={[styles.foot, { borderTopColor: c.border }]}>
         <View style={styles.me}>
           <Avatar name={me.username} size={32} />
@@ -117,10 +118,11 @@ export function AdminSectionLinks() {
 }
 
 const styles = StyleSheet.create({
-  rail: { paddingHorizontal: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
-  brand: { paddingHorizontal: 8, paddingBottom: 26 },
+  rail: { height: '100%', flexDirection: 'column', paddingHorizontal: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
+  list: { flex: 1, minHeight: 0, marginBottom: 10 },
+  brand: { paddingHorizontal: 8, paddingBottom: 20, flexShrink: 0 },
   item: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 40, paddingHorizontal: 12, borderRadius: 12 },
-  foot: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 8 },
+  foot: { flexShrink: 0, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 8 },
   me: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 6, paddingBottom: 4 },
   links: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   link: { flexGrow: 1, flexBasis: 140, flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, paddingHorizontal: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth },

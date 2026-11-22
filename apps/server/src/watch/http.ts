@@ -61,6 +61,8 @@ export function watchRoutes(deps: { streamers: StreamerService; events: EventSer
     return { ok: true };
   });
   on('GET', '/streamer-applications', async ({ me, url }) => ({ applications: await streamers.applications(me(), url.searchParams.get('status') ?? undefined) }));
+  // Staff: make a player a streamer (no application needed) or change a streamer's links.
+  on('POST', '/streamers/staff', async ({ me, body }) => ({ streamer: await streamers.setByStaff(me(), await body()) }));
   on('POST', `/streamer-applications/${ID}`, async ({ me, params, body }) => ({ application: await streamers.review(me(), params[0]!, await body()) }));
 
   // Events

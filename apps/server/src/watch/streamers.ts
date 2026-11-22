@@ -5,6 +5,7 @@ import {
   cleanStreamerProfile,
   hasPermission,
   isChessTitle,
+  parseEmbed,
   platformOf,
   type MyStreamerState,
   type StaffRole,
@@ -16,6 +17,8 @@ import {
   countStreamerApplicationsSince,
   deleteStreamer,
   endStaleStreams,
+  findUserByUsername,
+  getUser,
   getStreamer,
   getStreamerApplication,
   insertAudit,
@@ -32,6 +35,7 @@ import {
 } from '@chessmate/db';
 
 import { WatchError, fail } from './errors';
+import type { LiveChecker } from './live';
 
 export interface StreamerServiceOptions {
   db: Database;
@@ -56,7 +60,19 @@ const toView = (s: StreamerWithUser): StreamerView => ({
   country: s.country,
   headline: s.headline,
   channels: s.channels as StreamChannel[],
-  live: s.liveSince && s.liveUrl ? { since: s.liveSince.getTime(), title: s.liveTitle ?? '', url: s.liveUrl, platform: platformOf(s.liveUrl) } : null,
+  live:
+    s.liveSince && s.liveUrl
+      ? {
+          since: s.liveSince.getTime(),
+          title: s.liveTitle ?? '',
+          url: s.liveUrl,
+          platform: platformOf(s.liveUrl),
+          viewers: s.liveViewers ?? null,
+          thumbnail: s.liveThumbnail ?? null,
+          embed: parseEmbed(s.liveEmbed),
+          auto: s.liveAuto,
+        }
+      : null,
 });
 
 const appView = (a: StreamerApplicationWithUser): StreamerApplicationView => ({
@@ -102,10 +118,13 @@ export class StreamerService {
     this.cache = null;
   }
 
-  /** Approved streamers, live ones first (newest stream first). */
+  /** Approved streamers: live ones first, most watched first, then by name. */
   async list(): Promise<StreamerView[]> {
     if (this.cache && this.now() - this.cache.at < LIST_TTL_MS) return this.cache.list;
-    const list = (await listStreamers(this.db)).map(toView).sort((a, b) => (b.live?.since ?? 0) - (a.live?.since ?? 0) || a.username.localeCompare(b.username));
+    const rank = (v: StreamerView) => (v.live ? 1 + (v.live.viewers ?? 0) : 0);
+    const list = (await listStreamers(this.db))
+      .map(toView)
+      .sort((a, b) => rank(b) - rank(a) || (b.live?.since ?? 0) - (a.live?.since ?? 0) || a.username.localeCompare(b.username));
     this.cache = { at: this.now(), list };
     return list;
   }
@@ -158,6 +177,75 @@ export class StreamerService {
     await setStreamerLive(this.db, userId, null);
     this.invalidate();
     return this.get(userId);
+  }
+
+  /**
+   * Live status from the platforms: a stream found live is shown (with viewers), one
+   * that ChessMate found and that has stopped is ended. Streams switched on by hand stay
+   * until the platform shows them (then they follow it) or the time limit.
+   */
+  async detectLive(checker: LiveChecker): Promise<void> {
+    const rows = await listStreamers(this.db);
+    if (!rows.length) return;
+    const results = await checker.check(rows.map((r) => ({ userId: r.userId, channels: r.channels as StreamChannel[] })));
+    let changed = false;
+    for (const r of rows) {
+      const res = results.get(r.userId);
+      if (!res || res.state === 'unknown') continue;
+      if (res.state === 'live') {
+        const d = res.live;
+        const since = r.liveSince && r.liveUrl ? r.liveSince : new Date(d.startedAt ?? this.now());
+        await setStreamerLive(this.db, r.userId, {
+          title: d.title || r.liveTitle || '',
+          url: d.url,
+          since,
+          viewers: d.viewers,
+          thumbnail: d.thumbnail,
+          embed: d.embed,
+          auto: true,
+        });
+        changed = true;
+      } else if (r.liveSince && r.liveAuto) {
+        await setStreamerLive(this.db, r.userId, null);
+        changed = true;
+      }
+    }
+    if (changed) this.invalidate();
+  }
+
+  /**
+   * Staff make a player a streamer directly (no application) or change a streamer's
+   * links and headline. `user` is a username or user id.
+   */
+  async setByStaff(staffId: string, raw: unknown): Promise<StreamerView> {
+    this.requireReviewer(staffId);
+    const r = (raw && typeof raw === 'object' ? raw : {}) as { user?: unknown };
+    const key = typeof r.user === 'string' ? r.user.trim().replace(/^@/, '') : '';
+    if (!key) throw new WatchError(400, 'Choose a player');
+    const user = (await getUser(this.db, key)) ?? (await findUserByUsername(this.db, key));
+    if (!user) throw new WatchError(404, 'No player with that name');
+    const input = cleanStreamerProfile(raw);
+    if ('error' in input) fail(input);
+    const v = (input as { value: { headline: string; channels: StreamChannel[] } }).value;
+    const existed = !!(await getStreamer(this.db, user.id));
+    await upsertStreamer(this.db, user.id, v);
+    if (!existed) {
+      await this.hooks.setStreamerTag(user.id, true);
+      this.hooks.notify(user.id, 'You are a ChessMate streamer', 'Your streamer badge is on. ChessMate shows you as live when you stream.', '/settings/streamer');
+    }
+    this.invalidate();
+    await insertAudit(this.db, {
+      actorId: staffId,
+      actorName: this.opts.usernameOf?.(staffId) ?? staffId,
+      action: existed ? 'streamer.update' : 'streamer.add',
+      targetType: 'user',
+      targetId: user.id,
+      targetName: user.username,
+      reason: null,
+      details: { channels: v.channels.map((c) => c.url) },
+      at: new Date(this.now()),
+    });
+    return (await this.get(user.id))!;
   }
 
   /** Switches off streams left on for longer than the limit. */

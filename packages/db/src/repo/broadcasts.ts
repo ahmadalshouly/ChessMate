@@ -69,10 +69,27 @@ export async function upsertStreamer(db: Database, userId: string, v: { headline
     .onConflictDoUpdate({ target: streamers.userId, set: { headline: v.headline, channels: v.channels } });
 }
 
-export async function setStreamerLive(db: Database, userId: string, live: { title: string; url: string; since: Date } | null): Promise<void> {
+export interface StreamerLiveUpdate {
+  title: string;
+  url: string;
+  since: Date;
+  viewers?: number | null;
+  thumbnail?: string | null;
+  embed?: string | null;
+  /** Found by ChessMate's live check (ends when the stream stops). */
+  auto?: boolean;
+}
+
+const NOT_LIVE = { liveTitle: null, liveUrl: null, liveSince: null, liveViewers: null, liveThumbnail: null, liveEmbed: null, liveAuto: false };
+
+export async function setStreamerLive(db: Database, userId: string, live: StreamerLiveUpdate | null): Promise<void> {
   await db
     .update(streamers)
-    .set(live ? { liveTitle: live.title, liveUrl: live.url, liveSince: live.since } : { liveTitle: null, liveUrl: null, liveSince: null })
+    .set(
+      live
+        ? { liveTitle: live.title, liveUrl: live.url, liveSince: live.since, liveViewers: live.viewers ?? null, liveThumbnail: live.thumbnail ?? null, liveEmbed: live.embed ?? null, liveAuto: live.auto ?? false }
+        : NOT_LIVE,
+    )
     .where(eq(streamers.userId, userId));
 }
 
@@ -80,8 +97,9 @@ export async function setStreamerLive(db: Database, userId: string, live: { titl
 export async function endStaleStreams(db: Database, before: Date): Promise<number> {
   const rows = await db
     .update(streamers)
-    .set({ liveTitle: null, liveUrl: null, liveSince: null })
-    .where(and(isNotNull(streamers.liveSince), lt(streamers.liveSince, before)))
+    .set(NOT_LIVE)
+    // Detected streams end when the platform says so; only manual ones time out.
+    .where(and(isNotNull(streamers.liveSince), lt(streamers.liveSince, before), eq(streamers.liveAuto, false)))
     .returning({ id: streamers.userId });
   return rows.length;
 }

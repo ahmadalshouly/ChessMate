@@ -9,6 +9,7 @@ import { BroadcastAnalyzer } from '../src/watch/analysis';
 import { EventService, lastClocks } from '../src/watch/events';
 import { StreamerService } from '../src/watch/streamers';
 import { BroadcastSync, type Fetcher } from '../src/watch/sync';
+import { LiveChecker, type LiveFetcher } from '../src/watch/live';
 import { lichessRound } from '../../../packages/core/test/fixtures/lichessRound';
 
 let h: DbHandle;
@@ -90,6 +91,75 @@ describe('streamers', () => {
     await svc.remove(ids.wmod!, me);
     expect(await svc.get(me)).toBeNull();
     expect(tags.at(-1)).toBe(`${me}:false`);
+  });
+  it('staff add streamers directly; live status and viewers come from the platforms', async () => {
+    const svc = new StreamerService({ db: h.db, now, roleOf });
+    const tags: string[] = [];
+    svc.attach({ notify: () => {}, setStreamerTag: async (u, on) => void tags.push(`${u}:${on}`) });
+    const who = ids.cohost!;
+    // Players cannot; moderators can, by username, with several links.
+    expect(await err(svc.setByStaff(ids.outsider!, { user: 'cohost', channels: [{ url: 'https://twitch.tv/cohost' }] }))).toBe(403);
+    expect(await err(svc.setByStaff(ids.wmod!, { user: 'nobody_here', channels: [{ url: 'https://twitch.tv/x' }] }))).toBe(404);
+    const added = await svc.setByStaff(ids.wmod!, {
+      user: '@cohost',
+      headline: 'Bullet nights',
+      channels: [{ url: 'https://www.twitch.tv/CoHost' }, { url: 'https://www.youtube.com/@cohostchess' }, { url: 'https://kick.com/cohost' }, { url: 'https://instagram.com/cohost' }],
+    });
+    expect(added.channels).toHaveLength(4);
+    expect(tags).toEqual([`${who}:true`]);
+
+    let twitchLive = true;
+    const asked: string[] = [];
+    const fetcher: LiveFetcher = async (url) => {
+      asked.push(url);
+      const ok = (body: unknown) => ({ ok: true, status: 200, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
+      if (url.startsWith('https://id.twitch.tv/oauth2/token')) return ok({ access_token: 'tok', expires_in: 3600 });
+      if (url.startsWith('https://api.twitch.tv/helix/streams'))
+        return ok({ data: twitchLive ? [{ user_login: 'cohost', type: 'live', title: 'Bullet with viewers', viewer_count: 321, started_at: '2026-11-21T09:00:00Z', thumbnail_url: 'https://t/{width}x{height}.jpg' }] : [] });
+      if (url.startsWith('https://www.youtube.com/@cohostchess/live')) return ok('<html><link rel="canonical" href="https://www.youtube.com/channel/UCxyz"></html>');
+      if (url.startsWith('https://kick.com/api/v2/channels/cohost')) return ok({ livestream: null });
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const checker = new LiveChecker({ twitch: { clientId: 'id', clientSecret: 'secret' } }, fetcher, now);
+    await svc.detectLive(checker);
+    let view = (await svc.get(who))!;
+    expect(view.live).toMatchObject({ title: 'Bullet with viewers', url: 'https://www.twitch.tv/cohost', viewers: 321, auto: true, embed: { platform: 'twitch', id: 'cohost' }, thumbnail: 'https://t/640x360.jpg' });
+    expect(view.live!.since).toBe(Date.parse('2026-11-21T09:00:00Z'));
+    expect(asked.some((u) => u.includes('user_login=cohost'))).toBe(true);
+    // Most watched first in the list.
+    expect((await svc.list())[0]!.username).toBe('cohost');
+    // The stream ends on Twitch: ChessMate ends it too.
+    twitchLive = false;
+    await svc.detectLive(checker);
+    view = (await svc.get(who))!;
+    expect(view.live).toBeNull();
+    // A platform that can't be checked leaves a stream switched on by hand alone.
+    await svc.goLive(who, { title: 'By hand', url: 'https://kick.com/cohost' });
+    await svc.detectLive(new LiveChecker({}, async () => ({ ok: false, status: 500, text: async () => '' }), now));
+    expect((await svc.get(who))!.live).toMatchObject({ title: 'By hand', auto: false });
+    await svc.remove(ids.wmod!, who);
+  });
+
+  it('reads YouTube live pages and Kick channels', async () => {
+    const fetcher: LiveFetcher = async (url) => {
+      const ok = (body: unknown) => ({ ok: true, status: 200, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
+      if (url.startsWith('https://www.youtube.com/@yt/live'))
+        return ok('<link rel="canonical" href="https://www.youtube.com/watch?v=abcdefghijk"><meta name="title" content="Live &amp; loud">"isLiveNow":true');
+      if (url.startsWith('https://www.googleapis.com/youtube/v3/videos'))
+        return ok({ items: [{ snippet: { title: 'Speed chess live' }, liveStreamingDetails: { concurrentViewers: '1500', actualStartTime: '2026-11-21T08:00:00Z' } }] });
+      if (url.startsWith('https://kick.com/api/v2/channels/kk')) return ok({ livestream: { is_live: true, session_title: 'Kick blitz', viewer_count: 42, created_at: '2026-11-21 07:30:00' } });
+      return { ok: false, status: 404, text: async () => '' };
+    };
+    const noKey = await new LiveChecker({}, fetcher, now).check([{ userId: 'a', channels: [{ platform: 'youtube', url: 'https://www.youtube.com/@yt' }] }]);
+    expect(noKey.get('a')).toMatchObject({ state: 'live', live: { title: 'Live & loud', viewers: null, embed: 'youtube:abcdefghijk' } });
+    const res = await new LiveChecker({ youtubeKey: 'k' }, fetcher, now).check([
+      { userId: 'a', channels: [{ platform: 'youtube', url: 'https://www.youtube.com/@yt' }] },
+      { userId: 'b', channels: [{ platform: 'kick', url: 'https://kick.com/kk' }] },
+      { userId: 'c', channels: [{ platform: 'other', url: 'https://example.com/me' }] },
+    ]);
+    expect(res.get('a')).toMatchObject({ state: 'live', live: { title: 'Speed chess live', viewers: 1500, startedAt: Date.parse('2026-11-21T08:00:00Z') } });
+    expect(res.get('b')).toMatchObject({ state: 'live', live: { title: 'Kick blitz', viewers: 42, embed: 'kick:kk', startedAt: Date.parse('2026-11-21T07:30:00Z') } });
+    expect(res.get('c')).toEqual({ state: 'unknown' });
   });
 });
 

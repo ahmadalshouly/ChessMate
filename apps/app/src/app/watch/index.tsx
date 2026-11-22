@@ -6,6 +6,7 @@ import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } fro
 
 import { useTicker } from '@/components/PlayerBar';
 import { EventCard, GameThumb, StatusPill, StreamerCard } from '@/features/watch/components';
+import { FeaturedStream } from '@/features/watch/FeaturedStream';
 import { useT } from '@/i18n';
 import { usePolled, watchApi, type WatchMe } from '@/lib/watchApi';
 import { Button, GlassView, Row, Screen, SectionHeader, Skeleton, Stack, Text, useAppTheme } from '@/ui';
@@ -58,6 +59,14 @@ export default function WatchScreen() {
           {me.isAdmin && <Button title={tr('watch.admin.broadcasts')} variant="secondary" size="sm" onPress={() => router.push('/admin/broadcasts')} />}
           {me.canReviewStreamers && <Button title={tr('watch.admin.streamers')} variant="secondary" size="sm" onPress={() => router.push('/admin/streamers')} />}
         </Row>
+      ) : null}
+
+      {/* The most watched live stream (the list comes most watched first) */}
+      {liveStreamers[0] ? (
+        <Stack gap="sm">
+          <SectionHeader title={tr('watch.featuredStream')} />
+          <FeaturedStream s={liveStreamers[0]} width={Math.min(width, 1100) - 64} />
+        </Stack>
       ) : null}
 
       {/* Featured live event with its boards */}
