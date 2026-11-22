@@ -3,13 +3,13 @@ import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { CountryFlag } from '@/components/CountryFlag';
 import { Avatar } from '@/features/profile/Avatar';
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatNumber, useT } from '@/i18n';
 import { countryLabel } from '@/i18n/chess';
-import { countryFlag } from '@/lib/leaderboardApi';
 import { Button, GlassView, Modal, Text, useAppTheme } from '@/ui';
 
 import { hasProfile, usePlayerProfile } from './usePlayerProfile';
@@ -44,13 +44,13 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
   const profile = usePlayerProfile(player);
   const [open, setOpen] = useState(false);
   const low = ms != null && ms < 20_000;
-  const flag = countryFlag(profile?.country);
+  const country = countryLabel(profile?.country);
   const rating = player ? `${Math.round(player.rating)}${player.provisional ? '?' : ''}` : '';
   const canOpen = pressable && !!player;
   const tag = profile?.roleTag ?? null;
   const tagName = tag ? tr(`chessTitle.roleTags.${tag}`) : null;
   const label = player
-    ? [profile?.title ? tr(`chessTitle.names.${profile.title}`) : null, player.name, flag ? countryLabel(profile?.country) : null, tagName, rating].filter(Boolean).join(', ')
+    ? [profile?.title ? tr(`chessTitle.names.${profile.title}`) : null, player.name, country, tagName, rating].filter(Boolean).join(', ')
     : undefined;
 
   return (
@@ -73,7 +73,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
                   <Text variant="bodyStrong" numberOfLines={1} style={styles.name}>
                     {player?.name ?? '…'}
                   </Text>
-                  {flag ? <Text style={styles.flag}>{flag}</Text> : null}
+                  <CountryFlag code={profile?.country} size={13} decorative />
                   <RoleTagBadge tag={tag} compact />
                   {!tag && <PlayerTagBadge tag={profile?.playerTag} compact />}
                 </View>
@@ -116,7 +116,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
 /** Profile summary over the game: who you are playing, without leaving the board. */
 function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; onClose: () => void; player: PlayerInfo; profile: PublicProfile | null }) {
   const tr = useT();
-  const country = profile?.country ? `${countryFlag(profile.country)}  ${countryLabel(profile.country) ?? profile.country}` : null;
+  const country = profile?.country ? (countryLabel(profile.country) ?? profile.country) : null;
   const totals = profile?.totals;
   return (
     <Modal visible={visible} onClose={onClose} presentation="sheet">
@@ -138,7 +138,12 @@ function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; 
           <Text tone="muted" numberOfLines={1}>
             {hasProfile(player) ? `@${profile?.username ?? player.name}` : tr('game.player.guest')}
           </Text>
-          {country && <Text tone="muted">{country}</Text>}
+          {country && (
+            <View style={styles.country}>
+              <CountryFlag code={profile?.country} size={13} decorative />
+              <Text tone="muted">{country}</Text>
+            </View>
+          )}
         </View>
       </View>
       <View style={styles.stats}>
@@ -188,7 +193,7 @@ const styles = StyleSheet.create({
   names: { flex: 1, minWidth: 0 },
   nameLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flexShrink: 1 },
-  flag: { fontSize: 15, lineHeight: 20 },
+  country: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sub: { fontVariant: ['tabular-nums'] },
   pill: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   clock: { minWidth: 92, height: 44, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },

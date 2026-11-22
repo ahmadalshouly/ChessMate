@@ -1,4 +1,4 @@
-import { countryFlag, type PublicProfile, type RatingPoint, type RecentGame, type TimeCategory } from '@chessmate/core';
+import { type PublicProfile, type RatingPoint, type RecentGame, type TimeCategory } from '@chessmate/core';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -7,6 +7,7 @@ import { Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useAccountSession } from '@/features/account/session';
 import { formatDate, translate, useT } from '@/i18n';
+import { CountryFlag } from '@/components/CountryFlag';
 import { countryLabel } from '@/i18n/chess';
 import { reasonText } from '@/components/play/GameOverCard';
 import { serverText } from '@/i18n/serverMessages';
@@ -119,10 +120,13 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
                 (profile.online ? <Badge tone="live" label={tr('profile.online')} /> : <Badge tone="outline" label={tr('play.offline')} />)}
               {profile.playerTag ? <PlayerTagBadge tag={profile.playerTag} /> : null}
             </Row>
-            <Text variant="caption" tone="muted">
-              {country ? `${countryFlag(profile.country)} ${country} · ` : ''}
-              {tr('profile.joined', { date: joined })}
-            </Text>
+            <Row gap="xs" wrap>
+              <CountryFlag code={profile.country} decorative />
+              <Text variant="caption" tone="muted">
+                {country ? `${country} · ` : ''}
+                {tr('profile.joined', { date: joined })}
+              </Text>
+            </Row>
           </Stack>
         </View>
         {profile.bio ? <Text>{profile.bio}</Text> : profile.isMe ? <Text tone="muted">{tr('profile.addBio')}</Text> : null}

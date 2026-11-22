@@ -9,7 +9,7 @@ import { BoardMoveBadge } from '@/components/MoveBadge';
 import { PostImage, pictureUri } from '@/features/media/MediaFields';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatDate, formatNumber, useT } from '@/i18n';
-import { countryFlag } from '@/lib/leaderboardApi';
+import { CountryFlag } from '@/components/CountryFlag';
 import { eventLogoUri } from '@/lib/watchApi';
 import { Avatar, Badge, Button, GlassView, Row, Stack, Text, useAppTheme } from '@/ui';
 
@@ -129,7 +129,7 @@ export function StreamerCard({ s, compact }: { s: StreamerView; compact?: boolea
               <Text variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
                 {s.displayName}
               </Text>
-              {s.country ? <Text>{countryFlag(s.country)}</Text> : null}
+              <CountryFlag code={s.country} />
             </Row>
             <Text variant="caption" tone="muted" numberOfLines={2}>
               {s.live?.title || s.headline || `@${s.username}`}
@@ -220,7 +220,7 @@ export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number;
     return (
       <Row gap="xs" justify="space-between" style={{ width: size }}>
         <Row gap="xxs" style={{ flex: 1, minWidth: 0 }}>
-          {p.federation ? <Text variant="caption">{countryFlag(p.federation)}</Text> : null}
+          <CountryFlag code={p.federation} size={10} />
           <TitleBadge title={p.title} size="sm" />
           <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
             {p.name}
