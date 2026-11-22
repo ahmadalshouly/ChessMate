@@ -190,8 +190,8 @@ export default function Analysis() {
       <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
         <ScrollView
-          style={[styles.panel, wide && { flex: 0, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
-          contentContainerStyle={[styles.panelContent, { width: wide ? 400 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
+          style={[styles.panel, wide && { flexGrow: 0, flexShrink: 0, flexBasis: panelWidth, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
+          contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
           keyboardShouldPersistTaps="handled">
           <Pressable
             onPress={() => setSettingsOpen(true)}
