@@ -1105,6 +1105,8 @@ export const broadcastGames = pgTable(
     /** Summary for lists: evaluation of the latest position and the last move's grade. */
     evalScore: jsonb('eval_score').$type<{ cp?: number; mate?: number } | null>(),
     lastGrade: text('last_grade'),
+    /** How the game ended (checkmate, resign, timeout, …), worked out when it finishes. */
+    ending: text('ending'),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('broadcast_games_round_board_idx').on(t.roundId, t.board), index('broadcast_games_event_idx').on(t.eventId)],

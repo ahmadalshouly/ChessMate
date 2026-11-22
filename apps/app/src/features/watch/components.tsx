@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { formatClock, type MoveClass, type Square, type EventGameSummary, type EventStatus, type EventSummary, type StreamPlatform, type StreamerView } from '@chessmate/core';
+import { formatClock, type GameEnding, type GameResult, type MoveClass, type Square, type EventGameSummary, type EventStatus, type EventSummary, type StreamPlatform, type StreamerView } from '@chessmate/core';
 import { router } from 'expo-router';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
@@ -169,6 +169,37 @@ export function clockNow(ms: number | null, at: number | null, running: boolean,
   return running && at ? Math.max(0, ms - (now - at)) : ms;
 }
 
+const ENDING_ICON: Record<GameEnding, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
+  checkmate: 'chess-king',
+  resign: 'flag-variant',
+  timeout: 'timer-sand-complete',
+  stalemate: 'equal',
+  repetition: 'repeat',
+  insufficient: 'equal',
+  fiftyMove: 'equal',
+  agreement: 'handshake-outline',
+  forfeit: 'flag-variant-outline',
+};
+
+/** How a finished game ended, in words ("Black resigned", "Draw agreed"). */
+export function endingText(ending: GameEnding, result: GameResult, tr: ReturnType<typeof useT>): string {
+  const loser = result === '1-0' ? tr('play.black') : tr('play.white');
+  return tr(`watch.ending.${ending}`, { side: loser });
+}
+
+/** A small label on a finished board saying how the game ended. */
+export function EndingPill({ ending, result }: { ending: GameEnding; result: GameResult }) {
+  const tr = useT();
+  return (
+    <View style={styles.endingPill} pointerEvents="none">
+      <MaterialCommunityIcons name={ENDING_ICON[ending]} size={12} color="#fff" />
+      <Text variant="caption" style={{ color: '#fff', fontSize: 11 }} numberOfLines={1}>
+        {endingText(ending, result, tr)}
+      </Text>
+    </View>
+  );
+}
+
 /** Move grades worth pointing out on live boards. */
 export const SHOWN_GRADES = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'blunder']);
 
@@ -220,6 +251,7 @@ export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number;
             <View style={{ width: board, height: board, borderRadius: t.radii.sm, overflow: 'hidden' }}>
               <Board fen={g.fen} orientation="w" size={board} lastMove={last} hideCoordinates />
               {g.lastGrade && SHOWN_GRADES.has(g.lastGrade) && g.lastMove ? <BoardMoveBadge square={g.lastMove.slice(2, 4) as Square} cls={g.lastGrade} size={board} orientation="w" /> : null}
+              {g.ending ? <EndingPill ending={g.ending} result={g.result} /> : null}
             </View>
           </View>
           {side('w')}
@@ -231,4 +263,17 @@ export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number;
 
 const styles = StyleSheet.create({
   liveTag: { position: 'absolute', bottom: -4, left: 4, right: 4, borderRadius: 4, alignItems: 'center', paddingVertical: 1 },
+  endingPill: {
+    position: 'absolute',
+    bottom: 6,
+    alignSelf: 'center',
+    maxWidth: '92%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.68)',
+  },
 });

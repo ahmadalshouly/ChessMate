@@ -34,6 +34,7 @@ def game(gid, rid, board, w, b, result, op, clocks=True):
     status = 'finished' if result != '*' else ('live' if ply else 'notStarted')
     return {'id':gid,'roundId':rid,'board':board,'white':gp(w),'black':gp(b),'result':result,'status':status,'fen':fen,'lastMove':moves[-1],'ply':ply,
             'whiteClockMs':(4_980_000 - board*61_000) if clocks else None,'blackClockMs':(5_210_000 - board*47_000) if clocks else None,'clockAt':now()-12_000,
+            'ending':{'1-0':'resign','0-1':'timeout','1/2-1/2':'agreement'}.get(result),
             '_moves':moves}
 
 PAIRS3 = [('p1','p6'),('p2','p5'),('p3','p12'),('p4','p8'),('p9','p7'),('p11','p10')]

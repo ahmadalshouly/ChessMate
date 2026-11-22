@@ -333,6 +333,61 @@ export interface EventGameSummary {
   evalScore: Score | null;
   /** Grade of the last move, once analysed. */
   lastGrade: MoveClass | null;
+  /** How a finished game ended (null while playing or when it can't be told). */
+  ending: GameEnding | null;
+}
+
+/** How a finished broadcast game ended. */
+export const GAME_ENDINGS = ['checkmate', 'resign', 'timeout', 'stalemate', 'repetition', 'insufficient', 'fiftyMove', 'agreement', 'forfeit'] as const;
+export type GameEnding = (typeof GAME_ENDINGS)[number];
+
+/**
+ * How a finished game ended, from what a broadcast gives: the final position
+ * (checkmate, stalemate, bare kings, 50 moves), the moves (threefold repetition),
+ * the clocks (a flag fell), the PGN's Termination tag, and otherwise the result
+ * (a decisive game without mate was resigned, a draw was agreed).
+ */
+export function gameEndingOf(g: {
+  result: GameResult;
+  fen: string;
+  moves?: string[];
+  initialFen?: string;
+  whiteClockMs?: number | null;
+  blackClockMs?: number | null;
+  termination?: string | null;
+  /** Plies played: a result without moves (published pairing) tells nothing about how it ended. */
+  ply?: number;
+}): GameEnding | null {
+  if (g.result === '*' || g.ply === 0 || (g.moves && g.moves.length === 0)) return null;
+  const term = (g.termination ?? '').toLowerCase();
+  let chess: Chess;
+  try {
+    chess = new Chess(g.fen);
+  } catch {
+    return null;
+  }
+  if (chess.isCheckmate()) return 'checkmate';
+  if (chess.isStalemate()) return 'stalemate';
+  if (/forfeit|abandon|rules|unterminated|no.?show/.test(term) && !term.includes('time')) return 'forfeit';
+  if (term.includes('time')) return 'timeout';
+  const decisive = g.result !== '1/2-1/2';
+  if (decisive) {
+    const loserClock = g.result === '1-0' ? g.blackClockMs : g.whiteClockMs;
+    if (typeof loserClock === 'number' && loserClock <= 0) return 'timeout';
+    return 'resign';
+  }
+  if (chess.isInsufficientMaterial()) return 'insufficient';
+  if (g.moves?.length) {
+    try {
+      const replay = new Chess(g.initialFen ?? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      for (const m of g.moves) replay.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
+      if (replay.isThreefoldRepetition()) return 'repetition';
+    } catch {
+      // moves that don't replay: fall through
+    }
+  }
+  if (Number(g.fen.split(' ')[4] ?? 0) >= 100) return 'fiftyMove';
+  return 'agreement';
 }
 
 export interface EventGameDetail extends EventGameSummary {
@@ -642,6 +697,8 @@ export interface BroadcastPgnGame {
   clocks: (number | null)[];
   board: number | null;
   round: string | null;
+  /** The PGN's Termination tag ("Normal", "Time forfeit"…), when given. */
+  termination: string | null;
 }
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -763,6 +820,7 @@ export function parseBroadcastPgn(textIn: string): BroadcastPgnGame[] {
         clocks,
         board: Number.isInteger(board) && board > 0 ? board : null,
         round: h.Round && h.Round !== '?' ? h.Round : null,
+        termination: h.Termination?.trim() || null,
       });
     } catch {
       // A broken game in a live file: skip it, the rest still counts.

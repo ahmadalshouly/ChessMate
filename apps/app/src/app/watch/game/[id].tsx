@@ -11,7 +11,7 @@ import { MOVE_CLASS } from '@/constants/analysis';
 import { useTicker } from '@/components/PlayerBar';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { TitleBadge } from '@/features/titles/TitleBadge';
-import { LiveDot, SHOWN_GRADES, clockNow } from '@/features/watch/components';
+import { LiveDot, SHOWN_GRADES, clockNow, endingText } from '@/features/watch/components';
 import { useT } from '@/i18n';
 import { countryFlag } from '@/lib/leaderboardApi';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
@@ -137,8 +137,30 @@ export default function BroadcastGameScreen() {
           <Text variant="caption" tone="muted">
             {[g.roundName, tr('watch.board', { n: g.board })].filter(Boolean).join(' · ')}
           </Text>
+          {g.ending ? <Text variant="bodyStrong">{endingText(g.ending, g.result, tr)}</Text> : null}
         </GlassView>
       </Pressable>
+      {g.result !== '*' && g.moves.length > 0 ? (
+        // A finished game: the full engine review, or the analysis board to try lines.
+        <Row gap="sm" wrap>
+          <Button
+            title={tr('watch.reviewGame')}
+            leftIcon={<Ionicons name="analytics-outline" size={16} color={t.colors.textInverse} />}
+            onPress={() =>
+              router.push({
+                pathname: '/review',
+                params: { moves: g.moves.join(','), initialFen: g.initialFen, white: g.white.name, black: g.black.name, orientation: orientation },
+              })
+            }
+          />
+          <Button
+            title={tr('watch.analysisBoard')}
+            variant="secondary"
+            leftIcon={<Ionicons name="flask-outline" size={16} color={t.colors.text} />}
+            onPress={() => router.push({ pathname: '/analysis', params: { moves: g.moves.join(','), initialFen: g.initialFen, ply: String(shown) } })}
+          />
+        </Row>
+      ) : null}
       <MoveStrip
         sans={history.map((m, i) => {
           const gr = g.analysis?.grades[i];

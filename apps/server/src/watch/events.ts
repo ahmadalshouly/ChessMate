@@ -9,6 +9,7 @@ import {
   cleanRoundInput,
   computeStandings,
   eventStatusOf,
+  gameEndingOf,
   gameStatusOf,
   hasPermission,
   isChessTitle,
@@ -25,6 +26,7 @@ import {
   type EventPlayerView,
   type EventRoundView,
   type EventSummary,
+  type GameEnding,
   type GameResult,
   type MoveClass,
   type Score,
@@ -146,6 +148,10 @@ function gameSummary(g: GameSummaryRow): EventGameSummary {
     clockAt: g.clockAt?.getTime() ?? null,
     evalScore: (g.evalScore as Score | null) ?? null,
     lastGrade: (g.lastGrade as MoveClass | null) ?? null,
+    // Games written before endings were stored: told from the position and clocks.
+    ending:
+      (g.ending as GameEnding | null) ??
+      gameEndingOf({ result: (RESULTS.includes(g.result as GameResult) ? g.result : '*') as GameResult, fen: g.fen, whiteClockMs: g.whiteClockMs, blackClockMs: g.blackClockMs, ply: g.ply }),
   };
 }
 
@@ -712,6 +718,7 @@ export class EventService {
       clocks: [],
       board,
       round: null,
+      termination: null,
     };
     await this.writeGames(r, [game], { replace: false, keepUnchanged: false });
     return this.detail(viewer, r.eventId);
@@ -722,7 +729,8 @@ export class EventService {
     if (!g) throw new WatchError(404, 'Game not found');
     this.requireManager(viewer, g.eventId);
     if (!RESULTS.includes(result as GameResult)) throw new WatchError(400, 'Choose a result', 'result');
-    await updateGame(this.db, gameId, { result: result as GameResult });
+    const r = result as GameResult;
+    await updateGame(this.db, gameId, { result: r, ending: gameEndingOf({ result: r, fen: g.fen, moves: g.moves, initialFen: g.initialFen, whiteClockMs: g.whiteClockMs, blackClockMs: g.blackClockMs, ply: g.ply }) });
     this.invalidate(g.eventId);
     return this.detail(viewer, g.eventId);
   }
@@ -806,6 +814,7 @@ export class EventService {
       const same = prev && prev.ply === game.ply && prev.result === g.result && prev.lastMove === lastMove && prev.whiteName === g.white && prev.blackName === g.black;
       if (same && opts.keepUnchanged) continue;
       const clocks = lastClocks(g.clocks);
+      const ending = gameEndingOf({ result: g.result, fen: game.fen, moves: g.moves, initialFen: g.initialFen, whiteClockMs: clocks.w, blackClockMs: clocks.b, termination: g.termination });
       rows.push({
         roundId: round.id,
         eventId,
@@ -827,6 +836,7 @@ export class EventService {
         fen: game.fen,
         ply: game.ply,
         lastMove,
+        ending,
         whiteClockMs: clocks.w,
         blackClockMs: clocks.b,
         // Clocks tick from when the position last changed.

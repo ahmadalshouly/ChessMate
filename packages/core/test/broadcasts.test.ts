@@ -10,6 +10,7 @@ import {
   computeStandings,
   eventStatusOf,
   federationIso,
+  gameEndingOf,
   lichessRoundIdOf,
   lichessTourToEvent,
   parseBroadcastPgn,
@@ -138,5 +139,29 @@ describe('Lichess broadcast files', () => {
     expect(federationIso('se')).toBe('SE');
     expect(federationIso('FID')).toBeNull();
     expect(federationIso('')).toBeNull();
+  });
+});
+
+describe('how broadcast games ended', () => {
+  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  it('tells checkmate, resignation, time, draws and forfeits apart', () => {
+    expect(gameEndingOf({ result: '0-1', fen: 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3', ply: 4 })).toBe('checkmate');
+    const midgame = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+    expect(gameEndingOf({ result: '1-0', fen: midgame, ply: 4 })).toBe('resign');
+    expect(gameEndingOf({ result: '1-0', fen: midgame, ply: 4, blackClockMs: 0, whiteClockMs: 5000 })).toBe('timeout');
+    expect(gameEndingOf({ result: '0-1', fen: midgame, ply: 4, termination: 'Time forfeit' })).toBe('timeout');
+    expect(gameEndingOf({ result: '1-0', fen: midgame, ply: 4, termination: 'Abandoned' })).toBe('forfeit');
+    expect(gameEndingOf({ result: '1/2-1/2', fen: midgame, ply: 4 })).toBe('agreement');
+    expect(gameEndingOf({ result: '1/2-1/2', fen: '8/8/8/4k3/8/8/4K3/8 w - - 0 60', ply: 118 })).toBe('insufficient');
+    expect(gameEndingOf({ result: '1/2-1/2', fen: '7k/5Q2/6K1/8/8/8/8/8 b - - 0 70', ply: 138 })).toBe('stalemate');
+    const shuffle = ['g1f3', 'g8f6', 'f3g1', 'f6g8', 'g1f3', 'g8f6', 'f3g1', 'f6g8'];
+    expect(gameEndingOf({ result: '1/2-1/2', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 8 5', moves: shuffle, initialFen: START })).toBe('repetition');
+    expect(gameEndingOf({ result: '1/2-1/2', fen: '4k3/8/8/8/8/8/3R4/4K3 w - - 100 120', ply: 238 })).toBe('fiftyMove');
+  });
+
+  it('says nothing for games in play or results without moves', () => {
+    expect(gameEndingOf({ result: '*', fen: START, ply: 10 })).toBeNull();
+    expect(gameEndingOf({ result: '1-0', fen: START, ply: 0 })).toBeNull();
+    expect(gameEndingOf({ result: '1-0', fen: START, moves: [] })).toBeNull();
   });
 });

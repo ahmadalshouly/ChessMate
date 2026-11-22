@@ -44,4 +44,5 @@ shot desktop-3-game 1366 900 1 /watch/game/g30
 shot desktop-4-analysis-1366 1366 768 1 /analysis
 shot desktop-5-analysis-1920 1920 1080 1 /analysis
 shot desktop-6-watch-game-1920 1920 1080 1 /watch/game/g30
+shot desktop-7-finished-game 1366 900 1 /watch/game/g34
 ls -la "$OUT"

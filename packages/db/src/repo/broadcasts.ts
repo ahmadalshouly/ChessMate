@@ -371,6 +371,7 @@ const gameSummaryCols = {
   clockAt: broadcastGames.clockAt,
   evalScore: broadcastGames.evalScore,
   lastGrade: broadcastGames.lastGrade,
+  ending: broadcastGames.ending,
   updatedAt: broadcastGames.updatedAt,
 };
 
@@ -404,6 +405,7 @@ export async function upsertGames(db: Database, rows: NewBroadcastGame[]): Promi
     fen: sql`excluded.fen`,
     ply: sql`excluded.ply`,
     lastMove: sql`excluded.last_move`,
+    ending: sql`excluded.ending`,
     whiteClockMs: sql`excluded.white_clock_ms`,
     blackClockMs: sql`excluded.black_clock_ms`,
     clockAt: sql`excluded.clock_at`,
