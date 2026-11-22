@@ -1,9 +1,9 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import { GestureDetector, MouseButton, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { Text } from '@/ui/primitives';
@@ -166,7 +166,7 @@ function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
 }
 
 /** How long a piece takes to slide to its new square. */
-const SLIDE_MS = 160;
+const SLIDE_MS = 200;
 /** How long a dropped piece takes to glide back when the move doesn't happen. */
 const SNAP_BACK_MS = 140;
 /** More changed squares than this (a new game, a jump through the moves) shows the position straight away. */
@@ -215,84 +215,185 @@ function slidesBetween(prev: (Piece | null)[][], next: (Piece | null)[][]): Slid
   return slides;
 }
 
-/** Top-left of a square's cell for an orientation. */
-function cellOrigin(sq: Square, orientation: Color, cell: number) {
-  const f = sq.charCodeAt(0) - 97;
-  const r = Number(sq[1]);
-  return { x: (orientation === 'w' ? f : 7 - f) * cell, y: (orientation === 'w' ? 8 - r : r - 1) * cell };
+/**
+ * One piece on the board, kept across moves. Every piece is its own view with a
+ * stable key, so when it moves the same view glides to its new square: the image is
+ * never unmounted and mounted again. (Mounting a fresh image on a phone takes a few
+ * frames to show, which made pieces blink and, with a short slide, look like they
+ * jumped.)
+ */
+interface Token {
+  id: number;
+  /** Colour and type, e.g. `wn`. */
+  code: string;
+  sq: Square;
+}
+
+interface TokenState {
+  fen: string;
+  orientation: Color;
+  size: number;
+  position: (Piece | null)[][];
+  tokens: Token[];
+  /** Captured pieces, kept on their square until the attacker has nearly arrived. */
+  dying: Token[];
+  /** Tokens that glide to their square this time; the others are placed straight away. */
+  sliding: Set<number>;
+  nextId: number;
+}
+
+const codeOf = (p: Piece) => `${p.color}${p.type}`;
+
+function initialTokens(position: (Piece | null)[][]): { tokens: Token[]; nextId: number } {
+  const tokens: Token[] = [];
+  for (const sq of ALL_SQUARES) {
+    const p = pieceAt(position, sq);
+    if (p) tokens.push({ id: tokens.length, code: codeOf(p), sq });
+  }
+  return { tokens, nextId: tokens.length };
+}
+
+/** Carries the pieces over to a new position: unchanged pieces keep their view, moved pieces slide, new ones appear. */
+function nextTokens(prev: TokenState, position: (Piece | null)[][], drop: { from: Square; to: Square } | null) {
+  const bySq = new Map(prev.tokens.map((t) => [t.sq, t]));
+  const tokens: Token[] = [];
+  const kept = new Set<number>();
+  const placed = new Set<Square>();
+  const sliding = new Set<number>();
+  let nextId = prev.nextId;
+  for (const sq of ALL_SQUARES) {
+    const a = pieceAt(prev.position, sq);
+    const b = pieceAt(position, sq);
+    const t = bySq.get(sq);
+    if (a && b && a.color === b.color && a.type === b.type && t) {
+      tokens.push(t);
+      kept.add(t.id);
+      placed.add(sq);
+    }
+  }
+  const slides = slidesBetween(prev.position, position);
+  for (const s of slides) {
+    const t = bySq.get(s.from);
+    if (!t || kept.has(t.id) || placed.has(s.to)) continue;
+    tokens.push({ id: t.id, code: codeOf(s.piece), sq: s.to });
+    kept.add(t.id);
+    placed.add(s.to);
+    // A piece just dropped there by drag is already in place: no slide.
+    if (!(drop && drop.from === s.from && drop.to === s.to)) sliding.add(t.id);
+  }
+  for (const sq of ALL_SQUARES) {
+    const b = pieceAt(position, sq);
+    if (b && !placed.has(sq)) tokens.push({ id: nextId++, code: codeOf(b), sq });
+  }
+  // Only a real move leaves a captured piece behind to fade; a jump to another position just shows it.
+  const dying = slides.length && sliding.size ? prev.tokens.filter((t) => !kept.has(t.id) && slides.some((s) => s.to === t.sq && s.captured)) : [];
+  return { tokens, dying, sliding, nextId };
 }
 
 /**
- * Slides pieces to their new squares when the position changes by a move,
- * instead of making them vanish and reappear. A piece just dropped by drag is
- * already where it belongs and is not slid again. The slide itself runs on the
- * UI thread (see SlidingPiece); React only renders when a slide starts and ends.
+ * The pieces as tokens, updated whenever the position changes. A piece just dropped by
+ * drag is placed, not slid; turning or resizing the board places every piece at once.
  */
-function useSlides(fen: string, position: (Piece | null)[][], orientation: Color, size: number) {
-  const [prev, setPrev] = useState({ fen, position, orientation, size });
-  const [run, setRun] = useState<{ key: string; slides: Slide[] } | null>(null);
+function useTokens(fen: string, position: (Piece | null)[][], orientation: Color, size: number) {
+  const [state, setState] = useState<TokenState>(() => ({ fen, orientation, size, position, ...initialTokens(position), dying: [], sliding: new Set() }));
   // The last drag-and-drop, on the position it was made from.
   const [dropped, setDropped] = useState<{ from: Square; to: Square; fen: string } | null>(null);
 
-  if (prev.fen !== fen || prev.orientation !== orientation || prev.size !== size) {
-    // Same board turned or resized: just show it. A new position: work out what moved.
-    const moved = prev.fen !== fen && prev.orientation === orientation && prev.size === size;
-    setPrev({ fen, position, orientation, size });
-    const drop = dropped?.fen === prev.fen ? dropped : null;
-    const slides = moved ? slidesBetween(prev.position, position).filter((s) => !(drop && s.from === drop.from && s.to === drop.to)) : [];
-    if (dropped) setDropped(null);
-    setRun(slides.length ? { key: fen, slides } : null);
+  if (state.fen !== fen || state.orientation !== orientation || state.size !== size) {
+    if (state.fen === fen) {
+      // Same position, board turned or resized: every piece is placed straight away.
+      setState({ ...state, orientation, size, sliding: new Set(), dying: [] });
+    } else {
+      const drop = dropped?.fen === state.fen ? dropped : null;
+      const next = nextTokens(state, position, drop);
+      const turned = state.orientation !== orientation || state.size !== size;
+      setState({ fen, orientation, size, position, ...next, sliding: turned ? new Set() : next.sliding, dying: turned ? [] : next.dying });
+      if (dropped) setDropped(null);
+    }
   }
 
+  // Captured pieces go once the attacker has arrived.
+  const dyingCount = state.dying.length;
+  useEffect(() => {
+    if (!dyingCount) return;
+    const id = setTimeout(() => setState((s) => (s.dying.length ? { ...s, dying: [] } : s)), SLIDE_MS + 80);
+    return () => clearTimeout(id);
+  }, [dyingCount, state.fen]);
+
   const markDropped = (from: Square, to: Square) => setDropped({ from, to, fen });
-  const finish = (key: string) => setRun((r) => (r?.key === key ? null : r));
-  const hidden = useMemo(() => new Set(run?.slides.map((sl) => sl.to) ?? []), [run]);
-  return { run, hidden, markDropped, finish };
+  return { tokens: state.tokens, dying: state.dying, sliding: state.sliding, markDropped };
 }
 
 /**
- * One piece gliding from its old square to its new one. Each slide mounts
- * fresh with its own progress, so it starts at the old square on its first
- * frame, and the animation runs on the UI thread without touching React.
+ * A piece view that stays mounted while its piece is on the board and glides to each
+ * new square on the UI thread. Its position lives in shared values, so a React render
+ * with a new square never makes it jump: the effect after the render starts the glide
+ * from wherever it is.
  */
-function SlidingPiece({ slide, orientation, cell, size, set, onDone }: { slide: Slide; orientation: Color; cell: number; size: number; set: PieceSet; onDone?: () => void }) {
-  const progress = useSharedValue(0);
-  const a = cellOrigin(slide.from, orientation, cell);
-  const b = cellOrigin(slide.to, orientation, cell);
-  const ax = a.x + cell / 2 - size / 2;
-  const ay = a.y + cell / 2 - size / 2;
-  const bx = b.x + cell / 2 - size / 2;
-  const by = b.y + cell / 2 - size / 2;
+const PieceToken = memo(function PieceToken({
+  code,
+  col,
+  row,
+  cell,
+  size,
+  set,
+  ui,
+  slide,
+  dying,
+}: {
+  code: string;
+  col: number;
+  row: number;
+  cell: number;
+  size: number;
+  set: PieceSet;
+  ui: DragUI;
+  /** Glide to the new square (a move) instead of being placed there. */
+  slide: boolean;
+  dying?: boolean;
+}) {
+  const tx = col * cell + cell / 2 - size / 2;
+  const ty = row * cell + cell / 2 - size / 2;
+  const x = useSharedValue(tx);
+  const y = useSharedValue(ty);
+  const fade = useSharedValue(1);
+  const index = row * 8 + col;
+
+  useLayoutEffect(() => {
+    if (slide) {
+      const timing = { duration: SLIDE_MS, easing: SLIDE_EASING };
+      x.set(withTiming(tx, timing));
+      y.set(withTiming(ty, timing));
+    } else {
+      x.set(tx);
+      y.set(ty);
+    }
+    // Only a new square moves the piece; `slide` says how.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tx, ty]);
 
   useEffect(() => {
-    progress.set(
-      withTiming(1, { duration: SLIDE_MS, easing: SLIDE_EASING }, (finished) => {
-        'worklet';
-        if (finished && onDone) scheduleOnRN(onDone);
-      }),
-    );
-    // Mounted once per slide (keyed by the move).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (dying) fade.set(withDelay(SLIDE_MS * 0.8, withTiming(0, { duration: SLIDE_MS * 0.25 })));
+  }, [dying, fade]);
 
-  const moving = useAnimatedStyle(() => ({
-    transform: [{ translateX: ax + (bx - ax) * progress.get() }, { translateY: ay + (by - ay) * progress.get() }],
+  const style = useAnimatedStyle(() => ({
+    // The piece being dragged away from here is shown faded.
+    opacity: fade.get() * (ui.kind.get() >= 0 && ui.moved.get() && ui.from.get() === index ? 0.3 : 1),
+    transform: [{ translateX: x.get() }, { translateY: y.get() }],
   }));
-  // A captured piece stays on its square until the attacker has nearly arrived.
-  const fading = useAnimatedStyle(() => ({ opacity: progress.get() < 0.85 ? 1 : (1 - progress.get()) / 0.15 }));
 
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN]}>
-      {slide.captured && (
-        <Animated.View style={[placeAt(b.x, b.y, cell, cell, size), fading]}>
-          <PieceView type={slide.captured.type} color={slide.captured.color} cell={cell} set={set} />
-        </Animated.View>
-      )}
-      <Animated.View style={[styles.floating, { width: cell, height: cell }, moving]}>
-        <PieceView type={slide.piece.type} color={slide.piece.color} cell={cell} set={set} />
-      </Animated.View>
-    </View>
+    <Animated.View pointerEvents="none" style={[styles.token, { width: cell, height: cell }, style]}>
+      <PieceView color={code[0] as Color} type={code[1] as Piece['type']} cell={cell} set={set} />
+    </Animated.View>
   );
+});
+
+/** Display column and row of a square for an orientation (top-left is 0, 0). */
+function cellOrigin(sq: Square, orientation: Color) {
+  const f = sq.charCodeAt(0) - 97;
+  const r = Number(sq[1]);
+  return { col: orientation === 'w' ? f : 7 - f, row: orientation === 'w' ? 8 - r : r - 1 };
 }
 
 /** Square order for an orientation, top-left first. */
@@ -351,27 +452,21 @@ interface CellProps {
   row: number;
   cell: number;
   size: number;
-  /** Piece code ('wn', 'bp') or '' for an empty or hidden square. */
-  piece: string;
-  set: PieceSet;
   /** Tints over the square, bottom first, joined with '|'. */
   overlays: string;
-  /** Drag state on the UI thread: fades this square's piece while it is being dragged away. */
-  ui: DragUI;
   hint: Hint;
   hintColor: string;
   rankLabel: number;
   fileLabel: string;
   coordColor: string;
   pickable: boolean;
-  crowned: boolean;
   label: string;
 }
 
 /**
- * One square: its tints, coordinates, piece and move hint. Its props are plain
- * values, so selecting a piece, a move or the end of a slide re-renders only
- * the few squares that change instead of the whole board.
+ * One square: its tints, coordinates and move hint (pieces are a layer above,
+ * see PieceToken). Its props are plain values, so selecting a piece or a move
+ * re-renders only the few squares that change instead of the whole board.
  */
 const SquareCell = memo(function SquareCell(p: CellProps) {
   const { cell } = p;
@@ -388,17 +483,7 @@ const SquareCell = memo(function SquareCell(p: CellProps) {
           {p.fileLabel}
         </Text>
       )}
-      {p.piece !== '' && (
-        <LiftablePiece ui={p.ui} index={p.row * 8 + p.col}>
-          <PieceView color={p.piece[0] as Color} type={p.piece[1] as Piece['type']} cell={cell} set={p.set} />
-        </LiftablePiece>
-      )}
       {p.pickable && <View style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />}
-      {p.crowned && (
-        <View style={[styles.crown, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell * 0.18, top: cell * 0.03, end: cell * 0.03 }]}>
-          <Text style={{ fontSize: cell * 0.24, lineHeight: cell * 0.3, color: '#3a2a00' }}>♛</Text>
-        </View>
-      )}
       {p.hint === 2 && <View style={[StyleSheet.absoluteFill, { borderWidth: cell * 0.075, borderColor: p.hintColor, borderRadius: cell / 2 }]} />}
       {p.hint === 1 && (
         <View style={{ position: 'absolute', left: cell * 0.36, top: cell * 0.36, width: cell * 0.28, height: cell * 0.28, borderRadius: cell, backgroundColor: p.hintColor }} />
@@ -418,8 +503,8 @@ export const Board = memo(function Board(props: BoardProps) {
   const set = props.pieces ?? look.pieces;
   // Thumbnails are too small for readable coordinates.
   const coordinates = look.coordinates && !props.hideCoordinates && cell >= 24;
-  const slide = useSlides(fen, position, orientation, size);
-  const { enabled: dragEnabled, ui: dragUI, ref: dragRef, gesture: dragGesture } = useDrag({ ...props, position, cell, onDropped: slide.markDropped });
+  const pieces = useTokens(fen, position, orientation, size);
+  const { enabled: dragEnabled, ui: dragUI, ref: dragRef, gesture: dragGesture } = useDrag({ ...props, position, cell, onDropped: pieces.markDropped });
   // Right-click arrows and circles (web) on every board you look at closely; thumbnails stay plain.
   const drawn = useDrawnShapes(props.drawable ?? (!!onSquarePress || (!props.hideCoordinates && size >= 160)), fen, cell, orientation);
   // Move sounds on every board; thumbnails and small previews stay quiet (a grid of live games would clatter).
@@ -461,35 +546,37 @@ export const Board = memo(function Board(props: BoardProps) {
             row={row}
             cell={cell}
             size={size}
-            piece={piece && !slide.hidden.has(sq) ? `${piece.color}${piece.type}` : ''}
-            set={set}
             overlays={overlays}
-            ui={dragUI}
             hint={targetSet?.has(sq) ? (piece ? 2 : 1) : 0}
             hintColor={colors.hint}
             rankLabel={coordinates && col === 0 ? rank : 0}
             fileLabel={coordinates && row === 7 ? FILES[fileIdx] : ''}
             coordColor={isLight ? colors.coordOnLight : colors.coordOnDark}
             pickable={!!pickable?.has(sq)}
-            crowned={!!crowned?.has(sq)}
             label={`${sq}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`}
           />
         );
       })}
-      {slide.run?.slides.map((sl, k) => {
-        const key = slide.run!.key;
-        return (
-          <SlidingPiece
-            key={`slide-${key}-${sl.from}-${sl.to}`}
-            slide={sl}
-            orientation={orientation}
-            cell={cell}
-            size={size}
-            set={set}
-            onDone={k === 0 ? () => slide.finish(key) : undefined}
-          />
-        );
+      {pieces.dying.map((t) => {
+        const c = cellOrigin(t.sq, orientation);
+        return <PieceToken key={`dying-${t.id}`} code={t.code} col={c.col} row={c.row} cell={cell} size={size} set={set} ui={dragUI} slide={false} dying />;
       })}
+      {/* Moving pieces last, so they pass over the others (a knight's jump); keyed views reorder without remounting. */}
+      {[...pieces.tokens.filter((t) => !pieces.sliding.has(t.id)), ...pieces.tokens.filter((t) => pieces.sliding.has(t.id))].map((t) => {
+        const c = cellOrigin(t.sq, orientation);
+        return <PieceToken key={t.id} code={t.code} col={c.col} row={c.row} cell={cell} size={size} set={set} ui={dragUI} slide={pieces.sliding.has(t.id)} />;
+      })}
+      {crowned &&
+        [...crowned].map((sq) => {
+          const c = cellOrigin(sq, orientation);
+          return (
+            <View key={`crown-${sq}`} pointerEvents="none" style={placeAt(c.col * cell, c.row * cell, cell, cell, size)}>
+              <View style={[styles.crown, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell * 0.18, top: cell * 0.03, end: cell * 0.03 }]}>
+                <Text style={{ fontSize: cell * 0.24, lineHeight: cell * 0.3, color: '#3a2a00' }}>♛</Text>
+              </View>
+            </View>
+          );
+        })}
       {dragEnabled && (
         <GestureDetector gesture={dragGesture}>
           <View ref={dragRef} collapsable={false} style={[StyleSheet.absoluteFill, WEB_NO_GESTURES]} />
@@ -593,12 +680,6 @@ interface DragUI {
   /** Squares as display cells (row * 8 + col, top-left first); -1 for none. */
   from: SharedValue<number>;
   over: SharedValue<number>;
-}
-
-/** A square's piece, faded on the UI thread while it is being dragged away. */
-function LiftablePiece({ ui, index, children }: { ui: DragUI; index: number; children: ReactNode }) {
-  const fade = useAnimatedStyle(() => ({ opacity: ui.kind.get() >= 0 && ui.moved.get() && ui.from.get() === index ? 0.3 : 1 }));
-  return <Animated.View style={fade}>{children}</Animated.View>;
 }
 
 /**
@@ -901,6 +982,7 @@ const styles = StyleSheet.create({
   edge: { borderWidth: StyleSheet.hairlineWidth * 2 },
   coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
   floating: { position: 'absolute', zIndex: 10 },
+  token: { position: 'absolute' },
   pickable: { backgroundColor: 'rgba(240, 196, 64, 0.28)', borderColor: 'rgba(240, 196, 64, 0.95)' },
   crown: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(240, 196, 64, 0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
   promoChip: {
