@@ -85,16 +85,10 @@ export const play = {
   confirmMoveQ: 'Play {san}?',
   over: {
     victory: 'Victory!',
-    quick: {
-      title: 'Quick review',
-      working: 'Quick review… {pct}%',
-      accuracy: '{n}% accuracy',
-      hint: 'Tap for the full review',
-      open: 'Open the full review',
-    },
     checkmate: 'Checkmate',
     newRating: 'New rating',
     review: 'Learn from this game',
+    reviewGame: 'Review game',
     unrated: {
       casual: 'Casual game · your rating is unchanged',
       guest: 'Guest game · sign in to earn a rating',

@@ -24,8 +24,9 @@ export interface EngineState {
 const initial: EngineState = { connected: false, analysis: null, analyzing: false, review: null, reviewProgress: null, error: null };
 
 /**
- * Talks to the server-side engine over the game socket. The engine never runs
- * on the device, and the server refuses requests while you have a live game.
+ * Talks to the server-side engine over the game socket; the server refuses
+ * requests while you have a live game. Game reviews run on the device first
+ * (features/engine) and only use this when the device can't.
  */
 export function useEngine(token?: string) {
   const [state, setState] = useState<EngineState>(initial);
@@ -111,12 +112,13 @@ export function useEngine(token?: string) {
     setState((s) => ({ ...s, analyzing: false }));
   }, [send]);
 
+  /** `cachedOnly`: only fetch a review the server already finished (error `not_found` otherwise). */
   const review = useCallback(
-    (req: { moves: string[]; initialFen?: string; gameId?: string }) => {
+    (req: { moves: string[]; initialFen?: string; gameId?: string }, opts: { cachedOnly?: boolean } = {}) => {
       const id = nextId.current++;
       reviewId.current = id;
-      setState((s) => ({ ...s, review: null, reviewProgress: { done: 0, total: req.moves.length + 1 }, error: null }));
-      send({ t: 'review', id, ...req });
+      setState((s) => ({ ...s, review: null, reviewProgress: opts.cachedOnly ? null : { done: 0, total: req.moves.length + 1 }, error: null }));
+      send({ t: 'review', id, ...req, ...(opts.cachedOnly ? { cachedOnly: true } : null) });
     },
     [send],
   );

@@ -88,16 +88,10 @@ export const play: Messages<typeof en> = {
   confirmMoveQ: '{san} spielen?',
   over: {
     victory: 'Sieg!',
-    quick: {
-      title: 'Kurzanalyse',
-      working: 'Kurzanalyse… {pct} %',
-      accuracy: '{n} % Genauigkeit',
-      hint: 'Tippe für die vollständige Analyse',
-      open: 'Vollständige Analyse öffnen',
-    },
     checkmate: 'Schachmatt',
     newRating: 'Neue Wertung',
     review: 'Aus dieser Partie lernen',
+    reviewGame: 'Partie analysieren',
     unrated: {
       casual: 'Ungewertete Partie · deine Wertung bleibt gleich',
       guest: 'Gastpartie · melde dich an, um eine Wertung zu erhalten',

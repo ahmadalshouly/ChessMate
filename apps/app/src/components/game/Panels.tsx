@@ -64,7 +64,8 @@ export function BoardNotice({ icon, text, children, strong }: { icon: GameIconNa
 }
 
 /** Small pill button for notices: icon plus a short word. */
-export function NoticeButton({ icon, label, onPress, primary }: { icon?: GameIconName; label: string; onPress: () => void; primary?: boolean }) {
+/** `wide`: fills the row (the result card's main action). */
+export function NoticeButton({ icon, label, onPress, primary, wide }: { icon?: GameIconName; label: string; onPress: () => void; primary?: boolean; wide?: boolean }) {
   const c = useAppTheme().colors;
   return (
     <Pressable
@@ -73,6 +74,7 @@ export function NoticeButton({ icon, label, onPress, primary }: { icon?: GameIco
       onPress={onPress}
       style={({ pressed }) => [
         styles.noticeBtn,
+        wide && styles.noticeBtnWide,
         { backgroundColor: primary ? c.accent : c.surface, borderColor: primary ? c.accent : c.border, opacity: pressed ? 0.8 : 1 },
       ]}>
       {icon && <GameIcon name={icon} size={16} color={primary ? c.onAccent : c.text} />}
@@ -93,6 +95,7 @@ const styles = StyleSheet.create({
   confirmHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   confirmButtons: { flexDirection: 'row', gap: 8, marginTop: 10 },
   confirmBtn: { flex: 1, height: 46, borderRadius: 23, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: StyleSheet.hairlineWidth },
+  noticeBtnWide: { flex: 1, height: 44, borderRadius: 22 },
   noticeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, height: 32, paddingHorizontal: 12, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
 });
 

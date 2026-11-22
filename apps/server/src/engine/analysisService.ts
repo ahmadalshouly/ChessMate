@@ -176,7 +176,7 @@ export class AnalysisService {
    * already running (for example the one started when the game ended) is joined and
    * sped up instead of started again.
    */
-  async review(key: string, req: { id: number; moves: string[]; initialFen: string; gameId?: string }, send: Send): Promise<GameReview | null> {
+  async review(key: string, req: { id: number; moves: string[]; initialFen: string; gameId?: string; cachedOnly?: boolean }, send: Send): Promise<GameReview | null> {
     const c = this.client(key);
     c.review?.ctrl.abort();
     const positions = this.positions(req.moves, req.initialFen);
@@ -194,6 +194,12 @@ export class AnalysisService {
       if (c.review === entry) c.review = undefined;
       send({ t: 'reviewResult', id: req.id, review: stored });
       return stored;
+    }
+    if (req.cachedOnly) {
+      // The player's device is grading it; only a finished review was wanted.
+      if (c.review === entry) c.review = undefined;
+      send({ t: 'error', code: 'not_found', message: 'No stored review', id: req.id });
+      return null;
     }
     const job = this.jobs.get(cacheKey) ?? this.startJob(cacheKey, fens, req.moves, { workers: this.pool.size, gameId: req.gameId });
     job.boost();

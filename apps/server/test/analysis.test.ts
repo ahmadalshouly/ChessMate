@@ -192,6 +192,23 @@ describe('stored reviews', () => {
     after.close();
   });
 
+  it('answers a cached-only review from the store, and never starts one', async () => {
+    const store = memoryStore();
+    const fake = new FakeEngine();
+    const svc = new AnalysisService(new EnginePool(async () => fake, 1), { store });
+    const miss = collect();
+    expect(await svc.review('p1', { id: 3, moves, initialFen: START, cachedOnly: true }, miss.send)).toBeNull();
+    expect(miss.sent).toEqual([{ t: 'error', code: 'not_found', message: 'No stored review', id: 3 }]);
+    expect(fake.searches).toHaveLength(0);
+
+    await svc.precompute({ gameId: 'g9', moves, initialFen: START });
+    const hit = collect();
+    const r = await svc.review('p1', { id: 4, moves, initialFen: START, cachedOnly: true }, hit.send);
+    expect(r?.moves).toHaveLength(moves.length);
+    expect(hit.sent.map((m) => m.t)).toEqual(['reviewResult']);
+    svc.close();
+  });
+
   it('joins a background review that is still running instead of starting again', async () => {
     const store = memoryStore();
     const fake = new FakeEngine();

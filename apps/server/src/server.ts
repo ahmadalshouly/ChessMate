@@ -740,7 +740,7 @@ export class ChessServer {
     if (!Array.isArray(moves) || !moves.every((m) => typeof m === 'string') || typeof initialFen !== 'string') {
       return this.send(ws, { ...err('bad_request', 'Invalid move list'), id });
     }
-    void analysis.review(player.id, { id, moves, initialFen, gameId: msg.gameId ? String(msg.gameId) : undefined }, send);
+    void analysis.review(player.id, { id, moves, initialFen, gameId: msg.gameId ? String(msg.gameId) : undefined, cachedOnly: msg.cachedOnly === true }, send);
   }
 
   private isLivePosition(fen: string): boolean {

@@ -31,4 +31,8 @@ config.resolver.blockList = [
   ...ignored,
 ];
 
+// The on-device engine (src/features/engine) ships its WebAssembly and worker
+// script as plain files that the iOS/Android app reads and hands to a WebView.
+config.resolver.assetExts = [...new Set([...config.resolver.assetExts, 'wasm', 'txt'])];
+
 module.exports = config;

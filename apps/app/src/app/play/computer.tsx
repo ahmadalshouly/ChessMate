@@ -3,7 +3,6 @@ import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useGameLock } from '@/lib/useGameLock';
-import { QuickReview } from '@/components/play/QuickReview';
 import { ResultPopup } from '@/components/play/ResultPopup';
 import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
 import { currentPlayLock, reportComputerGame } from '@/lib/habits';
@@ -13,7 +12,7 @@ import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
-import { prepareReview } from '@/lib/useEngine';
+import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useCurrentUser } from '@/lib/currentUser';
 import { dirIcon, translate, useT, type TKey } from '@/i18n';
@@ -247,12 +246,14 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   };
   const interaction = useBoardInteraction(view.fen, (c) => c === me && myTurn, play);
   useMoveFeedback(view.history, !!outcome, { startCue: true });
-  // Grade the game on the server as soon as it ends, so Review opens with every badge ready.
+  // Grade the game as soon as it ends (on the device where it can), so Review opens with every badge ready.
   useEffect(() => {
     if (!outcome) return;
-    prepareReview(view.history.map((m) => m.uci));
+    const moves = view.history.map((m) => m.uci);
+    const id = setTimeout(() => prepareReview(moves), PREPARE_DELAY_MS);
     // Counts for the streak and the play limit (signed-in players).
     void reportComputerGame(view.history.length);
+    return () => clearTimeout(id);
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Takeback: return to the last position where it was the player's turn.
@@ -395,10 +396,13 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
                 <GameIcon name="close" size={18} color={t.text} />
               </Pressable>
             </View>
-            {plyCount > 1 && <QuickReview moves={view.history.map((m) => m.uci)} side={me} onOpen={openReview} />}
+            {plyCount > 0 && (
+              <View style={styles.resultButtons}>
+                <NoticeButton icon="chart-box-outline" label={tr('play.over.reviewGame')} onPress={openReview} primary wide />
+              </View>
+            )}
             <View style={styles.resultButtons}>
-              <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary />
-              {plyCount > 0 && <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} />}
+              <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary={plyCount === 0} />
               <NoticeButton icon="account-switch-outline" label={tr('game.action.newGame')} onPress={onExit} />
             </View>
           </View>
