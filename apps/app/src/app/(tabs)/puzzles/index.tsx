@@ -54,6 +54,27 @@ export default function PuzzlesHome() {
   const openDaily = () => router.push({ pathname: '/puzzles/train', params: { daily: '1' } });
   const c = t.colors;
 
+  const modeCards = (
+    <>
+      <ModeCard
+        wide={wide}
+        icon="flame-outline"
+        title={tr('puzzles.home.streak')}
+        body={tr('puzzles.home.streakBody')}
+        best={profile ? tr('puzzles.home.bestScore', { n: profile.bestStreak }) : null}
+        onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'streak' } })}
+      />
+      <ModeCard
+        wide={wide}
+        icon="flash-outline"
+        title={tr('puzzles.home.rush')}
+        body={tr('puzzles.home.rushBody')}
+        best={profile ? tr('puzzles.home.bestScore', { n: profile.bestRush }) : null}
+        onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'rush' } })}
+      />
+    </>
+  );
+
   const modes = (
     <Stack gap="md" style={wide ? { flex: 1, minWidth: 0 } : undefined}>
       {/* The main way in: rated puzzles at your level. One button, so no button inside a button. */}
@@ -67,22 +88,16 @@ export default function PuzzlesHome() {
         </Row>
         <Button title={tr('puzzles.home.start')} size="lg" fullWidth leftIcon={<Ionicons name="play" size={16} color={c.onAccent} />} onPress={() => train()} />
       </GlassView>
-      <Row gap="md" align="stretch" wrap style={wide ? { flex: 1 } : undefined}>
-        <ModeCard
-          icon="flame-outline"
-          title={tr('puzzles.home.streak')}
-          body={tr('puzzles.home.streakBody')}
-          best={profile ? tr('puzzles.home.bestScore', { n: profile.bestStreak }) : null}
-          onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'streak' } })}
-        />
-        <ModeCard
-          icon="flash-outline"
-          title={tr('puzzles.home.rush')}
-          body={tr('puzzles.home.rushBody')}
-          best={profile ? tr('puzzles.home.bestScore', { n: profile.bestRush }) : null}
-          onPress={() => router.push({ pathname: '/puzzles/run', params: { mode: 'rush' } })}
-        />
-      </Row>
+      {/* Phones stack the two cards; wide screens put them side by side at equal height. */}
+      {wide ? (
+        <Row gap="md" align="stretch" style={{ flex: 1 }}>
+          {modeCards}
+        </Row>
+      ) : (
+        <Stack gap="md">
+          {modeCards}
+        </Stack>
+      )}
     </Stack>
   );
 
@@ -175,12 +190,12 @@ function ModeIcon({ name, big }: { name: IconName; big?: boolean }) {
   );
 }
 
-function ModeCard({ icon, title, body, best, onPress }: { icon: IconName; title: string; body: string; best: string | null; onPress: () => void }) {
+function ModeCard({ icon, title, body, best, onPress, wide }: { icon: IconName; title: string; body: string; best: string | null; onPress: () => void; wide: boolean }) {
   const t = useAppTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={{ flexGrow: 1, flexBasis: 220 }}>
+    <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={wide ? { flex: 1 } : undefined}>
       {({ pressed }) => (
-        <GlassView padding="lg" radius="xl" style={{ gap: t.space.sm, height: '100%', transform: [{ scale: pressed ? 0.985 : 1 }] }}>
+        <GlassView padding="lg" radius="xl" style={{ gap: t.space.sm, flexGrow: 1, transform: [{ scale: pressed ? 0.985 : 1 }] }}>
           {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: t.colors.surfacePressed }]} />}
           <Row gap="sm">
             <ModeIcon name={icon} />
