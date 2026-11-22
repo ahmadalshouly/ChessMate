@@ -2,7 +2,7 @@ import { PROTOCOL_VERSION, decodeServer, encode, type Presence, type SocialEvent
 import { useEffect, useRef } from 'react';
 
 import { SERVER_URL } from '@/lib/config';
-import { useSocialIdentity } from './session';
+import { freshSocialToken, useSocialIdentity } from './session';
 
 /**
  * Keeps a socket open while social screens are visible, so the user shows as
@@ -23,7 +23,10 @@ export function useSocialLive(handlers: { onPresence?: (userId: string, p: Prese
       ws = new WebSocket(SERVER_URL);
       ws.onopen = () => {
         attempt = 0;
-        ws?.send(encode({ t: 'hello', v: PROTOCOL_VERSION, token: id.token }));
+        const sock = ws;
+        void freshSocialToken().then((token) => {
+          if (sock && sock.readyState === WebSocket.OPEN) sock.send(encode({ t: 'hello', v: PROTOCOL_VERSION, token: token ?? id.token }));
+        });
       };
       ws.onmessage = (ev) => {
         const m = decodeServer(String(ev.data));

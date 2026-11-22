@@ -41,6 +41,10 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
 | `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
 | `puzzle.ts` | Puzzle CSV parsing, solving and hints, server-side grading, puzzle rating, streak/rush ladders, theme labels |
+| `secretQueen.ts` | Secret Queen variant: hidden queen-pawns, reveals, truth-based legality ([docs/secret-queen.md](docs/secret-queen.md)) |
+| `tournaments.ts` | Arena tournaments: points, streaks, staff input validation |
+| `messages.ts` | Direct message types and validation |
+| `qr.ts` | Dependency-free QR encoder for profile codes |
 
 ### Design decisions
 
@@ -50,6 +54,9 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
 - **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
+- **Tournaments.** Staff create arena tournaments in `/admin/tournaments` (schedule, length, player limit, prize pool and prizes per place). Players join from the Tournaments tab; while it runs the server pairs free players with similar scores. Win 2, draw 1, double after two wins in a row.
+- **Messages.** Direct messages between players (who may message you follows Settings → Privacy), plus a read-only "ChessMate team" thread for staff messages and announcements (`/admin/messages`). Game chat is separate.
+- **Profiles.** Add friend, Message and a QR code on every profile; players pick their own tag (separate from staff role tags). A profile QR code holds `/u/<username>`, so any phone camera opens it.
 - **Boards and pieces.** Players pick from 16 board themes and 8 piece sets in Settings > Board, saved to their account (or the device for guests) and used on every board. Piece artwork comes from openly licensed sets by their original authors (Apache 2.0, MIT, CC BY, CC BY-SA, CC0; never non-commercial or GPL art), plus ChessMate's own Glass set. Sources, credits and how to add a set: [apps/app/art/pieces/README.md](apps/app/art/pieces/README.md).
 
 ## Languages
@@ -206,7 +213,7 @@ Open **Play** (`/play`, or "Open the lobby" on the home screen):
 - **Custom games.** Post a game to the lobby with your side (white, black or random). Everyone in the lobby sees it under *Open games* and can join.
 - **Rated vs casual.** Signed-in players start on *Rated* (the Mode switch in the lobby turns it to *Casual*); quick pairing from the home screen is rated too. Every finished rated game of two or more moves updates both players' Elo (Glicko-2) right away, and the new rating survives server restarts (it is reloaded from the database on start). Guests always play casual.
 - **Premoves.** While your opponent is thinking, tap a piece and a square to queue a move (tinted blue). It plays instantly if it is legal after their reply; tap anywhere else to cancel.
-- **Sounds** for moves, captures, checks, game start, and a win or loss at the end (original synthesised set in `apps/app/assets/sounds`, regenerate with `node apps/app/scripts/synth-sounds.mjs`).
+- **Sounds** for moves, captures, checks, game start, and a win or loss at the end (original set in `apps/app/assets/sounds`: wooden pieces on a wooden board modelled by `node apps/app/scripts/synth-wood.mjs`; win and lose by `synth-sounds.mjs`).
 - **Reconnect and resume.** One connection serves the whole app and reconnects on its own. Guests get a resume token, so a dropped connection or a page reload puts you back in your game. If your opponent drops, you see a countdown: they forfeit after 60 seconds (or the game is aborted if fewer than two moves were played).
 - **Game over** plays a short animation, then shows the result card: a *Checkmate* stamp when the game ends in mate, monochrome confetti and a fanfare for the winner, and a calm dim with an encouraging line and a **Learn from this game** button for the loser. The card shows your new rating with the +/- change, or says why the game was unrated (casual, guest, too short). Then Rematch (colours swap), New game, and Lobby. Animations follow the system "reduce motion" setting.
 
@@ -336,13 +343,30 @@ The bell in the header opens the inbox; **Settings** there picks which alerts ar
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
 
+### Testing on many devices at once
+
+The development server (`pnpm web`, Metro) reloads on every change, but on Windows it
+runs out of open files ("EMFILE: too many open files") when several devices are
+connected. To try the app on many phones and computers on the same network:
+
+1. Start the game server: `pnpm dev:server`.
+2. Build and serve the web app: `pnpm web:lan`. It prints the address to open on the
+   other devices, for example `http://192.168.1.20:8080`. Nothing is watched, so any
+   number of devices can use it.
+3. After changing code, run `pnpm web:lan` again (or `pnpm web:serve` to serve the last
+   build without rebuilding).
+
+Leave `EXPO_PUBLIC_SERVER_URL` unset for this: the app then finds the game server on the
+same address. Allow Node.js through Windows Firewall on private networks if the other
+devices can't connect. Google sign-in only works on `http://localhost`.
+
 ### Moving pieces, premoves, sounds and vibration
 
 Run `pnpm install` after pulling: this adds `expo-haptics` (bundled in Expo Go, so no build is needed).
 
 - **Drag and drop** works on every board next to tap-to-move: press a piece and drag it to a square. A quick tap still selects, and dropping on an illegal square snaps the piece back. On a phone, try it in Expo Go; on the web, with the mouse or a touch screen.
 - **Premoves**: in an online game, tap or drag one of your pieces while your opponent is thinking. The squares turn blue and the move plays the moment they move. Tap elsewhere, right-click (web) or press **Cancel premove** to drop it. Turn premoves off under **Settings → Gameplay**.
-- **Sounds**: move, capture, check, castle, promotion, game start and end, and a low-time warning (online games, once per game). All sounds are synthesised in-house; `node apps/app/scripts/synth-sounds.mjs` regenerates the castle, promote and low-time cues. **Settings → Sound** has the master switch, volume and per-type toggles. Phones in silent mode stay quiet.
+- **Sounds**: move, capture, check, castle, promotion, game start and end, and a low-time warning (online games, once per game). All sounds are made in-house: `node apps/app/scripts/synth-wood.mjs` models wooden pieces on a wooden board (several takes per move sound), `synth-sounds.mjs` makes the win and lose cues. Every board sounds its moves, including analysis, puzzles, reviews, replays and broadcasts; thumbnails stay quiet. **Settings → Sound** has the master switch, volume and per-type toggles. Phones in silent mode stay quiet.
 - **Vibration** (phones only): a light tap on your moves, a firmer one on captures and checks, and a buzz on an illegal drop, low time and game end. Toggle it under **Settings → Sound and vibration**.
 
 ### Trying friends and spectating
@@ -365,7 +389,7 @@ Cloud builds count against the Expo account's build quota, so they only run when
 
 ### Puzzles
 
-A fresh checkout has 14 original starter puzzles, loaded automatically into `apps/server/data/puzzles.db` the first time the server starts. For the real collection, import the Lichess puzzle database (CC0, about 5 million puzzles):
+The server ships with about 20,700 well-tested puzzles from the Lichess puzzle database (CC0; popularity 80+, 300+ plays, ratings about 600 to 2700) in `apps/server/data/puzzles-lichess.csv.gz`, plus 14 original starter puzzles. They are loaded into `apps/server/data/puzzles.db` the first time the server starts (about a minute, once). Puzzles come in random order and players don't see the same puzzle again soon (the last 500 for signed-in players, the last 300 on the device for guests). For the full collection, import the whole Lichess puzzle database (millions of puzzles):
 
 ```bash
 pnpm puzzles:import                                  # downloads lichess_db_puzzle.csv.zst (~250 MB) and imports it
@@ -375,7 +399,7 @@ pnpm puzzles:import --limit 100000                   # quicker partial import fo
 
 By default it keeps well-tested puzzles (popularity 50+, 100+ plays, rating deviation 100 or less); change with `--min-popularity`, `--min-plays`, `--max-rd`. Re-running is safe (puzzles are updated by id). Restart `pnpm dev:server` afterwards. Set `PUZZLE_DB` to store the database elsewhere.
 
-In the app, open **Puzzles** on the home screen: daily puzzle, rated training with a theme filter and hints, streak (one mistake ends it) and rush (3 minutes, 3 lives).
+In the app, open **Puzzles** on the home screen: your rating and records, rated training, streak (one mistake ends it), rush (3 minutes, 3 lives), the daily puzzle, and themes (one tap starts training on a theme). Puzzle screens are left with the back button only, so dragging a piece near the edge never swipes the puzzle away.
 
 ### Web
 

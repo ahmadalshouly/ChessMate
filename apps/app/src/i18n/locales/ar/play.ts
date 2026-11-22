@@ -5,6 +5,9 @@ export const play: Messages<typeof en> = {
   casual: 'ودية',
   rated: 'مصنّفة',
   connecting: 'جارٍ الاتصال…',
+  setup: {
+    title: 'إعداد المباراة',
+  },
   lobby: {
     waiting: { other: 'بانتظار لاعب: {count}' },
     auto: 'تلقائي',
@@ -22,7 +25,7 @@ export const play: Messages<typeof en> = {
     autoHint: 'يبدأ قريبًا من تصنيفك ويتّسع كلما انتظرت.',
     windowHint: 'ضمن {n} نقطة من تصنيفك.',
     yourSide: 'لونك',
-    yourSideHint: 'يُستخدم عند نشر مباراة مفتوحة.',
+    yourSideHint: 'لا تُقرن إلا بلاعب يقبل اللون الآخر.',
     gameInProgress: 'مباراة جارية',
     stillRunning: 'مباراتك ما زالت جارية.',
     posted: 'نُشرت المباراة المفتوحة',
@@ -76,6 +79,9 @@ export const play: Messages<typeof en> = {
     oppGoneWait: 'انقطع اتصال الخصم. بانتظار عودته.',
     firstMoveWhite: 'تلعب بالأبيض. ابدأ بنقلتك الأولى.',
     firstMoveBlack: 'تلعب بالأسود. بانتظار النقلة الأولى للأبيض.',
+    firstMoveYou: 'العب نقلتك الأولى خلال {n} ث وإلا ستُلغى المباراة.',
+    firstMoveOpp: 'بانتظار النقلة الأولى من {name} ({n} ث). ستُلغى المباراة إن لم يلعب.',
+    firstMoveCountdown: 'متبقٍ {n} ث',
     opponentToMove: 'دور الخصم.',
     premoveHint: 'دور الخصم. اضغط على قطعة أو اسحبها لتجهيز نقلة مسبقة.',
   },
@@ -88,6 +94,14 @@ export const play: Messages<typeof en> = {
   confirmResign: 'تأكيد الاستسلام',
   confirmMoveQ: 'هل تلعب {san}؟',
   over: {
+    victory: 'فوز!',
+    quick: {
+      title: 'مراجعة سريعة',
+      working: 'مراجعة سريعة… {pct}٪',
+      accuracy: 'دقة {n}٪',
+      hint: 'اضغط للمراجعة الكاملة',
+      open: 'فتح المراجعة الكاملة',
+    },
     checkmate: 'كش مات',
     newRating: 'التقييم الجديد',
     review: 'تعلّم من هذه المباراة',

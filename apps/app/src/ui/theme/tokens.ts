@@ -228,6 +228,10 @@ export const fonts = {
   display: families.display[600],
   displayMedium: families.display[500],
   displayRegular: families.display[400],
+  displayItalic: families.displayItalic,
+  /** Cinzel, for small all-caps labels. */
+  label: families.label[600],
+  labelBold: families.label[700],
 } as const;
 
 type TypeStyle = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'letterSpacing' | 'fontFamily' | 'textTransform' | 'fontVariant' | 'fontStyle'>;
@@ -235,28 +239,31 @@ type TypeStyle = Pick<TextStyle, 'fontSize' | 'lineHeight' | 'fontWeight' | 'let
 /**
  * Type ramp. Use through `<Text variant="…">`.
  *
- * Three voices: Montserrat (the wordmark face) for big moments, sans for everything you read,
- * mono for anything that counts or labels (ratings, clocks, overlines).
+ * Brand card: Playfair Display for big moments (headlines, the wordmark, the slogan), Inter
+ * for everything you read, Cinzel for small all-caps labels (overlines, tab names), and
+ * Inter with tabular figures for anything that counts (ratings, clocks).
  */
 export const typography = {
   /** Hero headline. One per screen at most. */
-  display: { fontFamily: families.display[600], fontSize: 38, lineHeight: 44, letterSpacing: -1.4 },
+  display: { fontFamily: families.display[600], fontSize: 38, lineHeight: 46, letterSpacing: -0.6 },
   /** Screen title. */
-  title: { fontFamily: families.display[600], fontSize: 28, lineHeight: 34, letterSpacing: -0.9 },
-  heading: { fontFamily: families.display[600], fontSize: 18, lineHeight: 24, letterSpacing: -0.4 },
+  title: { fontFamily: families.display[600], fontSize: 28, lineHeight: 36, letterSpacing: -0.4 },
+  heading: { fontFamily: families.display[600], fontSize: 18, lineHeight: 24, letterSpacing: -0.1 },
+  /** The slogan and brand lines ("Think. Move. Win."), Playfair italic. */
+  slogan: { fontFamily: families.displayItalic, fontSize: 20, lineHeight: 26, letterSpacing: 0 },
   subheading: { fontFamily: S[600], fontSize: 16, lineHeight: 21, letterSpacing: -0.2 },
   body: { fontFamily: S[400], fontSize: 15, lineHeight: 22, letterSpacing: -0.1 },
   bodyStrong: { fontFamily: S[500], fontSize: 15, lineHeight: 22, letterSpacing: -0.15 },
   label: { fontFamily: S[500], fontSize: 13, lineHeight: 18, letterSpacing: -0.05 },
   caption: { fontFamily: S[400], fontSize: 12.5, lineHeight: 17 },
   /** Small uppercase mono label above sections and stats. */
-  overline: { fontFamily: M[500], fontSize: 10.5, lineHeight: 14, letterSpacing: 1.4, textTransform: 'uppercase' },
+  overline: { fontFamily: families.label[600], fontSize: 11, lineHeight: 15, letterSpacing: 1.2, textTransform: 'uppercase' },
   /** Ratings, counts, evaluations: fixed-width digits. */
   numeric: { fontFamily: M[500], fontSize: 14, lineHeight: 20, fontVariant: ['tabular-nums'], letterSpacing: -0.2 },
   /** Big figures in stat blocks and time-control tiles. */
   figure: { fontFamily: M[500], fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'], letterSpacing: -1 },
   clock: { fontFamily: M[600], fontSize: 26, lineHeight: 30, fontVariant: ['tabular-nums'], letterSpacing: -0.8 },
-  mono: { fontFamily: M[400], fontSize: 13, lineHeight: 19 },
+  mono: { fontFamily: M[400], fontSize: 13, lineHeight: 19, fontVariant: ['tabular-nums'] },
 } as const satisfies Record<string, TypeStyle>;
 export type TextVariant = keyof typeof typography;
 

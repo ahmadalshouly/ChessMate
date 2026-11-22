@@ -2,6 +2,11 @@ import { BOTS, Game, START_FEN, chooseBotMove, type BotProfile, type Color, type
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useGameLock } from '@/lib/useGameLock';
+import { QuickReview } from '@/components/play/QuickReview';
+import { ResultPopup } from '@/components/play/ResultPopup';
+import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
+import { currentPlayLock, reportComputerGame } from '@/lib/habits';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -39,14 +44,25 @@ export default function PlayComputer() {
   const tr = useT();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [round, setRound] = useState(0);
+  // The player's play limit covers games against the computer too.
+  const { until } = usePlayLock();
   const begin = (s: Setup) => {
+    if (currentPlayLock()) return setSetup(null);
     setRound((r) => r + 1);
     setSetup(s);
   };
   return (
     <Screen>
       <Stack.Screen options={{ title: tr('titles.computer') }} />
-      {setup ? <ComputerGame key={round} setup={setup} onExit={() => setSetup(null)} onRematch={begin} /> : <BotPicker onStart={begin} />}
+      {setup ? (
+        <ComputerGame key={round} setup={setup} onExit={() => setSetup(null)} onRematch={begin} />
+      ) : until ? (
+        <ScrollView contentContainerStyle={styles.page}>
+          <BreakBanner />
+        </ScrollView>
+      ) : (
+        <BotPicker onStart={begin} />
+      )}
     </Screen>
   );
 }
@@ -196,6 +212,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   );
   const outcome: GameOutcome | null = boardOutcome ?? (resigned ? { result: me === 'w' ? '0-1' : '1-0', reason: 'resignation', winner: me === 'w' ? 'b' : 'w' } : null);
   const myTurn = snapshot.turn === me && !outcome;
+  const lockOptions = useGameLock(!outcome && view.history.length > 0);
   const nav = useHistoryNav(view.history.length);
 
   // Bot's turn: think after a short pause so the player's move is visible.
@@ -232,7 +249,10 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   useMoveFeedback(view.history, !!outcome, { startCue: true });
   // Grade the game on the server as soon as it ends, so Review opens with every badge ready.
   useEffect(() => {
-    if (outcome) prepareReview(view.history.map((m) => m.uci));
+    if (!outcome) return;
+    prepareReview(view.history.map((m) => m.uci));
+    // Counts for the streak and the play limit (signed-in players).
+    void reportComputerGame(view.history.length);
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Takeback: return to the last position where it was the player's turn.
@@ -263,7 +283,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const botColor: Color = me === 'w' ? 'b' : 'w';
   const orientation: Color = flip ? 'b' : 'w';
   const botOnTop = orientation === me;
-  const openReview = () =>
+  const openReview = () => {
+    // The result popup is a modal: close it, or it stays on top of the review.
+    setHideResult(true);
     router.push({
       pathname: '/review',
       params: {
@@ -273,6 +295,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
         black: me === 'b' ? user.displayName : bot.name,
       },
     });
+  };
 
   const botCard = (
     <PlayerCard
@@ -315,6 +338,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
 
   return (
     <>
+      <Stack.Screen options={lockOptions} />
       <GameLayout
         top={botOnTop ? botCard : youCard}
         bottom={botOnTop ? youCard : botCard}
@@ -331,36 +355,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
               onSquarePress={nav.live ? interaction.onSquarePress : undefined}
               {...(nav.live ? interaction.dragProps : {})}
             />
-            {verdict && !hideResult && (
-              <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
-                <View style={[styles.result, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }]}>
-                  <View style={styles.row}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Label size={24} bold>
-                        {verdict.title}
-                      </Label>
-                      <Label muted>
-                        {verdict.detail} · {tr('computer.unrated')}
-                        {takebacks ? ` · ${tr('computer.takebacks', { count: takebacks })}` : ''}
-                      </Label>
-                    </View>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={tr('game.over.close')}
-                      onPress={() => setHideResult(true)}
-                      hitSlop={8}
-                      style={[styles.close, { backgroundColor: t.surfaceSunken }]}>
-                      <GameIcon name="close" size={18} color={t.text} />
-                    </Pressable>
-                  </View>
-                  <View style={styles.resultButtons}>
-                    <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary />
-                    {plyCount > 0 && <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} />}
-                    <NoticeButton icon="account-switch-outline" label={tr('game.action.newGame')} onPress={onExit} />
-                  </View>
-                </View>
-              </View>
-            )}
+            {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}
         strip={<MoveStrip sans={view.history.map((m) => m.san)} shown={nav.shown} onSelect={nav.goTo} onLive={nav.toLive} />}
@@ -378,6 +373,37 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
         }
         actions={actions}
       />
+      <ResultPopup visible={!!verdict && !hideResult} onClose={() => setHideResult(true)}>
+        {verdict ? (
+                <View style={[styles.result, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }]}>
+            <View style={styles.row}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Label size={24} bold>
+                  {verdict.title}
+                </Label>
+                <Label muted>
+                  {verdict.detail} · {tr('computer.unrated')}
+                  {takebacks ? ` · ${tr('computer.takebacks', { count: takebacks })}` : ''}
+                </Label>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tr('game.over.close')}
+                onPress={() => setHideResult(true)}
+                hitSlop={8}
+                style={[styles.close, { backgroundColor: t.surfaceSunken }]}>
+                <GameIcon name="close" size={18} color={t.text} />
+              </Pressable>
+            </View>
+            {plyCount > 1 && <QuickReview moves={view.history.map((m) => m.uci)} side={me} onOpen={openReview} />}
+            <View style={styles.resultButtons}>
+              <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary />
+              {plyCount > 0 && <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} />}
+              <NoticeButton icon="account-switch-outline" label={tr('game.action.newGame')} onPress={onExit} />
+            </View>
+          </View>
+        ) : null}
+      </ResultPopup>
     </>
   );
 }
@@ -399,8 +425,10 @@ const styles = StyleSheet.create({
   botMeta: { fontSize: 13 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  overlayScroll: { width: '100%', maxHeight: '100%' },
+  overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
-  result: { width: '100%', maxWidth: 400, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
+  result: { width: '100%', maxWidth: 460, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
   resultButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
 });

@@ -1,4 +1,4 @@
-import { START_FEN, evalBarFraction, parseUci, type MoveClass, type ReviewedMove, type Square } from '@chessmate/core';
+import { Game, START_FEN, evalBarFraction, parseUci, positionKey, type MoveClass, type PositionAnalysis, type ReviewedMove, type Square } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -15,8 +15,10 @@ import { dirIcon, useT } from '@/i18n';
 import { ActionBar } from '@/components/game/ActionBar';
 import { moveFeedbackText } from '@/i18n/chess';
 import { serverText } from '@/i18n/serverMessages';
-import { checkSquareOf } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
+import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
+import { moveFeedback } from '@/lib/feedback';
+import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useEngine } from '@/lib/useEngine';
 
 const EVAL_BAR = 20;
@@ -37,8 +39,15 @@ export default function Review() {
   const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string }>();
   const engine = useEngine();
   const t = useTheme();
-  const size = useBoardSize(300) - EVAL_BAR - 6;
+  const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 140 });
+  const size = boardSpace - EVAL_BAR - 6;
+  // The review beside the board scrolls within the window height (web).
+  const [fillH, onFill] = useFillHeight();
   const [ply, setPly] = useState(0);
+  // Your own line: moves played on the board from a position of the game, graded as you go.
+  const [branch, setBranch] = useState<{ from: number; moves: string[]; cursor: number } | null>(null);
+  // Play: steps through the game a move at a time, pieces sliding as if it were being played.
+  const [autoplay, setAutoplay] = useState(false);
   const [flip, setFlip] = useState(params.orientation === 'b');
   const request = useMemo(
     () => ({
@@ -56,25 +65,148 @@ export default function Review() {
 
   const review = engine.state.review;
   const moves = review?.moves ?? [];
-  const current: ReviewedMove | undefined = moves[ply - 1];
-  const fen = current ? current.fenAfter : (review?.initialFen ?? request.initialFen);
-  const score = current ? current.scoreAfter : moves[0]?.scoreBefore ?? null;
+
+  // While the engine works, the board plays the game through move by move,
+  // so there is something to watch instead of a bare progress bar.
+  const preview = useMemo(() => {
+    try {
+      return Game.fromUciMoves(request.moves, request.initialFen).history();
+    } catch {
+      return [];
+    }
+  }, [request]);
+  const [previewPly, setPreviewPly] = useState(0);
+  const reviewing = !review && !engine.state.error && preview.length > 0;
+  useEffect(() => {
+    if (!reviewing || previewPly >= preview.length) return;
+    const id = setTimeout(() => setPreviewPly((p) => p + 1), 450);
+    return () => clearTimeout(id);
+  }, [reviewing, previewPly, preview.length]);
+  // Results in: carry on from where the preview got to, now with grades, unless it already finished.
+  const [handedOver, setHandedOver] = useState<typeof review>(null);
+  if (review && review !== handedOver) {
+    setHandedOver(review);
+    if (previewPly > 0 && previewPly < review.moves.length) {
+      setPly(previewPly);
+      setAutoplay(true);
+    }
+  }
+  const previewMove = reviewing && previewPly > 0 ? preview[previewPly - 1] : undefined;
+
+  const startFen = review?.initialFen ?? request.initialFen;
+  const current: ReviewedMove | undefined = branch ? undefined : moves[ply - 1];
+  const branchBase = branch ? (branch.from > 0 ? (moves[branch.from - 1]?.fenAfter ?? startFen) : startFen) : startFen;
+  const branchHistory = useMemo(() => {
+    if (!branch) return [];
+    try {
+      return Game.fromUciMoves(branch.moves, branchBase).history();
+    } catch {
+      return [];
+    }
+  }, [branch, branchBase]);
+  const branchMove = branch && branch.cursor > 0 ? branchHistory[branch.cursor - 1] : undefined;
+  const mainFen = previewMove ? previewMove.fenAfter : current ? current.fenAfter : startFen;
+  const fen = branch ? (branchMove?.fenAfter ?? branchBase) : mainFen;
   const orientation = flip ? 'b' : 'w';
+
+  // The engine checks every position of your line (the one shown first, then the ones
+  // before it), so each of your moves gets a grade like in the review.
+  const { analyze, stop } = engine;
+  const [seen, setSeen] = useState<Map<string, PositionAnalysis>>(() => new Map());
+  const latest = engine.state.analysis;
+  const [recorded, setRecorded] = useState(latest);
+  if (latest !== recorded) {
+    setRecorded(latest);
+    if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
+  }
+  const branchFens = useMemo(() => [branchBase, ...branchHistory.map((m) => m.fenAfter)], [branchBase, branchHistory]);
+  const needed = branch ? [branchFens[branch.cursor]!, ...branchFens.slice(0, branch.cursor).reverse()].find((f) => !seen.has(positionKey(f))) : undefined;
+  useEffect(() => {
+    if (!needed) return stop();
+    const id = setTimeout(() => analyze(needed, 2, { depth: GRADE_DEPTH + 4, movetimeMs: 1500 }), 120);
+    return () => clearTimeout(id);
+  }, [needed, analyze, stop]);
+  const branchGrades = useMemo(() => (branch ? gradeLine(branchBase, branchHistory, seen, []) : []), [branch, branchBase, branchHistory, seen]);
+  const branchGrade = branch && branch.cursor > 0 ? branchGrades[branch.cursor - 1] : undefined;
+  const shownAnalysis = branch ? seen.get(positionKey(fen)) : undefined;
+  const branchScore = shownAnalysis ? (shownAnalysis.lines[0]?.score ?? null) : null;
+  const score = branch ? branchScore : current ? current.scoreAfter : (moves[0]?.scoreBefore ?? null);
+
+  /** A move made on the board: follows the game when it is the game's move, otherwise starts or extends your line. */
+  const playOnBoard = (uci: string) => {
+    if (!review) return false;
+    const g = new Game(fen);
+    const played = g.move(uci);
+    if (!played) return false;
+    setAutoplay(false);
+    moveFeedback(played.san, g.fen);
+    if (!branch) {
+      if (moves[ply]?.uci === played.uci) setPly(ply + 1);
+      else setBranch({ from: ply, moves: [played.uci], cursor: 1 });
+      return true;
+    }
+    if (branch.cursor === 0 && moves[branch.from]?.uci === played.uci) {
+      // Back on the game's own move.
+      setBranch(null);
+      setPly(branch.from + 1);
+      return true;
+    }
+    if (branch.moves[branch.cursor] === played.uci) setBranch({ ...branch, cursor: branch.cursor + 1 });
+    else setBranch({ ...branch, moves: [...branch.moves.slice(0, branch.cursor), played.uci], cursor: branch.cursor + 1 });
+    return true;
+  };
+  const interaction = useBoardInteraction(fen, () => !!review, playOnBoard);
+  const leaveBranch = () => {
+    if (branch) setPly(branch.from);
+    setBranch(null);
+  };
+  const goMain = (p: number) => {
+    setBranch(null);
+    setAutoplay(false);
+    setPly(p);
+  };
+  const back = () => {
+    setAutoplay(false);
+    if (!branch) return setPly((p) => Math.max(0, p - 1));
+    if (branch.cursor > 0) return setBranch({ ...branch, cursor: branch.cursor - 1 });
+    goMain(Math.max(0, branch.from - 1));
+  };
+  const forward = () => {
+    setAutoplay(false);
+    if (!branch) return setPly((p) => Math.min(moves.length, p + 1));
+    if (branch.cursor < branch.moves.length) setBranch({ ...branch, cursor: branch.cursor + 1 });
+  };
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') setPly((p) => Math.max(0, p - 1));
-      if (e.key === 'ArrowRight') setPly((p) => Math.min(moves.length, p + 1));
+      if (e.key === 'ArrowLeft') back();
+      if (e.key === 'ArrowRight') forward();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [moves.length]);
+  });
+
+  useEffect(() => {
+    if (!autoplay) return;
+    if (ply >= moves.length) {
+      setAutoplay(false);
+      return;
+    }
+    const id = setTimeout(() => setPly((p) => p + 1), 900);
+    return () => clearTimeout(id);
+  }, [autoplay, ply, moves.length]);
 
   // Show what the engine preferred when the played move was not the best.
   const arrows: Arrow[] = [];
   if (current && current.bestMove !== current.uci && !NO_ARROW.has(current.judgement.classification)) {
     const m = parseUci(current.bestMove);
+    arrows.push({ from: m.from, to: m.to, color: BEST_MOVE_ARROW });
+  }
+  // In your line: the better move, when yours was not among the best.
+  const branchBest = branch && branch.cursor > 0 ? seen.get(positionKey(branchFens[branch.cursor - 1]!))?.lines[0]?.pv[0] : undefined;
+  if (branchMove && branchGrade && branchBest && branchBest !== branchMove.uci && !NO_ARROW.has(branchGrade.classification)) {
+    const m = parseUci(branchBest);
     arrows.push({ from: m.from, to: m.to, color: BEST_MOVE_ARROW });
   }
 
@@ -92,10 +224,12 @@ export default function Review() {
   }
 
   const progress = engine.state.reviewProgress;
-  return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+  const step = (fn: (p: number) => number) => {
+    setAutoplay(false);
+    setBranch(null);
+    setPly(fn);
+  };
+  const boardRow = (
           <View style={styles.boardRow}>
             <EvalBar score={review ? score : null} orientation={orientation} height={size} width={EVAL_BAR} />
             <View style={{ width: size, height: size }}>
@@ -103,14 +237,60 @@ export default function Review() {
                 fen={fen}
                 orientation={orientation}
                 size={size}
-                lastMove={current ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square } : null}
+                lastMove={
+                  branch
+                    ? branchMove
+                      ? { from: branchMove.from, to: branchMove.to }
+                      : null
+                    : previewMove
+                      ? { from: previewMove.from, to: previewMove.to }
+                      : current
+                        ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square }
+                        : null
+                }
                 checkSquare={checkSquareOf(fen)}
+                selected={review ? interaction.selected : null}
+                targets={review ? interaction.targets : []}
+                onSquarePress={review ? interaction.onSquarePress : undefined}
+                {...(review ? interaction.dragProps : {})}
               />
               <BoardArrows arrows={arrows} size={size} orientation={orientation} />
               {current && <BoardMoveBadge square={current.uci.slice(2, 4) as Square} cls={current.judgement.classification} size={size} orientation={orientation} />}
+              {branchMove && branchGrade && <BoardMoveBadge square={branchMove.to} cls={branchGrade.classification} size={size} orientation={orientation} />}
             </View>
           </View>
-
+  );
+  const bar = review ? (
+              <ActionBar
+                actions={[
+                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => step(() => 0), disabled: !branch && ply === 0 },
+                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: back, disabled: !branch && ply === 0, repeat: true },
+                  {
+                    key: 'play',
+                    icon: autoplay ? 'pause' : 'play',
+                    label: autoplay ? tr('review.pause') : tr('review.play'),
+                    active: autoplay,
+                    disabled: moves.length === 0,
+                    onPress: () => {
+                      if (branch) leaveBranch();
+                      if (!autoplay && ply >= moves.length) setPly(0);
+                      setAutoplay((a) => !a);
+                    },
+                  },
+                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: forward, disabled: branch ? branch.cursor >= branch.moves.length : ply >= moves.length, repeat: true },
+                  {
+                    key: 'last',
+                    icon: dirIcon('page-last'),
+                    label: tr('review.last'),
+                    onPress: () => (branch ? setBranch({ ...branch, cursor: branch.moves.length }) : step(() => moves.length)),
+                    disabled: branch ? branch.cursor >= branch.moves.length : ply >= moves.length,
+                  },
+                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+                ]}
+              />
+  ) : null;
+  const panel = (
+    <>
           {!review && (
             <Card>
               {engine.state.error ? (
@@ -134,19 +314,56 @@ export default function Review() {
               )}
             </Card>
           )}
-
+          {review && branch && (
+            <Card>
+              <View style={styles.row}>
+                <Label bold size={17}>
+                  {tr('review.line.title')}
+                </Label>
+                <View style={{ marginStart: 'auto' }}>
+                  <Label muted>{branchScore ? formatEval(branchScore) : ''}</Label>
+                </View>
+              </View>
+              <Label muted size={13}>
+                {tr('review.line.from', { move: branch.from > 0 ? `${moveNumber(moves[branch.from - 1]!)} ${moves[branch.from - 1]!.san}` : tr('review.line.start') })}
+              </Label>
+              {branchMove && branchGrade ? (
+                <View style={styles.row}>
+                  <MoveBadge cls={branchGrade.classification} size={52} variant="full" />
+                  <Label bold>{tr('review.moveIs', { move: branchMove.san, cls: MOVE_CLASS[branchGrade.classification].phrase })}</Label>
+                </View>
+              ) : branchMove ? (
+                <Label muted>{tr('review.line.checking')}</Label>
+              ) : null}
+              {branchMove && branchGrade && branchBest && branchBest !== branchMove.uci && !NO_ARROW.has(branchGrade.classification) ? (
+                <Label muted>{tr('review.line.best', { move: sanIn(branchFens[branch.cursor - 1]!, branchBest) })}</Label>
+              ) : null}
+              <View style={styles.moveList}>
+                {branchHistory.map((m, i) => {
+                  const g = branchGrades[i];
+                  const on = branch.cursor === i + 1;
+                  const [, side, , , , full] = branchFens[i]!.split(' ');
+                  return (
+                    <Pressable
+                      key={`${i}-${m.uci}`}
+                      onPress={() => setBranch({ ...branch, cursor: i + 1 })}
+                      style={[styles.moveChip, on && { backgroundColor: t.accent }]}
+                      accessibilityLabel={g ? `${m.san}, ${MOVE_CLASS[g.classification].label}` : m.san}>
+                      <Text style={{ color: on ? t.onAccent : t.text }}>
+                        {side === 'w' || i === 0 ? <Text style={{ color: on ? t.onAccent : t.muted }}>{full}{side === 'w' ? '.' : '…'} </Text> : null}
+                        {m.san}
+                      </Text>
+                      {g ? <MoveBadge cls={g.classification} size={16} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Button variant="secondary" title={tr('review.line.back')} onPress={leaveBranch} />
+            </Card>
+          )}
           {review && (
             <>
-              <ActionBar
-                actions={[
-                  { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setPly(0), disabled: ply === 0 },
-                  { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setPly((p) => Math.max(0, p - 1)), disabled: ply === 0, repeat: true },
-                  { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setPly((p) => Math.min(moves.length, p + 1)), disabled: ply >= moves.length, repeat: true },
-                  { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setPly(moves.length), disabled: ply >= moves.length },
-                  { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
-                ]}
-              />
-
+              {!branch && (
               <Card>
                 {current ? (
                   <>
@@ -167,12 +384,18 @@ export default function Review() {
                     )}
                   </>
                 ) : (
-                  <Label muted>{tr('review.stepThrough')}</Label>
+                  <>
+                    <Label muted>{tr('review.stepThrough')}</Label>
+                    <Label muted size={13}>
+                      {tr('review.line.hint')}
+                    </Label>
+                  </>
                 )}
               </Card>
+              )}
 
               <Card>
-                <EvalGraph moves={moves} ply={ply} onSelect={setPly} />
+                <EvalGraph moves={moves} ply={branch ? branch.from : ply} onSelect={goMain} />
               </Card>
 
               <Card>
@@ -224,11 +447,11 @@ export default function Review() {
                   {moves.map((m) => (
                     <Pressable
                       key={m.ply}
-                      onPress={() => setPly(m.ply)}
-                      style={[styles.moveChip, ply === m.ply && { backgroundColor: t.accent }]}
+                      onPress={() => goMain(m.ply)}
+                      style={[styles.moveChip, !branch && ply === m.ply && { backgroundColor: t.accent }]}
                       accessibilityLabel={`${m.san}, ${MOVE_CLASS[m.judgement.classification].label}`}>
-                      <Text style={{ color: ply === m.ply ? t.onAccent : t.text }}>
-                        {m.color === 'w' || m.ply === 1 ? <Text style={{ color: ply === m.ply ? t.onAccent : t.muted }}>{moveNumber(m)} </Text> : null}
+                      <Text style={{ color: !branch && ply === m.ply ? t.onAccent : t.text }}>
+                        {m.color === 'w' || m.ply === 1 ? <Text style={{ color: !branch && ply === m.ply ? t.onAccent : t.muted }}>{moveNumber(m)} </Text> : null}
                         {m.san}
                       </Text>
                       <MoveBadge cls={m.judgement.classification} size={16} />
@@ -248,10 +471,42 @@ export default function Review() {
               </Card>
             </>
           )}
+    </>
+  );
+
+  return (
+    <Screen>
+      {wide ? (
+        // Web and tablets: a big board with the controls under it, the review beside it.
+        <View style={styles.wide} onLayout={onFill}>
+          <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {boardRow}
+            {bar}
+          </View>
+          <ScrollView style={{ width: panelWidth, flexGrow: 0, height: fillH ? fillH - 32 : undefined, alignSelf: 'stretch' }} contentContainerStyle={styles.widePanel}>
+            {panel}
+          </ScrollView>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.page}>
+          <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {boardRow}
+            {bar}
+            {panel}
+          </View>
+        </ScrollView>
+      )}
     </Screen>
   );
+}
+
+/** A UCI move as SAN in a position ("Nf3"), or the UCI text if it cannot be played there. */
+function sanIn(fen: string, uci: string): string {
+  try {
+    return new Game(fen).move(uci)?.san ?? uci;
+  } catch {
+    return uci;
+  }
 }
 
 function moveNumber(m: ReviewedMove) {
@@ -296,6 +551,8 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
 }
 
 const styles = StyleSheet.create({
+  wide: { flex: 1, minHeight: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 24, padding: 16 },
+  widePanel: { gap: 12, paddingBottom: 32 },
   page: { padding: 12, alignItems: 'center' },
   boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },

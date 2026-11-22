@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { AdminService } from '../src/admin';
 import { AuthService, ConsoleMailer, DbAuthStore, authRoutes } from '../src/auth';
+import { MessageService } from '../src/messages/service';
 import { ChessServer } from '../src/server';
 
 const SECRET = 'test-secret-test-secret-test-secret!';
@@ -39,7 +40,10 @@ beforeAll(async () => {
   for (const u of ['owner', 'mod', 'alice', 'bob']) await signup(u);
   admin = new AdminService({ db: h.db, auth, log: () => {} });
   await admin.load(['owner', 'nobody_yet']);
+  const messages = new MessageService({ db: h.db, isStaff: (id) => admin.roleOf(id) !== 'user' });
+  admin.messages = messages;
   server = new ChessServer({
+    messages,
     port: 0,
     matchIntervalMs: 20,
     auth,
@@ -92,6 +96,25 @@ describe('admin console', () => {
     expect(seen.body.player.chatMute.reason).toBe('insults');
     const asAdmin = await call('owner', 'GET', `/players/${ids.alice}`);
     expect(asAdmin.body.player.email).toBe('alice@example.com');
+  });
+
+  it('accepts tournament forms carrying a sponsor logo (bigger than other requests)', async () => {
+    const logo = `data:image/png;base64,${'A'.repeat(300_000)}`;
+    const r = await call('owner', 'POST', '/tournaments', { name: 'Logo cup', sponsorName: 'Acme', sponsorLogo: logo });
+    // This harness runs without tournaments; the point is the body is read, not refused as too large.
+    expect(JSON.stringify(r.body)).not.toContain('too large');
+    const small = await call('owner', 'POST', `/players/${ids.bob}/note`, { note: 'x'.repeat(40_000) });
+    expect(JSON.stringify(small.body)).toContain('too large');
+  });
+
+  it('tells a warned player: one inbox notification, and the warning in Messages from the team', async () => {
+    const res = await fetch(`${base}/api/notifications`, { headers: { authorization: `Bearer ${tokens.alice}` } });
+    const inbox = ((await res.json()) as { notifications: { title: string; body: string; url: string | null }[] }).notifications;
+    const warnings = inbox.filter((n) => n.body === 'Keep chat friendly');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]!.url).toBe('/messages/staff');
+    const thread = await admin.messages!.thread(ids.alice!, 'staff');
+    expect(JSON.stringify(thread)).toContain('Keep chat friendly');
   });
 
   it('searches players by name and status', async () => {
@@ -264,6 +287,10 @@ describe('title applications', () => {
 
     expect((await call('owner', 'POST', `/players/${ids.carla}/close`, { reason: 'fair_play', note: 'engine' })).status).toBe(200);
     expect(admin.titles.titleOf(ids.carla!)).toBeNull();
+    // A fair-play closure restricts the account instead of locking it: carla can still sign in, but not play.
+    const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ login: 'carla', password: PASSWORD }) });
+    expect(login.status).toBe(200);
+    expect(server.restrictionOf(ids.carla!)).toBe('fair_play');
     const log = await call('owner', 'GET', `/audit?target=${ids.carla}&action=title`);
     expect(log.body.entries.map((e: { action: string }) => e.action)).toEqual(['title.revoke', 'title.grant', 'title.revoke', 'title.approve']);
   });

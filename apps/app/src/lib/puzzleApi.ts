@@ -2,6 +2,7 @@ import type { PuzzleAttemptResponse, PuzzleDto, PuzzleProfileDto, PuzzleRunMode 
 import { Platform } from 'react-native';
 
 import { SERVER_URL } from './config';
+import { markPuzzleSeen, seenPuzzles } from './seenPuzzles';
 
 /** HTTP base of the game server, derived from its WebSocket URL. */
 export const API_BASE = SERVER_URL.replace(/^ws/, 'http').replace(/\/ws\/?$/, '');
@@ -58,18 +59,26 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
 
 export const puzzleApi = {
   profile: () => call<PuzzleProfileDto>('/me'),
-  themes: () => call<{ counts: Record<string, number> }>('/themes'),
+  themes: () => call<{ counts: Record<string, number>; total?: number }>('/themes'),
   daily: () => call<{ day: string; puzzle: PuzzleDto; attempted: boolean }>('/daily'),
   byId: (id: string) => call<{ puzzle: PuzzleDto }>(`/${encodeURIComponent(id)}`),
-  next: (opts: { theme?: string; skip?: string[] } = {}) => {
+  /** A random puzzle near your rating, never one seen lately on this device. */
+  next: async (opts: { theme?: string; skip?: string[] } = {}) => {
     const q = new URLSearchParams();
     if (opts.theme) q.set('theme', opts.theme);
-    if (opts.skip?.length) q.set('skip', opts.skip.slice(-50).join(','));
+    const skip = [...new Set([...(await seenPuzzles()), ...(opts.skip ?? [])])].slice(-300);
+    if (skip.length) q.set('skip', skip.join(','));
     const s = q.toString();
-    return call<{ puzzle: PuzzleDto }>(`/next${s ? `?${s}` : ''}`);
+    const r = await call<{ puzzle: PuzzleDto }>(`/next${s ? `?${s}` : ''}`);
+    void markPuzzleSeen(r.puzzle.id);
+    return r;
   },
   attempt: (id: string, body: { moves: string[]; hints: number; timeMs: number; rated: boolean }) =>
     call<PuzzleAttemptResponse>(`/${encodeURIComponent(id)}/attempt`, body),
-  run: (mode: PuzzleRunMode, offset: number) => call<{ puzzles: PuzzleDto[] }>(`/run?mode=${mode}&offset=${offset}`),
+  run: async (mode: PuzzleRunMode, offset: number) => {
+    const r = await call<{ puzzles: PuzzleDto[] }>(`/run?mode=${mode}&offset=${offset}`);
+    for (const p of r.puzzles) void markPuzzleSeen(p.id);
+    return r;
+  },
   saveRun: (mode: PuzzleRunMode, score: number) => call<{ saved: boolean; best: number; newBest?: boolean }>('/run', { mode, score }),
 };

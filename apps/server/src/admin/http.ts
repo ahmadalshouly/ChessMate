@@ -50,6 +50,17 @@ const STATUS: Record<AdminError['code'], number> = {
  *   GET  /documents/:id               { url, expiresAt }: a 10-minute link that opens a proof file
  *   POST /players/:id/title           { title, note } grants; { title: null, reason, note? } takes it away
  *   POST /players/:id/tag             { tag, note? } sets an official role tag; { tag: null } removes it (admins only)
+ *   POST /players/:id/message         { body } message from the ChessMate team
+ *   POST /broadcast                   { body } announcement to every player (admins only)
+ *   GET  /tournaments                 all tournaments, newest first
+ *   POST /tournaments                 { name, description?, timeControl, rated, startsAt, durationMinutes, maxPlayers?, prizePool?, prizes? }
+ *   POST /tournaments/:id             same fields, while it has not started
+ *   POST /tournaments/:id/cancel      { reason? }
+ *   POST /tournaments/:id/start       start a scheduled tournament now
+ *   GET  /tournaments/:id             live monitor (players, payments)
+ *   POST /tournaments/:id/remove      { userId, reason? } remove a player
+ *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
+ *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -62,7 +73,9 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
     const num = (k: string) => (q.get(k) ? Number(q.get(k)) : undefined);
     try {
       const actor: Actor = admin.actorFor(bearerUser(req, auth));
-      const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req) : {});
+      // Tournament forms can carry a sponsor logo (a data URL of up to ~400 KB); everything else stays small.
+      const maxBody = section === 'tournaments' ? 1024 * 1024 : undefined;
+      const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req, maxBody) : {});
       const route = `${req.method} ${section}${id ? '/:id' : ''}${action ? `/${action}` : ''}`;
       const ok = (v: unknown) => (sendJson(res, 200, v), true);
       switch (route) {
@@ -130,6 +143,32 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.setPlayerTitle(actor, id!, await body()));
         case 'POST players/:id/tag':
           return ok(await admin.setPlayerRoleTag(actor, id!, await body()));
+        case 'POST players/:id/message':
+          return ok(await admin.messagePlayer(actor, id!, await body()));
+        case 'POST broadcast':
+          return ok(await admin.broadcast(actor, await body()));
+        case 'GET tournaments':
+          return ok({ tournaments: admin.tournamentList(actor) });
+        case 'POST tournaments':
+          return ok({ tournament: await admin.createTournament(actor, await body()) });
+        case 'POST tournaments/:id':
+          return ok({ tournament: await admin.updateTournament(actor, id!, await body()) });
+        case 'POST tournaments/:id/cancel':
+          return ok({ tournament: await admin.cancelTournament(actor, id!, await body()) });
+        case 'POST tournaments/:id/start':
+          return ok({ tournament: await admin.startTournamentNow(actor, id!) });
+        case 'GET tournaments/:id':
+          return ok({ tournament: await admin.tournamentMonitor(actor, id!) });
+        case 'POST tournaments/:id/remove':
+          return ok({ player: await admin.removeTournamentPlayer(actor, id!, await body()) });
+        case 'GET sponsors':
+          return ok({ applications: await admin.sponsorApplications(actor) });
+        case 'POST sponsors/:id':
+          return ok({ application: await admin.reviewSponsor(actor, id!, await body()) });
+        case 'GET payouts':
+          return ok({ requests: admin.payoutRequests(actor) });
+        case 'POST payouts/:id':
+          return ok({ request: await admin.reviewPayout(actor, id!, await body()) });
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

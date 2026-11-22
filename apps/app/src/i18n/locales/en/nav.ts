@@ -3,6 +3,7 @@ export const nav = {
   learn: 'Learn',
   learnTitle: 'Learn & Coach',
   social: 'Social',
+  tournaments: 'Tournaments',
   profile: 'Profile',
   unrated: 'Unrated',
   signInToSave: 'Sign in to save games',

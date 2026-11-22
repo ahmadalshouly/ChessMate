@@ -1,4 +1,4 @@
-import { timeCategory, type Color, type GameOutcome, type PlayedMove, type Rating, type RatingCategory } from '@chessmate/core';
+import { detectOpening, timeCategory, type Color, type GameOutcome, type PlayedMove, type Rating, type RatingCategory } from '@chessmate/core';
 import {
   addMove,
   createGame,
@@ -85,9 +85,11 @@ export class DbGamePersistence implements GamePersistence {
     const pgn = room.game.pgn(pgnHeaders(room, outcome, ratingChange));
     const finalFen = room.game.fen;
     const plyCount = room.game.ply;
+    const opening = detectOpening(room.game.uciHistory(), room.initialFen);
     this.queue.push(`finish game ${room.id}`, async () => {
       await finishGame(this.db, room.id, {
         outcome,
+        opening: opening && { eco: opening.eco, name: opening.name },
         pgn,
         finalFen,
         plyCount,

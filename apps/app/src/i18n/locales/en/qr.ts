@@ -1,0 +1,17 @@
+export const qr = {
+  addTitle: 'Add with a QR code',
+  addBody: 'Show your code or open a friend’s.',
+  scanHint: 'Scan with a phone camera to open this profile and add as a friend.',
+  share: 'Share',
+  shareMessage: 'Add {name} on ChessMate',
+  copied: 'Link copied',
+  shareFailed: 'Could not share the link',
+  shareProfile: 'Share',
+  yourCode: 'Your code',
+  signInForCode: 'Sign in to get your own QR code.',
+  theirCode: 'Their code',
+  theirCodeBody: 'Scan your friend’s code with your phone camera: it opens their profile with an Add friend button. Or paste the link from their code here.',
+  linkLabel: 'Profile link or username',
+  open: 'Open profile',
+  invalidLink: 'That is not a ChessMate profile link or username.',
+};

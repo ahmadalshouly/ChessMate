@@ -14,6 +14,8 @@
     "lint": "eslint .",
     "build:server": "pnpm --filter @chessmate/server build",
     "build:web": "pnpm --filter @chessmate/app export:web",
+    "web:lan": "pnpm build:web && node scripts/serve-web.mjs",
+    "web:serve": "node scripts/serve-web.mjs",
     "start:server": "pnpm --filter @chessmate/server start",
     "puzzles:import": "pnpm --filter @chessmate/server puzzles:import",
     "admin:grant": "pnpm --filter @chessmate/server admin:grant"

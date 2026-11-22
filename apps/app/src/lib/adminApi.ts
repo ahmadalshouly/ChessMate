@@ -17,11 +17,36 @@ import type {
   TitleRevokeReason,
   RatingCategory,
   ReportAction,
+  PayoutRequestView,
+  SponsorApplicationView,
   StaffRole,
+  TournamentDetail,
+  TournamentInput,
+  TournamentSummary,
 } from '@chessmate/core';
+
 import { useMemo } from 'react';
 
 import { useAuth } from '@/lib/auth';
+
+/** Admin live view of a tournament (see TournamentService.adminDetail on the server). */
+export interface AdminTournamentView extends TournamentDetail {
+  roster: {
+    userId: string;
+    username: string;
+    rating: number;
+    score: number;
+    games: number;
+    withdrawn: boolean;
+    disqualified: boolean;
+    paid: boolean;
+    rulesAcceptedAt: number | null;
+    joinedAt: number;
+    playing: boolean;
+  }[];
+  payments: { userId: string; amountCents: number; currency: string; status: string; createdAt: number }[];
+  revenueCents: number;
+}
 
 export type PlayerFilter = 'all' | 'active' | 'closed' | 'muted' | 'staff';
 
@@ -84,6 +109,19 @@ export function useAdminApi() {
       setTitle: (playerId: string, title: ChessTitle, note: string) => post(`/players/${id(playerId)}/title`, { title, note }),
       removeTitle: (playerId: string, reason: TitleRevokeReason, note: string) => post(`/players/${id(playerId)}/title`, { title: null, reason, note }),
       setRoleTag: (playerId: string, tag: RoleTag | null, note: string) => post(`/players/${id(playerId)}/tag`, { tag, note }),
+      messagePlayer: (playerId: string, body: string) => post(`/players/${id(playerId)}/message`, { body }),
+      broadcast: (body: string) => post<{ sent: number }>('/broadcast', { body }),
+      tournaments: () => get<{ tournaments: TournamentSummary[] }>('/tournaments').then((r) => r.tournaments),
+      createTournament: (t: TournamentInput) => post<{ tournament: TournamentDetail }>('/tournaments', { ...t }).then((r) => r.tournament),
+      updateTournament: (tid: string, t: Partial<TournamentInput>) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}`, { ...t }).then((r) => r.tournament),
+      cancelTournament: (tid: string, reason: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/cancel`, { reason }).then((r) => r.tournament),
+      startTournament: (tid: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/start`).then((r) => r.tournament),
+      tournamentMonitor: (tid: string) => get<{ tournament: AdminTournamentView }>(`/tournaments/${id(tid)}`).then((r) => r.tournament),
+      removeTournamentPlayer: (tid: string, userId: string, reason: string) => post(`/tournaments/${id(tid)}/remove`, { userId, reason }),
+      sponsors: () => get<{ applications: SponsorApplicationView[] }>('/sponsors').then((r) => r.applications),
+      reviewSponsor: (aid: string, status: string, note: string) => post(`/sponsors/${id(aid)}`, { status, note }),
+      payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),
+      reviewPayout: (pid: string, status: string, note: string) => post(`/payouts/${id(pid)}`, { status, note }),
     };
   }, [apiFetch]);
 }

@@ -5,6 +5,9 @@ export const play: Messages<typeof en> = {
   casual: 'Ungewertet',
   rated: 'Gewertet',
   connecting: 'Verbinde…',
+  setup: {
+    title: 'Partie einrichten',
+  },
   lobby: {
     waiting: { one: '{count} wartet', other: '{count} warten' },
     auto: 'Auto',
@@ -22,7 +25,7 @@ export const play: Messages<typeof en> = {
     autoHint: 'Startet nahe deiner Wertung und wird beim Warten breiter.',
     windowHint: 'Innerhalb von {n} Punkten deiner Wertung.',
     yourSide: 'Deine Farbe',
-    yourSideHint: 'Gilt, wenn du eine offene Partie erstellst.',
+    yourSideHint: 'Du wirst nur mit jemandem gepaart, der die andere Seite nimmt.',
     gameInProgress: 'Partie läuft',
     stillRunning: 'Deine Partie läuft noch.',
     posted: 'Offene Partie erstellt',
@@ -69,6 +72,9 @@ export const play: Messages<typeof en> = {
     oppGoneWait: 'Gegner getrennt. Warte auf seine Rückkehr.',
     firstMoveWhite: 'Du spielst Weiß. Mach deinen ersten Zug.',
     firstMoveBlack: 'Du spielst Schwarz. Warte auf den ersten Zug von Weiß.',
+    firstMoveYou: 'Mach deinen ersten Zug innerhalb von {n} s, sonst wird die Partie abgebrochen.',
+    firstMoveOpp: 'Warte auf den ersten Zug von {name} ({n} s). Zieht er nicht, wird die Partie abgebrochen.',
+    firstMoveCountdown: 'Noch {n} s',
     opponentToMove: 'Der Gegner ist am Zug.',
     premoveHint: 'Der Gegner ist am Zug. Tippe oder ziehe eine Figur für einen Vorauszug.',
   },
@@ -81,6 +87,14 @@ export const play: Messages<typeof en> = {
   confirmResign: 'Aufgabe bestätigen',
   confirmMoveQ: '{san} spielen?',
   over: {
+    victory: 'Sieg!',
+    quick: {
+      title: 'Kurzanalyse',
+      working: 'Kurzanalyse… {pct} %',
+      accuracy: '{n} % Genauigkeit',
+      hint: 'Tippe für die vollständige Analyse',
+      open: 'Vollständige Analyse öffnen',
+    },
     checkmate: 'Schachmatt',
     newRating: 'Neue Wertung',
     review: 'Aus dieser Partie lernen',

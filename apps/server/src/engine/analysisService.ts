@@ -14,7 +14,7 @@ import {
   type UciInfo,
 } from '@chessmate/core';
 import { createHash } from 'node:crypto';
-import type { EnginePool } from './pool';
+import { EngineBusyError, type EnginePool } from './pool';
 
 export interface AnalysisServiceOptions {
   /** Engine settings for game reviews (per position). */
@@ -26,6 +26,8 @@ export interface AnalysisServiceOptions {
   store?: ReviewStore;
   /** Review finished online games in the background (default on). */
   precompute?: boolean;
+  /** Analysis-board requests allowed to wait for an engine before "busy" (default 64). */
+  maxAnalysisQueue?: number;
   log?: (msg: string) => void;
 }
 
@@ -86,7 +88,7 @@ export class AnalysisService {
   }
 
   /** Streams analysis of one position. A new request from the same client replaces the old one. */
-  async analyze(key: string, req: { id: number; fen: string; multipv?: number; depth?: number }, send: Send): Promise<void> {
+  async analyze(key: string, req: { id: number; fen: string; multipv?: number; depth?: number; movetimeMs?: number }, send: Send): Promise<void> {
     const c = this.client(key);
     c.analysis?.ctrl.abort();
     let fen: string;
@@ -102,6 +104,7 @@ export class AnalysisService {
     }
     const multipv = clamp(Math.round(req.multipv ?? 1), 1, ANALYSIS_LIMITS.maxMultiPv);
     const depth = clamp(Math.round(req.depth ?? ANALYSIS_LIMITS.defaultDepth), 1, ANALYSIS_LIMITS.maxDepth);
+    const movetimeMs = clamp(Math.round(req.movetimeMs ?? ANALYSIS_LIMITS.maxMoveTimeMs), 500, ANALYSIS_LIMITS.maxMoveTimeMs);
     const ctrl = new AbortController();
     const entry = { id: req.id, ctrl };
     c.analysis = entry;
@@ -131,8 +134,9 @@ export class AnalysisService {
 
     try {
       await this.pool.run(
-        (engine) => engine.search(fen, { multipv, depth, movetimeMs: ANALYSIS_LIMITS.maxMoveTimeMs }, onInfo, ctrl.signal),
+        (engine) => engine.search(fen, { multipv, depth, movetimeMs }, onInfo, ctrl.signal),
         ctrl.signal,
+        { priority: 'high', maxQueue: this.opts.maxAnalysisQueue ?? 64 },
       );
       if (pending) clearTimeout(pending);
       if (!ctrl.signal.aborted) send({ t: 'analysis', id: req.id, analysis: snapshot(), done: true });
@@ -142,6 +146,23 @@ export class AnalysisService {
     } finally {
       if (c.analysis === entry) c.analysis = undefined;
     }
+  }
+
+  /**
+   * One position's evaluation for shared analysis (broadcast games): runs at
+   * low priority so players' own analysis and reviews go first.
+   */
+  async evaluate(fen: string, o: { depth?: number; movetimeMs?: number; signal?: AbortSignal } = {}): Promise<PositionEval> {
+    const term = terminalState(fen);
+    if (term) return { score: terminalScore(fen, term), pv: [], depth: 0 };
+    const ctrl = new AbortController();
+    o.signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
+    const res = await this.pool.run(
+      (engine) => engine.search(fen, { multipv: REVIEW_DEFAULTS.multipv, depth: o.depth ?? 16, movetimeMs: o.movetimeMs ?? 1200 }, undefined, ctrl.signal),
+      ctrl.signal,
+      { priority: 'low', maxQueue: 16 },
+    );
+    return positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null);
   }
 
   stop(key: string, id?: number) {
@@ -270,6 +291,8 @@ export class AnalysisService {
     let finish!: (v: GameReview | null) => void;
     let fail!: (e: unknown) => void;
     const promise = new Promise<GameReview | null>((res, rej) => ((finish = res), (fail = rej)));
+    // Background reviews only use spare engine time until a player asks for this one.
+    let urgent = !o.background;
     const job: ReviewJob = {
       ctrl,
       promise,
@@ -277,6 +300,8 @@ export class AnalysisService {
       done: 0,
       listeners: new Set(),
       boost: () => {
+        // Someone is waiting for it now: it no longer yields to other reviews.
+        urgent = true;
         while (running < this.pool.size && next < fens.length && !ctrl.signal.aborted) spawn();
       },
     };
@@ -292,6 +317,8 @@ export class AnalysisService {
           const res = await this.pool.run(
             (engine) => engine.search(fen, { multipv: REVIEW_DEFAULTS.multipv, depth, movetimeMs }, undefined, ctrl.signal),
             ctrl.signal,
+            // A review someone is waiting for outranks one done just in case.
+            { priority: urgent ? 'normal' : 'low' },
           );
           evals[i] = positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null);
         }
@@ -371,6 +398,7 @@ function clamp(n: number, lo: number, hi: number) {
 }
 
 function engineError(err: unknown, id: number): ServerMessage {
+  if (err instanceof EngineBusyError) return { t: 'error', code: 'engine_unavailable', message: err.message, id };
   const message = err instanceof Error ? err.message : 'Engine error';
   return { t: 'error', code: 'engine_unavailable', message: `Engine unavailable: ${message}`, id };
 }

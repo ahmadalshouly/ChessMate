@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/features/profile/Avatar';
+import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatNumber, useT } from '@/i18n';
@@ -44,7 +45,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
   const [open, setOpen] = useState(false);
   const low = ms != null && ms < 20_000;
   const flag = countryFlag(profile?.country);
-  const rating = player ? `${player.rating}${player.provisional ? '?' : ''}` : '';
+  const rating = player ? `${Math.round(player.rating)}${player.provisional ? '?' : ''}` : '';
   const canOpen = pressable && !!player;
   const tag = profile?.roleTag ?? null;
   const tagName = tag ? tr(`chessTitle.roleTags.${tag}`) : null;
@@ -74,6 +75,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
                   </Text>
                   {flag ? <Text style={styles.flag}>{flag}</Text> : null}
                   <RoleTagBadge tag={tag} compact />
+                  {!tag && <PlayerTagBadge tag={profile?.playerTag} compact />}
                 </View>
                 <Text variant="caption" tone="muted" numberOfLines={1} style={styles.sub}>
                   {subtitle ?? rating}
@@ -127,9 +129,10 @@ function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; 
               {profile?.displayName || player.name}
             </Text>
           </View>
-          {profile?.roleTag ? (
+          {profile?.roleTag || profile?.playerTag ? (
             <View style={styles.sheetTag}>
               <RoleTagBadge tag={profile.roleTag} />
+              <PlayerTagBadge tag={profile.playerTag} />
             </View>
           ) : null}
           <Text tone="muted" numberOfLines={1}>
@@ -139,7 +142,7 @@ function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; 
         </View>
       </View>
       <View style={styles.stats}>
-        <Stat label={tr('game.player.rating')} value={`${player.rating}${player.provisional ? '?' : ''}`} />
+        <Stat label={tr('game.player.rating')} value={`${Math.round(player.rating)}${player.provisional ? '?' : ''}`} />
         {totals && <Stat label={tr('game.player.games')} value={formatNumber(totals.games)} />}
       </View>
       {totals && (
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   pill: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   clock: { minWidth: 92, height: 44, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   clockText: { fontSize: 24, lineHeight: 28 },
-  sheetTag: { flexDirection: 'row', marginVertical: 2 },
+  sheetTag: { flexDirection: 'row', gap: 6, marginVertical: 2 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stats: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1, alignItems: 'center', gap: 2 },

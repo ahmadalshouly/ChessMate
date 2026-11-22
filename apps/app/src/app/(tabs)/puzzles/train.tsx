@@ -6,7 +6,8 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { PuzzleBoard } from '@/components/PuzzleBoard';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { puzzleApi } from '@/lib/puzzleApi';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useWideBoard } from '@/lib/useWideBoard';
+import { NO_SWIPE_BACK, useNoSwipeBack } from '@/lib/useNoSwipeBack';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
 import { translate, useT } from '@/i18n';
 import { puzzleThemeLabel } from '@/i18n/chess';
@@ -24,7 +25,10 @@ export default function PuzzleTrainer() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ solved: boolean; delta?: number; rating?: number } | null>(null);
   const seen = useRef<string[]>([]);
-  const size = useBoardSize(330);
+  // Leave with the back button only: dragging a piece must never swipe the puzzle away.
+  useNoSwipeBack();
+  // Big board on wide screens (panel beside it); phones keep room below for hints and results.
+  const { wide, size } = useWideBoard({ panel: 380, reserve: 116, phoneReserve: 330, sidebar: true });
 
   const load = useCallback(async () => {
     setError(null);
@@ -58,18 +62,23 @@ export default function PuzzleTrainer() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title }} />
-      <ScrollView contentContainerStyle={styles.page}>
-        {error ? (
-          <Card style={{ width: size }}>
+      <Stack.Screen options={{ title, ...NO_SWIPE_BACK }} />
+      {error ? (
+        <ScrollView contentContainerStyle={styles.page}>
+          <Card style={{ width: Math.min(size, 560) }}>
             <Label bold>{tr('puzzles.train.couldNotLoad')}</Label>
             <Label muted>{error}</Label>
             <Button title={tr('common.tryAgain')} onPress={load} />
           </Card>
-        ) : (
-          <View style={{ width: size, gap: 12 }}>
-            <PuzzleBoard view={view} puzzle={puzzle} size={size} />
-            {result && (
+        </ScrollView>
+      ) : (
+        <PuzzleBoard
+          view={view}
+          puzzle={puzzle}
+          size={size}
+          wide={wide}
+          below={
+            result && (
               <Card>
                 <Label size={18} bold>
                   {result.solved ? tr('puzzles.train.nice') : tr('puzzles.train.keepAtIt')}
@@ -82,10 +91,10 @@ export default function PuzzleTrainer() {
                 <Button title={tr('puzzles.train.next')} onPress={load} />
                 {daily && <Button variant="secondary" title={tr('puzzles.train.back')} onPress={() => router.back()} />}
               </Card>
-            )}
-          </View>
-        )}
-      </ScrollView>
+            )
+          }
+        />
+      )}
     </Screen>
   );
 }

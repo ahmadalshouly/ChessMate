@@ -26,7 +26,7 @@ import { TITLE_STATUS_TONE, TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAgo, formatDate, formatDateTime, translateOr, useT } from '@/i18n';
 import { Avatar, Badge, Button, Row, Stack, Text, TextField, useAppTheme } from '@/ui';
 
-type Dialog = 'warn' | 'mute' | 'unmute' | 'rename' | 'rating' | 'role' | 'signout' | 'close' | 'reopen' | 'review' | 'setTitle' | 'removeTitle' | 'setTag' | 'removeTag' | null;
+type Dialog = 'message' | 'warn' | 'mute' | 'unmute' | 'rename' | 'rating' | 'role' | 'signout' | 'close' | 'reopen' | 'review' | 'setTitle' | 'removeTitle' | 'setTag' | 'removeTag' | null;
 const poolLabel = (k: RatingCategory) => (k === 'puzzle' ? translateOr('nav.puzzles', 'Puzzles') : translateOr(`common.category.${k}`, k));
 const POOLS: RatingCategory[] = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence', 'puzzle'];
 
@@ -55,6 +55,7 @@ export default function AdminPlayer() {
 
       <Section title={tr('admin.player.actions')} index={1}>
         <Row gap="sm" wrap>
+          {can('messages.send') && <Button size="sm" variant="secondary" title={tr('admin.player.message')} onPress={() => setDialog('message')} />}
           {can('players.warn') && <Button size="sm" variant="secondary" title={tr('admin.player.warn')} onPress={() => setDialog('warn')} />}
           {can('players.mute') &&
             (p.chatMute ? (
@@ -380,6 +381,12 @@ function Dialogs({ p, dialog, close, done }: { p: AdminPlayerDetail; dialog: Dia
   const common = { visible: true, onClose: close };
 
   switch (dialog) {
+    case 'message':
+      return (
+        <ActionDialog {...common} title={tr('admin.dialogs.messageTitle', { name })} description={tr('admin.dialogs.messageBody')} confirmLabel={tr('admin.dialogs.send')} disabled={!reason.trim()} onConfirm={run(() => api.messagePlayer(p.id, reason))}>
+          <ReasonField label={tr('admin.dialogs.message')} value={reason} onChange={setReason} multiline />
+        </ActionDialog>
+      );
     case 'warn':
       return (
         <ActionDialog {...common} title={tr('admin.dialogs.warnTitle', { name })} description={tr('admin.dialogs.warnBody')} confirmLabel={tr('admin.player.warn')} disabled={!reason.trim()} onConfirm={run(() => api.warn(p.id, category, reason))}>

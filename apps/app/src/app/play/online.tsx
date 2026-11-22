@@ -1,13 +1,17 @@
 import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
+import { useGameLock } from '@/lib/useGameLock';
 import { CreateChallenge, IncomingChallenge, InviteDetails, OutgoingChallenge, challengeEndedText } from '@/components/Challenges';
 import { ChatPanel } from '@/components/ChatPanel';
 import { ReportDialog } from '@/components/ReportDialog';
+import { RestrictionBanner } from '@/components/shell/RestrictionBanner';
+import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
+import { useTournamentSponsor } from '@/features/tournaments/useTournamentSponsor';
 import { useTicker } from '@/components/PlayerBar';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
@@ -17,6 +21,7 @@ import { PlayerCard } from '@/components/game/PlayerCard';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { GameOverCard, endResult } from '@/components/play/GameOverCard';
+import { ResultPopup } from '@/components/play/ResultPopup';
 import { Pill, Row } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { serverText } from '@/i18n/serverMessages';
@@ -31,7 +36,7 @@ import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
 
-type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch';
+type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'frenzy';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
@@ -44,6 +49,7 @@ const DEFAULT_TC = { initialMs: 300_000, incrementMs: 0 };
  */
 export default function OnlinePlay() {
   const t = useTheme();
+  const { width: winW, height: winH } = useWindowDimensions();
   const tr = useT();
   const { tc: tcParam, mode, to, challenge: inviteId } = useLocalSearchParams<{ tc?: string; mode?: string; to?: string; challenge?: string }>();
   const quickTc = useMemo(() => {
@@ -57,7 +63,9 @@ export default function OnlinePlay() {
   const view = s.game;
   const size = useBoardSize(300);
   const live = !!view && !view.outcome;
-  useTicker(live || (!!view?.opponentAbandonAt && !view.opponentConnected) || s.seek !== null);
+  // No way back out mid-game (no back button, swipe or Android back); it returns when the game ends.
+  const lockOptions = useGameLock(live);
+  const now = useTicker(live || (!!view?.opponentAbandonAt && !view.opponentConnected) || s.seek !== null);
   useRecordOnlineGame(view);
 
   // Move and resign confirmation follow the user's gameplay settings.
@@ -72,11 +80,14 @@ export default function OnlinePlay() {
   const you: Color = view?.you ?? 'w';
   const opp: Color = you === 'w' ? 'b' : 'w';
   const players = view ? { w: view.white, b: view.black } : null;
-  const ms = (c: Color) => (view ? clockRemaining(view.clock, c, view.clockOffset) : null);
+  const ms = (c: Color) => (view ? clockRemaining(view.clock, c, view.clockOffset, now) : null);
   const history = view?.history ?? [];
   const last = prefs.pending ?? history[history.length - 1];
   useLowTimeWarning(view?.gameId ?? null, live, ms(you), view?.timeControl.initialMs ?? 0);
-  const abandonIn = view?.opponentAbandonAt ? Math.max(0, Math.ceil((view.opponentAbandonAt - (Date.now() + view.clockOffset)) / 1000)) : null;
+  const abandonIn = view?.opponentAbandonAt ? Math.max(0, Math.ceil((view.opponentAbandonAt - (now + view.clockOffset)) / 1000)) : null;
+  // Each side has 30 seconds for its first move; the server aborts the game after that.
+  const firstMoveIn = live && view?.firstMoveDeadline ? Math.max(0, Math.ceil((view.firstMoveDeadline - (now + view.clockOffset)) / 1000)) : null;
+  const toMove: Color = view?.fen.split(' ')[1] === 'b' ? 'b' : 'w';
 
   const me = s.me;
   const connected = s.connection === 'online' && !!me;
@@ -114,9 +125,14 @@ export default function OnlinePlay() {
     setPanel(panel === p ? null : p);
   };
 
-  const title = view ? `${formatTimeControl(view.timeControl)} · ${view.rated ? tr('play.rated') : tr('play.casual')}` : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
+  const title = view
+    ? `${formatTimeControl(view.timeControl)} · ${view.variant === 'secretQueen' ? tr('secretQueen.name') : view.rated ? tr('play.rated') : tr('play.casual')}`
+    : mode === 'friend' ? tr('home.friend.title') : tr('titles.playOnline');
 
-  const connectionNotice = s.closedReason ? (
+  const sponsor = useTournamentSponsor(view?.tournamentId ?? null);
+  const connectionNotice = s.restricted ? (
+    <RestrictionBanner style={styles.restricted} />
+  ) : s.closedReason ? (
     <View style={[styles.banner, { backgroundColor: t.surface, borderColor: t.glassBorder }]}>
       <Text style={{ color: t.text, fontWeight: '600' }}>{serverText(s.closedReason)}</Text>
     </View>
@@ -130,7 +146,7 @@ export default function OnlinePlay() {
   if (!view || !players) {
     return (
       <Screen>
-        <Stack.Screen options={{ title }} />
+        <Stack.Screen options={{ title, ...lockOptions }} />
         <ScrollView contentContainerStyle={styles.page}>
           <View style={{ width: Math.min(size, 480), gap: 8 }}>
             {connectionNotice}
@@ -188,21 +204,31 @@ export default function OnlinePlay() {
   const orientation: Color = flipped ? opp : you;
   const top: Color = orientation === 'w' ? 'b' : 'w';
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
-  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
+  const boardFen = nav.live ? (board.displayFen ?? view.fen) : (shownMove?.fenAfter ?? START);
   const boardLast = nav.live ? last : shownMove;
   const oppOfferedRematch = view.rematchBy === opp;
-  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
+  const secretQueen = view.variant === 'secretQueen';
+  // Secret Queen games are not reviewed or archived: pawns that moved like queens confuse the engine and the replay.
+  const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0 && !secretQueen;
+  const crowned = secretQueen ? (over && view.endSecrets ? [view.endSecrets.w, view.endSecrets.b].filter((x): x is NonNullable<typeof x> => !!x) : view.secret ? [view.secret] : []) : undefined;
+  const revealText = (r: (typeof view.reveals)[number]) =>
+    tr(`secretQueen.revealed.${r.reason}`, { side: r.color === 'w' ? tr('play.white') : tr('play.black'), square: r.square });
 
-  const openReview = () =>
+  const openReview = () => {
+    // The result popup is a modal: close it, or it stays on top of the review.
+    setHideResult(true);
     router.push({
       pathname: '/review',
       params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
     });
+  };
   const confirmThen = (fn: () => void) => () => {
     setPanel(null);
     fn();
   };
 
+  // Frenzy: in tournaments that allow it, before your own first move.
+  const canFrenzy = !over && view.frenzyAllowed && !view.frenzy[you] && history.length < (you === 'w' ? 1 : 2);
   const actions: GameAction[] = [
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     { key: 'chat', icon: 'chat-outline', label: tr('game.action.chat'), onPress: () => toggle('chat'), active: panel === 'chat', dot: unread },
@@ -211,6 +237,9 @@ export default function OnlinePlay() {
         ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: () => toggle('abort'), active: panel === 'abort' }]
         : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: () => toggle('draw'), active: panel === 'draw', disabled: view.drawOfferBy === you || view.drawOfferBy === opp, dot: view.drawOfferBy === opp }]
       : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), onPress: openReview, disabled: !reviewable }]),
+    ...(canFrenzy
+      ? [{ key: 'frenzy', icon: 'lightning-bolt' as const, label: tr('tournaments.frenzy.button'), onPress: () => toggle('frenzy'), active: panel === 'frenzy' }]
+      : []),
     !over
       ? { key: 'resign', icon: 'flag-outline', label: tr('game.action.resign'), onPress: () => toggle('resign'), active: panel === 'resign', disabled: history.length < 2, danger: true }
       : {
@@ -231,13 +260,16 @@ export default function OnlinePlay() {
   const canReport = !!me && opponent.id !== me.id;
   const moreItems: OptionItem[] = [
     { key: 'flip', icon: 'swap-vertical', label: tr('game.more.flip'), onPress: () => setFlipped((f) => !f) },
-    ...(view.premove ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.setPremove(null) }] : []),
+    ...(view.premoves.length ? [{ key: 'premove', icon: 'cancel' as const, label: tr('game.more.cancelPremove'), onPress: () => playClient.clearPremoves() }] : []),
     ...(over
       ? [
           ...(hideResult ? [{ key: 'result', icon: 'trophy-outline' as const, label: tr('game.over.showResult'), onPress: () => { setHideResult(false); setPanel(null); } }] : []),
           { key: 'new', icon: 'plus-circle-outline' as const, label: tr('game.more.newGame', { tc: formatTimeControl(view.timeControl) }), onPress: newGame },
-          ...(view.outcome!.reason !== 'aborted'
+          ...(view.outcome!.reason !== 'aborted' && !secretQueen
             ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } }) }]
+            : []),
+          ...(view.tournamentId
+            ? [{ key: 'tournament', icon: 'trophy-outline' as const, label: tr('tournaments.back'), onPress: () => router.push({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) }]
             : []),
           { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
         ]
@@ -268,10 +300,25 @@ export default function OnlinePlay() {
           text={history.length < 2 ? tr('play.online.oppGoneEarly') : abandonIn !== null ? tr('play.online.oppGoneWin', { n: abandonIn }) : tr('play.online.oppGoneWait')}
         />
       )}
+      {live && secretQueen && board.picking && <BoardNotice icon="crown-outline" text={tr('secretQueen.pick')} strong />}
+      {live && secretQueen && !board.picking && view.secret && history.length < 2 && <BoardNotice icon="crown" text={tr('secretQueen.chosen', { square: view.secret })} />}
+      {secretQueen && view.lastReveals.length > 0 && nav.live && <BoardNotice icon="eye-outline" text={view.lastReveals.map(revealText).join(' ')} />}
+      {firstMoveIn !== null && view.opponentConnected && (
+        <BoardNotice
+          icon="timer-sand"
+          text={toMove === you ? tr('play.online.firstMoveYou', { n: firstMoveIn }) : tr('play.online.firstMoveOpp', { name: players[opp].name, n: firstMoveIn })}
+          strong={toMove === you}
+        />
+      )}
       {s.error && <BoardNotice icon="alert-circle-outline" text={serverText(s.error)} />}
     </>
   );
-  const hasNotice = (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected)) || !!s.error;
+  const hasNotice =
+    (live && (!!prefs.pending || !!view.drawOfferBy || !view.opponentConnected || firstMoveIn !== null || (secretQueen && (board.picking || (!!view.secret && history.length < 2))))) ||
+    (secretQueen && view.lastReveals.length > 0) ||
+    !!s.error;
+  const firstMoveStatus = (c: Color) =>
+    [firstMoveIn !== null && c === toMove ? tr('play.online.firstMoveCountdown', { n: firstMoveIn }) : null, view.frenzy[c] ? `⚡ ${tr('tournaments.frenzy.active')}` : null].filter(Boolean).join(' · ') || null;
   const oppName = players[opp].name;
 
   const popover =
@@ -283,6 +330,8 @@ export default function OnlinePlay() {
       <OptionsPanel title={tr('game.more.title')} onClose={() => setPanel(null)} items={moreItems.map((it) => ({ ...it, onPress: confirmThen(it.onPress) }))} />
     ) : panel === 'draw' ? (
       <ConfirmPanel icon="handshake-outline" title={tr('game.confirm.drawTitle')} body={tr('game.confirm.drawBody')} confirmLabel={tr('game.confirm.draw')} onConfirm={confirmThen(playClient.offerDraw)} onCancel={() => setPanel(null)} />
+    ) : panel === 'frenzy' ? (
+      <ConfirmPanel icon="lightning-bolt" title={tr('tournaments.frenzy.button')} body={tr('tournaments.frenzy.hint')} confirmLabel={tr('tournaments.frenzy.button')} onConfirm={confirmThen(playClient.frenzy)} onCancel={() => setPanel(null)} />
     ) : panel === 'abort' ? (
       <ConfirmPanel icon="close-circle-outline" title={tr('game.confirm.abortTitle')} body={tr('game.confirm.abortBody')} confirmLabel={tr('game.confirm.abort')} onConfirm={confirmThen(playClient.abort)} onCancel={() => setPanel(null)} danger />
     ) : panel === 'resign' ? (
@@ -300,11 +349,20 @@ export default function OnlinePlay() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{ title, ...lockOptions }} />
       <GameLayout
-        notice={connectionNotice}
-        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} />}
-        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} />}
+        notice={
+          <>
+            {connectionNotice}
+            {sponsor ? (
+              <View style={styles.sponsor}>
+                <SponsorBadge sponsor={sponsor} size="sm" />
+              </View>
+            ) : null}
+          </>
+        }
+        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} status={firstMoveStatus(top)} />}
+        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} status={firstMoveStatus(orientation)} />}
         renderBoard={(boardSize) => (
           <>
             <Board
@@ -313,29 +371,15 @@ export default function OnlinePlay() {
               size={boardSize}
               selected={nav.live ? board.selected : null}
               targets={nav.live ? board.targets : []}
-              premove={nav.live ? view.premove : null}
+              premoves={nav.live ? view.premoves : null}
+              crowned={nav.live || over ? crowned : undefined}
+              pickable={nav.live ? board.pickable : undefined}
               lastMove={boardLast ? { from: boardLast.from, to: boardLast.to } : null}
               checkSquare={checkSquareOf(boardFen)}
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />
-            {over && !hideResult && (
-              <View style={[styles.overlay, { backgroundColor: t.scheme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)' }]}>
-                <GameOverCard
-                  view={view}
-                  onRematch={() => playClient.rematch()}
-                  onDeclineRematch={() => playClient.declineRematch()}
-                  onNewGame={newGame}
-                  onLobby={toLobby}
-                  onReview={reviewable ? openReview : undefined}
-                  onClose={() => setHideResult(true)}
-                />
-              </View>
-            )}
-            {/* Drawn above the result card; touches pass through. */}
-            {over && endResult(view) && (
-              <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={boardSize} height={boardSize} />
-            )}
+            {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}
         strip={
@@ -364,6 +408,24 @@ export default function OnlinePlay() {
           }}
         />
       )}
+      <ResultPopup visible={over && !hideResult} onClose={() => setHideResult(true)}>
+        {/* The popup fades out after a rematch or new game starts: only draw the card while there is a result. */}
+        {over && (
+          <GameOverCard
+            view={view}
+            onRematch={() => playClient.rematch()}
+            onDeclineRematch={() => playClient.declineRematch()}
+            onNewGame={newGame}
+            onLobby={toLobby}
+            onReview={reviewable ? openReview : undefined}
+            onClose={() => setHideResult(true)}
+            moves={history.map((m) => m.uci)}
+          />
+        )}
+        {over && endResult(view) && (
+          <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={winW} height={winH} />
+        )}
+      </ResultPopup>
     </Screen>
   );
 }
@@ -371,5 +433,10 @@ export default function OnlinePlay() {
 const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
+  restricted: { marginHorizontal: 12, marginTop: 8 },
+  sponsor: { alignItems: 'center', paddingTop: 6 },
+  // The result card scrolls inside the board when it is taller than the board (small phones).
+  overlayScroll: { width: '100%', maxHeight: '100%' },
+  overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
 });

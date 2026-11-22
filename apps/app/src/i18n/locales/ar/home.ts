@@ -41,8 +41,18 @@ export const home: Messages<typeof en> = {
     body: 'أفضل اللاعبين عالميًا وفي بلدك وبين أصدقائك.',
   },
   heroTitle: 'دورك.',
+  onlineFriends: {
+    title: 'الأصدقاء المتصلون',
+    count: { other: 'متصل: {count}' },
+    none: 'لا يوجد أصدقاء متصلون الآن',
+    all: 'كل الأصدقاء',
+  },
+  dailyPuzzle: {
+    whiteToMove: 'دور الأبيض. اعثر على أفضل نقلة.',
+    blackToMove: 'دور الأسود. اعثر على أفضل نقلة.',
+  },
   liveBoard: {
-    title: 'رقعة مباشرة',
+    title: 'مباريات مباشرة',
     watch: 'شاهد المباراة',
     finding: 'جارٍ البحث عن مباراة مباشرة…',
     empty: 'لا توجد مباريات جارية الآن. ابدأ مباراة وقد تظهر مباراتك على هذه الرقعة.',
@@ -50,6 +60,7 @@ export const home: Messages<typeof en> = {
     rated: 'مصنّفة',
     casual: 'ودية',
     a11y: 'مباراة مباشرة: {white} ضد {black}',
+    page: 'المباراة المباشرة {n} من {total}',
   },
   stats: {
     online: 'لاعبون متصلون',

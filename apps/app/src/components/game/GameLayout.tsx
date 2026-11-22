@@ -18,6 +18,9 @@ const BAR = 62;
 export const STRIP_HEIGHT = 38;
 /** Popovers (chat, options, confirmations) are never taller than this. */
 const POPOVER_MAX = 420;
+/** From this width (desktop web, tablets in landscape) the players and controls move beside the board. */
+const WIDE = 900;
+const SIDE = 360;
 
 export interface GameLayoutProps {
   /** Moves in one row, above the players and board. */
@@ -60,6 +63,42 @@ export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, 
   };
 
   const bottomSpace = Math.max(insets.bottom, 8);
+  const wide = !!box && box.w >= WIDE;
+  if (box && wide) {
+    // Board on the left, as tall as the window allows; players, moves and buttons in a column beside it.
+    const h = box.h - noticeH - PAD * 2 - bottomSpace;
+    let side = Math.floor(Math.max(200, Math.min(h, box.w - SIDE - GAP * 6, 1100)) / 8) * 8;
+    if (side < 200) side = 200;
+    return (
+      <View style={styles.root} onLayout={onLayout}>
+        <Stack.Screen options={{ headerTitle: ({ children }) => <GameTitle text={children} /> }} />
+        <View onLayout={(e) => setNoticeH(e.nativeEvent.layout.height)}>{notice}</View>
+        <View style={[styles.wideRow, { paddingBottom: bottomSpace }]}>
+          <View style={{ width: side, height: side }}>
+            {renderBoard(side)}
+            {notices ? (
+              <View style={styles.notices} pointerEvents="box-none">
+                {notices}
+              </View>
+            ) : null}
+          </View>
+          <View style={[styles.side, { height: side }]}>
+            {top}
+            <View style={{ height: STRIP_HEIGHT }}>{strip}</View>
+            <View style={styles.sideMiddle}>
+              {popover ? (
+                <View style={[styles.sidePopover, { maxHeight: Math.min(POPOVER_MAX, side - PLAYER_CARD_HEIGHT * 2 - BAR - STRIP_HEIGHT - GAP * 6), backgroundColor: t.colors.surfaceSolid }, t.shadows.lg]}>
+                  {popover}
+                </View>
+              ) : null}
+            </View>
+            <ActionBar actions={actions} />
+            {bottom}
+          </View>
+        </View>
+      </View>
+    );
+  }
   let size = 0;
   if (box) {
     const h = box.h - noticeH;
@@ -141,4 +180,8 @@ const styles = StyleSheet.create({
   notices: { position: 'absolute', top: 8, left: 8, right: 8, gap: 6 },
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.18)' },
   popover: { alignSelf: 'center', borderRadius: 30, overflow: 'hidden' },
+  wideRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: GAP * 4, paddingTop: PAD, paddingHorizontal: 16 },
+  side: { width: SIDE, gap: GAP * 2 },
+  sideMiddle: { flex: 1, minHeight: 0, justifyContent: 'flex-end' },
+  sidePopover: { borderRadius: 26, overflow: 'hidden' },
 });

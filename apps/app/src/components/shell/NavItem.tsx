@@ -30,10 +30,8 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
         onPress={triggerProps.onPress}
         onLongPress={triggerProps.onLongPress}
         style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.6 : 1 }]}>
-        <View style={[styles.barIcon, focused && { backgroundColor: t.accent }]}>
-          <Ionicons name={focused ? tab.iconActive : tab.icon} size={19} color={focused ? t.onAccent : t.muted} />
-        </View>
-        <Text numberOfLines={1} style={[styles.barLabel, { color: focused ? t.text : t.textTertiary }]}>
+        <BarIcon focused={focused} icon={focused ? tab.iconActive : tab.icon} />
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.barLabel, { color: focused ? t.text : t.textTertiary }]}>
           {tr(tab.label)}
         </Text>
       </Pressable>
@@ -60,10 +58,28 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
   );
 }
 
+/**
+ * Tab icon with its selected pill. The pill is always drawn and only fades in:
+ * Android drops the rounded corners when a background colour is switched on
+ * after the view first renders, which showed a square highlight.
+ */
+export function BarIcon({ focused, icon }: { focused: boolean; icon: TabConfig['icon'] }) {
+  const t = useTheme();
+  return (
+    <View style={styles.barIcon}>
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pill, { backgroundColor: t.accent, opacity: focused ? 1 : 0 }]} />
+      <Ionicons name={icon} size={19} color={focused ? t.onAccent : t.muted} />
+    </View>
+  );
+}
+
+export const barLabelStyle = { fontFamily: fonts.label, fontSize: 9, letterSpacing: 0.4, textTransform: 'uppercase' } as const;
+
 const styles = StyleSheet.create({
+  pill: { borderRadius: 15, overflow: 'hidden' },
   bar: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
   barIcon: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  barLabel: { fontFamily: fonts.monoMedium, fontSize: 9.5, letterSpacing: 0.9, textTransform: 'uppercase' },
+  barLabel: barLabelStyle,
   side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 42, borderRadius: 12 },
   sideMark: { position: 'absolute', top: 12, bottom: 12, width: 2.5, borderRadius: 2 },
   sideLabel: { fontSize: 14.5, flex: 1, letterSpacing: -0.15 },

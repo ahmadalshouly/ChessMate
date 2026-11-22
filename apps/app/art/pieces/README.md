@@ -15,6 +15,9 @@ after adding or changing a set (needs Playwright with Chromium).
 | `bold` | Bold | kiwen-suwi | [neverRare](https://github.com/neverRare) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 | `caramel` | Caramel | RhosGFX pieces | [RhosGFX](https://rhosgfx.itch.io/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `shapes` | Shapes | chess_shapes | [flugsio](https://github.com/flugsio/chess_shapes) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `eyes` | Eyes | Eyes (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](eyes/LICENSE) |
+| `cats` | Cats | Prmi (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](cats/LICENSE) |
+| `skulls` | Skulls | Skulls (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](skulls/LICENSE) |
 
 Changes from the originals: SVGs are rasterised to 192px PNGs; the `glass` set recolours
 Chessnut as described above. The rendered `shapes` PNGs stay under CC BY-SA 4.0.

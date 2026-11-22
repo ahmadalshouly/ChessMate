@@ -19,13 +19,19 @@ export function InAppBanner() {
   const insets = useSafeAreaInsets();
   const { incoming, dismissIncoming, open } = useNotifications();
 
+  // Awards drop their own banner (with the medal), so their inbox entry stays quiet here.
+  const isAward = incoming?.url === '/awards';
   useEffect(() => {
     if (!incoming) return;
+    if (isAward) {
+      dismissIncoming();
+      return;
+    }
     const timer = setTimeout(dismissIncoming, VISIBLE_MS);
     return () => clearTimeout(timer);
-  }, [incoming, dismissIncoming]);
+  }, [incoming, isAward, dismissIncoming]);
 
-  if (!incoming) return null;
+  if (!incoming || isAward) return null;
   return (
     <Animated.View entering={FadeInUp} exiting={FadeOutUp} style={[styles.wrap, { top: insets.top + 8 }]} pointerEvents="box-none">
       <Pressable
