@@ -980,6 +980,13 @@ export class EventService {
     this.invalidate(round.eventId);
   }
 
+  /** The Lichess tournament an imported event came from, if any. */
+  async lichessTourOf(eventId: string): Promise<string | null> {
+    const b = this.built.get(eventId)?.value;
+    const row = b ? b.row : await getEvent(this.db, eventId);
+    return row && row.source === 'lichess' ? row.externalId : null;
+  }
+
   async eventEndsAt(eventId: string): Promise<number | null> {
     const b = this.built.get(eventId)?.value;
     if (b) return b.row.endsAt.getTime();

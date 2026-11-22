@@ -204,7 +204,7 @@ describe('broadcast sync', () => {
       const body = files[url];
       return { status: body ? 200 : 404, ok: !!body, text: async () => body ?? '' };
     };
-    const sync = new BroadcastSync({ db: h.db, events, now, fetch: fetcher, lichessOrigin: 'https://lichess.test' });
+    const sync = new BroadcastSync({ db: h.db, events, now, fetch: fetcher, lichessOrigin: 'https://lichess.test', lichessGapMs: 0 });
 
     const e = await events.create(ids.wadmin!, { name: 'Live Open', startsAt: clock - 3_600_000, endsAt: clock + 86_400_000 });
     await events.addRound(ids.wadmin!, e.id, { number: 1, source: { kind: 'pgnUrl', url: 'https://boards.example/live.pgn' } });
@@ -222,6 +222,9 @@ describe('broadcast sync', () => {
     // The finished round was synced once; the ongoing one on the normal tick.
     expect(gct.rounds.map((r) => r.games.length)).toEqual([2, 2]);
     expect(asked).toContain('https://lichess.test/api/broadcast/round/roundAAA.pgn');
+    // Finished rounds are never streamed (Lichess would close the stream at once); the ongoing one is.
+    expect(asked).not.toContain('https://lichess.test/api/stream/broadcast/round/roundAAA.pgn');
+    expect(asked).toContain('https://lichess.test/api/stream/broadcast/round/roundBBB.pgn');
 
     // Switched off: no more imports.
     await events.saveSettings(ids.wadmin!, { lichessImport: false });

@@ -17,6 +17,8 @@ export interface BroadcastSyncOptions {
   lichessOrigin?: string;
   /** Lichess tiers to import (4 = high, 5 = best). */
   minTier?: number;
+  /** Gap between requests to Lichess (it asks for one request at a time). */
+  lichessGapMs?: number;
 }
 
 const TICK_MS = 4_000;
@@ -28,8 +30,14 @@ const LIVE_MS = { pgnUrl: 5_000, lichess: 12_000 } as const;
 const STREAMED_POLL_MS = 90_000;
 /** Moves arrive whole; a pause this long after data means the game's PGN is complete. */
 const STREAM_FLUSH_MS = 400;
-const STREAM_RETRY_MS = 5_000;
-const MAX_STREAMS = 24;
+/** A stream that ended after sending data reconnects quickly; one that sent nothing backs off. */
+const STREAM_RECONNECT_MS = 3_000;
+const STREAM_BACKOFF_MS = { first: 15_000, max: 10 * 60_000 } as const;
+const MAX_STREAMS = 8;
+/** Imported tournaments with rounds in play are re-read this often, for Lichess's own round status. */
+const TOUR_REFRESH_MS = 5 * 60_000;
+/** Without Lichess's status, a round counts as in play from 10 minutes before it until this long after. */
+const ASSUMED_ROUND_MS = 8 * 3_600_000;
 const IDLE_MS = 45_000;
 const ERROR_MS = 60_000;
 /** A round whose games are all decided and unchanged this long stops being polled. */
@@ -56,6 +64,13 @@ export class BroadcastSync {
   /** Rounds that cannot be streamed (no stream support), and when a stream may be retried. */
   private readonly noStream = new Set<string>();
   private readonly streamRetryAt = new Map<string, number>();
+  /** Streams in a row that ended without sending anything, per round. */
+  private readonly streamFails = new Map<string, number>();
+  /** Lichess's own status of each round (from importing its tournament), by Lichess round id. */
+  private readonly lichessState = new Map<string, { ongoing: boolean; finished: boolean }>();
+  private lastTourRefresh = 0;
+  /** When the next request to Lichess may go out. */
+  private lichessNextAt = 0;
 
   constructor(private readonly opts: BroadcastSyncOptions) {}
 
@@ -88,6 +103,7 @@ export class BroadcastSync {
     this.settledSince.delete(roundId);
     this.noStream.delete(roundId);
     this.streamRetryAt.delete(roundId);
+    this.streamFails.delete(roundId);
   }
 
   async tick(): Promise<void> {
@@ -98,11 +114,16 @@ export class BroadcastSync {
         this.lastImport = this.now();
         await this.importLichess().catch((e) => console.warn('lichess import failed:', e instanceof Error ? e.message : e));
       }
-      const rounds = await listSyncedRounds(this.opts.db);
+      let rounds = await listSyncedRounds(this.opts.db);
+      if (this.now() - this.lastTourRefresh >= TOUR_REFRESH_MS) {
+        this.lastTourRefresh = this.now();
+        if (await this.refreshTours(rounds).catch((e) => void console.warn('lichess refresh failed:', e instanceof Error ? e.message : e))) rounds = await listSyncedRounds(this.opts.db);
+      }
       this.manageStreams(rounds);
       for (const r of rounds) {
         if (!(await this.due(r))) continue;
-        await this.syncRound(r);
+        const state = r.lichessRoundId ? this.lichessState.get(r.lichessRoundId) : undefined;
+        await this.syncRound(r, r.sourceKind === 'lichess' && state?.finished === true);
       }
     } catch (e) {
       console.warn('broadcast sync failed:', e);
@@ -129,13 +150,52 @@ export class BroadcastSync {
     return true;
   }
 
+  /** Whether a Lichess round is being played now: Lichess's own status when known, else its start time. */
+  private inPlay(r: BroadcastRoundRow): boolean {
+    const state = r.lichessRoundId ? this.lichessState.get(r.lichessRoundId) : undefined;
+    if (state) return state.ongoing && !state.finished;
+    const now = this.now();
+    if (!r.startsAt) return false;
+    const t = r.startsAt.getTime();
+    return now >= t - 10 * 60_000 && now <= t + ASSUMED_ROUND_MS;
+  }
+
+  private remember(rounds: LichessBroadcastRound[]) {
+    for (const lr of rounds) this.lichessState.set(lr.id, { ongoing: lr.ongoing === true, finished: lr.finished === true });
+  }
+
+  /** Re-reads imported Lichess tournaments that still have rounds to follow. Returns true when any round finished. */
+  private async refreshTours(rounds: BroadcastRoundRow[]): Promise<boolean> {
+    if (this.now() < this.lichessPausedUntil) return false;
+    const tours = new Map<string, string>();
+    for (const r of rounds) {
+      if (r.sourceKind !== 'lichess' || tours.has(r.eventId)) continue;
+      const tour = await this.opts.events.lichessTourOf(r.eventId);
+      if (tour) tours.set(r.eventId, tour);
+    }
+    let changed = false;
+    for (const tourId of new Set(tours.values())) {
+      const full = (await this.json(`${this.origin}/api/broadcast/${encodeURIComponent(tourId)}`)) as { tour?: LichessBroadcastTour; rounds?: LichessBroadcastRound[] };
+      if (!full.tour?.id || !full.tour.name) continue;
+      const lrs = (Array.isArray(full.rounds) ? full.rounds : []).filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string');
+      this.remember(lrs);
+      const finalSync = await this.opts.events.importLichessTour(full.tour, lrs);
+      for (const r of finalSync) {
+        await this.syncRound(r, true);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   /** Opens a live stream for each Lichess round in play and closes the ones that are over. */
   private manageStreams(rounds: BroadcastRoundRow[]) {
     const now = this.now();
     const live = new Set<string>();
     for (const r of rounds) {
       if (r.sourceKind !== 'lichess' || !r.lichessRoundId || this.noStream.has(r.id)) continue;
-      if (r.startsAt && now < r.startsAt.getTime() - 10 * 60_000) continue;
+      // Only rounds being played: Lichess closes streams of finished rounds at once.
+      if (!this.inPlay(r)) continue;
       live.add(r.id);
       if (this.streams.has(r.id) || this.streams.size >= MAX_STREAMS) continue;
       if ((this.streamRetryAt.get(r.id) ?? 0) > now || now < this.lichessPausedUntil) continue;
@@ -160,6 +220,7 @@ export class BroadcastSync {
     let buffer = '';
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     let lastMark = 0;
+    let received = false;
     let chain: Promise<unknown> = Promise.resolve();
     const flush = () => {
       flushTimer = null;
@@ -196,6 +257,7 @@ export class BroadcastSync {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
+        if (buffer.trim()) received = true;
         if (flushTimer) clearTimeout(flushTimer);
         flushTimer = setTimeout(flush, STREAM_FLUSH_MS);
       }
@@ -205,12 +267,31 @@ export class BroadcastSync {
       if (flushTimer) clearTimeout(flushTimer);
       flush();
       if (this.streams.get(r.id) === ctrl) this.streams.delete(r.id);
-      this.streamRetryAt.set(r.id, this.now() + STREAM_RETRY_MS);
+      // Reconnect quickly after a stream that worked; back off from one that sent nothing.
+      const fails = received ? 0 : (this.streamFails.get(r.id) ?? 0) + 1;
+      this.streamFails.set(r.id, fails);
+      this.streamRetryAt.set(r.id, this.now() + (fails ? Math.min(STREAM_BACKOFF_MS.max, STREAM_BACKOFF_MS.first * 2 ** (fails - 1)) : STREAM_RECONNECT_MS));
+      // Whatever happened, have the next poll fetch the whole round soon.
+      if (!ctrl.signal.aborted) this.nextAt.delete(r.id);
     }
+  }
+
+  /** Waits for Lichess's turn: one request at a time, a short gap between them. */
+  private async lichessTurn() {
+    const gap = this.opts.lichessGapMs ?? 1_000;
+    if (!gap) return;
+    const at = Math.max(Date.now(), this.lichessNextAt);
+    this.lichessNextAt = at + gap;
+    const wait = at - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   }
 
   private async get(url: string): Promise<string> {
     const f: Fetcher = this.opts.fetch ?? ((u, init) => fetch(u, init));
+    if (url.startsWith(this.origin)) {
+      if (this.now() < this.lichessPausedUntil) throw new Error('Lichess asked us to slow down; waiting a minute');
+      await this.lichessTurn();
+    }
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
     try {
@@ -276,6 +357,7 @@ export class BroadcastSync {
     const top = (await this.json(`${this.origin}/api/broadcast/top?page=1`)) as { active?: unknown[]; upcoming?: unknown[] };
     const entries = [...(Array.isArray(top.active) ? top.active : []), ...(Array.isArray(top.upcoming) ? top.upcoming : [])];
     const minTier = this.opts.minTier ?? 4;
+    this.lastTourRefresh = this.now();
     const tours: LichessBroadcastTour[] = [];
     for (const raw of entries) {
       const e = raw as { tour?: LichessBroadcastTour } & LichessBroadcastTour;
@@ -289,6 +371,7 @@ export class BroadcastSync {
     for (const t of tours) {
       const full = (await this.json(`${this.origin}/api/broadcast/${encodeURIComponent(t.id)}`)) as { tour?: LichessBroadcastTour; rounds?: LichessBroadcastRound[] };
       const rounds = (Array.isArray(full.rounds) ? full.rounds : []).filter((r) => r && typeof r.id === 'string' && typeof r.name === 'string');
+      this.remember(rounds);
       const finalSync = await this.opts.events.importLichessTour({ ...t, ...(full.tour ?? {}) }, rounds);
       for (const r of finalSync) await this.syncRound(r, true);
       imported++;
