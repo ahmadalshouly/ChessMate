@@ -120,10 +120,8 @@ export default function PuzzlesHome() {
 
   return (
     <Screen scroll width="wide">
-      <Stack gap="xxs">
-        <Text variant="title">{tr('nav.puzzles')}</Text>
-        <Text tone="muted">{total ? tr('puzzles.home.subtitle', { n: formatNumber(total) }) : tr('puzzles.home.credit')}</Text>
-      </Stack>
+      {/* The app header already says "Puzzles". */}
+      <Text tone="muted">{total ? tr('puzzles.home.subtitle', { n: formatNumber(total) }) : tr('puzzles.home.credit')}</Text>
 
       {error ? (
         <GlassView padding="lg" radius="lg" style={{ gap: 4 }}>
@@ -133,7 +131,7 @@ export default function PuzzlesHome() {
       ) : null}
 
       {/* Your numbers */}
-      <Row gap="sm" wrap>
+      <Row gap="sm" wrap align="stretch">
         <StatTile icon="trending-up" label={tr('puzzles.home.rating')} value={profile ? `${profile.rating}${profile.provisional ? '?' : ''}` : null} loading={!loaded} />
         <StatTile icon="checkmark-done" label={tr('puzzles.home.solved')} value={profile ? formatNumber(profile.solved) : null} sub={accuracy !== null ? tr('puzzles.home.accuracy', { pct: accuracy }) : undefined} loading={!loaded} />
         <StatTile icon="flame-outline" label={tr('puzzles.home.bestStreak')} value={profile ? String(profile.bestStreak) : null} loading={!loaded} />
