@@ -2,7 +2,7 @@ import type { PuzzleAttemptResponse, PuzzleDto, PuzzleProfileDto, PuzzleRunMode 
 import { Platform } from 'react-native';
 
 import { SERVER_URL } from './config';
-import { markPuzzleSeen, seenPuzzles } from './seenPuzzles';
+import { markPuzzleSeen, markPuzzlesSeen, seenPuzzles } from './seenPuzzles';
 
 /** HTTP base of the game server, derived from its WebSocket URL. */
 export const API_BASE = SERVER_URL.replace(/^ws/, 'http').replace(/\/ws\/?$/, '');
@@ -77,7 +77,7 @@ export const puzzleApi = {
     call<PuzzleAttemptResponse>(`/${encodeURIComponent(id)}/attempt`, body),
   run: async (mode: PuzzleRunMode, offset: number) => {
     const r = await call<{ puzzles: PuzzleDto[] }>(`/run?mode=${mode}&offset=${offset}`);
-    for (const p of r.puzzles) void markPuzzleSeen(p.id);
+    void markPuzzlesSeen(r.puzzles.map((p) => p.id));
     return r;
   },
   saveRun: (mode: PuzzleRunMode, score: number) => call<{ saved: boolean; best: number; newBest?: boolean }>('/run', { mode, score }),
