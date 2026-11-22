@@ -33,7 +33,8 @@ export function reasonText(reason: string): string {
 }
 
 export function resultHeadline(view: GameView): { title: string; detail: string } {
-  const o = view.outcome!;
+  const o = view.outcome;
+  if (!o) return { title: '', detail: '' };
   const youLeft = o.reason === 'abandoned' && o.winner !== view.you;
   const title =
     o.reason === 'aborted' ? translate('play.result.aborted') : o.winner === null ? translate('play.result.draw') : o.winner === view.you ? translate('play.result.won') : translate('play.result.lost');

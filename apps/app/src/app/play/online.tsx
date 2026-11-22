@@ -214,11 +214,14 @@ export default function OnlinePlay() {
   const revealText = (r: (typeof view.reveals)[number]) =>
     tr(`secretQueen.revealed.${r.reason}`, { side: r.color === 'w' ? tr('play.white') : tr('play.black'), square: r.square });
 
-  const openReview = () =>
+  const openReview = () => {
+    // The result popup is a modal: close it, or it stays on top of the review.
+    setHideResult(true);
     router.push({
       pathname: '/review',
       params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
     });
+  };
   const confirmThen = (fn: () => void) => () => {
     setPanel(null);
     fn();
@@ -406,17 +409,20 @@ export default function OnlinePlay() {
         />
       )}
       <ResultPopup visible={over && !hideResult} onClose={() => setHideResult(true)}>
-        <GameOverCard
-          view={view}
-          onRematch={() => playClient.rematch()}
-          onDeclineRematch={() => playClient.declineRematch()}
-          onNewGame={newGame}
-          onLobby={toLobby}
-          onReview={reviewable ? openReview : undefined}
-          onClose={() => setHideResult(true)}
-          moves={history.map((m) => m.uci)}
-        />
-        {endResult(view) && (
+        {/* The popup fades out after a rematch or new game starts: only draw the card while there is a result. */}
+        {over && (
+          <GameOverCard
+            view={view}
+            onRematch={() => playClient.rematch()}
+            onDeclineRematch={() => playClient.declineRematch()}
+            onNewGame={newGame}
+            onLobby={toLobby}
+            onReview={reviewable ? openReview : undefined}
+            onClose={() => setHideResult(true)}
+            moves={history.map((m) => m.uci)}
+          />
+        )}
+        {over && endResult(view) && (
           <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={winW} height={winH} />
         )}
       </ResultPopup>
