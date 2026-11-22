@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { InAppBanner } from '@/components/notifications/InAppBanner';
 import { RootStackHeader } from '@/components/shell/StackHeader';
@@ -22,6 +23,8 @@ import { initI18n, useI18n } from '@/i18n';
 // Web: when Google's sign-in pop-up returns to the app, hand the result to the opener and close it.
 WebBrowser.maybeCompleteAuthSession();
 
+const rootStyle = { flex: 1 } as const;
+
 export default function RootLayout() {
   // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
   const fontsReady = useAppFonts();
@@ -35,9 +38,12 @@ export default function RootLayout() {
   }, []);
   if (!fontsReady || !i18nReady) return null;
   return (
-    <UIProvider>
-      <Navigator />
-    </UIProvider>
+    // Board drag-and-drop runs on gesture-handler, which needs this at the root.
+    <GestureHandlerRootView style={rootStyle}>
+      <UIProvider>
+        <Navigator />
+      </UIProvider>
+    </GestureHandlerRootView>
   );
 }
 

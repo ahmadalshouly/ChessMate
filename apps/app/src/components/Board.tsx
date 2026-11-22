@@ -1,7 +1,10 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Animated, Easing, Image, PanResponder, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { GestureDetector, GestureStateManager, MouseButton, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { Text } from '@/ui/primitives';
 
@@ -62,13 +65,6 @@ export interface BoardProps {
   pickable?: Square[];
 }
 
-/**
- * True while the right mouse button is down on a board (web). The drag
- * gesture ignores that press so a right-button drag draws an arrow instead of
- * moving the piece. One flag is enough: there is only one mouse.
- */
-const rightButton = { down: false };
-
 /** Colours for drawn shapes: plain, Shift, Alt. Translucent so pieces stay readable. */
 const DRAW_COLORS = { plain: 'rgba(38, 158, 92, 0.82)', shift: 'rgba(214, 64, 52, 0.82)', alt: 'rgba(52, 118, 214, 0.82)' } as const;
 
@@ -100,17 +96,13 @@ function useDrawnShapes(enabled: boolean, fen: string, cell: number, orientation
     const colorOf = (e: MouseEvent) => (e.shiftKey ? DRAW_COLORS.shift : e.altKey ? DRAW_COLORS.alt : DRAW_COLORS.plain);
     const onDown = (e: MouseEvent) => {
       if (e.button === 2) {
-        rightButton.down = true;
         start = squareOf(e);
         return;
       }
       if (e.button === 0) setShapes((s) => (s.arrows.length || s.marks.length ? { fen: latest.current.fen, arrows: [], marks: [] } : s));
     };
     const onUp = (e: MouseEvent) => {
-      if (e.button !== 2) return;
-      // Cleared after the gesture handlers have seen this release.
-      setTimeout(() => (rightButton.down = false), 0);
-      if (!start) return;
+      if (e.button !== 2 || !start) return;
       const from = start;
       const to = squareOf(e);
       start = null;
@@ -174,9 +166,12 @@ function pieceAt(position: (Piece | null)[][], sq: Square): Piece | null {
 }
 
 /** How long a piece takes to slide to its new square. */
-const SLIDE_MS = 180;
+const SLIDE_MS = 160;
+/** How long a dropped piece takes to glide back when the move doesn't happen. */
+const SNAP_BACK_MS = 140;
 /** More changed squares than this (a new game, a jump through the moves) shows the position straight away. */
 const MAX_SLIDE_CHANGES = 6;
+const SLIDE_EASING = Easing.out(Easing.cubic);
 
 interface Slide {
   piece: Piece;
@@ -230,11 +225,12 @@ function cellOrigin(sq: Square, orientation: Color, cell: number) {
 /**
  * Slides pieces to their new squares when the position changes by a move,
  * instead of making them vanish and reappear. A piece just dropped by drag is
- * already where it belongs and is not slid again.
+ * already where it belongs and is not slid again. The slide itself runs on the
+ * UI thread (see SlidingPiece); React only renders when a slide starts and ends.
  */
 function useSlides(fen: string, position: (Piece | null)[][], orientation: Color, size: number) {
   const [prev, setPrev] = useState({ fen, position, orientation, size });
-  const [run, setRun] = useState<{ key: string; slides: Slide[]; progress: Animated.Value } | null>(null);
+  const [run, setRun] = useState<{ key: string; slides: Slide[] } | null>(null);
   // The last drag-and-drop, on the position it was made from.
   const [dropped, setDropped] = useState<{ from: Square; to: Square; fen: string } | null>(null);
 
@@ -245,23 +241,58 @@ function useSlides(fen: string, position: (Piece | null)[][], orientation: Color
     const drop = dropped?.fen === prev.fen ? dropped : null;
     const slides = moved ? slidesBetween(prev.position, position).filter((s) => !(drop && s.from === drop.from && s.to === drop.to)) : [];
     if (dropped) setDropped(null);
-    setRun(slides.length ? { key: fen, slides, progress: new Animated.Value(0) } : null);
+    setRun(slides.length ? { key: fen, slides } : null);
   }
 
-  useEffect(() => {
-    if (!run) return;
-    const anim = Animated.timing(run.progress, {
-      toValue: 1,
-      duration: SLIDE_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== 'web',
-    });
-    anim.start(({ finished }) => finished && setRun((r) => (r === run ? null : r)));
-    return () => anim.stop();
-  }, [run]);
-
   const markDropped = (from: Square, to: Square) => setDropped({ from, to, fen });
-  return { run, hidden: new Set(run?.slides.map((sl) => sl.to) ?? []), markDropped };
+  const finish = (key: string) => setRun((r) => (r?.key === key ? null : r));
+  const hidden = useMemo(() => new Set(run?.slides.map((sl) => sl.to) ?? []), [run]);
+  return { run, hidden, markDropped, finish };
+}
+
+/**
+ * One piece gliding from its old square to its new one. Each slide mounts
+ * fresh with its own progress, so it starts at the old square on its first
+ * frame, and the animation runs on the UI thread without touching React.
+ */
+function SlidingPiece({ slide, orientation, cell, size, set, onDone }: { slide: Slide; orientation: Color; cell: number; size: number; set: PieceSet; onDone?: () => void }) {
+  const progress = useSharedValue(0);
+  const a = cellOrigin(slide.from, orientation, cell);
+  const b = cellOrigin(slide.to, orientation, cell);
+  const ax = a.x + cell / 2 - size / 2;
+  const ay = a.y + cell / 2 - size / 2;
+  const bx = b.x + cell / 2 - size / 2;
+  const by = b.y + cell / 2 - size / 2;
+
+  useEffect(() => {
+    progress.set(
+      withTiming(1, { duration: SLIDE_MS, easing: SLIDE_EASING }, (finished) => {
+        'worklet';
+        if (finished && onDone) scheduleOnRN(onDone);
+      }),
+    );
+    // Mounted once per slide (keyed by the move).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const moving = useAnimatedStyle(() => ({
+    transform: [{ translateX: ax + (bx - ax) * progress.get() }, { translateY: ay + (by - ay) * progress.get() }],
+  }));
+  // A captured piece stays on its square until the attacker has nearly arrived.
+  const fading = useAnimatedStyle(() => ({ opacity: progress.get() < 0.85 ? 1 : (1 - progress.get()) / 0.15 }));
+
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN]}>
+      {slide.captured && (
+        <Animated.View style={[placeAt(b.x, b.y, cell, cell, size), fading]}>
+          <PieceView type={slide.captured.type} color={slide.captured.color} cell={cell} set={set} />
+        </Animated.View>
+      )}
+      <Animated.View style={[styles.floating, { width: cell, height: cell }, moving]}>
+        <PieceView type={slide.piece.type} color={slide.piece.color} cell={cell} set={set} />
+      </Animated.View>
+    </View>
+  );
 }
 
 /** Square order for an orientation, top-left first. */
@@ -311,6 +342,71 @@ const Surface = memo(function Surface({ theme, orientation, size }: { theme: Boa
   );
 });
 
+/** Legal-move hint on a square: none, a dot on an empty square, a ring around a piece that can be taken. */
+type Hint = 0 | 1 | 2;
+
+interface CellProps {
+  sq: Square;
+  col: number;
+  row: number;
+  cell: number;
+  size: number;
+  /** Piece code ('wn', 'bp') or '' for an empty or hidden square. */
+  piece: string;
+  set: PieceSet;
+  /** Tints over the square, bottom first, joined with '|'. */
+  overlays: string;
+  /** The piece being dragged away from here, shown faded. */
+  lifted: boolean;
+  hint: Hint;
+  hintColor: string;
+  rankLabel: number;
+  fileLabel: string;
+  coordColor: string;
+  pickable: boolean;
+  crowned: boolean;
+  label: string;
+}
+
+/**
+ * One square: its tints, coordinates, piece and move hint. Its props are plain
+ * values, so selecting a piece, a move or the end of a slide re-renders only
+ * the few squares that change instead of the whole board.
+ */
+const SquareCell = memo(function SquareCell(p: CellProps) {
+  const { cell } = p;
+  const coordSize = Math.max(8, cell * 0.17);
+  const coordBox = Math.ceil(coordSize * 1.3);
+  return (
+    <View accessibilityLabel={p.label} pointerEvents="none" style={[placeAt(p.col * cell, p.row * cell, cell, cell, p.size), PLACE_ORIGIN]}>
+      {p.overlays !== '' && p.overlays.split('|').map((c, k) => <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />)}
+      {p.rankLabel > 0 && (
+        <Text style={[styles.coord, placeAt(cell * 0.02, 0, coordBox, coordBox, cell), { color: p.coordColor, fontSize: coordSize, lineHeight: coordBox }]}>{p.rankLabel}</Text>
+      )}
+      {p.fileLabel !== '' && (
+        <Text style={[styles.coord, placeAt(cell - coordBox - cell * 0.02, cell - coordBox, coordBox, coordBox, cell), { color: p.coordColor, fontSize: coordSize, lineHeight: coordBox }]}>
+          {p.fileLabel}
+        </Text>
+      )}
+      {p.piece !== '' && (
+        <View style={p.lifted ? styles.lifted : undefined}>
+          <PieceView color={p.piece[0] as Color} type={p.piece[1] as Piece['type']} cell={cell} set={p.set} />
+        </View>
+      )}
+      {p.pickable && <View style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />}
+      {p.crowned && (
+        <View style={[styles.crown, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell * 0.18, top: cell * 0.03, end: cell * 0.03 }]}>
+          <Text style={{ fontSize: cell * 0.24, lineHeight: cell * 0.3, color: '#3a2a00' }}>♛</Text>
+        </View>
+      )}
+      {p.hint === 2 && <View style={[StyleSheet.absoluteFill, { borderWidth: cell * 0.075, borderColor: p.hintColor, borderRadius: cell / 2 }]} />}
+      {p.hint === 1 && (
+        <View style={{ position: 'absolute', left: cell * 0.36, top: cell * 0.36, width: cell * 0.28, height: cell * 0.28, borderRadius: cell, backgroundColor: p.hintColor }} />
+      )}
+    </View>
+  );
+});
+
 export const Board = memo(function Board(props: BoardProps) {
   const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], premove, onSquarePress } = props;
   const { boardTheme } = useBoardTheme();
@@ -323,25 +419,21 @@ export const Board = memo(function Board(props: BoardProps) {
   // Thumbnails are too small for readable coordinates.
   const coordinates = look.coordinates && !props.hideCoordinates && cell >= 24;
   const slide = useSlides(fen, position, orientation, size);
-  const { enabled: dragEnabled, state: dragging, offset: dragOffset, ref: dragRef, handlers: dragHandlers } = useDrag({
-    ...props,
-    position,
-    cell,
-    onSquarePress,
-    onDropped: slide.markDropped,
-  });
+  const { enabled: dragEnabled, state: dragging, ui: dragUI, ref: dragRef, gesture: dragGesture } = useDrag({ ...props, position, cell, onDropped: slide.markDropped });
   // Right-click arrows and circles (web) on every board you look at closely; thumbnails stay plain.
   const drawn = useDrawnShapes(props.drawable ?? (!!onSquarePress || (!props.hideCoordinates && size >= 160)), fen, cell, orientation);
   // Move sounds on every board; thumbnails and small previews stay quiet (a grid of live games would clatter).
   useBoardSound(fen, props.sound ?? (!props.hideCoordinates && size >= 160));
   const allArrows = props.arrows ? [...props.arrows, ...drawn.arrows] : drawn.arrows;
-  const targetSet = new Set(targets);
+  const targetSet = look.showLegalMoves ? new Set(targets) : null;
   const premoveSquares = new Set<string>();
   for (const pm of [...(premove ? [premove] : []), ...(props.premoves ?? [])]) {
     premoveSquares.add(pm.from);
     premoveSquares.add(pm.to);
   }
   const threatSet = new Set(threatened);
+  const pickable = props.pickable ? new Set(props.pickable) : null;
+  const crowned = props.crowned ? new Set(props.crowned) : null;
 
   return (
     // The board never mirrors: files run a to h left to right in every language (see placeAt).
@@ -354,102 +446,57 @@ export const Board = memo(function Board(props: BoardProps) {
         const piece = pieceAt(position, sq);
         const row = Math.floor(i / 8);
         const col = i % 8;
-        const overlays: string[] = [];
-        if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
-        if (threatSet.has(sq)) overlays.push(colors.threat);
-        if (premoveSquares.has(sq)) overlays.push(PREMOVE_TINT);
-        if (selected === sq) overlays.push(colors.selected);
-        if (checkSquare === sq) overlays.push(colors.check);
-        const coordColor = isLight ? colors.coordOnLight : colors.coordOnDark;
-        const coordSize = Math.max(8, cell * 0.17);
-        const coordBox = Math.ceil(coordSize * 1.3);
+        let overlays = '';
+        const tint = (c: string) => (overlays = overlays ? `${overlays}|${c}` : c);
+        if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) tint(colors.lastMove);
+        if (threatSet.has(sq)) tint(colors.threat);
+        if (premoveSquares.has(sq)) tint(PREMOVE_TINT);
+        if (selected === sq) tint(colors.selected);
+        if (checkSquare === sq) tint(colors.check);
         return (
-          <Pressable
+          <SquareCell
             key={sq}
-            onPress={() => onSquarePress?.(sq)}
-            disabled={!onSquarePress}
-            accessibilityLabel={`${sq}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`}
-            style={[placeAt(col * cell, row * cell, cell, cell, size), PLACE_ORIGIN]}>
-            {overlays.map((c, k) => (
-              <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
-            ))}
-            {coordinates && col === 0 && (
-              <Text style={[styles.coord, placeAt(cell * 0.02, 0, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>{rank}</Text>
-            )}
-            {coordinates && row === 7 && (
-              <Text style={[styles.coord, placeAt(cell - coordBox - cell * 0.02, cell - coordBox, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>
-                {FILES[fileIdx]}
-              </Text>
-            )}
-            {piece && !slide.hidden.has(sq) && (
-              <View style={dragging?.from === sq ? styles.lifted : undefined}>
-                <PieceView piece={piece} cell={cell} set={set} />
-              </View>
-            )}
-            {props.pickable?.includes(sq) && (
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />
-            )}
-            {props.crowned?.includes(sq) && (
-              <View
-                pointerEvents="none"
-                style={[styles.crown, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell * 0.18, top: cell * 0.03, end: cell * 0.03 }]}>
-                <Text style={{ fontSize: cell * 0.24, lineHeight: cell * 0.3, color: '#3a2a00' }}>♛</Text>
-              </View>
-            )}
-            {dragging?.over === sq && dragging.over !== dragging.from && (
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: Math.max(2, cell * 0.06), borderColor: colors.hint }]} />
-            )}
-            {look.showLegalMoves && targetSet.has(sq) && (
-              <View
-                pointerEvents="none"
-                style={
-                  piece
-                    ? [StyleSheet.absoluteFill, { borderWidth: cell * 0.075, borderColor: colors.hint, borderRadius: cell / 2 }]
-                    : { position: 'absolute', left: cell * 0.36, top: cell * 0.36, width: cell * 0.28, height: cell * 0.28, borderRadius: cell, backgroundColor: colors.hint }
-                }
-              />
-            )}
-          </Pressable>
+            sq={sq}
+            col={col}
+            row={row}
+            cell={cell}
+            size={size}
+            piece={piece && !slide.hidden.has(sq) ? `${piece.color}${piece.type}` : ''}
+            set={set}
+            overlays={overlays}
+            lifted={!!dragging?.moved && dragging.from === sq}
+            hint={targetSet?.has(sq) ? (piece ? 2 : 1) : 0}
+            hintColor={colors.hint}
+            rankLabel={coordinates && col === 0 ? rank : 0}
+            fileLabel={coordinates && row === 7 ? FILES[fileIdx] : ''}
+            coordColor={isLight ? colors.coordOnLight : colors.coordOnDark}
+            pickable={!!pickable?.has(sq)}
+            crowned={!!crowned?.has(sq)}
+            label={`${sq}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`}
+          />
         );
       })}
-      {slide.run?.slides.map((sl) => {
-        const a = cellOrigin(sl.from, orientation, cell);
-        const b = cellOrigin(sl.to, orientation, cell);
-        const centre = (v: number) => v + cell / 2 - size / 2;
-        const p = slide.run!.progress;
+      {slide.run?.slides.map((sl, k) => {
+        const key = slide.run!.key;
         return (
-          <View key={`slide-${slide.run!.key}-${sl.from}-${sl.to}`} pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN]}>
-            {sl.captured && (
-              <Animated.View style={[placeAt(b.x, b.y, cell, cell, size), { opacity: p.interpolate({ inputRange: [0, 0.85, 1], outputRange: [1, 1, 0] }) }]}>
-                <PieceView piece={sl.captured} cell={cell} set={set} />
-              </Animated.View>
-            )}
-            <Animated.View
-              style={[
-                styles.floating,
-                {
-                  width: cell,
-                  height: cell,
-                  transform: [
-                    { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [centre(a.x), centre(b.x)] }) },
-                    { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [centre(a.y), centre(b.y)] }) },
-                  ],
-                },
-              ]}>
-              <PieceView piece={sl.piece} cell={cell} set={set} />
-            </Animated.View>
-          </View>
+          <SlidingPiece
+            key={`slide-${key}-${sl.from}-${sl.to}`}
+            slide={sl}
+            orientation={orientation}
+            cell={cell}
+            size={size}
+            set={set}
+            onDone={k === 0 ? () => slide.finish(key) : undefined}
+          />
         );
       })}
-      {dragEnabled && <View ref={dragRef} collapsable={false} style={[StyleSheet.absoluteFill, WEB_NO_GESTURES]} {...dragHandlers} />}
-      {dragging?.moved && (
-        <Animated.View
-          pointerEvents="none"
-          // Centred like the squares (see placeAt), then moved by the drag offset.
-          style={[styles.floating, { width: cell, height: cell, transform: [{ translateX: (cell - size) / 2 }, { translateY: (cell - size) / 2 }, ...dragOffset.getTranslateTransform(), { scale: 1.12 }] }]}>
-          <PieceView piece={dragging.piece} cell={cell} set={set} />
-        </Animated.View>
+      {dragEnabled && (
+        <GestureDetector gesture={dragGesture}>
+          <View ref={dragRef} collapsable={false} style={[StyleSheet.absoluteFill, WEB_NO_GESTURES]} />
+        </GestureDetector>
       )}
+      {dragEnabled && <DropTarget ui={dragUI} cell={cell} size={size} color={colors.hint} />}
+      {dragging && <DraggedPiece ui={dragUI} piece={dragging.piece} cell={cell} size={size} set={set} />}
       {drawn.marks.map((m) => {
         const f = m.sq.charCodeAt(0) - 97;
         const r = Number(m.sq[1]);
@@ -504,7 +551,7 @@ function PromotionPicker({ choice, orientation, size, set }: { choice: Promotion
           style={[placeAt(col * cell, (row + step * i) * cell, cell, cell, size), PLACE_ORIGIN]}>
           {({ pressed }) => (
             <View style={[styles.promoChip, { width: cell * 0.94, height: cell * 0.94, borderRadius: cell * 0.47, opacity: pressed ? 0.75 : 1 }]}>
-              <PieceView piece={{ type, color: choice.color }} cell={cell * 0.86} set={set} />
+              <PieceView type={type} color={choice.color} cell={cell * 0.86} set={set} />
             </View>
           )}
         </Pressable>
@@ -513,28 +560,79 @@ function PromotionPicker({ choice, orientation, size, set }: { choice: Promotion
   );
 }
 
-function PieceView({ piece, cell, set }: { piece: Piece; cell: number; set: PieceSet }) {
-  return <Image source={pieceImage(set, piece.color, piece.type)} style={{ width: cell, height: cell }} resizeMode="contain" accessibilityIgnoresInvertColors />;
-}
+const PieceView = memo(function PieceView({ type, color, cell, set }: { type: Piece['type']; color: Color; cell: number; set: PieceSet }) {
+  return <Image source={pieceImage(set, color, type)} style={{ width: cell, height: cell }} resizeMode="contain" accessibilityIgnoresInvertColors />;
+});
 
 // On the web, stop the page scrolling or selecting text while a piece is dragged.
 const WEB_NO_GESTURES = (Platform.OS === 'web' ? { touchAction: 'none', userSelect: 'none', cursor: 'pointer' } : {}) as ViewStyle;
 
+/** How much a picked-up piece grows, so it reads as lifted under a finger. */
+const LIFT_SCALE = 1.12;
+
 interface DragState {
   from: Square;
   piece: Piece;
-  over: Square | null;
   /** True once the pointer moved past the tap slop and the piece follows it. */
   moved: boolean;
 }
 
 /**
- * Drag-and-drop on top of tap-to-move. One transparent layer over the board
- * owns the gesture, so coordinates are always board-relative. A short press is
- * passed on as a tap; a press that moves drags the piece. Pressing a movable
- * piece selects it straight away so its legal moves show while dragging.
+ * What the UI thread knows about the drag. The gesture writes these on every
+ * pointer move and the dragged piece and drop outline read them, so following
+ * the finger never waits for JavaScript or a React render.
+ */
+interface DragUI {
+  /** Pointer in board coordinates: the centre of the dragged piece. */
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  moved: SharedValue<boolean>;
+  lift: SharedValue<number>;
+  /** Squares as display cells (row * 8 + col, top-left first); -1 for none. */
+  from: SharedValue<number>;
+  over: SharedValue<number>;
+}
+
+/** The piece under the finger. Positioned on the UI thread; React only mounts it at pick-up and removes it at the end. */
+function DraggedPiece({ ui, piece, cell, size, set }: { ui: DragUI; piece: Piece; cell: number; size: number; set: PieceSet }) {
+  const follow = useAnimatedStyle(() => ({
+    opacity: ui.moved.get() ? 1 : 0,
+    transform: [{ translateX: ui.x.get() - size / 2 }, { translateY: ui.y.get() - size / 2 }, { scale: ui.lift.get() }],
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.floating, { width: cell, height: cell }, follow]}>
+      <PieceView type={piece.type} color={piece.color} cell={cell} set={set} />
+    </Animated.View>
+  );
+}
+
+/** Outline on the square a dragged piece would land on, moved on the UI thread. */
+function DropTarget({ ui, cell, size, color }: { ui: DragUI; cell: number; size: number; color: string }) {
+  const place = useAnimatedStyle(() => {
+    const o = ui.over.get();
+    const show = ui.moved.get() && o >= 0 && o !== ui.from.get();
+    return {
+      opacity: show ? 1 : 0,
+      transform: [{ translateX: (o % 8) * cell + cell / 2 - size / 2 }, { translateY: Math.floor(o / 8) * cell + cell / 2 - size / 2 }],
+    };
+  });
+  return <Animated.View pointerEvents="none" style={[styles.floating, { width: cell, height: cell, borderWidth: Math.max(2, cell * 0.06), borderColor: color }, place]} />;
+}
+
+/**
+ * Drag-and-drop on top of tap-to-move, with react-native-gesture-handler and
+ * Reanimated so the piece follows the finger on the UI thread at the screen's
+ * frame rate, even while JavaScript is busy (a bot thinking, a clock ticking).
+ *
+ * One transparent layer over the board owns the gestures, so coordinates are
+ * always board-relative. Pressing a movable piece claims the touch at once and
+ * selects the piece so its legal moves show; moving it past the slop drags it.
+ * A press elsewhere is a tap, and a swipe that starts there is left to any
+ * scroll view around the board. React renders at pick-up, lift-off and drop;
+ * nothing renders per pointer move.
  */
 function useDrag(p: {
+  fen: string;
   orientation: Color;
   selected?: Square | null;
   position: (Piece | null)[][];
@@ -546,85 +644,233 @@ function useDrag(p: {
   /** Told about a drop before onPieceDrop, so the board doesn't slide that piece again. */
   onDropped?: (from: Square, to: Square) => void;
 }) {
+  const enabled = !!p.onSquarePress;
   const [state, setState] = useState<DragState | null>(null);
-  const [offset] = useState(() => new Animated.ValueXY());
+  // A drop waiting to see whether the position changes: if it does, the piece is already there.
+  const [pending, setPending] = useState<{ fen: string; from: Square } | null>(null);
   const ref = useRef<ComponentRef<typeof View>>(null);
-  // The responder is created once; it reads the latest props through this ref.
+  // The gestures are created once; they read the latest props through this ref.
   const latest = useRef(p);
   latest.current = p;
-  const press = useRef<{ sq: Square | null; x: number; y: number; draggable: boolean; selectedOnDown: boolean; moved: boolean }>(null);
-  const enabled = !!p.onSquarePress;
+  const press = useRef<{ sq: Square; selectedOnDown: boolean } | null>(null);
 
-  const handlers = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        // Scrolling still works when the press starts on a square without a movable piece.
-        onShouldBlockNativeResponder: () => !!press.current?.draggable,
-        onPanResponderTerminationRequest: () => !press.current?.moved,
-        onPanResponderGrant: (e) => {
-          if (rightButton.down || (e.nativeEvent as unknown as { button?: number }).button === 2) {
-            press.current = null;
-            return;
-          }
-          const { cell, orientation, canDrag, selected, onSquarePress, position } = latest.current;
-          const x = e.nativeEvent.locationX;
-          const y = e.nativeEvent.locationY;
-          const sq = squareAtPoint(x, y, cell, orientation);
-          const piece = sq ? pieceAt(position, sq) : null;
-          const draggable = !!(sq && piece && canDrag?.(sq));
-          press.current = { sq, x, y, draggable, selectedOnDown: false, moved: false };
-          if (draggable && sq && piece) {
-            if (selected !== sq) {
-              onSquarePress?.(sq);
-              press.current.selectedOnDown = true;
-            }
-            setState({ from: sq, piece, over: sq, moved: false });
-          }
-        },
-        onPanResponderMove: (_e, g) => {
-          if (rightButton.down) return;
-          const cur = press.current;
-          if (!cur?.draggable || !cur.sq) return;
-          if (!cur.moved && Math.hypot(g.dx, g.dy) < DRAG_SLOP) return;
-          const { cell, orientation } = latest.current;
-          const x = cur.x + g.dx;
-          const y = cur.y + g.dy;
-          offset.setValue({ x: x - cell / 2, y: y - cell / 2 });
-          const over = squareAtPoint(x, y, cell, orientation);
-          if (!cur.moved) {
-            cur.moved = true;
-            haptic('pickup');
-          }
-          setState((s) => (s && (s.over !== over || !s.moved) ? { ...s, over, moved: true } : s));
-        },
-        onPanResponderRelease: (_e, g) => {
-          const cur = press.current;
+  const x = useSharedValue(0);
+  const y = useSharedValue(0);
+  const moved = useSharedValue(false);
+  const lift = useSharedValue(1);
+  const from = useSharedValue(-1);
+  const over = useSharedValue(-1);
+  const ui = useMemo<DragUI>(() => ({ x, y, moved, lift, from, over }), [x, y, moved, lift, from, over]);
+  const cellSV = useSharedValue(p.cell);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+  /** 1 while a piece is held. */
+  const holding = useSharedValue(0);
+  /** 1 when the drag gesture took the current press, so the tap gesture leaves it alone. */
+  const claimed = useSharedValue(0);
+  /** Which display cells hold a piece that can be picked up ('1'), so touch-down is decided on the UI thread. */
+  const movable = useSharedValue('');
+
+  const movableKey = enabled && p.canDrag ? ORDER[p.orientation].map((sq) => (pieceAt(p.position, sq) && p.canDrag!(sq) ? '1' : '0')).join('') : '';
+  useEffect(() => {
+    movable.set(movableKey);
+  }, [movableKey, movable]);
+  useEffect(() => {
+    cellSV.set(p.cell);
+  }, [p.cell, cellSV]);
+
+  // The move was played (or queued as a premove): the dropped piece is shown on its new square in this same render.
+  if (pending && pending.fen !== p.fen) {
+    setPending(null);
+    setState(null);
+  }
+
+  const js = useMemo(() => {
+    const squareOfCell = (idx: number) => ORDER[latest.current.orientation][idx];
+    const clear = () => setState(null);
+    /** Glides the held piece back to its square, then puts it down. */
+    const snapBack = (sq: Square) => {
+      const { orientation, cell } = latest.current;
+      const o = cellOrigin(sq, orientation, cell);
+      const timing = { duration: SNAP_BACK_MS, easing: SLIDE_EASING };
+      lift.set(withTiming(1, timing));
+      x.set(withTiming(o.x + cell / 2, timing));
+      y.set(
+        withTiming(o.y + cell / 2, timing, (finished) => {
+          'worklet';
+          if (finished) scheduleOnRN(clear);
+        }),
+      );
+    };
+    return {
+      snapBack,
+      pickUp(idx: number) {
+        const { selected, onSquarePress, position } = latest.current;
+        const sq = squareOfCell(idx);
+        const piece = pieceAt(position, sq);
+        if (!piece) {
           press.current = null;
-          setState(null);
-          if (rightButton.down) return;
-          if (!cur?.sq) return;
-          const { cell, orientation, onSquarePress, onPieceDrop } = latest.current;
-          if (cur.moved) {
-            const to = squareAtPoint(cur.x + g.dx, cur.y + g.dy, cell, orientation);
-            // Dropped back on its square or off the board: keep it selected for a tap move.
-            if (to && to !== cur.sq) {
-              latest.current.onDropped?.(cur.sq, to);
-              onPieceDrop?.(cur.sq, to);
-            }
-            return;
-          }
+          return;
+        }
+        press.current = { sq, selectedOnDown: selected !== sq };
+        // Select straight away so the legal moves show while dragging.
+        if (selected !== sq) onSquarePress?.(sq);
+        setPending(null);
+        setState({ from: sq, piece, moved: false });
+      },
+      liftOff() {
+        haptic('pickup');
+        setState((s) => (s && !s.moved ? { ...s, moved: true } : s));
+      },
+      release(overIdx: number, wasMoved: boolean) {
+        const cur = press.current;
+        press.current = null;
+        if (!cur) return clear();
+        const { onSquarePress, onPieceDrop, onDropped, fen } = latest.current;
+        if (!wasMoved) {
+          clear();
           // A tap. Movable pieces were already selected on press; tapping the selected one again clears it.
           if (!cur.selectedOnDown) onSquarePress?.(cur.sq);
+          return;
+        }
+        const to = overIdx >= 0 ? squareOfCell(overIdx) : null;
+        // Dropped back on its square or off the board: it glides home and stays selected for a tap move.
+        if (!to || to === cur.sq) return snapBack(cur.sq);
+        onDropped?.(cur.sq, to);
+        onPieceDrop?.(cur.sq, to);
+        // The piece stays where it was dropped until the new position shows (see above), or glides back.
+        setPending({ fen, from: cur.sq });
+      },
+      tap(idx: number) {
+        latest.current.onSquarePress?.(squareOfCell(idx));
+      },
+      cancel() {
+        press.current = null;
+        setPending(null);
+        clear();
+      },
+    };
+  }, [x, y, lift]);
+
+  // Dropped but the position didn't change (an illegal square, a promotion to pick): glide the piece back.
+  useEffect(() => {
+    if (!pending || pending.fen !== p.fen) return;
+    setPending(null);
+    js.snapBack(pending.from);
+  }, [pending, p.fen, js]);
+
+  const pan = usePanGesture(
+    useMemo(
+      () => ({
+        enabled,
+        manualActivation: true,
+        mouseButton: MouseButton.LEFT,
+        shouldCancelWhenOutside: false,
+        onTouchesDown: (e: { handlerTag: number; allTouches: { x: number; y: number }[] }) => {
+          'worklet';
+          const t = e.allTouches[0];
+          if (holding.get() === 1 || !t) return;
+          claimed.set(0);
+          const c = cellSV.get();
+          const col = Math.floor(t.x / c);
+          const row = Math.floor(t.y / c);
+          const idx = col >= 0 && col < 8 && row >= 0 && row < 8 ? row * 8 + col : -1;
+          if (idx < 0 || movable.get().charAt(idx) !== '1') {
+            // Not a piece you can move: let the tap gesture (or a scroll view) have it.
+            GestureStateManager.fail(e.handlerTag);
+            return;
+          }
+          holding.set(1);
+          claimed.set(1);
+          startX.set(t.x);
+          startY.set(t.y);
+          x.set(t.x);
+          y.set(t.y);
+          moved.set(false);
+          lift.set(1);
+          from.set(idx);
+          over.set(idx);
+          GestureStateManager.activate(e.handlerTag);
+          scheduleOnRN(js.pickUp, idx);
         },
-        onPanResponderTerminate: () => {
-          press.current = null;
-          setState(null);
+        onUpdate: (e: { x: number; y: number }) => {
+          'worklet';
+          if (holding.get() !== 1) return;
+          x.set(e.x);
+          y.set(e.y);
+          if (!moved.get()) {
+            const dx = e.x - startX.get();
+            const dy = e.y - startY.get();
+            if (dx * dx + dy * dy < DRAG_SLOP * DRAG_SLOP) return;
+            moved.set(true);
+            lift.set(withTiming(LIFT_SCALE, { duration: 90 }));
+            scheduleOnRN(js.liftOff);
+          }
+          const c = cellSV.get();
+          const col = Math.floor(e.x / c);
+          const row = Math.floor(e.y / c);
+          over.set(col >= 0 && col < 8 && row >= 0 && row < 8 ? row * 8 + col : -1);
         },
-      }).panHandlers,
-    [offset],
+        onDeactivate: (e: { canceled: boolean }) => {
+          'worklet';
+          if (holding.get() !== 1) return;
+          holding.set(0);
+          const target = over.get();
+          over.set(-1);
+          if (e.canceled) {
+            moved.set(false);
+            scheduleOnRN(js.cancel);
+            return;
+          }
+          scheduleOnRN(js.release, target, moved.get());
+        },
+        // Touch-down can arrive before the handler has begun (the web does this), when activating
+        // there does nothing; activating again once it begins covers both orders.
+        onBegin: (e: { handlerTag: number }) => {
+          'worklet';
+          if (holding.get() === 1) GestureStateManager.activate(e.handlerTag);
+        },
+        onFinalize: () => {
+          'worklet';
+          if (holding.get() !== 1) return;
+          holding.set(0);
+          over.set(-1);
+          moved.set(false);
+          scheduleOnRN(js.cancel);
+        },
+      }),
+      // Shared values and `js` are stable; only switching the board on or off rebuilds the gesture.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [enabled],
+    ),
   );
+
+  const tap = useTapGesture(
+    useMemo(
+      () => ({
+        enabled,
+        mouseButton: MouseButton.LEFT,
+        maxDistance: DRAG_SLOP * 2,
+        // Any press that doesn't wander is a tap, however long it is held.
+        maxDuration: 60_000,
+        onActivate: (e: { x: number; y: number }) => {
+          'worklet';
+          // On the web a quick click can end the drag gesture before the tap recognises, so the
+          // race doesn't cancel the tap; the drag already handled that press as a tap.
+          if (claimed.get() === 1) return;
+          const c = cellSV.get();
+          const col = Math.floor(e.x / c);
+          const row = Math.floor(e.y / c);
+          if (col >= 0 && col < 8 && row >= 0 && row < 8) scheduleOnRN(js.tap, row * 8 + col);
+        },
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [enabled],
+    ),
+  );
+
+  // Whichever recognises first wins: a press on a movable piece is a drag, anything else a tap.
+  const gesture = useCompetingGestures(pan, tap);
 
   // Right-click cancels a premove or selection, like most chess sites.
   useEffect(() => {
@@ -632,15 +878,14 @@ function useDrag(p: {
     if (Platform.OS !== 'web' || !enabled || !node?.addEventListener) return;
     const onContext = (e: MouseEvent) => {
       e.preventDefault();
-      press.current = null;
-      setState(null);
+      js.cancel();
       latest.current.onCancel?.();
     };
     node.addEventListener('contextmenu', onContext);
     return () => node.removeEventListener('contextmenu', onContext);
-  }, [enabled]);
+  }, [enabled, js]);
 
-  return { enabled, state, offset, ref, handlers };
+  return { enabled, state, ui, ref, gesture };
 }
 
 const styles = StyleSheet.create({
