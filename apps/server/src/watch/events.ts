@@ -990,6 +990,12 @@ export class EventService {
     this.invalidate(round.eventId);
   }
 
+  /** Lets a round marked done be synced again (its source is read until it succeeds). */
+  async reopenSync(round: BroadcastRoundRow) {
+    await updateRound(this.db, round.id, { sourceFinished: false });
+    this.invalidate(round.eventId);
+  }
+
   async roundsOf(eventId: string): Promise<BroadcastRoundRow[]> {
     return listRounds(this.db, eventId);
   }

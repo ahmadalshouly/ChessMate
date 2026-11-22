@@ -296,6 +296,8 @@ describe('broadcast sync', () => {
     };
     const sync = new BroadcastSync({ db: h.db, events, now, fetch: fetcher, lichessOrigin: 'https://lichess.test', lichessGapMs: 0 });
     await sync.importLichess();
+    // The round is handed back to the regular sync loop, which reads it on its next pass.
+    await sync.tick();
     const d = await events.detail(null, ev);
     const games = d.rounds[0]!.games;
     expect(games).toHaveLength(29);

@@ -189,7 +189,9 @@ export class BroadcastSync {
     for (const r of await this.opts.events.roundsOf(eventId)) {
       if (r.sourceKind !== 'lichess' || !r.lichessRoundId || !finished.has(r.lichessRoundId) || !r.sourceFinished || this.verified.has(r.id)) continue;
       this.verified.add(r.id);
-      await this.syncRound(r, true);
+      // Hand it back to the regular loop, which retries after errors and pauses until the round is read.
+      await this.opts.events.reopenSync(r);
+      this.nextAt.delete(r.id);
     }
   }
 
@@ -347,7 +349,7 @@ export class BroadcastSync {
 
   /** Waits for Lichess's turn: one request at a time, a short gap between them. */
   private async lichessTurn() {
-    const gap = this.opts.lichessGapMs ?? 500;
+    const gap = this.opts.lichessGapMs ?? 1_000;
     if (!gap) return;
     const at = Math.max(Date.now(), this.lichessNextAt);
     this.lichessNextAt = at + gap;
