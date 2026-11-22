@@ -3,15 +3,15 @@ import { useEffect, useRef } from 'react';
 
 import { moveSound, playMoveSound, positionKey } from '@/lib/sounds';
 
-/** The SAN of the one move that turns `from` into `to`, or null when it is not a single move. */
+/**
+ * The SAN of the one move that turns `from` into `to`, or null when it is not a single move.
+ * chess.js already works out the position after each legal move, so one parse is enough
+ * (building a new game per legal move cost ~40 parses on every move, on the JS thread).
+ */
 function moveBetween(from: string, to: string): string | null {
   const target = positionKey(to);
   try {
-    const g = new Game(from);
-    for (const m of g.legalMoves()) {
-      const next = new Game(from);
-      if (next.move(`${m.from}${m.to}${m.promotion ?? ''}`) && positionKey(next.fen) === target) return m.san;
-    }
+    for (const m of new Game(from).raw.moves({ verbose: true })) if (positionKey(m.after) === target) return m.san;
   } catch {
     // Not a position the rules can read (a variant or a setup): stay quiet.
   }
