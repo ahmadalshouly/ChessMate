@@ -16,7 +16,7 @@ function folder(rel) {
   const full = path.join(root, rel);
   const parts = full.split(/[\\/]+/).filter(Boolean).map(escape);
   const lead = /^[\\/]/.test(full) ? '[\\\\/]' : '';
-  return new RegExp(`^${lead}${parts.join('[\\\\/]')}[\\\\/].*`, 'i');
+  return new RegExp(`^${lead}${parts.join('[\\\\/]')}[\\\\/].*`);
 }
 
 const ignored = [
