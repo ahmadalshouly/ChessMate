@@ -2,7 +2,7 @@ import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type S
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { GestureDetector, GestureStateManager, MouseButton, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
+import { GestureDetector, MouseButton, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -644,15 +644,14 @@ function DropTarget({ ui, cell, size, color }: { ui: DragUI; cell: number; size:
  * frame rate, even while JavaScript is busy (a bot thinking, a slow render).
  *
  * One transparent layer over the board owns the gestures, so coordinates are
- * always board-relative. Pressing a movable piece claims the touch at once and
- * selects the piece so its legal moves show; moving it past the slop drags it.
- * A press elsewhere is a tap, and a swipe that starts there is left to any
- * scroll view around the board.
+ * always board-relative. A press that moves past the slop from a movable piece
+ * drags it (and selects it, so its legal moves show); a press that doesn't move
+ * is a tap, handled like tap-to-move.
  *
  * Picking up, dragging, the drop outline and gliding back from an illegal or
- * cancelled drop all run on the UI thread. JavaScript is only told about the
- * press (to select the piece) and the drop (to play the move); the board itself
- * never re-renders during a drag.
+ * cancelled drop all run on the UI thread. JavaScript is only told when a drag
+ * starts (to select the piece) and about the drop (to play the move); the board
+ * itself never re-renders during a drag.
  */
 function useDrag(p: {
   fen: string;
@@ -674,7 +673,6 @@ function useDrag(p: {
   // The gestures are created once; they read the latest props through this ref.
   const latest = useRef(p);
   latest.current = p;
-  const press = useRef<{ sq: Square; selectedOnDown: boolean } | null>(null);
 
   const x = useSharedValue(0);
   const y = useSharedValue(0);
@@ -685,12 +683,10 @@ function useDrag(p: {
   const over = useSharedValue(-1);
   const ui = useMemo<DragUI>(() => ({ x, y, moved, lift, kind, from, over }), [x, y, moved, lift, kind, from, over]);
   const cellSV = useSharedValue(p.cell);
-  const startX = useSharedValue(0);
-  const startY = useSharedValue(0);
+  /** Display cell of the movable piece the current press started on; -1 for none. */
+  const startCell = useSharedValue(-1);
   /** 1 while a piece is held. */
   const holding = useSharedValue(0);
-  /** 1 when the drag gesture took the current press, so the tap gesture leaves it alone. */
-  const claimed = useSharedValue(0);
   /**
    * Per display cell: '.' when nothing there can be picked up, otherwise a letter for the
    * piece ('a' + its KINDS index), so touch-down is decided on the UI thread.
@@ -742,33 +738,23 @@ function useDrag(p: {
   const js = useMemo(() => {
     const squareOfCell = (idx: number) => ORDER[latest.current.orientation][idx];
     return {
-      pickUp(idx: number) {
+      /** A piece started following the finger: select it so its legal moves show while dragging. */
+      dragStart(idx: number) {
+        haptic('pickup');
+        setPending(null);
         const { selected, onSquarePress } = latest.current;
         const sq = squareOfCell(idx);
-        press.current = { sq, selectedOnDown: selected !== sq };
-        setPending(null);
-        // Select straight away so the legal moves show while dragging.
         if (selected !== sq) onSquarePress?.(sq);
       },
-      liftOff() {
-        haptic('pickup');
-      },
-      release(overIdx: number, wasMoved: boolean, fromIdx: number) {
-        const cur = press.current;
-        press.current = null;
-        if (!cur) return;
-        const { onSquarePress, onPieceDrop, onDropped, fen } = latest.current;
-        if (!wasMoved) {
-          // A tap. Movable pieces were already selected on press; tapping the selected one again clears it.
-          if (!cur.selectedOnDown) onSquarePress?.(cur.sq);
-          return;
-        }
+      drop(overIdx: number, fromIdx: number) {
+        const { onPieceDrop, onDropped, fen } = latest.current;
+        const sq = squareOfCell(fromIdx);
         // Dropped back on its square or off the board: the UI thread already glides it home,
         // and it stays selected for a tap move.
         const to = overIdx >= 0 ? squareOfCell(overIdx) : null;
-        if (!to || to === cur.sq) return;
-        onDropped?.(cur.sq, to);
-        onPieceDrop?.(cur.sq, to);
+        if (!to || to === sq) return;
+        onDropped?.(sq, to);
+        onPieceDrop?.(sq, to);
         // The piece stays where it was dropped until the new position shows, or glides back (below).
         setPending({ fen, from: fromIdx });
       },
@@ -776,7 +762,6 @@ function useDrag(p: {
         latest.current.onSquarePress?.(squareOfCell(idx));
       },
       cancel() {
-        press.current = null;
         setPending(null);
       },
     };
@@ -792,61 +777,48 @@ function useDrag(p: {
     else anim.snapBack(pending.from);
   }, [pending, p.fen, anim]);
 
+  // Two plain gestures, no manual activation or raw touch callbacks (iOS did not deliver those
+  // reliably): a press that moves past the slop is a drag, a press that doesn't is a tap. Taps go
+  // to onSquarePress for every square, which selects, deselects or moves like tap-to-move.
   const pan = usePanGesture(
     useMemo(
       () => ({
         enabled,
-        manualActivation: true,
+        minDistance: DRAG_SLOP,
         mouseButton: MouseButton.LEFT,
         shouldCancelWhenOutside: false,
-        onTouchesDown: (e: { handlerTag: number; allTouches: { x: number; y: number }[] }) => {
+        maxPointers: 1,
+        onBegin: (e: { x: number; y: number }) => {
           'worklet';
-          const t = e.allTouches[0];
-          if (holding.get() === 1 || !t) return;
-          claimed.set(0);
+          // Where the press started: the piece there (if it can move) is the one that gets dragged.
           const c = cellSV.get();
-          const col = Math.floor(t.x / c);
-          const row = Math.floor(t.y / c);
+          const col = Math.floor(e.x / c);
+          const row = Math.floor(e.y / c);
           const idx = col >= 0 && col < 8 && row >= 0 && row < 8 ? row * 8 + col : -1;
           const code = idx < 0 ? '.' : movable.get().charAt(idx);
-          if (code === '' || code === '.') {
-            // Not a piece you can move: let the tap gesture (or a scroll view) have it.
-            GestureStateManager.fail(e.handlerTag);
-            return;
-          }
+          startCell.set(code === '' || code === '.' ? -1 : idx);
+        },
+        onActivate: (e: { x: number; y: number }) => {
+          'worklet';
+          const idx = startCell.get();
+          if (idx < 0 || holding.get() === 1) return;
+          const code = movable.get().charAt(idx);
+          if (code === '' || code === '.') return;
           holding.set(1);
-          claimed.set(1);
-          startX.set(t.x);
-          startY.set(t.y);
-          x.set(t.x);
-          y.set(t.y);
-          moved.set(false);
-          lift.set(1);
+          x.set(e.x);
+          y.set(e.y);
           kind.set(code.charCodeAt(0) - 97);
           from.set(idx);
           over.set(idx);
-          GestureStateManager.activate(e.handlerTag);
-          scheduleOnRN(js.pickUp, idx);
-        },
-        // Touch-down can arrive before the handler has begun (the web does this), when activating
-        // there does nothing; activating again once it begins covers both orders.
-        onBegin: (e: { handlerTag: number }) => {
-          'worklet';
-          if (holding.get() === 1) GestureStateManager.activate(e.handlerTag);
+          moved.set(true);
+          lift.set(withTiming(LIFT_SCALE, { duration: 90 }));
+          scheduleOnRN(js.dragStart, idx);
         },
         onUpdate: (e: { x: number; y: number }) => {
           'worklet';
           if (holding.get() !== 1) return;
           x.set(e.x);
           y.set(e.y);
-          if (!moved.get()) {
-            const dx = e.x - startX.get();
-            const dy = e.y - startY.get();
-            if (dx * dx + dy * dy < DRAG_SLOP * DRAG_SLOP) return;
-            moved.set(true);
-            lift.set(withTiming(LIFT_SCALE, { duration: 90 }));
-            scheduleOnRN(js.liftOff);
-          }
           const c = cellSV.get();
           const col = Math.floor(e.x / c);
           const row = Math.floor(e.y / c);
@@ -858,20 +830,19 @@ function useDrag(p: {
           holding.set(0);
           const target = over.get();
           const origin = from.get();
-          const wasMoved = moved.get();
           over.set(-1);
           if (e.canceled) {
             anim.putDown();
             scheduleOnRN(js.cancel);
             return;
           }
-          if (!wasMoved) anim.putDown();
           // Back on its own square or off the board: glide home right here, without waiting for JavaScript.
-          else if (target < 0 || target === origin) anim.snapBack(origin);
-          scheduleOnRN(js.release, target, wasMoved, origin);
+          if (target < 0 || target === origin) anim.snapBack(origin);
+          scheduleOnRN(js.drop, target, origin);
         },
         onFinalize: () => {
           'worklet';
+          startCell.set(-1);
           if (holding.get() !== 1) return;
           holding.set(0);
           anim.putDown();
@@ -889,14 +860,11 @@ function useDrag(p: {
       () => ({
         enabled,
         mouseButton: MouseButton.LEFT,
-        maxDistance: DRAG_SLOP * 2,
+        maxDistance: DRAG_SLOP,
         // Any press that doesn't wander is a tap, however long it is held.
         maxDuration: 60_000,
         onActivate: (e: { x: number; y: number }) => {
           'worklet';
-          // On the web a quick click can end the drag gesture before the tap recognises, so the
-          // race doesn't cancel the tap; the drag already handled that press as a tap.
-          if (claimed.get() === 1) return;
           const c = cellSV.get();
           const col = Math.floor(e.x / c);
           const row = Math.floor(e.y / c);
@@ -908,7 +876,7 @@ function useDrag(p: {
     ),
   );
 
-  // Whichever recognises first wins: a press on a movable piece is a drag, anything else a tap.
+  // Whichever recognises first wins: moving past the slop is a drag (of the piece the press began on), anything else a tap.
   const gesture = useCompetingGestures(pan, tap);
 
   // Right-click cancels a premove or selection, like most chess sites.
