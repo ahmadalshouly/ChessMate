@@ -25,7 +25,13 @@ const TICK_MS = 4_000;
 const IMPORT_EVERY_MS = 30 * 60_000;
 const FETCH_TIMEOUT_MS = 12_000;
 /** Poll intervals: a round with games in progress, one not started yet, and after an error. */
-const LIVE_MS = { pgnUrl: 5_000, lichess: 12_000 } as const;
+const LIVE_MS = { pgnUrl: 5_000, lichess: 20_000 } as const;
+/** A live Lichess round someone is watching (and that is not streamed) is polled this often. */
+const WATCHED_LICHESS_MS = 4_000;
+/** Someone opened the event this recently: it counts as watched. */
+const WATCHED_FOR_MS = 3 * 60_000;
+/** Lichess allows one request at a time; a refused one is retried this soon. */
+const BUSY_RETRY_MS = 5_000;
 /** While a Lichess round is streamed, polling only double-checks it now and then. */
 const STREAMED_POLL_MS = 90_000;
 /** Moves arrive whole; a pause this long after data means the game's PGN is complete. */
@@ -33,7 +39,8 @@ const STREAM_FLUSH_MS = 400;
 /** A stream that ended after sending data reconnects quickly; one that sent nothing backs off. */
 const STREAM_RECONNECT_MS = 3_000;
 const STREAM_BACKOFF_MS = { first: 15_000, max: 10 * 60_000 } as const;
-const MAX_STREAMS = 8;
+/** Lichess serves one stream at a time per server (a second one is refused with 429). */
+const MAX_STREAMS = 1;
 /** Imported tournaments with rounds in play are re-read this often, for Lichess's own round status. */
 const TOUR_REFRESH_MS = 5 * 60_000;
 /** Without Lichess's status, a round counts as in play from 10 minutes before it until this long after. */
@@ -46,6 +53,13 @@ const SETTLED_MS = 10 * 60_000;
 const LICHESS_PAUSE_MS = 60_000;
 const MAX_IMPORTED = 15;
 const USER_AGENT = 'ChessMate broadcasts (+https://chessmate.app)';
+
+/** Lichess refused a request because another one was still running. */
+class BusyError extends Error {
+  constructor() {
+    super('Lichess is busy with another request');
+  }
+}
 
 /**
  * Keeps broadcast rounds up to date from their live sources (a PGN link or a
@@ -188,24 +202,36 @@ export class BroadcastSync {
     return changed;
   }
 
-  /** Opens a live stream for each Lichess round in play and closes the ones that are over. */
+  private watched(r: BroadcastRoundRow): boolean {
+    return this.now() - this.opts.events.lastViewed(r.eventId) < WATCHED_FOR_MS;
+  }
+
+  /**
+   * Streams the Lichess round in play that matters most (watched lately, then
+   * most recent); every other round is polled. Lichess allows a single stream.
+   */
   private manageStreams(rounds: BroadcastRoundRow[]) {
     const now = this.now();
-    const live = new Set<string>();
-    for (const r of rounds) {
-      if (r.sourceKind !== 'lichess' || !r.lichessRoundId || this.noStream.has(r.id)) continue;
-      // Only rounds being played: Lichess closes streams of finished rounds at once.
-      if (!this.inPlay(r)) continue;
-      live.add(r.id);
-      if (this.streams.has(r.id) || this.streams.size >= MAX_STREAMS) continue;
-      if ((this.streamRetryAt.get(r.id) ?? 0) > now || now < this.lichessPausedUntil) continue;
-      void this.openStream(r);
-    }
+    const candidates = rounds
+      .filter((r) => r.sourceKind === 'lichess' && r.lichessRoundId && !this.noStream.has(r.id) && this.inPlay(r))
+      .sort((a, b) => this.opts.events.lastViewed(b.eventId) - this.opts.events.lastViewed(a.eventId) || (b.startsAt?.getTime() ?? 0) - (a.startsAt?.getTime() ?? 0));
+    const ready = candidates.filter((r) => (this.streamRetryAt.get(r.id) ?? 0) <= now);
+    const want = new Set(ready.slice(0, MAX_STREAMS).map((r) => r.id));
     for (const [id, ctrl] of this.streams) {
-      if (!live.has(id)) {
+      const r = candidates.find((c) => c.id === id);
+      // Keep a working stream while its round is in play and someone watches it (no flapping between
+      // two watched events); otherwise hand the slot to the round that matters most now.
+      const keep = r && (want.has(id) || this.watched(r));
+      if (!keep) {
         ctrl.abort();
         this.streams.delete(id);
       }
+    }
+    if (now < this.lichessPausedUntil) return;
+    for (const r of ready) {
+      if (this.streams.size >= MAX_STREAMS) break;
+      if (!want.has(r.id) || this.streams.has(r.id)) continue;
+      void this.openStream(r);
     }
   }
 
@@ -221,6 +247,7 @@ export class BroadcastSync {
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     let lastMark = 0;
     let received = false;
+    let busy = false;
     let chain: Promise<unknown> = Promise.resolve();
     const flush = () => {
       flushTimer = null;
@@ -244,7 +271,12 @@ export class BroadcastSync {
         signal: ctrl.signal,
         headers: { 'user-agent': USER_AGENT, accept: 'application/x-chess-pgn' },
       });
-      if (res.status === 429) this.lichessPausedUntil = this.now() + LICHESS_PAUSE_MS;
+      if (res.status === 429) {
+        // "Only N request(s) at a time" just means busy; anything else is a real slow-down.
+        const why = await res.text().catch(() => '');
+        if (/at a time/i.test(why)) busy = true;
+        else this.lichessPausedUntil = this.now() + LICHESS_PAUSE_MS;
+      }
       if (!res.ok) throw new Error(`stream answered ${res.status}`);
       if (!res.body) {
         // No streaming here (tests, odd runtimes): keep polling instead.
@@ -268,9 +300,12 @@ export class BroadcastSync {
       flush();
       if (this.streams.get(r.id) === ctrl) this.streams.delete(r.id);
       // Reconnect quickly after a stream that worked; back off from one that sent nothing.
-      const fails = received ? 0 : (this.streamFails.get(r.id) ?? 0) + 1;
-      this.streamFails.set(r.id, fails);
-      this.streamRetryAt.set(r.id, this.now() + (fails ? Math.min(STREAM_BACKOFF_MS.max, STREAM_BACKOFF_MS.first * 2 ** (fails - 1)) : STREAM_RECONNECT_MS));
+      if (busy) this.streamRetryAt.set(r.id, this.now() + BUSY_RETRY_MS);
+      else {
+        const fails = received ? 0 : (this.streamFails.get(r.id) ?? 0) + 1;
+        this.streamFails.set(r.id, fails);
+        this.streamRetryAt.set(r.id, this.now() + (fails ? Math.min(STREAM_BACKOFF_MS.max, STREAM_BACKOFF_MS.first * 2 ** (fails - 1)) : STREAM_RECONNECT_MS));
+      }
       // Whatever happened, have the next poll fetch the whole round soon.
       if (!ctrl.signal.aborted) this.nextAt.delete(r.id);
     }
@@ -278,7 +313,7 @@ export class BroadcastSync {
 
   /** Waits for Lichess's turn: one request at a time, a short gap between them. */
   private async lichessTurn() {
-    const gap = this.opts.lichessGapMs ?? 1_000;
+    const gap = this.opts.lichessGapMs ?? 500;
     if (!gap) return;
     const at = Math.max(Date.now(), this.lichessNextAt);
     this.lichessNextAt = at + gap;
@@ -297,6 +332,9 @@ export class BroadcastSync {
     try {
       const res = await f(url, { signal: ac.signal, headers: { 'user-agent': USER_AGENT, accept: 'application/x-chess-pgn, application/json, text/plain, */*' } });
       if (res.status === 429) {
+        const why = await res.text().catch(() => '');
+        // Lichess allows one request at a time: "busy" is retried soon, a real slow-down pauses everything.
+        if (/at a time/i.test(why)) throw new BusyError();
         if (url.startsWith(this.origin)) this.lichessPausedUntil = this.now() + LICHESS_PAUSE_MS;
         throw new Error('The source asked us to slow down (429)');
       }
@@ -305,7 +343,7 @@ export class BroadcastSync {
       if (body.length > EVENT_LIMITS.pgnChars) throw new Error('The source file is too large');
       return body;
     } catch (e) {
-      if (ac.signal.aborted) throw new Error('The source did not answer in time');
+      if (ac.signal.aborted && !(e instanceof BusyError)) throw new Error('The source did not answer in time');
       throw e;
     } finally {
       clearTimeout(timer);
@@ -339,8 +377,13 @@ export class BroadcastSync {
         this.streams.delete(r.id);
       }
       const streamed = this.streams.has(r.id);
-      this.nextAt.set(r.id, now + (streamed ? STREAMED_POLL_MS : live ? LIVE_MS[r.sourceKind === 'lichess' ? 'lichess' : 'pgnUrl'] : IDLE_MS));
+      const liveMs = r.sourceKind === 'lichess' ? (this.watched(r) ? WATCHED_LICHESS_MS : LIVE_MS.lichess) : LIVE_MS.pgnUrl;
+      this.nextAt.set(r.id, now + (streamed ? STREAMED_POLL_MS : live ? liveMs : IDLE_MS));
     } catch (e) {
+      if (e instanceof BusyError) {
+        this.nextAt.set(r.id, now + BUSY_RETRY_MS);
+        return;
+      }
       await this.opts.events.markSynced(r, { error: e instanceof Error ? e.message.slice(0, 200) : 'Sync failed' });
       this.nextAt.set(r.id, now + ERROR_MS);
     }

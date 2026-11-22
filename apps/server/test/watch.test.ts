@@ -179,6 +179,38 @@ describe('events', () => {
 });
 
 describe('broadcast sync', () => {
+  it('a busy answer from Lichess is retried soon without pausing everything', async () => {
+    let t = clock;
+    const events = new EventService({ db: h.db, now: () => t, roleOf });
+    await events.load();
+    let busyOnce = true;
+    const asked: string[] = [];
+    const fetcher: Fetcher = async (url) => {
+      asked.push(url);
+      if (url.endsWith('/roundBUS.pgn') && busyOnce) {
+        busyOnce = false;
+        return { status: 429, ok: false, text: async () => '{"error":"Please only run 1 request(s) at a time"}' };
+      }
+      if (url.endsWith('/roundBUS.pgn')) return { status: 200, ok: true, text: async () => ROUND_PGN };
+      if (url.endsWith('/other.pgn')) return { status: 200, ok: true, text: async () => ROUND_PGN };
+      return { status: 404, ok: false, text: async () => '' };
+    };
+    const sync = new BroadcastSync({ db: h.db, events, now: () => t, fetch: fetcher, lichessOrigin: 'https://lichess.test', lichessGapMs: 0 });
+    const e = await events.create(ids.wadmin!, { name: 'Busy Open', startsAt: clock - 3_600_000, endsAt: clock + 86_400_000 });
+    await events.addRound(ids.wadmin!, e.id, { number: 1, source: { kind: 'lichess', lichessRoundId: 'roundBUS' } });
+    await events.addRound(ids.wadmin!, e.id, { number: 2, source: { kind: 'pgnUrl', url: 'https://boards.example/other.pgn' } });
+    await sync.tick();
+    // The busy round failed quietly; the other round still synced in the same pass.
+    let d = await events.detail(ids.wadmin!, e.id);
+    expect(d.rounds.map((r) => r.games.length)).toEqual([0, 2]);
+    expect(d.rounds[0]!.source).toMatchObject({ syncError: null });
+    t += 6_000;
+    await sync.tick();
+    d = await events.detail(ids.wadmin!, e.id);
+    expect(d.rounds[0]!.games).toHaveLength(2);
+  });
+
+
   it('polls a live PGN link and imports Lichess broadcasts', async () => {
     const events = new EventService({ db: h.db, now, roleOf });
     await events.load();

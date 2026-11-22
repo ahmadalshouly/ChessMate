@@ -201,6 +201,8 @@ export class EventService {
   private hooks: EventHooks = { notify: () => {} };
   private readonly organizers = new Map<string, Set<string>>();
   private readonly built = new Map<string, { at: number; value: Built }>();
+  /** When someone last looked at each event (sync follows watched events first). */
+  private readonly viewedAt = new Map<string, number>();
   private listCache: { at: number; rows: EventListRow[] } | null = null;
   private settingsCache: WatchSettings | null = null;
 
@@ -390,7 +392,13 @@ export class EventService {
     return out;
   }
 
+  /** When someone last opened this event or one of its games (0: not lately). */
+  lastViewed(eventId: string): number {
+    return this.viewedAt.get(eventId) ?? 0;
+  }
+
   async detail(viewer: string | null, eventId: string): Promise<EventDetail> {
+    this.viewedAt.set(eventId, this.now());
     const b = await this.build(eventId);
     if (!b || !this.visible(b, viewer)) throw new WatchError(404, 'Event not found');
     const manage = this.canManage(viewer, eventId);
@@ -406,6 +414,7 @@ export class EventService {
   async game(viewer: string | null, gameId: string): Promise<EventGameDetail> {
     const g = await getBroadcastGame(this.db, gameId);
     if (!g) throw new WatchError(404, 'Game not found');
+    this.viewedAt.set(g.eventId, this.now());
     const b = await this.build(g.eventId);
     if (!b || !this.visible(b, viewer)) throw new WatchError(404, 'Game not found');
     const round = b.detail.rounds.find((r) => r.id === g.roundId);
