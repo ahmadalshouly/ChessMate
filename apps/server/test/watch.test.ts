@@ -250,7 +250,11 @@ describe('live broadcast analysis', () => {
       },
     };
     const updates: string[] = [];
-    const analyzer = new BroadcastAnalyzer({ db: h.db, engine, onUpdate: (id) => updates.push(id) });
+    const analyzer = new BroadcastAnalyzer({ db: h.db, engine, onUpdate: (id) => {
+        updates.push(id);
+        svc.invalidate(id);
+      },
+    });
     const live = (await svc.detail(ids.wadmin!, e.id)).rounds[0]!.games.find((g) => g.board === 2)!;
     // First step: the newest position (after 1. d4 d5).
     await analyzer.step(live.id);
