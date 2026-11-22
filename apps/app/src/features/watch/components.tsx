@@ -177,6 +177,7 @@ export function GameThumb({ g, size, now }: { g: EventGameSummary; size: number;
     return (
       <Row gap="xs" justify="space-between" style={{ width: size }}>
         <Row gap="xxs" style={{ flex: 1, minWidth: 0 }}>
+          {p.federation ? <Text variant="caption">{countryFlag(p.federation)}</Text> : null}
           <TitleBadge title={p.title} size="sm" />
           <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
             {p.name}

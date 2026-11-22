@@ -616,10 +616,69 @@ function clockMs(comment: string): number | null {
   return m ? Math.round((Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000) : null;
 }
 
-const fed = (v: string | undefined) => {
-  const s = (v ?? '').trim().toUpperCase();
-  return s && COUNTRY_CODES.has(s) ? s : null;
+/** FIDE federation codes (as Lichess and PGN files give them) to ISO country codes, for flags. */
+const FIDE_FEDERATIONS: Record<string, string> = {
+  AFG: 'AF', ALB: 'AL', ALG: 'DZ', AND: 'AD', ANG: 'AO', ANT: 'AG', ARG: 'AR', ARM: 'AM', ARU: 'AW', AUS: 'AU', AUT: 'AT', AZE: 'AZ',
+  BAH: 'BS', BRN: 'BH', BAN: 'BD', BAR: 'BB', BLR: 'BY', BEL: 'BE', BIZ: 'BZ', BEN: 'BJ', BER: 'BM', BHU: 'BT', BOL: 'BO', BIH: 'BA',
+  BOT: 'BW', BRA: 'BR', IVB: 'VG', BRU: 'BN', BUL: 'BG', BUR: 'BF', BDI: 'BI', CAM: 'KH', CMR: 'CM', CAN: 'CA', CPV: 'CV', CAY: 'KY',
+  CAF: 'CF', CHA: 'TD', CHI: 'CL', CHN: 'CN', TPE: 'TW', COL: 'CO', COM: 'KM', CGO: 'CG', COD: 'CD', CRC: 'CR', CIV: 'CI', CRO: 'HR',
+  CUB: 'CU', CYP: 'CY', CZE: 'CZ', DEN: 'DK', DJI: 'DJ', DMA: 'DM', DOM: 'DO', ECU: 'EC', EGY: 'EG', ESA: 'SV', ENG: 'GB', SCO: 'GB',
+  WLS: 'GB', GEQ: 'GQ', ERI: 'ER', EST: 'EE', SWZ: 'SZ', ETH: 'ET', FAI: 'FO', FIJ: 'FJ', FIN: 'FI', FRA: 'FR', GAB: 'GA', GAM: 'GM',
+  GEO: 'GE', GER: 'DE', GHA: 'GH', GRE: 'GR', GRN: 'GD', GUM: 'GU', GUA: 'GT', GUI: 'GN', GUY: 'GY', HAI: 'HT', HON: 'HN', HKG: 'HK',
+  HUN: 'HU', ISL: 'IS', IND: 'IN', INA: 'ID', IRI: 'IR', IRQ: 'IQ', IRL: 'IE', IOM: 'IM', ISR: 'IL', ITA: 'IT', JAM: 'JM', JPN: 'JP',
+  JCI: 'JE', JOR: 'JO', KAZ: 'KZ', KEN: 'KE', KOS: 'XK', KUW: 'KW', KGZ: 'KG', LAO: 'LA', LAT: 'LV', LBN: 'LB', LES: 'LS', LBR: 'LR',
+  LBA: 'LY', LIE: 'LI', LTU: 'LT', LUX: 'LU', MAC: 'MO', MAD: 'MG', MAW: 'MW', MAS: 'MY', MDV: 'MV', MLI: 'ML', MLT: 'MT', MTN: 'MR',
+  MRI: 'MU', MEX: 'MX', MDA: 'MD', MNC: 'MC', MGL: 'MN', MNE: 'ME', MAR: 'MA', MOZ: 'MZ', MYA: 'MM', NAM: 'NA', NRU: 'NR', NEP: 'NP',
+  NED: 'NL', NZL: 'NZ', NCA: 'NI', NIG: 'NE', NGR: 'NG', MKD: 'MK', NOR: 'NO', OMA: 'OM', PAK: 'PK', PLW: 'PW', PLE: 'PS', PAN: 'PA',
+  PNG: 'PG', PAR: 'PY', PER: 'PE', PHI: 'PH', POL: 'PL', POR: 'PT', PUR: 'PR', QAT: 'QA', ROU: 'RO', RUS: 'RU', RWA: 'RW', SKN: 'KN',
+  LCA: 'LC', VIN: 'VC', SAM: 'WS', SMR: 'SM', STP: 'ST', KSA: 'SA', SEN: 'SN', SRB: 'RS', SEY: 'SC', SLE: 'SL', SGP: 'SG', SVK: 'SK',
+  SLO: 'SI', SOL: 'SB', SOM: 'SO', RSA: 'ZA', KOR: 'KR', PRK: 'KP', SSD: 'SS', ESP: 'ES', SRI: 'LK', SUD: 'SD', SUR: 'SR', SWE: 'SE',
+  SUI: 'CH', SYR: 'SY', TJK: 'TJ', TAN: 'TZ', THA: 'TH', TLS: 'TL', TOG: 'TG', TGA: 'TO', TTO: 'TT', TUN: 'TN', TUR: 'TR', TKM: 'TM',
+  UGA: 'UG', UKR: 'UA', UAE: 'AE', USA: 'US', URU: 'UY', ISV: 'VI', UZB: 'UZ', VAN: 'VU', VEN: 'VE', VIE: 'VN', YEM: 'YE', ZAM: 'ZM',
+  ZIM: 'ZW',
 };
+
+/** A federation as an ISO country code: accepts ISO ("BE") or FIDE ("BEL") codes; null when unknown (e.g. "FID"). */
+export function federationIso(v: string | null | undefined): string | null {
+  const s = (v ?? '').trim().toUpperCase();
+  if (!s) return null;
+  const iso = s.length === 3 ? FIDE_FEDERATIONS[s] : s;
+  return iso && COUNTRY_CODES.has(iso) ? iso : null;
+}
+
+const fed = (v: string | undefined) => federationIso(v);
+
+/**
+ * Lichess and other tools write several comments on one move
+ * ("{ [%eval 0.3] } { Inaccuracy. Bc6 was best. } { [%clk 0:41:55] }"); joined into one,
+ * clocks and evals stay readable and the chess library accepts the game.
+ */
+function joinComments(pgn: string): string {
+  return pgn.replace(/\}\s*\{/g, ' ');
+}
+
+/** The game without any comments or variations: the last resort for a file the library rejects. */
+function bareMoves(pgn: string): string {
+  const cut = pgn.search(/\n\s*\n/);
+  if (cut < 0) return pgn;
+  let moves = pgn.slice(cut).replace(/\{[^}]*\}/g, ' ').replace(/;[^\n]*/g, ' ');
+  // Drop variations (nested parentheses), innermost first.
+  for (let i = 0; i < 20 && /\([^()]*\)/.test(moves); i++) moves = moves.replace(/\([^()]*\)/g, ' ');
+  return pgn.slice(0, cut) + moves.replace(/\$\d+/g, ' ');
+}
+
+function loadBroadcastGame(chunk: string): Chess {
+  for (const text of [joinComments(chunk), chunk, bareMoves(chunk)]) {
+    try {
+      const chess = new Chess();
+      chess.loadPgn(text);
+      return chess;
+    } catch {
+      // try the next, simpler form
+    }
+  }
+  throw new Error('Unreadable game');
+}
 const elo = (v: string | undefined) => {
   const n = Number(v);
   return Number.isInteger(n) && n > 0 && n < 4000 ? n : null;
@@ -638,8 +697,7 @@ export function parseBroadcastPgn(textIn: string): BroadcastPgnGame[] {
   const out: BroadcastPgnGame[] = [];
   for (const chunk of splitPgn(textIn)) {
     try {
-      const chess = new Chess();
-      chess.loadPgn(chunk);
+      const chess = loadBroadcastGame(chunk);
       const h = chess.getHeaders() as Record<string, string | undefined>;
       const fenOf = new Map<string, string>();
       for (const c of chess.getComments()) fenOf.set(c.fen, c.comment);

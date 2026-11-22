@@ -9,6 +9,7 @@ import { BroadcastAnalyzer } from '../src/watch/analysis';
 import { EventService, lastClocks } from '../src/watch/events';
 import { StreamerService } from '../src/watch/streamers';
 import { BroadcastSync, type Fetcher } from '../src/watch/sync';
+import { lichessRound } from '../../../packages/core/test/fixtures/lichessRound';
 
 let h: DbHandle;
 let clock = Date.UTC(2026, 10, 21, 10, 0);
@@ -262,6 +263,47 @@ describe('broadcast sync', () => {
     await events.saveSettings(ids.wadmin!, { lichessImport: false });
     expect(await sync.importLichess()).toBe(0);
     expect(await err(events.saveSettings(ids.outsider!, { lichessImport: true }))).toBe(403);
+  });
+
+  it('re-reads a finished Lichess round left empty, with real Lichess files, and adds flags', async () => {
+    const events = new EventService({ db: h.db, now, roleOf });
+    await events.load();
+    await events.saveSettings(ids.wadmin!, { lichessImport: true });
+    const tour = { id: 'tourWJ', name: 'World Junior Open', tier: 4, dates: [clock - 3 * 86_400_000, clock + 3 * 86_400_000] };
+    const rounds = [{ id: 'roundWJ3', name: 'Round 3', startsAt: clock - 2 * 86_400_000, finished: true }];
+    // The broken state from before: imported, marked done, but no games.
+    await events.importLichessTour(tour, rounds);
+    const ev = (await events.eventOfLichessTour('tourWJ'))!;
+    const [r3] = await events.roundsOf(ev);
+    await events.markSynced(r3!, { finished: true });
+    const roundJson = {
+      games: Array.from({ length: 29 }, (_, i) => ({
+        players: [
+          { name: `Player W${i + 1}`, fideId: 1001 + i, fed: 'BEL' },
+          { name: `Player B${i + 1}`, fideId: 2001 + i, fed: i === 0 ? 'FID' : 'AZE' },
+        ],
+      })),
+    };
+    const files: Record<string, string> = {
+      'https://lichess.test/api/broadcast/top?page=1': JSON.stringify({ active: [{ tour }], upcoming: [] }),
+      'https://lichess.test/api/broadcast/tourWJ': JSON.stringify({ tour, rounds }),
+      'https://lichess.test/api/broadcast/round/roundWJ3.pgn': lichessRound(29),
+      'https://lichess.test/api/broadcast/-/-/roundWJ3': JSON.stringify(roundJson),
+    };
+    const fetcher: Fetcher = async (url) => {
+      const body = files[url];
+      return { status: body ? 200 : 404, ok: !!body, text: async () => body ?? '' };
+    };
+    const sync = new BroadcastSync({ db: h.db, events, now, fetch: fetcher, lichessOrigin: 'https://lichess.test', lichessGapMs: 0 });
+    await sync.importLichess();
+    const d = await events.detail(null, ev);
+    const games = d.rounds[0]!.games;
+    expect(games).toHaveLength(29);
+    expect(games.every((g) => g.ply === 48)).toBe(true);
+    expect(games[0]!.white).toMatchObject({ name: 'Player W1', title: 'FM', federation: 'BE' });
+    expect(games[0]!.black.federation).toBeNull();
+    expect(games[1]!.black.federation).toBe('AZ');
+    await events.saveSettings(ids.wadmin!, { lichessImport: false });
   });
 });
 

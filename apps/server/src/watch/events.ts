@@ -73,6 +73,7 @@ import {
   updateEvent,
   updateGame,
   updatePlayer,
+  updateGameFeds,
   updateRound,
   upsertGames,
   type BroadcastRoundRow,
@@ -987,6 +988,41 @@ export class EventService {
       ...(v.finished ? { sourceFinished: true } : {}),
     });
     this.invalidate(round.eventId);
+  }
+
+  async roundsOf(eventId: string): Promise<BroadcastRoundRow[]> {
+    return listRounds(this.db, eventId);
+  }
+
+  async eventOfLichessTour(tourId: string): Promise<string | null> {
+    return (await findEventByExternal(this.db, 'lichess', tourId))?.id ?? null;
+  }
+
+  /** Fills in missing federations of the event's players and of a round's games (matched by FIDE id, then name). */
+  async applyFederations(round: BroadcastRoundRow, incoming: { name: string; fideId: string | null; federation: string }[]) {
+    const byFide = new Map(incoming.filter((p) => p.fideId).map((p) => [p.fideId!, p.federation]));
+    const byName = new Map(incoming.map((p) => [nameKey(p.name), p.federation]));
+    const fedOf = (name: string, fideId: string | null) => (fideId ? byFide.get(fideId) : undefined) ?? byName.get(nameKey(name)) ?? null;
+    let changed = false;
+    const players = await listPlayers(this.db, round.eventId);
+    const playerFed = new Map<string, string>();
+    for (const p of players) {
+      const f = p.federation ?? fedOf(p.name, p.fideId);
+      if (f) playerFed.set(p.id, f);
+      if (!p.federation && f) {
+        await updatePlayer(this.db, p.id, { federation: f });
+        changed = true;
+      }
+    }
+    for (const g of (await listGameSummaries(this.db, round.eventId)).filter((x) => x.roundId === round.id)) {
+      const w = g.whiteFed ?? (g.whitePlayerId ? playerFed.get(g.whitePlayerId) : undefined) ?? fedOf(g.whiteName, null);
+      const b = g.blackFed ?? (g.blackPlayerId ? playerFed.get(g.blackPlayerId) : undefined) ?? fedOf(g.blackName, null);
+      if ((w && !g.whiteFed) || (b && !g.blackFed)) {
+        await updateGameFeds(this.db, g.id, { whiteFed: w ?? null, blackFed: b ?? null });
+        changed = true;
+      }
+    }
+    if (changed) this.invalidate(round.eventId);
   }
 
   /** The Lichess tournament an imported event came from, if any. */

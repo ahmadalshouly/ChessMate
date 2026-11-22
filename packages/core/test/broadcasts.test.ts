@@ -9,11 +9,13 @@ import {
   cleanStreamerApplication,
   computeStandings,
   eventStatusOf,
+  federationIso,
   lichessRoundIdOf,
   lichessTourToEvent,
   parseBroadcastPgn,
   roundStatusOf,
 } from '../src/broadcasts';
+import { lichessRound } from './fixtures/lichessRound';
 
 const PGN = `[Event "Test Open"]
 [Round "3.1"]
@@ -113,5 +115,28 @@ describe('validation', () => {
   it('maps a Lichess tournament to an event', () => {
     const e = lichessTourToEvent({ id: 't1', name: 'Candidates 2026', dates: [1000, 9000], info: { format: '8-player double round robin', tc: '120+30', location: 'Toronto' } }, []);
     expect(e).toMatchObject({ name: 'Candidates 2026', startsAt: 1000, endsAt: 9000, format: 'roundRobin', timeControl: '120+30', location: 'Toronto' });
+  });
+});
+
+describe('Lichess broadcast files', () => {
+  it('reads a real round download: several comments on one move, clocks and evals kept', () => {
+    const games = parseBroadcastPgn(lichessRound(29));
+    expect(games).toHaveLength(29);
+    const g = games[0]!;
+    expect(g).toMatchObject({ white: 'Player W1', board: 1, whiteTitle: 'FM', blackTitle: 'IM', whiteElo: 2347, whiteFideId: '1001' });
+    expect(g.moves).toHaveLength(48);
+    // Clocks survive, also on moves that carry an engine note ("Kh8?!" is ply 38).
+    expect(g.clocks[0]).toBe((1 * 3600 + 30 * 60 + 57) * 1000);
+    expect(g.clocks[37]).toBe((41 * 60 + 55) * 1000);
+    expect(games.map((x) => x.board)).toEqual(Array.from({ length: 29 }, (_, i) => i + 1));
+  });
+
+  it('maps FIDE federation codes to flags', () => {
+    expect(federationIso('BEL')).toBe('BE');
+    expect(federationIso('GER')).toBe('DE');
+    expect(federationIso('ENG')).toBe('GB');
+    expect(federationIso('se')).toBe('SE');
+    expect(federationIso('FID')).toBeNull();
+    expect(federationIso('')).toBeNull();
   });
 });

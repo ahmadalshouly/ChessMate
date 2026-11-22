@@ -1,4 +1,4 @@
-import { EVENT_LIMITS, LICHESS_ORIGIN, type LichessBroadcastRound, type LichessBroadcastTour } from '@chessmate/core';
+import { EVENT_LIMITS, LICHESS_ORIGIN, federationIso, type LichessBroadcastRound, type LichessBroadcastTour } from '@chessmate/core';
 import { listSyncedRounds, type BroadcastRoundRow, type Database } from '@chessmate/db';
 
 import type { EventService } from './events';
@@ -83,6 +83,10 @@ export class BroadcastSync {
   /** Lichess's own status of each round (from importing its tournament), by Lichess round id. */
   private readonly lichessState = new Map<string, { ongoing: boolean; finished: boolean }>();
   private lastTourRefresh = 0;
+  /** Rounds Lichess calls finished that were re-read once since the server started (repairs rounds synced wrongly before). */
+  private readonly verified = new Set<string>();
+  /** When players' federations were last read from Lichess, by round id. */
+  private readonly playersAt = new Map<string, number>();
   /** When the next request to Lichess may go out. */
   private lichessNextAt = 0;
 
@@ -178,6 +182,34 @@ export class BroadcastSync {
     for (const lr of rounds) this.lichessState.set(lr.id, { ongoing: lr.ongoing === true, finished: lr.finished === true });
   }
 
+  /** After importing a tour: each round Lichess has finished is re-read once per server run, even if marked done. */
+  private async verifyFinished(eventId: string, lrs: LichessBroadcastRound[]) {
+    const finished = new Set(lrs.filter((lr) => lr.finished).map((lr) => lr.id));
+    if (!finished.size) return;
+    for (const r of await this.opts.events.roundsOf(eventId)) {
+      if (r.sourceKind !== 'lichess' || !r.lichessRoundId || !finished.has(r.lichessRoundId) || !r.sourceFinished || this.verified.has(r.id)) continue;
+      this.verified.add(r.id);
+      await this.syncRound(r, true);
+    }
+  }
+
+  /** Players' federations (and FIDE ids) from Lichess's round data: the PGN files leave them out. */
+  private async readPlayers(r: BroadcastRoundRow) {
+    if (!r.lichessRoundId) return;
+    const data = (await this.json(`${this.origin}/api/broadcast/-/-/${encodeURIComponent(r.lichessRoundId)}`)) as {
+      games?: { players?: { name?: unknown; fideId?: unknown; fed?: unknown }[] }[];
+    };
+    const players: { name: string; fideId: string | null; federation: string }[] = [];
+    for (const g of Array.isArray(data.games) ? data.games : []) {
+      for (const p of Array.isArray(g.players) ? g.players : []) {
+        const federation = federationIso(typeof p.fed === 'string' ? p.fed : null);
+        if (typeof p.name !== 'string' || !federation) continue;
+        players.push({ name: p.name, fideId: typeof p.fideId === 'number' || typeof p.fideId === 'string' ? String(p.fideId) : null, federation });
+      }
+    }
+    if (players.length) await this.opts.events.applyFederations(r, players);
+  }
+
   /** Re-reads imported Lichess tournaments that still have rounds to follow. Returns true when any round finished. */
   private async refreshTours(rounds: BroadcastRoundRow[]): Promise<boolean> {
     if (this.now() < this.lichessPausedUntil) return false;
@@ -198,6 +230,8 @@ export class BroadcastSync {
         await this.syncRound(r, true);
         changed = true;
       }
+      const eventId = [...tours.entries()].find(([, t]) => t === tourId)?.[0];
+      if (eventId) await this.verifyFinished(eventId, lrs);
     }
     return changed;
   }
@@ -364,13 +398,21 @@ export class BroadcastSync {
     try {
       const pgn = await this.get(url);
       const res = await this.opts.events.applyPgn(r, pgn, { replace: true });
-      let finished = final;
+      // Nothing readable: never call the round done on that, try again later.
+      let finished = final && res.games > 0;
       if (res.allFinished && res.changed === 0) {
         const since = this.settledSince.get(r.id) ?? now;
         this.settledSince.set(r.id, since);
         if (now - since >= SETTLED_MS) finished = true;
       } else this.settledSince.delete(r.id);
-      await this.opts.events.markSynced(r, { error: res.games ? null : 'No games in the source yet', finished });
+      await this.opts.events.markSynced(r, { error: res.games ? null : pgn.trim() ? 'No readable games in the source' : 'No games in the source yet', finished });
+      // Flags: federations come from Lichess's round data, read once per round and every few minutes while it is played.
+      if (r.sourceKind === 'lichess' && res.games > 0 && now - (this.playersAt.get(r.id) ?? 0) > (finished ? 0 : 5 * 60_000)) {
+        this.playersAt.set(r.id, now);
+        await this.readPlayers(r).catch((e) => {
+          if (!(e instanceof BusyError)) console.warn('lichess players failed:', e instanceof Error ? e.message : e);
+        });
+      }
       const live = res.games > 0 && !res.allFinished;
       if (finished) {
         this.streams.get(r.id)?.abort();
@@ -384,6 +426,7 @@ export class BroadcastSync {
         this.nextAt.set(r.id, now + BUSY_RETRY_MS);
         return;
       }
+      console.warn(`broadcast round ${r.id} sync failed:`, e instanceof Error ? e.message : e);
       await this.opts.events.markSynced(r, { error: e instanceof Error ? e.message.slice(0, 200) : 'Sync failed' });
       this.nextAt.set(r.id, now + ERROR_MS);
     }
@@ -417,6 +460,8 @@ export class BroadcastSync {
       this.remember(rounds);
       const finalSync = await this.opts.events.importLichessTour({ ...t, ...(full.tour ?? {}) }, rounds);
       for (const r of finalSync) await this.syncRound(r, true);
+      const ev = await this.opts.events.eventOfLichessTour(t.id);
+      if (ev) await this.verifyFinished(ev, rounds);
       imported++;
     }
     return imported;

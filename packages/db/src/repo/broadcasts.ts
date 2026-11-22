@@ -428,6 +428,11 @@ export async function deleteGamesExcept(db: Database, roundId: string, keep: num
   await db.delete(broadcastGames).where(and(eq(broadcastGames.roundId, roundId), keep.length ? notInArray(broadcastGames.board, keep) : undefined));
 }
 
+/** Sets the players' federations of a game (for flags), leaving everything else as it is. */
+export async function updateGameFeds(db: Database, id: string, v: { whiteFed: string | null; blackFed: string | null }): Promise<void> {
+  await db.update(broadcastGames).set(v).where(eq(broadcastGames.id, id));
+}
+
 export async function updateGame(db: Database, id: string, patch: Partial<NewBroadcastGame>): Promise<BroadcastGameRow | undefined> {
   const [row] = await db.update(broadcastGames).set({ ...patch, updatedAt: new Date() }).where(eq(broadcastGames.id, id)).returning();
   return row;
