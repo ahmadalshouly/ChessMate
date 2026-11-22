@@ -35,6 +35,7 @@ import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
+import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
 
 type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'frenzy';
 
@@ -76,6 +77,15 @@ export default function OnlinePlay() {
   const [hideResult, setHideResult] = useState(false);
   const gameId = view?.gameId;
   useEffect(() => setHideResult(false), [gameId]);
+  // Start grading the game on the device once it ends (after the celebration has
+  // had its moment), so Review opens with the moves ready.
+  const endReason = view?.outcome?.reason;
+  useEffect(() => {
+    if (!view || !endReason || endReason === 'aborted' || view.variant === 'secretQueen') return;
+    const moves = view.history.map((m) => m.uci);
+    const id = setTimeout(() => prepareReview(moves, { online: true }), PREPARE_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [gameId, endReason]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const you: Color = view?.you ?? 'w';
   const opp: Color = you === 'w' ? 'b' : 'w';
@@ -419,7 +429,6 @@ export default function OnlinePlay() {
             onLobby={toLobby}
             onReview={reviewable ? openReview : undefined}
             onClose={() => setHideResult(true)}
-            moves={history.map((m) => m.uci)}
           />
         )}
         {over && endResult(view) && (

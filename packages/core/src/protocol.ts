@@ -130,7 +130,8 @@ export type ClientMessage =
   // Engine analysis (refused while the player has a live game).
   | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number; /** Think-time cap, ms (server clamps to ANALYSIS_LIMITS.maxMoveTimeMs). */ movetimeMs?: number }
   | { t: 'analyzeStop'; id: number }
-  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string }
+  /** `cachedOnly`: answer only from a finished review (else `not_found`), never start one: the app grades games on the device and asks the server just for stored results. */
+  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string; cachedOnly?: boolean }
   /** A game just ended on the device (computer or local play): grade it now so Review opens instantly. No reply. */
   | { t: 'prepareReview'; moves: string[]; initialFen?: string }
   /** Spectate a live game: the server then sends gameState and every later game event. */

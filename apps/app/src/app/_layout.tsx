@@ -16,6 +16,7 @@ import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
 import { AwardsListener } from '@/features/awards/AwardsListener';
+import { EngineHost } from '@/features/engine/EngineHost';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider, setNotificationsTokenProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
@@ -61,6 +62,8 @@ function Navigator() {
           <RootStack />
           <InAppBanner />
           <AwardsListener />
+          {/* Runs Stockfish on phones (hidden; only while a review needs it). */}
+          <EngineHost />
         </NotificationsProvider>
       </AuthProvider>
     </ThemeProvider>

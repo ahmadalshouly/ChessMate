@@ -20,6 +20,7 @@ import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
 import { moveFeedback } from '@/lib/feedback';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useEngine } from '@/lib/useEngine';
+import { analyzeLocally, canReviewLocally, useGameReview } from '@/features/engine';
 
 const EVAL_BAR = 20;
 /** Classes where the played move needs no "better move" arrow. */
@@ -32,7 +33,9 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
 /**
  * Game review: Stockfish grades every move of a finished game (best to
  * blunder), with accuracy per side and the better move shown on the board.
- * The per-move results are what the AI coach explains.
+ * The engine runs on the player's device where it can, and moves appear
+ * graded from the first one while the rest of the game is still being
+ * searched. The per-move results are what the AI coach explains.
  */
 export default function Review() {
   const tr = useT();
@@ -58,12 +61,10 @@ export default function Review() {
     [params.moves, params.initialFen, params.gameId],
   );
 
-  const { review: startReview } = engine;
-  useEffect(() => {
-    if (request.moves.length || request.gameId) startReview(request);
-  }, [request, startReview]);
-
-  const review = engine.state.review;
+  const graded = useGameReview(request, engine);
+  // While grading, `review` holds the moves graded so far (from the first one on).
+  const review = graded.review;
+  const final = graded.final;
   const moves = review?.moves ?? [];
 
   // While the engine works, the board plays the game through move by move,
@@ -76,18 +77,18 @@ export default function Review() {
     }
   }, [request]);
   const [previewPly, setPreviewPly] = useState(0);
-  const reviewing = !review && !engine.state.error && preview.length > 0;
+  const reviewing = !review && !graded.error && preview.length > 0;
   useEffect(() => {
     if (!reviewing || previewPly >= preview.length) return;
     const id = setTimeout(() => setPreviewPly((p) => p + 1), 450);
     return () => clearTimeout(id);
   }, [reviewing, previewPly, preview.length]);
-  // Results in: carry on from where the preview got to, now with grades, unless it already finished.
-  const [handedOver, setHandedOver] = useState<typeof review>(null);
-  if (review && review !== handedOver) {
-    setHandedOver(review);
-    if (previewPly > 0 && previewPly < review.moves.length) {
-      setPly(previewPly);
+  // First grades in: carry on from where the preview got to, now with grades.
+  const [handedOver, setHandedOver] = useState(false);
+  if (review && !handedOver) {
+    setHandedOver(true);
+    if (previewPly > 0 && previewPly < preview.length) {
+      setPly(Math.min(previewPly, review.moves.length));
       setAutoplay(true);
     }
   }
@@ -123,8 +124,20 @@ export default function Review() {
   const needed = branch ? [branchFens[branch.cursor]!, ...branchFens.slice(0, branch.cursor).reverse()].find((f) => !seen.has(positionKey(f))) : undefined;
   useEffect(() => {
     if (!needed) return stop();
-    const id = setTimeout(() => analyze(needed, 2, { depth: GRADE_DEPTH + 4, movetimeMs: 1500 }), 120);
-    return () => clearTimeout(id);
+    const ctrl = new AbortController();
+    const onServer = () => analyze(needed, 2, { depth: GRADE_DEPTH + 4, movetimeMs: 1500 });
+    const id = setTimeout(() => {
+      if (!canReviewLocally()) return onServer();
+      // On the device, ahead of anything still queued for the review.
+      analyzeLocally(needed, { depth: GRADE_DEPTH + 2, signal: ctrl.signal }).then(
+        (a) => setSeen((prev) => remember(prev, a)),
+        (e: Error) => e.name !== 'AbortError' && onServer(),
+      );
+    }, 120);
+    return () => {
+      clearTimeout(id);
+      ctrl.abort();
+    };
   }, [needed, analyze, stop]);
   const branchGrades = useMemo(() => (branch ? gradeLine(branchBase, branchHistory, seen, []) : []), [branch, branchBase, branchHistory, seen]);
   const branchGrade = branch && branch.cursor > 0 ? branchGrades[branch.cursor - 1] : undefined;
@@ -190,12 +203,13 @@ export default function Review() {
   useEffect(() => {
     if (!autoplay) return;
     if (ply >= moves.length) {
-      setAutoplay(false);
+      // Still grading: wait for the next move rather than stopping.
+      if (final) setAutoplay(false);
       return;
     }
     const id = setTimeout(() => setPly((p) => p + 1), 900);
     return () => clearTimeout(id);
-  }, [autoplay, ply, moves.length]);
+  }, [autoplay, ply, moves.length, final]);
 
   // Show what the engine preferred when the played move was not the best.
   const arrows: Arrow[] = [];
@@ -223,7 +237,8 @@ export default function Review() {
     );
   }
 
-  const progress = engine.state.reviewProgress;
+  const progress = graded.progress;
+  const pct = progress ? Math.round((100 * progress.done) / Math.max(1, progress.total)) : 0;
   const step = (fn: (p: number) => number) => {
     setAutoplay(false);
     setBranch(null);
@@ -291,25 +306,38 @@ export default function Review() {
   ) : null;
   const panel = (
     <>
-          {!review && (
+          {!final && (
             <Card>
-              {engine.state.error ? (
+              {graded.error ? (
                 <>
                   <Label bold>{tr('review.unavailable')}</Label>
                   <Label muted>
-                    {engine.state.error.code === 'engine_locked'
+                    {graded.error.code === 'engine_locked'
                       ? tr('review.locked')
-                      : serverText(engine.state.error.message)}
+                      : serverText(graded.error.message)}
                   </Label>
-                  <Button variant="secondary" title={tr('common.tryAgain')} onPress={() => startReview(request)} />
+                  <Button variant="secondary" title={tr('common.tryAgain')} onPress={graded.retry} />
                 </>
               ) : (
                 <>
-                  <Label bold>{tr('review.reviewing')}</Label>
-                  <View style={[styles.track, { backgroundColor: t.border }]}>
-                    <View style={[styles.fill, { backgroundColor: t.accent, width: `${progress ? (100 * progress.done) / Math.max(1, progress.total) : 0}%` }]} />
+                  <View style={styles.row}>
+                    <Label bold>{tr('review.reviewing')}</Label>
+                    <View style={{ marginStart: 'auto' }}>
+                      <Label muted>{pct}%</Label>
+                    </View>
                   </View>
-                  <Label muted>{progress ? tr('review.progress', { done: progress.done, total: progress.total }) : engine.state.connected ? tr('review.waitingEngine') : tr('play.connecting')}</Label>
+                  <View style={[styles.track, { backgroundColor: t.border }]}>
+                    <View style={[styles.fill, { backgroundColor: t.accent, width: `${Math.max(2, pct)}%` }]} />
+                  </View>
+                  <Label muted size={13}>
+                    {graded.source === 'device'
+                      ? tr('review.onDeviceProgress', { done: progress?.done ?? 0, total: progress?.total ?? request.moves.length + 1 })
+                      : progress
+                        ? tr('review.progress', { done: progress.done, total: progress.total })
+                        : engine.state.connected
+                          ? tr('review.waitingEngine')
+                          : tr('play.connecting')}
+                  </Label>
                 </>
               )}
             </Card>
@@ -395,9 +423,10 @@ export default function Review() {
               )}
 
               <Card>
-                <EvalGraph moves={moves} ply={branch ? branch.from : ply} onSelect={goMain} />
+                <EvalGraph moves={moves} total={final ? moves.length : request.moves.length} ply={branch ? branch.from : ply} onSelect={goMain} />
               </Card>
 
+              {final && (
               <Card>
                 <View style={styles.sides}>
                   <SideName color="w" name={params.white || tr('review.white')} />
@@ -438,8 +467,11 @@ export default function Review() {
                     );
                   })}
                 </View>
-                <Label muted size={12}>{tr('review.depth', { n: review.depth })}</Label>
+                <Label muted size={12}>
+                  {graded.source === 'device' ? tr('review.depthDevice', { n: review.depth }) : tr('review.depth', { n: review.depth })}
+                </Label>
               </Card>
+              )}
 
               <Card>
                 <Label bold>{tr('analysis.moves')}</Label>
@@ -528,7 +560,7 @@ function SideName({ color, name, end }: { color: 'w' | 'b'; name: string; end?: 
 }
 
 /** Evaluation over the game: White's expected score per ply, tap to jump. */
-function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: number; onSelect: (ply: number) => void }) {
+function EvalGraph({ moves, total, ply, onSelect }: { moves: ReviewedMove[]; total: number; ply: number; onSelect: (ply: number) => void }) {
   const t = useTheme();
   const height = 72;
   return (
@@ -545,6 +577,10 @@ function EvalGraph({ moves, ply, onSelect }: { moves: ReviewedMove[]; ply: numbe
           </Pressable>
         );
       })}
+      {/* Moves still being graded keep their place, so the graph fills in from the left. */}
+      {Array.from({ length: Math.max(0, total - moves.length) }, (_, i) => (
+        <View key={`pending-${i}`} style={[styles.graphCol, { backgroundColor: '#1B1B1F', opacity: 0.35 }]} />
+      ))}
       <View pointerEvents="none" style={[styles.midline, { top: height / 2 }]} />
     </View>
   );

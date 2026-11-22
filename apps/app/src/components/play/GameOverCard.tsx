@@ -8,7 +8,6 @@ import { Text } from '@/ui/primitives';
 
 import { pickIndex, type EndResult } from '@/components/play/GameEndCelebration';
 import { Label } from '@/components/ui';
-import { QuickReview } from '@/components/play/QuickReview';
 import { useTheme } from '@/constants/theme';
 import { translate, useT, type TKey } from '@/i18n';
 import type { GameView } from '@/lib/playClient';
@@ -80,19 +79,16 @@ export function GameOverCard({
   onLobby,
   onReview,
   onClose,
-  moves,
 }: {
   view: GameView;
   onRematch: () => void;
   onDeclineRematch: () => void;
   onNewGame: () => void;
   onLobby: () => void;
-  /** Opens the engine review; hidden for aborted games. The loser gets it as the main action. */
+  /** Opens the full engine review; hidden for aborted games. It is the card's main action. */
   onReview?: () => void;
   /** Hides the card to look at the final position. */
   onClose?: () => void;
-  /** The game's moves (UCI), for the quick review in the card. */
-  moves?: string[];
 }) {
   const t = useTheme();
   const tr = useT();
@@ -108,7 +104,6 @@ export function GameOverCard({
   const tc = formatTimeControl(view.timeControl);
   const opponent = view.you === 'w' ? view.black : view.white;
   const canReview = !!onReview && view.outcome!.reason !== 'aborted';
-  const learnFirst = result === 'loss' && canReview;
 
   // Enter after the checkmate stamp has had its moment.
   const enter = useSharedValue(reduced ? 1 : 0);
@@ -156,13 +151,12 @@ export function GameOverCard({
       ) : (
         result && <Label muted>{unratedText(view.unrated ?? (view.rated ? undefined : 'casual'))}</Label>
       )}
-      {canReview && moves && moves.length > 1 && <QuickReview moves={moves} gameId={view.gameId} side={view.you} onOpen={onReview!} />}
       {oppOffered && <Label bold>{tr('play.over.wantsRematch', { name: opponent.name })}</Label>}
       {iOffered && <Label muted>{tr('play.over.rematchWaiting', { name: opponent.name })}</Label>}
       {view.rematchDeclined && <Label muted>{tr('play.over.declined')}</Label>}
-      {learnFirst && (
+      {canReview && (
         <View style={styles.buttons}>
-          <CardButton icon="school-outline" label={tr('play.over.review')} onPress={onReview!} primary />
+          <CardButton icon="chart-box-outline" label={tr('play.over.reviewGame')} onPress={onReview!} primary />
         </View>
       )}
       <View style={styles.buttons}>
@@ -177,10 +171,9 @@ export function GameOverCard({
             label={iOffered ? tr('play.over.rematchOffered') : tr('play.over.rematch')}
             disabled={iOffered || view.rematchDeclined || !view.opponentConnected}
             onPress={onRematch}
-            primary={!learnFirst}
+            primary={!canReview}
           />
         )}
-        {canReview && !learnFirst && <CardButton icon="chart-box-outline" label={tr('game.action.review')} onPress={onReview!} />}
       </View>
       <View style={styles.buttons}>
         <CardButton icon="plus-circle-outline" label={tr('play.over.newGame', { tc })} onPress={onNewGame} />
