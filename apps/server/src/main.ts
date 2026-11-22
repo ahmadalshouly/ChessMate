@@ -14,7 +14,7 @@ import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
 import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
 import { PuzzleApi } from './puzzles/api';
-import { openPuzzleStore } from './puzzles/setup';
+import { loadBundledPuzzles, openPuzzleStore } from './puzzles/setup';
 import { Moderation } from './moderation';
 import { MemoryRatingRepository, RatingService } from './ratingService';
 import { ChessServer, devResolveUser, type ServerOptions } from './server';
@@ -193,6 +193,8 @@ async function start() {
 const { server, close } = await start();
 server.listen().then((p) => {
   console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth, social API /api/social, ${puzzleStore.count()} puzzles)`);
+  // ~20,700 bundled puzzles, loaded in the background on first start.
+  void loadBundledPuzzles(puzzleStore).catch((e) => console.warn('bundled puzzles failed to load:', e instanceof Error ? e.message : e));
   console.log(`Engine analysis: ${engine} (starts on first request)`);
   const p2 = oauthConfigFromEnv();
   console.log(`Sign in with Google: ${p2.googleClientIds.length ? 'on' : 'off (set GOOGLE_CLIENT_IDS)'}; Sign in with Apple: ${p2.appleClientIds.length ? `on (${p2.appleClientIds.join(', ')})` : 'off'}`);
