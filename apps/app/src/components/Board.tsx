@@ -348,68 +348,32 @@ export const Board = memo(function Board(props: BoardProps) {
     <View ref={drawn.ref} style={[styles.board, PLACE_ORIGIN, { width: size, height: size, borderRadius: Math.max(4, size * 0.012), direction: 'ltr' }]} accessibilityRole="grid">
       <Surface theme={colors} orientation={orientation} size={size} />
       {ORDER[orientation].map((sq, i) => {
-        const fileIdx = sq.charCodeAt(0) - 97;
-        const rank = Number(sq[1]);
-        const isLight = (fileIdx + rank) % 2 === 0;
         const piece = pieceAt(position, sq);
-        const row = Math.floor(i / 8);
-        const col = i % 8;
         const overlays: string[] = [];
         if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) overlays.push(colors.lastMove);
         if (threatSet.has(sq)) overlays.push(colors.threat);
         if (premoveSquares.has(sq)) overlays.push(PREMOVE_TINT);
         if (selected === sq) overlays.push(colors.selected);
         if (checkSquare === sq) overlays.push(colors.check);
-        const coordColor = isLight ? colors.coordOnLight : colors.coordOnDark;
-        const coordSize = Math.max(8, cell * 0.17);
-        const coordBox = Math.ceil(coordSize * 1.3);
         return (
-          <Pressable
+          <SquareCell
             key={sq}
-            onPress={() => onSquarePress?.(sq)}
-            disabled={!onSquarePress}
-            accessibilityLabel={`${sq}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`}
-            style={[placeAt(col * cell, row * cell, cell, cell, size), PLACE_ORIGIN]}>
-            {overlays.map((c, k) => (
-              <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
-            ))}
-            {coordinates && col === 0 && (
-              <Text style={[styles.coord, placeAt(cell * 0.02, 0, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>{rank}</Text>
-            )}
-            {coordinates && row === 7 && (
-              <Text style={[styles.coord, placeAt(cell - coordBox - cell * 0.02, cell - coordBox, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>
-                {FILES[fileIdx]}
-              </Text>
-            )}
-            {piece && !slide.hidden.has(sq) && (
-              <View style={dragging?.from === sq ? styles.lifted : undefined}>
-                <PieceView piece={piece} cell={cell} set={set} />
-              </View>
-            )}
-            {props.pickable?.includes(sq) && (
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />
-            )}
-            {props.crowned?.includes(sq) && (
-              <View
-                pointerEvents="none"
-                style={[styles.crown, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell * 0.18, top: cell * 0.03, end: cell * 0.03 }]}>
-                <Text style={{ fontSize: cell * 0.24, lineHeight: cell * 0.3, color: '#3a2a00' }}>♛</Text>
-              </View>
-            )}
-            {dragging?.over === sq && dragging.over !== dragging.from && (
-              <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: Math.max(2, cell * 0.06), borderColor: colors.hint }]} />
-            )}
-            {look.showLegalMoves && targetSet.has(sq) && (
-              <View
-                pointerEvents="none"
-                style={
-                  piece
-                    ? [StyleSheet.absoluteFill, { borderWidth: cell * 0.075, borderColor: colors.hint, borderRadius: cell / 2 }]
-                    : { position: 'absolute', left: cell * 0.36, top: cell * 0.36, width: cell * 0.28, height: cell * 0.28, borderRadius: cell, backgroundColor: colors.hint }
-                }
-              />
-            )}
-          </Pressable>
+            sq={sq}
+            index={i}
+            cell={cell}
+            size={size}
+            colors={colors}
+            set={set}
+            coordinates={coordinates}
+            piece={piece && !slide.hidden.has(sq) ? `${piece.color}${piece.type}` : null}
+            pieceLabel={piece ? `${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : null}
+            overlays={overlays.join('|')}
+            lifted={dragging?.from === sq}
+            dragOver={!!dragging && dragging.over === sq && dragging.over !== dragging.from}
+            target={look.showLegalMoves && targetSet.has(sq)}
+            pickable={!!props.pickable?.includes(sq)}
+            crowned={!!props.crowned?.includes(sq)}
+          />
         );
       })}
       {slide.run?.slides.map((sl) => {
@@ -467,6 +431,95 @@ export const Board = memo(function Board(props: BoardProps) {
       {props.promotion && <PromotionPicker choice={props.promotion} orientation={orientation} size={size} set={set} />}
       {/* Glass edge: a hairline highlight that sits on top of everything. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.edge, { borderColor: colors.frame, borderRadius: Math.max(4, size * 0.012) }]} />
+    </View>
+  );
+});
+
+/**
+ * One square: tints, coordinates, piece and markers. Memoised on plain values, so a move
+ * re-renders the handful of squares that changed instead of all 64 (each square used to
+ * be a Pressable rebuilt on every board update, the main cost of a board render). Taps and
+ * drags are handled by the gesture layer over the board, so squares are plain Views.
+ */
+const SquareCell = memo(function SquareCell({
+  sq,
+  index,
+  cell,
+  size,
+  colors,
+  set,
+  coordinates,
+  piece,
+  pieceLabel,
+  overlays,
+  lifted,
+  dragOver,
+  target,
+  pickable,
+  crowned,
+}: {
+  sq: Square;
+  index: number;
+  cell: number;
+  size: number;
+  colors: BoardTheme;
+  set: PieceSet;
+  coordinates: boolean;
+  /** Colour and type, e.g. `wn`, or null for an empty (or sliding-into) square. */
+  piece: string | null;
+  pieceLabel: string | null;
+  /** Overlay colours joined with `|`, bottom first. */
+  overlays: string;
+  lifted: boolean;
+  dragOver: boolean;
+  target: boolean;
+  pickable: boolean;
+  crowned: boolean;
+}) {
+  const fileIdx = sq.charCodeAt(0) - 97;
+  const rank = Number(sq[1]);
+  const isLight = (fileIdx + rank) % 2 === 0;
+  const row = Math.floor(index / 8);
+  const col = index % 8;
+  const coordColor = isLight ? colors.coordOnLight : colors.coordOnDark;
+  const coordSize = Math.max(8, cell * 0.17);
+  const coordBox = Math.ceil(coordSize * 1.3);
+  const occupied = pieceLabel !== null;
+  return (
+    <View accessibilityLabel={`${sq}${pieceLabel ? ` ${pieceLabel}` : ''}`} pointerEvents="none" style={[placeAt(col * cell, row * cell, cell, cell, size), PLACE_ORIGIN]}>
+      {overlays
+        ? overlays.split('|').map((c, k) => <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />)
+        : null}
+      {coordinates && col === 0 && (
+        <Text style={[styles.coord, placeAt(cell * 0.02, 0, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>{rank}</Text>
+      )}
+      {coordinates && row === 7 && (
+        <Text style={[styles.coord, placeAt(cell - coordBox - cell * 0.02, cell - coordBox, coordBox, coordBox, cell), { color: coordColor, fontSize: coordSize, lineHeight: coordBox }]}>
+          {FILES[fileIdx]}
+        </Text>
+      )}
+      {piece && (
+        <View style={lifted ? styles.lifted : undefined}>
+          <PieceView piece={{ color: piece[0] as Color, type: piece[1] as Piece['type'] }} cell={cell} set={set} />
+        </View>
+      )}
+      {pickable && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />}
+      {crowned && (
+        <View pointerEvents="none" style={[styles.crown, { width: cell * 0.36, height: cell * 0.36, borderRadius: cell * 0.18, top: cell * 0.03, end: cell * 0.03 }]}>
+          <Text style={{ fontSize: cell * 0.24, lineHeight: cell * 0.3, color: '#3a2a00' }}>♛</Text>
+        </View>
+      )}
+      {dragOver && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderWidth: Math.max(2, cell * 0.06), borderColor: colors.hint }]} />}
+      {target && (
+        <View
+          pointerEvents="none"
+          style={
+            occupied
+              ? [StyleSheet.absoluteFill, { borderWidth: cell * 0.075, borderColor: colors.hint, borderRadius: cell / 2 }]
+              : { position: 'absolute', left: cell * 0.36, top: cell * 0.36, width: cell * 0.28, height: cell * 0.28, borderRadius: cell, backgroundColor: colors.hint }
+          }
+        />
+      )}
     </View>
   );
 });
