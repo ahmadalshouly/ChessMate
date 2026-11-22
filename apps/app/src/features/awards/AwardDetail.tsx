@@ -3,8 +3,8 @@ import { AWARDS_BY_ID, type AwardProgress, type AwardsView } from '@chessmate/co
 import { StyleSheet, View } from 'react-native';
 
 import { formatDate, useT } from '@/i18n';
+import { CountryFlag } from '@/components/CountryFlag';
 import { countryLabel } from '@/i18n/chess';
-import { countryFlag } from '@/lib/leaderboardApi';
 import { Modal, Row, Stack, Text, useAppTheme } from '@/ui';
 
 import { AwardBadge } from './AwardBadge';
@@ -66,7 +66,7 @@ export function AwardDetail({ award, view, onClose }: { award: AwardProgress | n
               <View style={styles.flags}>
                 {countries.map((code) => (
                   <View key={code} accessible accessibilityLabel={countryLabel(code) ?? code} style={[styles.flag, { borderColor: c.border }]}>
-                    <Text>{countryFlag(code)}</Text>
+                    <CountryFlag code={code} decorative />
                     <Text variant="caption" tone="muted">
                       {countryLabel(code) ?? code}
                     </Text>

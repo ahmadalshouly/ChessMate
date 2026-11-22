@@ -5,7 +5,7 @@ import { Pressable, View } from 'react-native';
 
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAgo, formatNumber, useT } from '@/i18n';
-import { countryFlag } from '@/lib/leaderboardApi';
+import { CountryFlag } from '@/components/CountryFlag';
 import { Avatar, Button, GlassView, Row, Stack, Text, useAppTheme } from '@/ui';
 
 import { LiveDot, PLATFORM_ICON, openLink } from './components';
@@ -32,7 +32,7 @@ export function FeaturedStream({ s, width }: { s: StreamerView; width: number })
                 <Text variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
                   {s.displayName}
                 </Text>
-                {s.country ? <Text>{countryFlag(s.country)}</Text> : null}
+                <CountryFlag code={s.country} />
               </Row>
               {live.title ? (
                 <Text variant="caption" tone="muted" numberOfLines={2}>

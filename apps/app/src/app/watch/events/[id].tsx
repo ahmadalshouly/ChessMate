@@ -8,7 +8,7 @@ import { TitleBadge } from '@/features/titles/TitleBadge';
 import { LinkList, PostImage, pictureUri } from '@/features/media/MediaFields';
 import { EventLogo, GameThumb, StatusPill, dateRange, openLink } from '@/features/watch/components';
 import { formatAgo, formatDateTime, useT } from '@/i18n';
-import { countryFlag } from '@/lib/leaderboardApi';
+import { CountryFlag } from '@/components/CountryFlag';
 import { usePolled, watchApi } from '@/lib/watchApi';
 import { Badge, Button, Chip, GlassView, Row, Screen, Skeleton, Stack, Tabs, Text, useAppTheme } from '@/ui';
 
@@ -156,7 +156,7 @@ export default function EventScreen() {
                   {s.rank}
                 </Text>
                 <Row gap="xs" style={{ flex: 1, minWidth: 0 }}>
-                  {s.federation ? <Text>{countryFlag(s.federation)}</Text> : null}
+                  <CountryFlag code={s.federation} />
                   <TitleBadge title={s.title} size="sm" />
                   <Text numberOfLines={1} style={{ flexShrink: 1 }}>
                     {s.name}
@@ -201,7 +201,7 @@ export default function EventScreen() {
                 onPress={() => p.username && router.push(`/profile/${encodeURIComponent(p.username)}`)}
                 style={[styles.row, i < e.players.length - 1 && { borderBottomColor: t.colors.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
                 <Row gap="xs" style={{ flex: 1, minWidth: 0 }}>
-                  {p.federation ? <Text>{countryFlag(p.federation)}</Text> : null}
+                  <CountryFlag code={p.federation} />
                   <TitleBadge title={p.title} size="sm" />
                   <Text numberOfLines={1} style={{ flexShrink: 1 }}>
                     {p.name}

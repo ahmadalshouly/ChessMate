@@ -13,7 +13,7 @@ import { MoveStrip } from '@/components/game/MoveStrip';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { LiveDot, SHOWN_GRADES, clockNow, endingText } from '@/features/watch/components';
 import { useT } from '@/i18n';
-import { countryFlag } from '@/lib/leaderboardApi';
+import { CountryFlag } from '@/components/CountryFlag';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useWideBoard } from '@/lib/useWideBoard';
 import { usePolled, watchApi } from '@/lib/watchApi';
@@ -217,7 +217,7 @@ function PlayerLine({ p, clock, running, result }: { p: EventGamePlayer; clock: 
   return (
     <Row gap="sm" justify="space-between">
       <Row gap="xs" style={{ flex: 1, minWidth: 0 }}>
-        {p.federation ? <Text>{countryFlag(p.federation)}</Text> : null}
+        <CountryFlag code={p.federation} />
         <TitleBadge title={p.title} size="sm" />
         <Text variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
           {p.name}
