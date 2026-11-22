@@ -39,7 +39,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
   const t = useTheme();
   const tr = useT();
   // Big board on wide screens with the details beside it; full width on phones.
-  const { wide, size, panel } = useWideBoard({ panel: 400, reserve: 230, phoneReserve: 330 });
+  const { wide, size, panel } = useWideBoard({ panel: 400, reserve: 170, phoneReserve: 330 });
   const history: PlayedMove[] = useMemo(() => Game.fromUciMoves(game.moves, game.initialFen).history(), [game]);
   const fens = useMemo(() => [game.initialFen, ...history.map((m) => m.fenAfter)], [game, history]);
   const openings = useMemo(() => openingTimeline(game.moves, game.initialFen), [game]);

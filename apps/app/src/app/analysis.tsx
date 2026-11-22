@@ -1,13 +1,9 @@
 import {
   Game,
   START_FEN,
-  classifyMove,
   importPosition,
   openingTimeline,
   parseUci,
-  positionKey,
-  terminalScore,
-  type MoveJudgement,
   type PositionAnalysis,
 } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -28,6 +24,7 @@ import { ActionBar } from '@/components/game/ActionBar';
 import { serverText } from '@/i18n/serverMessages';
 import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
+import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
 import { useEngine } from '@/lib/useEngine';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
@@ -35,7 +32,6 @@ import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 
 const EVAL_BAR = 20;
 /** Depth an engine result needs before it is used to grade moves. */
-const GRADE_DEPTH = 12;
 
 /**
  * Analysis board: explore any position (from a FEN, a PGN, or a finished
@@ -60,7 +56,7 @@ export default function Analysis() {
   const { height: winH } = useWindowDimensions();
   // Wide screens (web, tablets): a big board on the left, panel scrolls on the right.
   // Phones: board and move buttons stay put; the panel scrolls underneath.
-  const { wide, size: wideSpace } = useWideBoard({ panel: 404, reserve: 170 });
+  const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 404, reserve: 130 });
   const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.56);
   const size = Math.max(200, Math.floor((boardSpace - EVAL_BAR - 6) / 8) * 8);
   // The panel beside the board scrolls within the window height (web).
@@ -194,7 +190,7 @@ export default function Analysis() {
       <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
         <ScrollView
-          style={[styles.panel, wide && { flex: 0, width: 404, height: fillH, alignSelf: 'stretch' }]}
+          style={[styles.panel, wide && { flex: 0, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
           contentContainerStyle={[styles.panelContent, { width: wide ? 400 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
           keyboardShouldPersistTaps="handled">
           <Pressable
@@ -317,54 +313,6 @@ export default function Analysis() {
       <EngineSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} engineOn={engineOn} onEngineOn={setEngineOn} />
     </Screen>
   );
-}
-
-/** Stores a result unless a deeper (or equally deep but wider) one is already known. */
-function remember(prev: Map<string, PositionAnalysis>, a: PositionAnalysis): Map<string, PositionAnalysis> {
-  const key = positionKey(a.fen);
-  const old = prev.get(key);
-  if (old && (old.depth > a.depth || (old.depth === a.depth && old.lines.length > a.lines.length))) return prev;
-  const next = new Map(prev);
-  next.set(key, a);
-  return next;
-}
-
-/**
- * Grades each move of the line from the engine results seen so far. A move is
- * graded once both the position before it and the one after it have been
- * analysed; the rest stay undefined until the player visits them.
- */
-function gradeLine(
-  start: string,
-  history: { fenAfter: string; uci: string }[],
-  seen: Map<string, PositionAnalysis>,
-  openings: ({ ply: number } | null)[],
-): (MoveJudgement | undefined)[] {
-  const out: (MoveJudgement | undefined)[] = [];
-  let inBook = true;
-  history.forEach((m, i) => {
-    inBook = inBook && !!openings[i + 1] && openings[i + 1]!.ply === i + 1;
-    const fenBefore = i === 0 ? start : history[i - 1]!.fenAfter;
-    const before = seen.get(positionKey(fenBefore));
-    const after = seen.get(positionKey(m.fenAfter));
-    const best = before?.lines[0];
-    const playedScore = after?.terminal ? terminalScore(after.fen, after.terminal) : after?.lines[0]?.score;
-    if (!best || !playedScore) return out.push(undefined);
-    out.push(
-      classifyMove({
-        fenBefore,
-        uci: m.uci,
-        bestScore: best.score,
-        bestMove: best.pv[0],
-        secondBestScore: before.lines[1]?.score,
-        playedScore,
-        book: inBook,
-        previousUci: history[i - 1]?.uci,
-        previousLoss: out[i - 1]?.loss,
-      }),
-    );
-  });
-  return out;
 }
 
 function formatLine(san: string[], ply: number): string {

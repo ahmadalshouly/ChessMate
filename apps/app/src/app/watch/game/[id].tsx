@@ -26,7 +26,7 @@ export default function BroadcastGameScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const load = useCallback(() => watchApi.game(String(id)), [id]);
   const { data: g, error, refresh } = usePolled<EventGameDetail>(id ? load : null, { fastMs: 2_000, slowMs: 60_000, isLive: (d) => d.status === 'live' });
-  const { wide, size: wantSize, panel } = useWideBoard({ panel: 360, reserve: 200, phoneReserve: 300 });
+  const { wide, size: wantSize, panel } = useWideBoard({ panel: 360, reserve: 160, phoneReserve: 300 });
   // On phones, never wider than the screen minus the page padding.
   const { width } = useWindowDimensions();
   const size = wide ? wantSize : Math.min(wantSize, Math.floor((width - 2 * 20) / 8) * 8);

@@ -25,7 +25,7 @@ export default function PuzzleTrainer() {
   const [result, setResult] = useState<{ solved: boolean; delta?: number; rating?: number } | null>(null);
   const seen = useRef<string[]>([]);
   // Big board on wide screens (panel beside it); phones keep room below for hints and results.
-  const { wide, size } = useWideBoard({ panel: 380, reserve: 140, phoneReserve: 330, sidebar: true });
+  const { wide, size } = useWideBoard({ panel: 380, reserve: 116, phoneReserve: 330, sidebar: true });
 
   const load = useCallback(async () => {
     setError(null);

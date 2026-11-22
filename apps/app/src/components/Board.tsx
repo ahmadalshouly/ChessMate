@@ -51,7 +51,7 @@ export interface BoardProps {
   /**
    * Right-click drawing on the web: drag with the right button for an arrow,
    * right-click a square to circle it, left-click to clear. On by default for
-   * boards you play on (with onSquarePress). Shift draws red, Alt blue.
+   * every board except thumbnails (hideCoordinates) and boards under 160px. Shift draws red, Alt blue.
    */
   drawable?: boolean;
   /** Arrows drawn by the screen (engine lines), under the player's own drawings. */
@@ -330,7 +330,8 @@ export const Board = memo(function Board(props: BoardProps) {
     onSquarePress,
     onDropped: slide.markDropped,
   });
-  const drawn = useDrawnShapes(props.drawable ?? !!onSquarePress, fen, cell, orientation);
+  // Right-click arrows and circles (web) on every board you look at closely; thumbnails stay plain.
+  const drawn = useDrawnShapes(props.drawable ?? (!!onSquarePress || (!props.hideCoordinates && size >= 160)), fen, cell, orientation);
   // Move sounds on every board; thumbnails and small previews stay quiet (a grid of live games would clatter).
   useBoardSound(fen, props.sound ?? (!props.hideCoordinates && size >= 160));
   const allArrows = props.arrows ? [...props.arrows, ...drawn.arrows] : drawn.arrows;

@@ -19,8 +19,10 @@ export function useWideBoard({ panel = 400, reserve = 150, phoneReserve = 300, s
   const { width, height } = useWindowDimensions();
   const content = sidebar && width >= 960 ? width - 250 : width;
   const wide = content >= WIDE_BOARD_MIN;
-  const raw = wide ? Math.min(height - reserve, content - panel - 72, 1000) : Math.min(content - 24, height - phoneReserve, 640);
-  return { wide, size: Math.max(240, Math.floor(raw / 8) * 8), panel };
+  // The panel gives way on narrower windows (down to 320px) so the board gets the room.
+  const side = wide ? Math.max(320, Math.min(panel, Math.round(content * 0.3))) : panel;
+  const raw = wide ? Math.min(height - reserve, content - side - 56, 1200) : Math.min(content - 24, height - phoneReserve, 640);
+  return { wide, size: Math.max(240, Math.floor(raw / 8) * 8), panel: side };
 }
 
 /**

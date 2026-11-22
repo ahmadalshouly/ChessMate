@@ -41,4 +41,7 @@ shot mobile-6-streamers 430 1000 2 /watch/streamers
 shot desktop-1-watch 1366 1100 1 /watch
 shot desktop-2-event-games 1366 1300 1 /watch/events/berlin
 shot desktop-3-game 1366 900 1 /watch/game/g30
+shot desktop-4-analysis-1366 1366 768 1 /analysis
+shot desktop-5-analysis-1920 1920 1080 1 /analysis
+shot desktop-6-watch-game-1920 1920 1080 1 /watch/game/g30
 ls -la "$OUT"

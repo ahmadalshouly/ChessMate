@@ -27,7 +27,7 @@ export default function PuzzleRun() {
   const t = useTheme();
   const tr = useT();
   // Big board on wide screens (panel beside it); phones keep room below for hints and results.
-  const { wide, size } = useWideBoard({ panel: 380, reserve: 140, phoneReserve: 360, sidebar: true });
+  const { wide, size } = useWideBoard({ panel: 380, reserve: 116, phoneReserve: 360, sidebar: true });
   const [phase, setPhase] = useState<Phase>('ready');
   const [queue, setQueue] = useState<PuzzleDto[]>([]);
   const [index, setIndex] = useState(0);
