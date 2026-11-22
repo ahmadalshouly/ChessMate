@@ -21,7 +21,7 @@ function folder(rel) {
 
 const ignored = [
   // Matches both absolute and root-relative paths (outside node_modules).
-  /^(?!.*node_modules)(?:.*[\\/])?\.(?:data|ruv-swarm)[\\/].*/,
+  /^(?!.*node_modules)(?:.*[\\/])?\.(?:data|ruv-swarm|expo)[\\/].*/,
   ...['.git', 'apps/server', 'packages/db', 'docs', 'scripts', 'apps/app/art', 'apps/app/scripts', 'coverage'].map(folder),
 ];
 

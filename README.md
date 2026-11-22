@@ -343,6 +343,23 @@ The bell in the header opens the inbox; **Settings** there picks which alerts ar
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
 
+### Testing on many devices at once
+
+The development server (`pnpm web`, Metro) reloads on every change, but on Windows it
+runs out of open files ("EMFILE: too many open files") when several devices are
+connected. To try the app on many phones and computers on the same network:
+
+1. Start the game server: `pnpm dev:server`.
+2. Build and serve the web app: `pnpm web:lan`. It prints the address to open on the
+   other devices, for example `http://192.168.1.20:8080`. Nothing is watched, so any
+   number of devices can use it.
+3. After changing code, run `pnpm web:lan` again (or `pnpm web:serve` to serve the last
+   build without rebuilding).
+
+Leave `EXPO_PUBLIC_SERVER_URL` unset for this: the app then finds the game server on the
+same address. Allow Node.js through Windows Firewall on private networks if the other
+devices can't connect. Google sign-in only works on `http://localhost`.
+
 ### Moving pieces, premoves, sounds and vibration
 
 Run `pnpm install` after pulling: this adds `expo-haptics` (bundled in Expo Go, so no build is needed).
