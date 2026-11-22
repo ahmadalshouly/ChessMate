@@ -82,6 +82,8 @@ pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or pre
 
 The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`. Language support (`expo-localization` and the bundled Arabic font) works in Expo Go, so it needs no new build.
 
+**Judging smoothness on a phone:** `pnpm dev:app` runs the app in development mode, where JavaScript is several times slower than in a real build (extra checks, no minifying). Board dragging and piece slides run on the UI thread, so they stay smooth either way, but selecting a piece, legal-move dots and screen changes feel slower than they will in the store app. To see real speed in Expo Go, start Expo with `pnpm dev:app --no-dev --minify` (reload the app after switching).
+
 To try rated games and the end-of-game animations: create two accounts (one in a normal browser window, one in a private window, or on two phones), open **Play** in both, keep *Rated* selected and press Play in each. Ratings are stored in `.data/pglite`, so they carry over when you restart `pnpm dev:server`.
 
 Checks (the same ones CI runs on every PR): `pnpm lint`, `pnpm typecheck`, `pnpm test`.

@@ -1,6 +1,6 @@
 import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 import { GestureDetector, GestureStateManager, MouseButton, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
@@ -356,8 +356,8 @@ interface CellProps {
   set: PieceSet;
   /** Tints over the square, bottom first, joined with '|'. */
   overlays: string;
-  /** The piece being dragged away from here, shown faded. */
-  lifted: boolean;
+  /** Drag state on the UI thread: fades this square's piece while it is being dragged away. */
+  ui: DragUI;
   hint: Hint;
   hintColor: string;
   rankLabel: number;
@@ -389,9 +389,9 @@ const SquareCell = memo(function SquareCell(p: CellProps) {
         </Text>
       )}
       {p.piece !== '' && (
-        <View style={p.lifted ? styles.lifted : undefined}>
+        <LiftablePiece ui={p.ui} index={p.row * 8 + p.col}>
           <PieceView color={p.piece[0] as Color} type={p.piece[1] as Piece['type']} cell={cell} set={p.set} />
-        </View>
+        </LiftablePiece>
       )}
       {p.pickable && <View style={[StyleSheet.absoluteFill, styles.pickable, { borderWidth: Math.max(2, cell * 0.06), borderRadius: cell * 0.12 }]} />}
       {p.crowned && (
@@ -419,7 +419,7 @@ export const Board = memo(function Board(props: BoardProps) {
   // Thumbnails are too small for readable coordinates.
   const coordinates = look.coordinates && !props.hideCoordinates && cell >= 24;
   const slide = useSlides(fen, position, orientation, size);
-  const { enabled: dragEnabled, state: dragging, ui: dragUI, ref: dragRef, gesture: dragGesture } = useDrag({ ...props, position, cell, onDropped: slide.markDropped });
+  const { enabled: dragEnabled, ui: dragUI, ref: dragRef, gesture: dragGesture } = useDrag({ ...props, position, cell, onDropped: slide.markDropped });
   // Right-click arrows and circles (web) on every board you look at closely; thumbnails stay plain.
   const drawn = useDrawnShapes(props.drawable ?? (!!onSquarePress || (!props.hideCoordinates && size >= 160)), fen, cell, orientation);
   // Move sounds on every board; thumbnails and small previews stay quiet (a grid of live games would clatter).
@@ -464,7 +464,7 @@ export const Board = memo(function Board(props: BoardProps) {
             piece={piece && !slide.hidden.has(sq) ? `${piece.color}${piece.type}` : ''}
             set={set}
             overlays={overlays}
-            lifted={!!dragging?.moved && dragging.from === sq}
+            ui={dragUI}
             hint={targetSet?.has(sq) ? (piece ? 2 : 1) : 0}
             hintColor={colors.hint}
             rankLabel={coordinates && col === 0 ? rank : 0}
@@ -496,7 +496,7 @@ export const Board = memo(function Board(props: BoardProps) {
         </GestureDetector>
       )}
       {dragEnabled && <DropTarget ui={dragUI} cell={cell} size={size} color={colors.hint} />}
-      {dragging && <DraggedPiece ui={dragUI} piece={dragging.piece} cell={cell} size={size} set={set} />}
+      {dragEnabled && <DraggedPieces ui={dragUI} cell={cell} size={size} set={set} />}
       {drawn.marks.map((m) => {
         const f = m.sq.charCodeAt(0) - 97;
         const r = Number(m.sq[1]);
@@ -570,17 +570,17 @@ const WEB_NO_GESTURES = (Platform.OS === 'web' ? { touchAction: 'none', userSele
 /** How much a picked-up piece grows, so it reads as lifted under a finger. */
 const LIFT_SCALE = 1.12;
 
-interface DragState {
-  from: Square;
-  piece: Piece;
-  /** True once the pointer moved past the tap slop and the piece follows it. */
-  moved: boolean;
-}
+/** Every piece, so the one under the finger can be chosen on the UI thread. */
+const KINDS: { color: Color; type: Piece['type'] }[] = (['w', 'b'] as const).flatMap((color) => (['p', 'n', 'b', 'r', 'q', 'k'] as const).map((type) => ({ color, type })));
+const kindOf = (piece: Piece) => KINDS.findIndex((k) => k.color === piece.color && k.type === piece.type);
 
 /**
- * What the UI thread knows about the drag. The gesture writes these on every
- * pointer move and the dragged piece and drop outline read them, so following
- * the finger never waits for JavaScript or a React render.
+ * What the UI thread knows about the drag. The gesture writes these on touch
+ * and on every pointer move, and the dragged piece, the faded piece left behind
+ * and the drop outline read them, so picking up and following the finger never
+ * wait for JavaScript or a React render. That matters most on phones in
+ * development, where a render of the game screen can take a large fraction of
+ * a second.
  */
 interface DragUI {
   /** Pointer in board coordinates: the centre of the dragged piece. */
@@ -588,20 +588,39 @@ interface DragUI {
   y: SharedValue<number>;
   moved: SharedValue<boolean>;
   lift: SharedValue<number>;
+  /** Index into KINDS of the held piece; -1 when nothing is held. */
+  kind: SharedValue<number>;
   /** Squares as display cells (row * 8 + col, top-left first); -1 for none. */
   from: SharedValue<number>;
   over: SharedValue<number>;
 }
 
-/** The piece under the finger. Positioned on the UI thread; React only mounts it at pick-up and removes it at the end. */
-function DraggedPiece({ ui, piece, cell, size, set }: { ui: DragUI; piece: Piece; cell: number; size: number; set: PieceSet }) {
-  const follow = useAnimatedStyle(() => ({
-    opacity: ui.moved.get() ? 1 : 0,
-    transform: [{ translateX: ui.x.get() - size / 2 }, { translateY: ui.y.get() - size / 2 }, { scale: ui.lift.get() }],
-  }));
+/** A square's piece, faded on the UI thread while it is being dragged away. */
+function LiftablePiece({ ui, index, children }: { ui: DragUI; index: number; children: ReactNode }) {
+  const fade = useAnimatedStyle(() => ({ opacity: ui.kind.get() >= 0 && ui.moved.get() && ui.from.get() === index ? 0.3 : 1 }));
+  return <Animated.View style={fade}>{children}</Animated.View>;
+}
+
+/**
+ * The piece under the finger. All twelve are mounted up front and the held one
+ * is shown on the UI thread, so it appears under the finger on the first frame
+ * of the drag instead of after a React render.
+ */
+const DraggedPieces = memo(function DraggedPieces({ ui, cell, size, set }: { ui: DragUI; cell: number; size: number; set: PieceSet }) {
+  return KINDS.map((k, i) => <DraggedPiece key={i} ui={ui} kind={i} color={k.color} type={k.type} cell={cell} size={size} set={set} />);
+});
+
+function DraggedPiece({ ui, kind, color, type, cell, size, set }: { ui: DragUI; kind: number; color: Color; type: Piece['type']; cell: number; size: number; set: PieceSet }) {
+  const follow = useAnimatedStyle(() => {
+    const shown = ui.kind.get() === kind && ui.moved.get();
+    return {
+      opacity: shown ? 1 : 0,
+      transform: shown ? [{ translateX: ui.x.get() - size / 2 }, { translateY: ui.y.get() - size / 2 }, { scale: ui.lift.get() }] : [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }],
+    };
+  });
   return (
     <Animated.View pointerEvents="none" style={[styles.floating, { width: cell, height: cell }, follow]}>
-      <PieceView type={piece.type} color={piece.color} cell={cell} set={set} />
+      <PieceView type={type} color={color} cell={cell} set={set} />
     </Animated.View>
   );
 }
@@ -622,14 +641,18 @@ function DropTarget({ ui, cell, size, color }: { ui: DragUI; cell: number; size:
 /**
  * Drag-and-drop on top of tap-to-move, with react-native-gesture-handler and
  * Reanimated so the piece follows the finger on the UI thread at the screen's
- * frame rate, even while JavaScript is busy (a bot thinking, a clock ticking).
+ * frame rate, even while JavaScript is busy (a bot thinking, a slow render).
  *
  * One transparent layer over the board owns the gestures, so coordinates are
  * always board-relative. Pressing a movable piece claims the touch at once and
  * selects the piece so its legal moves show; moving it past the slop drags it.
  * A press elsewhere is a tap, and a swipe that starts there is left to any
- * scroll view around the board. React renders at pick-up, lift-off and drop;
- * nothing renders per pointer move.
+ * scroll view around the board.
+ *
+ * Picking up, dragging, the drop outline and gliding back from an illegal or
+ * cancelled drop all run on the UI thread. JavaScript is only told about the
+ * press (to select the piece) and the drop (to play the move); the board itself
+ * never re-renders during a drag.
  */
 function useDrag(p: {
   fen: string;
@@ -645,9 +668,8 @@ function useDrag(p: {
   onDropped?: (from: Square, to: Square) => void;
 }) {
   const enabled = !!p.onSquarePress;
-  const [state, setState] = useState<DragState | null>(null);
   // A drop waiting to see whether the position changes: if it does, the piece is already there.
-  const [pending, setPending] = useState<{ fen: string; from: Square } | null>(null);
+  const [pending, setPending] = useState<{ fen: string; from: number } | null>(null);
   const ref = useRef<ComponentRef<typeof View>>(null);
   // The gestures are created once; they read the latest props through this ref.
   const latest = useRef(p);
@@ -658,9 +680,10 @@ function useDrag(p: {
   const y = useSharedValue(0);
   const moved = useSharedValue(false);
   const lift = useSharedValue(1);
+  const kind = useSharedValue(-1);
   const from = useSharedValue(-1);
   const over = useSharedValue(-1);
-  const ui = useMemo<DragUI>(() => ({ x, y, moved, lift, from, over }), [x, y, moved, lift, from, over]);
+  const ui = useMemo<DragUI>(() => ({ x, y, moved, lift, kind, from, over }), [x, y, moved, lift, kind, from, over]);
   const cellSV = useSharedValue(p.cell);
   const startX = useSharedValue(0);
   const startY = useSharedValue(0);
@@ -668,10 +691,21 @@ function useDrag(p: {
   const holding = useSharedValue(0);
   /** 1 when the drag gesture took the current press, so the tap gesture leaves it alone. */
   const claimed = useSharedValue(0);
-  /** Which display cells hold a piece that can be picked up ('1'), so touch-down is decided on the UI thread. */
+  /**
+   * Per display cell: '.' when nothing there can be picked up, otherwise a letter for the
+   * piece ('a' + its KINDS index), so touch-down is decided on the UI thread.
+   */
   const movable = useSharedValue('');
 
-  const movableKey = enabled && p.canDrag ? ORDER[p.orientation].map((sq) => (pieceAt(p.position, sq) && p.canDrag!(sq) ? '1' : '0')).join('') : '';
+  const movableKey =
+    enabled && p.canDrag
+      ? ORDER[p.orientation]
+          .map((sq) => {
+            const piece = pieceAt(p.position, sq);
+            return piece && p.canDrag!(sq) ? String.fromCharCode(97 + kindOf(piece)) : '.';
+          })
+          .join('')
+      : '';
   useEffect(() => {
     movable.set(movableKey);
   }, [movableKey, movable]);
@@ -679,67 +713,64 @@ function useDrag(p: {
     cellSV.set(p.cell);
   }, [p.cell, cellSV]);
 
-  // The move was played (or queued as a premove): the dropped piece is shown on its new square in this same render.
-  if (pending && pending.fen !== p.fen) {
-    setPending(null);
-    setState(null);
-  }
-
-  const js = useMemo(() => {
-    const squareOfCell = (idx: number) => ORDER[latest.current.orientation][idx];
-    const clear = () => setState(null);
+  /** UI-thread animations, also callable from JavaScript. */
+  const anim = useMemo(() => {
+    const putDown = () => {
+      'worklet';
+      kind.set(-1);
+      moved.set(false);
+      from.set(-1);
+      over.set(-1);
+    };
     /** Glides the held piece back to its square, then puts it down. */
-    const snapBack = (sq: Square) => {
-      const { orientation, cell } = latest.current;
-      const o = cellOrigin(sq, orientation, cell);
+    const snapBack = (idx: number) => {
+      'worklet';
+      const c = cellSV.get();
       const timing = { duration: SNAP_BACK_MS, easing: SLIDE_EASING };
       lift.set(withTiming(1, timing));
-      x.set(withTiming(o.x + cell / 2, timing));
+      x.set(withTiming((idx % 8) * c + c / 2, timing));
       y.set(
-        withTiming(o.y + cell / 2, timing, (finished) => {
+        withTiming(Math.floor(idx / 8) * c + c / 2, timing, (finished) => {
           'worklet';
-          if (finished) scheduleOnRN(clear);
+          if (finished) putDown();
         }),
       );
     };
+    return { putDown, snapBack };
+  }, [x, y, lift, kind, moved, from, over, cellSV]);
+
+  const js = useMemo(() => {
+    const squareOfCell = (idx: number) => ORDER[latest.current.orientation][idx];
     return {
-      snapBack,
       pickUp(idx: number) {
-        const { selected, onSquarePress, position } = latest.current;
+        const { selected, onSquarePress } = latest.current;
         const sq = squareOfCell(idx);
-        const piece = pieceAt(position, sq);
-        if (!piece) {
-          press.current = null;
-          return;
-        }
         press.current = { sq, selectedOnDown: selected !== sq };
+        setPending(null);
         // Select straight away so the legal moves show while dragging.
         if (selected !== sq) onSquarePress?.(sq);
-        setPending(null);
-        setState({ from: sq, piece, moved: false });
       },
       liftOff() {
         haptic('pickup');
-        setState((s) => (s && !s.moved ? { ...s, moved: true } : s));
       },
-      release(overIdx: number, wasMoved: boolean) {
+      release(overIdx: number, wasMoved: boolean, fromIdx: number) {
         const cur = press.current;
         press.current = null;
-        if (!cur) return clear();
+        if (!cur) return;
         const { onSquarePress, onPieceDrop, onDropped, fen } = latest.current;
         if (!wasMoved) {
-          clear();
           // A tap. Movable pieces were already selected on press; tapping the selected one again clears it.
           if (!cur.selectedOnDown) onSquarePress?.(cur.sq);
           return;
         }
+        // Dropped back on its square or off the board: the UI thread already glides it home,
+        // and it stays selected for a tap move.
         const to = overIdx >= 0 ? squareOfCell(overIdx) : null;
-        // Dropped back on its square or off the board: it glides home and stays selected for a tap move.
-        if (!to || to === cur.sq) return snapBack(cur.sq);
+        if (!to || to === cur.sq) return;
         onDropped?.(cur.sq, to);
         onPieceDrop?.(cur.sq, to);
-        // The piece stays where it was dropped until the new position shows (see above), or glides back.
-        setPending({ fen, from: cur.sq });
+        // The piece stays where it was dropped until the new position shows, or glides back (below).
+        setPending({ fen, from: fromIdx });
       },
       tap(idx: number) {
         latest.current.onSquarePress?.(squareOfCell(idx));
@@ -747,17 +778,19 @@ function useDrag(p: {
       cancel() {
         press.current = null;
         setPending(null);
-        clear();
       },
     };
-  }, [x, y, lift]);
+  }, []);
 
-  // Dropped but the position didn't change (an illegal square, a promotion to pick): glide the piece back.
-  useEffect(() => {
-    if (!pending || pending.fen !== p.fen) return;
+  // After a drop: if the position changed (the move was played or queued as a premove), the
+  // piece is drawn on its new square in this commit, so the floating one is put down now; if
+  // not (an illegal square, a promotion to pick), it glides back to where it came from.
+  useLayoutEffect(() => {
+    if (!pending) return;
     setPending(null);
-    js.snapBack(pending.from);
-  }, [pending, p.fen, js]);
+    if (pending.fen !== p.fen) anim.putDown();
+    else anim.snapBack(pending.from);
+  }, [pending, p.fen, anim]);
 
   const pan = usePanGesture(
     useMemo(
@@ -775,7 +808,8 @@ function useDrag(p: {
           const col = Math.floor(t.x / c);
           const row = Math.floor(t.y / c);
           const idx = col >= 0 && col < 8 && row >= 0 && row < 8 ? row * 8 + col : -1;
-          if (idx < 0 || movable.get().charAt(idx) !== '1') {
+          const code = idx < 0 ? '.' : movable.get().charAt(idx);
+          if (code === '' || code === '.') {
             // Not a piece you can move: let the tap gesture (or a scroll view) have it.
             GestureStateManager.fail(e.handlerTag);
             return;
@@ -788,10 +822,17 @@ function useDrag(p: {
           y.set(t.y);
           moved.set(false);
           lift.set(1);
+          kind.set(code.charCodeAt(0) - 97);
           from.set(idx);
           over.set(idx);
           GestureStateManager.activate(e.handlerTag);
           scheduleOnRN(js.pickUp, idx);
+        },
+        // Touch-down can arrive before the handler has begun (the web does this), when activating
+        // there does nothing; activating again once it begins covers both orders.
+        onBegin: (e: { handlerTag: number }) => {
+          'worklet';
+          if (holding.get() === 1) GestureStateManager.activate(e.handlerTag);
         },
         onUpdate: (e: { x: number; y: number }) => {
           'worklet';
@@ -816,30 +857,28 @@ function useDrag(p: {
           if (holding.get() !== 1) return;
           holding.set(0);
           const target = over.get();
+          const origin = from.get();
+          const wasMoved = moved.get();
           over.set(-1);
           if (e.canceled) {
-            moved.set(false);
+            anim.putDown();
             scheduleOnRN(js.cancel);
             return;
           }
-          scheduleOnRN(js.release, target, moved.get());
-        },
-        // Touch-down can arrive before the handler has begun (the web does this), when activating
-        // there does nothing; activating again once it begins covers both orders.
-        onBegin: (e: { handlerTag: number }) => {
-          'worklet';
-          if (holding.get() === 1) GestureStateManager.activate(e.handlerTag);
+          if (!wasMoved) anim.putDown();
+          // Back on its own square or off the board: glide home right here, without waiting for JavaScript.
+          else if (target < 0 || target === origin) anim.snapBack(origin);
+          scheduleOnRN(js.release, target, wasMoved, origin);
         },
         onFinalize: () => {
           'worklet';
           if (holding.get() !== 1) return;
           holding.set(0);
-          over.set(-1);
-          moved.set(false);
+          anim.putDown();
           scheduleOnRN(js.cancel);
         },
       }),
-      // Shared values and `js` are stable; only switching the board on or off rebuilds the gesture.
+      // Shared values, `anim` and `js` are stable; only switching the board on or off rebuilds the gesture.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [enabled],
     ),
@@ -878,21 +917,21 @@ function useDrag(p: {
     if (Platform.OS !== 'web' || !enabled || !node?.addEventListener) return;
     const onContext = (e: MouseEvent) => {
       e.preventDefault();
+      anim.putDown();
       js.cancel();
       latest.current.onCancel?.();
     };
     node.addEventListener('contextmenu', onContext);
     return () => node.removeEventListener('contextmenu', onContext);
-  }, [enabled, js]);
+  }, [enabled, js, anim]);
 
-  return { enabled, state, ui, ref, gesture };
+  return { enabled, ui, ref, gesture };
 }
 
 const styles = StyleSheet.create({
   board: { overflow: 'hidden' },
   edge: { borderWidth: StyleSheet.hairlineWidth * 2 },
   coord: { fontWeight: '700', letterSpacing: 0.2, textAlign: 'center' },
-  lifted: { opacity: 0.3 },
   floating: { position: 'absolute', zIndex: 10 },
   pickable: { backgroundColor: 'rgba(240, 196, 64, 0.28)', borderColor: 'rgba(240, 196, 64, 0.95)' },
   crown: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(240, 196, 64, 0.95)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
