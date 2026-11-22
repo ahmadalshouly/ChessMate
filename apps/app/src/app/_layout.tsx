@@ -11,6 +11,7 @@ import { useAccountSession } from '@/features/account/session';
 import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
+import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
 import { AwardsListener } from '@/features/awards/AwardsListener';
@@ -29,6 +30,8 @@ export default function RootLayout() {
   const { ready: i18nReady } = useI18n();
   useEffect(() => {
     void initI18n({ beforeReady: (lang) => (lang === 'ar' ? loadArabicFonts() : undefined) });
+    // Board sounds load now, so the first move of a session is heard too.
+    preloadSounds();
   }, []);
   if (!fontsReady || !i18nReady) return null;
   return (

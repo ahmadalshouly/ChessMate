@@ -131,7 +131,7 @@ function usePuzzleSounds(fen: string, lastMove: { from: string; to: string } | n
         if (m.to !== lastMove.to) continue;
         const g = new Game(before);
         const played = g.move(`${m.from}${m.to}${m.promotion ?? ''}`);
-        if (played && g.fen === after) return moveFeedback(played.san);
+        if (played && g.fen === after) return moveFeedback(played.san, g.fen);
       }
     } catch {
       // A new puzzle loaded; nothing to play.

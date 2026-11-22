@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
 
 import { haptic } from './haptics';
-import { moveSound, playSound } from './sounds';
+import { moveSound, playMoveSound, playSound } from './sounds';
 
-/** Sound plus vibration for a move that was just played, from its SAN. */
-export function moveFeedback(san: string): void {
+/**
+ * Sound plus vibration for a move that was just played, from its SAN. `fenAfter` lets
+ * the board, which also sounds moves, skip the same move: each move plays once.
+ */
+export function moveFeedback(san: string, fenAfter?: string): void {
   const sound = moveSound(san);
-  playSound(sound);
+  playMoveSound(sound, fenAfter);
   haptic(sound === 'check' ? 'check' : sound === 'capture' ? 'capture' : 'move');
 }
 
@@ -25,7 +28,7 @@ export function gameEndFeedback(result?: 'win' | 'loss' | 'draw'): void {
  * pass-and-play, over the board). Only a history that grows by one move makes
  * a sound, so takebacks, resets and loading a position stay quiet.
  */
-export function useMoveFeedback(history: readonly { san: string }[], over: boolean, opts: { startCue?: boolean } = {}) {
+export function useMoveFeedback(history: readonly { san: string; fenAfter?: string }[], over: boolean, opts: { startCue?: boolean } = {}) {
   const prevLen = useRef(history.length);
   const prevOver = useRef(over);
   const startCue = opts.startCue ?? false;
@@ -36,7 +39,7 @@ export function useMoveFeedback(history: readonly { san: string }[], over: boole
 
   useEffect(() => {
     const last = history[history.length - 1];
-    if (history.length === prevLen.current + 1 && last) moveFeedback(last.san);
+    if (history.length === prevLen.current + 1 && last) moveFeedback(last.san, last.fenAfter);
     prevLen.current = history.length;
   }, [history]);
 

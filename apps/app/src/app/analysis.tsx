@@ -77,9 +77,10 @@ export default function Analysis() {
   }, [start]);
 
   const play = (uci: string) => {
-    const played = new Game(fen).move(uci);
+    const g = new Game(fen);
+    const played = g.move(uci);
     if (!played) return false;
-    moveFeedback(played.san);
+    moveFeedback(played.san, g.fen);
     if (line[cursor] === played.uci) setCursor(cursor + 1);
     else {
       setLine([...line.slice(0, cursor), played.uci]);

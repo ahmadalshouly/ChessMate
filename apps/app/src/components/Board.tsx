@@ -7,6 +7,7 @@ import { Text } from '@/ui/primitives';
 
 import { useBoardAppearance } from '@/features/account/boardThemes';
 import { pieceImage } from '@/features/board/pieceSets';
+import { useBoardSound } from '@/features/board/useBoardSound';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { PLACE_ORIGIN, placeAt } from '@/components/boardLayout';
 import { haptic } from '@/lib/haptics';
@@ -23,6 +24,8 @@ export interface BoardProps {
   selected?: Square | null;
   targets?: Square[];
   lastMove?: { from: Square; to: Square } | null;
+  /** Play move sounds when the position changes by one move. Default: on, except thumbnails (hideCoordinates) and boards under 160px. */
+  sound?: boolean;
   checkSquare?: Square | null;
   /** Squares to tint as under threat (feedback mode only). */
   threatened?: Square[];
@@ -328,6 +331,8 @@ export const Board = memo(function Board(props: BoardProps) {
     onDropped: slide.markDropped,
   });
   const drawn = useDrawnShapes(props.drawable ?? !!onSquarePress, fen, cell, orientation);
+  // Move sounds on every board; thumbnails and small previews stay quiet (a grid of live games would clatter).
+  useBoardSound(fen, props.sound ?? (!props.hideCoordinates && size >= 160));
   const allArrows = props.arrows ? [...props.arrows, ...drawn.arrows] : drawn.arrows;
   const targetSet = new Set(targets);
   const premoveSquares = new Set<string>();

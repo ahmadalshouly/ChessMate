@@ -440,7 +440,7 @@ class PlayClient {
       const prevFen = view.history[view.history.length - 1]?.fenAfter ?? view.fen;
       const entry = publicMove({ uci: m.uci, san: m.san, fen: m.fen }, prevFen);
       this.game = new Game(m.fen);
-      moveFeedback(m.san);
+      moveFeedback(m.san, m.fen);
       return this.patchGame({
         clock: m.clock,
         clockOffset: m.serverNow - Date.now(),
@@ -457,7 +457,7 @@ class PlayClient {
     if (g.ply === m.ply - 1) {
       const played = g.move(m.uci);
       mover = played?.color ?? null;
-      if (played) moveFeedback(played.san);
+      if (played) moveFeedback(played.san, g.fen);
     } else if (g.ply !== m.ply) {
       return this.send({ t: 'join', gameId: m.gameId });
     }
@@ -547,7 +547,7 @@ class PlayClient {
     const ply = g.ply;
     const played = g.move(uci);
     if (!played) return false;
-    moveFeedback(played.san);
+    moveFeedback(played.san, g.fen);
     this.patchGame({ fen: g.fen, history: g.history() });
     this.send({ t: 'move', gameId: view.gameId, uci, ply });
     return true;
