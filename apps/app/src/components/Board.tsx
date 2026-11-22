@@ -378,7 +378,7 @@ const SquareCell = memo(function SquareCell(p: CellProps) {
   const coordSize = Math.max(8, cell * 0.17);
   const coordBox = Math.ceil(coordSize * 1.3);
   return (
-    <View accessibilityLabel={p.label} pointerEvents="none" style={[placeAt(p.col * cell, p.row * cell, cell, cell, p.size), PLACE_ORIGIN]}>
+    <View accessible accessibilityLabel={p.label} pointerEvents="none" style={[placeAt(p.col * cell, p.row * cell, cell, cell, p.size), PLACE_ORIGIN]}>
       {p.overlays !== '' && p.overlays.split('|').map((c, k) => <View key={k} style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />)}
       {p.rankLabel > 0 && (
         <Text style={[styles.coord, placeAt(cell * 0.02, 0, coordBox, coordBox, cell), { color: p.coordColor, fontSize: coordSize, lineHeight: coordBox }]}>{p.rankLabel}</Text>
