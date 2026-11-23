@@ -273,9 +273,9 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
 }
 
 /** The device's engines get this long to give a first result (they start up first) before the server joins in. */
-const BOOT_GRACE_MS = 6000;
+const BOOT_GRACE_MS = 15_000;
 /** No new result for this long while positions are left: the server joins in. */
-const STALL_MS = 4000;
+const STALL_MS = 10_000;
 /** Positions per server request: small, so progress moves a step at a time. */
 const SERVER_BATCH = 2;
 /** Server requests running at once for one review. */

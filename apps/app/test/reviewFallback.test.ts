@@ -104,7 +104,7 @@ describe('game review fallback', () => {
     device.mode = 'silent';
     const r = await review();
     expect(r).toMatchObject({ where: 'server', graded: 8 });
-  }, 15_000);
+  }, 30_000);
 
   it('reports an error only when neither engine can grade', async () => {
     device.mode = 'fail';
