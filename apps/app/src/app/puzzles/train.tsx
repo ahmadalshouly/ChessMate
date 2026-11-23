@@ -106,7 +106,7 @@ export default function PuzzleTrainer() {
                   )}
                 </Row>
                 <Button title={tr('puzzles.train.next')} size="lg" fullWidth leftIcon={<Ionicons name="arrow-forward" size={16} color={c.onAccent} />} onPress={load} />
-                {daily && <Button variant="secondary" fullWidth title={tr('puzzles.train.back')} onPress={() => router.back()} />}
+                {daily && <Button variant="secondary" fullWidth title={tr('puzzles.train.back')} onPress={() => router.dismissTo('/puzzles')} />}
               </GlassView>
             )
           }

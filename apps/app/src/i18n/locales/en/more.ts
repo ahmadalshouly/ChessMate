@@ -11,6 +11,7 @@ export const more = {
   analysis: 'Analysis board',
   tournaments: 'Tournaments',
   watch: 'Watch',
+  puzzles: 'Puzzles',
   friends: 'Friends',
   news: 'News',
   forum: 'Forum',
