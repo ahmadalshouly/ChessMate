@@ -187,11 +187,15 @@ export default function OnlinePlay() {
   const oppOfferedRematch = view.rematchBy === opp;
   const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
 
-  const openReview = () =>
+  // Close the result card first so it is gone when the review opens and when the player comes back.
+  const openReview = () => {
+    setHideResult(true);
+    setPanel(null);
     router.push({
       pathname: '/review',
       params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
     });
+  };
   const resign = () => {
     if (prefs.requestResign()) playClient.resign();
   };

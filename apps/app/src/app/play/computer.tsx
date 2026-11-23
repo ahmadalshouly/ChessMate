@@ -256,7 +256,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const botColor: Color = me === 'w' ? 'b' : 'w';
   const orientation: Color = flip ? 'b' : 'w';
   const botOnTop = orientation === me;
-  const openReview = () =>
+  // Close the result card first so it is gone when the review opens and when the player comes back.
+  const openReview = () => {
+    setHideResult(true);
     router.push({
       pathname: '/review',
       params: {
@@ -266,6 +268,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
         black: me === 'b' ? user.displayName : bot.name,
       },
     });
+  };
 
   const botCard = (
     <PlayerCard

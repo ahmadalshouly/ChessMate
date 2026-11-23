@@ -7,7 +7,7 @@ import { Board } from '@/components/Board';
 import { CoachChat } from '@/components/coach/CoachChat';
 import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label } from '@/components/ui';
-import { MOVE_CLASS } from '@/constants/analysis';
+import { MOVE_CLASS, moveClassTint } from '@/constants/analysis';
 import { useTheme, type Palette } from '@/constants/theme';
 import { translate, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
@@ -103,7 +103,7 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
           </View>
           <View style={{ alignItems: 'center' }}>
             <View style={{ width: Math.min(size, 520), height: Math.min(size, 520) }}>
-              <Board fen={shown.fen} orientation={me} size={Math.min(size, 520)} lastMove={{ from: shown.from, to: shown.to }} />
+              <Board fen={shown.fen} orientation={me} size={Math.min(size, 520)} lastMove={{ from: shown.from, to: shown.to }} lastMoveColor={showBest ? null : moveClassTint(moment.classification)} />
               {!showBest && <BoardMoveBadge square={shown.to} cls={moment.classification} size={Math.min(size, 520)} orientation={me} />}
             </View>
           </View>
