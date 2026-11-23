@@ -28,7 +28,11 @@ export function gameEndFeedback(result?: 'win' | 'loss' | 'draw'): void {
  * pass-and-play, over the board). Only a history that grows by one move makes
  * a sound, so takebacks, resets and loading a position stay quiet.
  */
-export function useMoveFeedback(history: readonly { san: string; fenAfter?: string }[], over: boolean, opts: { startCue?: boolean } = {}) {
+export function useMoveFeedback(
+  history: readonly { san: string; fenAfter?: string }[],
+  over: boolean,
+  opts: { startCue?: boolean; /** The player's result, for a game played against someone (the computer): picks the win or loss cue. */ result?: 'win' | 'loss' | 'draw' } = {},
+) {
   const prevLen = useRef(history.length);
   const prevOver = useRef(over);
   const startCue = opts.startCue ?? false;
@@ -44,8 +48,9 @@ export function useMoveFeedback(history: readonly { san: string; fenAfter?: stri
   }, [history]);
 
   useEffect(() => {
-    if (over && !prevOver.current) gameEndFeedback();
+    if (over && !prevOver.current) gameEndFeedback(opts.result);
     prevOver.current = over;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [over]);
 }
 

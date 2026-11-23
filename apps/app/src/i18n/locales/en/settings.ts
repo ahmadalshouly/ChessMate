@@ -20,6 +20,9 @@ export const settings = {
     titleNative: 'Sound and vibration',
     vibration: 'Vibration',
     vibrationDetail: 'A light buzz on moves, captures, checks and game end',
+    silentMode: 'Play sounds on silent',
+    silentModeDetailIos: 'Off: the silent switch mutes game sounds',
+    silentModeDetailAndroid: 'Off: silent and vibrate modes mute game sounds',
   },
   gameplay: {
     title: 'Gameplay',
