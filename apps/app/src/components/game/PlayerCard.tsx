@@ -10,7 +10,7 @@ import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatNumber, useT } from '@/i18n';
 import { countryLabel } from '@/i18n/chess';
-import { Button, GlassView, Modal, Text, useAppTheme } from '@/ui';
+import { Button, GlassView, Modal, Text, rimShadow, useAppTheme } from '@/ui';
 
 import { hasProfile, usePlayerProfile } from './usePlayerProfile';
 
@@ -99,6 +99,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
                     backgroundColor: active ? (low ? c.danger : c.accent) : c.surfaceSunken,
                     borderColor: active ? 'transparent' : c.border,
                   },
+                  rimShadow(c, active ? 'bright' : 'soft'),
                 ]}>
                 <Text variant="clock" style={styles.clockText} color={active ? (low ? c.onDanger : c.onAccent) : low ? c.danger : c.text}>
                   {formatClock(ms)}
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
   country: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sub: { fontVariant: ['tabular-nums'] },
   pill: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
-  clock: { minWidth: 92, height: 44, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  clock: { minWidth: 92, height: 44, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   clockText: { fontSize: 24, lineHeight: 28 },
   sheetTag: { flexDirection: 'row', gap: 6, marginVertical: 2 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },

@@ -45,20 +45,22 @@ export function Modal({ visible, onClose, title, description, children, actions,
           accessibilityLabel={translate('common.close')}
           onPress={dismissable ? onClose : undefined}
           style={StyleSheet.absoluteFill}>
-          {Platform.OS !== 'android' && <BlurView intensity={18} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+          {Platform.OS !== 'android' && <BlurView intensity={12} tint={c.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
           <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay }]} />
         </Pressable>
         <View
           pointerEvents="box-none"
-          style={[styles.host, sheet ? { justifyContent: 'flex-end' } : { justifyContent: 'center', padding: t.space.xl }]}>
+          style={[styles.host, sheet ? { justifyContent: 'flex-end', paddingHorizontal: t.space.sm } : { justifyContent: 'center', padding: t.space.xl }]}>
           <GlassView
             accessibilityViewIsModal
+            kind="chrome"
             strength="strong"
-            elevation="lg"
+            elevation="float"
             radius="xl"
             style={[
               { width: '100%', maxWidth: sheet ? t.layout.maxContentWidth : 440, maxHeight: sheet ? '94%' : '100%', overflow: 'hidden' },
-              sheet && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, paddingBottom: insets.bottom, marginTop: insets.top },
+              // Sheets float clear of the screen edges with every corner rounded, like iOS sheets.
+              sheet && { marginBottom: Math.max(insets.bottom, t.space.sm), marginTop: insets.top, borderRadius: t.radii.xl + 4 },
             ]}>
             {(sheet || title || description) && (
               <Stack gap="lg" style={{ paddingHorizontal: t.space.xxl, paddingTop: t.space.xxl }}>

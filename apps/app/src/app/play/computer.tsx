@@ -7,6 +7,7 @@ import { ResultPopup } from '@/components/play/ResultPopup';
 import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
 import { currentPlayLock, reportComputerGame } from '@/lib/habits';
 import { Text } from '@/ui/primitives';
+import { rimShadow } from '@/ui';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
@@ -104,7 +105,9 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
                       backgroundColor: active ? t.accent : t.surface,
                       borderColor: active ? t.accent : t.glassBorder,
                       opacity: pressed ? 0.8 : 1,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
                     },
+                    rimShadow(t, active ? 'bright' : 'soft'),
                   ]}>
                   <Avatar bot={b} inverted={active} />
                   <Text style={[styles.botName, { color: active ? t.onAccent : t.text }]}>{b.name}</Text>
@@ -424,7 +427,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   botGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5 },
   botCell: { width: '50%', padding: 5 },
-  botTile: { borderRadius: 16, borderWidth: 1, padding: 12, gap: 6, alignItems: 'flex-start' },
+  botTile: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'flex-start' },
   botName: { fontSize: 16, fontWeight: '700' },
   botMeta: { fontSize: 13 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
@@ -432,7 +435,7 @@ const styles = StyleSheet.create({
   overlayScroll: { width: '100%', maxHeight: '100%' },
   overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 6 },
-  result: { width: '100%', maxWidth: 460, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
+  result: { width: '100%', maxWidth: 460, borderRadius: 30, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 12 },
   resultButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
 });

@@ -13,7 +13,7 @@ import { GameSetupSheet } from '@/components/play/GameSetupSheet';
 import { BrandLine } from '@/components/shell/BrandLine';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
-import { Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
+import { Button, GlassView, SectionHeader, Text, rimShadow, useAppTheme } from '@/ui';
 import { translate, useI18n, type TKey } from '@/i18n';
 
 type Glyph = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -98,7 +98,8 @@ export default function Home() {
                 onPress={() => setSetupTc(tc)}
                 style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                   styles.quickCell,
-                  { borderColor: hovered ? c.borderStrong : c.border, backgroundColor: hovered ? c.surfacePressed : c.surface, transform: [{ scale: pressed ? 0.97 : 1 }] },
+                  { borderColor: hovered ? c.borderStrong : c.glassBorder, backgroundColor: hovered || pressed ? c.surfacePressed : c.surface, transform: [{ scale: pressed ? 0.95 : 1 }] },
+                  rimShadow(c),
                 ]}>
                 <Text variant="figure" style={{ fontSize: 20, lineHeight: 24 }}>
                   {key}
@@ -188,7 +189,7 @@ const styles = StyleSheet.create({
   hero: { paddingTop: 12, paddingBottom: 4, paddingHorizontal: 2 },
   heroActions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quickCell: { flexGrow: 1, flexBasis: 76, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
+  quickCell: { flexGrow: 1, flexBasis: 76, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   tile: { gap: 22, minHeight: 148 },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

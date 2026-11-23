@@ -16,7 +16,7 @@ import { fonts } from '@/ui';
 import { Text } from '@/ui/primitives';
 
 import { Avatar } from './Avatar';
-import { Glass } from './Glass';
+import { Glass, floatShadow } from './Glass';
 import { SIGN_IN_HREF } from './HeaderActions';
 import { Logo } from './Logo';
 import { NavItem } from './NavItem';
@@ -30,7 +30,7 @@ export function Sidebar() {
   const { user: account } = useAuth();
   const staff = account?.role === 'moderator' || account?.role === 'admin';
   return (
-    <Glass intensity={50} sheen={false} style={[styles.panel, { width: SIDEBAR_WIDTH, paddingTop: insets.top + 22, paddingBottom: insets.bottom + 16, paddingStart: insets.left + 14 }]}>
+    <Glass intensity={60} radius={30} style={[styles.panel, floatShadow(t.scheme), { width: SIDEBAR_WIDTH, marginTop: insets.top + 12, marginBottom: insets.bottom + 12, marginStart: insets.left + 12, paddingTop: 22, paddingBottom: 14, paddingStart: 10 }]}>
       <View style={styles.logo}>
         <Logo size={30} />
         <Text style={[styles.tagline, { color: t.textTertiary }]}>{tr('brand.tagline')}</Text>
@@ -103,20 +103,20 @@ export function Sidebar() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, marginEnd: 8 },
-  extra: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 36, borderRadius: 10 },
+  extra: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 36, borderRadius: 18 },
   extraText: { fontFamily: fonts.sansMedium, fontSize: 13.5, flex: 1 },
   soon: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 0.8, textTransform: 'uppercase' },
   tagline: { fontFamily: fonts.label, fontSize: 9.5, letterSpacing: 1.8, textTransform: 'uppercase', marginTop: 6 },
-  panel: { paddingEnd: 14, borderTopWidth: 0, borderBottomWidth: 0, borderStartWidth: 0 },
+  panel: { paddingEnd: 10 },
   logo: { paddingHorizontal: 8, paddingBottom: 30 },
   section: { fontFamily: fonts.label, fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', paddingHorizontal: 14, paddingBottom: 10 },
   nav: { gap: 2 },
   userCard: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, gap: 12 },
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, borderRadius: 12 },
+  userRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, borderRadius: 18 },
   userName: { fontFamily: fonts.sansSemiBold, fontSize: 14 },
   userMeta: { fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: 0.6, marginTop: 2 },
   signIn: { height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   signInText: { fontFamily: fonts.sansSemiBold, fontSize: 13 },
-  admin: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 40, paddingHorizontal: 14, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, marginBottom: 12 },
+  admin: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, marginBottom: 12 },
   adminText: { fontFamily: fonts.sansMedium, fontSize: 13.5 },
 });
