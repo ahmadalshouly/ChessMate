@@ -14,6 +14,13 @@ import {
 } from '@chessmate/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useSettings } from '@/features/account/settingsStore';
+
+import { haptic } from './haptics';
+import { playSound } from './sounds';
+
+export type PuzzlePremove = { from: Square; to: Square };
+
 export type PuzzleFeedback = 'loading' | 'yourMove' | 'correct' | 'wrong' | 'solved' | 'failed';
 
 export interface PuzzleFinish {
@@ -36,6 +43,9 @@ const REPLY_DELAY_MS = 400;
  *
  * `failOnMistake` (streak and rush) ends the puzzle at the first wrong move;
  * otherwise the solver may retry, but the puzzle no longer counts as clean.
+ *
+ * With premoves on in settings, the solver can queue a move while the
+ * opponent's move is still playing out; it plays as soon as the board is theirs.
  */
 export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: boolean; onFinish?: (f: PuzzleFinish) => void } = {}) {
   const [state, setState] = useState<PuzzleState | null>(null);
@@ -44,6 +54,10 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
   const [feedback, setFeedback] = useState<PuzzleFeedback>('loading');
   const [hint, setHint] = useState<PuzzleHint | null>(null);
   const [busy, setBusy] = useState(true);
+  const [queued, setPremoveState] = useState<PuzzlePremove | null>(null);
+  const premovesOn = useSettings().gameplay.premoves;
+  // Turning premoves off in settings drops anything already queued.
+  const premove = premovesOn ? queued : null;
   const tried = useRef<string[]>([]);
   const startedAt = useRef(Date.now());
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -88,6 +102,7 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
     setHint(null);
     setState(null);
     setLastMove(null);
+    setPremoveState(null);
     if (!puzzle) {
       setFeedback('loading');
       return;
@@ -154,6 +169,7 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
   /** Gives up and plays the rest of the line move by move. */
   const reveal = () => {
     if (!state || state.status !== 'playing') return;
+    setPremoveState(null);
     const done = revealSolution(state);
     setState(done);
     setBusy(true);
@@ -167,6 +183,25 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
     });
   };
 
+  /** Queues (or with null, cancels) a move to play once the opponent's move lands. */
+  const setPremove = (pm: PuzzlePremove | null) => {
+    if (pm) {
+      playSound('premove');
+      haptic('premove');
+    }
+    setPremoveState(pm);
+  };
+
+  // The board is the solver's again: play the queued premove if it is legal now.
+  useEffect(() => {
+    if (!premove || busy || !state || state.status !== 'playing') return;
+    setPremoveState(null);
+    const legal = new Game(fen).legalMoves(premove.from).find((m) => m.to === premove.to);
+    if (legal) play(`${premove.from}${premove.to}${legal.promotion ? 'q' : ''}`);
+    // `play` is rebuilt every render; this only needs to run when the turn comes back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, state, fen, premove]);
+
   // Worked out once per puzzle, not on every render.
   const startSolver = useMemo<Color>(() => (puzzle ? (puzzle.fen.split(' ')[1] === 'w' ? 'b' : 'w') : 'w'), [puzzle]);
   const solver: Color = state?.solver ?? startSolver;
@@ -178,6 +213,10 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
     hint,
     solver,
     canMove: !!state && !busy && state.status === 'playing',
+    /** The opponent's move is still playing out and the solver may queue a premove. */
+    canPremove: premovesOn && !!puzzle && busy && feedback !== 'solved' && feedback !== 'failed' && (!state || state.status === 'playing'),
+    premove,
+    setPremove,
     mistakes: state?.mistakes ?? 0,
     hintsUsed: state?.hints ?? 0,
     play,

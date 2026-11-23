@@ -11,6 +11,7 @@ export const more = {
   analysis: 'رقعة التحليل',
   tournaments: 'البطولات',
   watch: 'شاهد',
+  puzzles: 'الألغاز',
   friends: 'الأصدقاء',
   news: 'الأخبار',
   forum: 'المنتدى',

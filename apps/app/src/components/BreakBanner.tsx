@@ -51,7 +51,7 @@ export function BreakBanner({ compact = false }: { compact?: boolean }) {
       </View>
       {!compact && (
         <View style={styles.actions}>
-          <Button size="sm" variant="secondary" title={tr('nav.puzzles')} onPress={() => router.navigate('/puzzles')} />
+          <Button size="sm" variant="secondary" title={tr('nav.puzzles')} onPress={() => router.push('/puzzles')} />
           <Button size="sm" variant="secondary" title={tr('more.learn')} onPress={() => router.navigate('/learn')} />
           <Button size="sm" variant="ghost" title={tr('limits.title')} onPress={() => router.push('/play-limits')} />
         </View>

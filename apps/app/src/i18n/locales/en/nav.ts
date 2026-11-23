@@ -9,6 +9,7 @@ export const nav = {
   signInToSave: 'Sign in to save games',
   openProfile: 'Open profile',
   puzzles: 'Puzzles',
+  watch: 'Watch',
   elo: 'ELO',
   section: 'Navigate',
 };

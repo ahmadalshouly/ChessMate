@@ -12,6 +12,7 @@ export const nav: Messages<typeof en> = {
   signInToSave: 'Anmelden, um Partien zu speichern',
   openProfile: 'Profil öffnen',
   puzzles: 'Puzzles',
+  watch: 'Zuschauen',
   elo: 'ELO',
   section: 'Navigation',
 };

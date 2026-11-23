@@ -79,7 +79,7 @@ export default function Home() {
         </View>
         <View style={styles.heroActions}>
           <Button title={tr('home.online.title')} size="lg" onPress={() => router.push('/play')} rightIcon={<Ionicons name={rtl ? 'arrow-back' : 'arrow-forward'} size={18} color={c.onAccent} />} />
-          <Button title={tr('nav.puzzles')} size="lg" variant="secondary" onPress={() => router.navigate('/puzzles')} />
+          <Button title={tr('nav.puzzles')} size="lg" variant="secondary" onPress={() => router.push('/puzzles')} />
         </View>
       </View>
 

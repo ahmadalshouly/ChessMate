@@ -22,7 +22,7 @@ export interface MoreSection {
 
 /**
  * Everything behind "More" in the bottom bar (phones) and below the main
- * sections in the sidebar (web). Play, Puzzles and Tournaments are in the bar.
+ * sections in the sidebar (web). Play, Watch and Tournaments are in the bar.
  */
 export const MORE_SECTIONS: MoreSection[] = [
   {
@@ -31,7 +31,7 @@ export const MORE_SECTIONS: MoreSection[] = [
       { key: 'learn', label: 'more.learn', icon: 'school-outline', href: '/learn' },
       { key: 'analysis', label: 'more.analysis', icon: 'analytics-outline', href: '/analysis' },
       { key: 'tournaments', label: 'more.tournaments', icon: 'trophy-outline', href: '/tournaments' },
-      { key: 'watch', label: 'more.watch', icon: 'tv-outline', href: '/watch' },
+      { key: 'puzzles', label: 'more.puzzles', icon: 'extension-puzzle-outline', href: '/puzzles' },
     ],
   },
   {
@@ -64,4 +64,4 @@ export const MORE_SECTIONS: MoreSection[] = [
 ];
 
 /** Tabs shown in the phone bottom bar; the rest of the sections live behind More. */
-export const BAR_TAB_NAMES = ['(home)', 'puzzles', 'tournaments'] as const;
+export const BAR_TAB_NAMES = ['(home)', 'watch', 'tournaments'] as const;
