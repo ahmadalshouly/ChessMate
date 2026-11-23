@@ -66,4 +66,52 @@ export const boardThemes: Messages<typeof en> = {
     name: 'رمل',
     note: 'ضوء الصحراء',
   },
+  coral: {
+    name: 'مرجان',
+    note: 'غروب دافئ',
+  },
+  olive: {
+    name: 'زيتوني',
+    note: 'أخضر هادئ',
+  },
+  sky: {
+    name: 'سماء',
+    note: 'أزرق فاتح',
+  },
+  ruby: {
+    name: 'ياقوت',
+    note: 'أحمر داكن',
+  },
+  mint: {
+    name: 'نعناع',
+    note: 'أخضر منعش',
+  },
+  teal: {
+    name: 'أزرق مخضر',
+    note: 'بحيرة',
+  },
+  sakura: {
+    name: 'ساكورا',
+    note: 'زهر الكرز',
+  },
+  coffee: {
+    name: 'قهوة',
+    note: 'بني محمص',
+  },
+  charcoal: {
+    name: 'فحم',
+    note: 'إضاءة خافتة',
+  },
+  sandstone: {
+    name: 'حجر رملي',
+    note: 'بني على رملي',
+  },
+  honey: {
+    name: 'عسل',
+    note: 'بني على أصفر',
+  },
+  apricot: {
+    name: 'مشمش',
+    note: 'خوخي ناعم',
+  },
 };

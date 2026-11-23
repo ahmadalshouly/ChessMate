@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
+import { fonts } from '@/ui';
 
 import { Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   heroIcon: { width: 52, height: 52, borderRadius: 26, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   badge: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontFamily: 'GeistMono_500Medium', fontSize: 10, letterSpacing: 1.4 },
+  badgeText: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 1.4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', margin: -6 },
   cell: { width: '50%', minWidth: 260, flexGrow: 1, padding: 6 },
   featureCard: { flex: 1 },

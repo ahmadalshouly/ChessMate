@@ -1,4 +1,5 @@
 import { DEFAULT_AVATAR, normalizeSettings, type Avatar } from '@chessmate/core';
+import { allProfiles, deleteProfile, upsertProfile, type Database } from '@chessmate/db';
 import type { ProfileRecord, ProfileStore } from './types';
 
 export class MemoryProfileStore implements ProfileStore {
@@ -75,5 +76,54 @@ function parse<T>(v: unknown, fallback: T): T {
     return typeof v === 'string' ? (JSON.parse(v) as T) : fallback;
   } catch {
     return fallback;
+  }
+}
+
+/**
+ * Profiles and settings in Postgres (user_profiles), with every row kept in memory
+ * so privacy checks on hot paths (presence, challenges, search) stay synchronous.
+ * Writes go to memory first, then to the database.
+ */
+export class DbProfileStore implements ProfileStore {
+  private readonly cache = new MemoryProfileStore();
+
+  private constructor(private readonly db: Database) {}
+
+  static async load(db: Database): Promise<DbProfileStore> {
+    const store = new DbProfileStore(db);
+    for (const r of await allProfiles(db)) {
+      store.cache.save({
+        userId: r.userId,
+        displayName: r.displayName,
+        bio: r.bio,
+        country: r.country,
+        avatar: (r.avatar as Avatar | null) ?? DEFAULT_AVATAR,
+        settings: normalizeSettings(r.settings),
+        updatedAt: new Date(r.updatedAt).getTime(),
+      });
+    }
+    return store;
+  }
+
+  get(userId: string) {
+    return this.cache.get(userId);
+  }
+
+  async save(p: ProfileRecord) {
+    this.cache.save(p);
+    await upsertProfile(this.db, {
+      userId: p.userId,
+      displayName: p.displayName,
+      bio: p.bio,
+      country: p.country,
+      avatar: p.avatar,
+      settings: p.settings,
+      updatedAt: new Date(p.updatedAt || Date.now()),
+    });
+  }
+
+  async delete(userId: string) {
+    this.cache.delete(userId);
+    await deleteProfile(this.db, userId);
   }
 }

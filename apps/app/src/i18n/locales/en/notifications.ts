@@ -14,6 +14,10 @@ export const notifications = {
     reviewReady: 'Your coach review of the game against {name} is ready',
     reviewAccuracy: 'Your game against {name}: {accuracy}% accuracy. See where it turned',
     test: 'Notifications are working on this device.',
+    fairPlay: 'Our fair play review found outside help in your games. You can still sign in to see your games and puzzles, but online play is turned off. Opponents got back the rating points they lost.',
+    reopened: 'Your account is open again. Online play is back on.',
+    mutedHours: { one: 'Chat is off for your account for {count} hour. Reason: {reason}', other: 'Chat is off for your account for {count} hours. Reason: {reason}' },
+    mutedDays: { one: 'Chat is off for your account for {count} day. Reason: {reason}', other: 'Chat is off for your account for {count} days. Reason: {reason}' },
   },
   title: {
     challenge: 'New challenge',
@@ -22,6 +26,10 @@ export const notifications = {
     yourTurn: 'Your turn',
     reviewReady: 'Game review ready',
     test: 'Test notification',
+    warning: 'Warning from ChessMate moderators',
+    muted: 'Chat turned off',
+    fairPlay: 'Account closed for fair play',
+    reopened: 'Account reopened',
   },
   time: {
     m: { one: '{count}m', other: '{count}m' },
@@ -58,6 +66,14 @@ export const notifications = {
     review_ready: {
       label: 'Game review ready',
       description: 'The coach finished reviewing your game',
+    },
+    message: {
+      label: 'Messages',
+      description: 'Someone sends you a message',
+    },
+    tournament: {
+      label: 'Tournaments',
+      description: 'A tournament you joined is starting',
     },
     system: {
       label: 'Account and security',

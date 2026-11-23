@@ -41,6 +41,27 @@ export const home: Messages<typeof en> = {
     body: 'Die besten Spieler weltweit, in deinem Land und unter Freunden.',
   },
   heroTitle: 'Dein Zug.',
+  onlineFriends: {
+    title: 'Freunde online',
+    count: { one: '{count} online', other: '{count} online' },
+    none: 'Gerade ist kein Freund online',
+    all: 'Alle Freunde',
+  },
+  dailyPuzzle: {
+    whiteToMove: 'Weiß am Zug. Finde den besten Zug.',
+    blackToMove: 'Schwarz am Zug. Finde den besten Zug.',
+  },
+  liveBoard: {
+    title: 'Live-Partien',
+    watch: 'Partie ansehen',
+    finding: 'Suche eine laufende Partie…',
+    empty: 'Gerade läuft keine Partie. Starte eine, dann steht vielleicht deine auf diesem Brett.',
+    over: 'Partie beendet. Wechsle zur nächsten Live-Partie…',
+    rated: 'Gewertet',
+    casual: 'Ungewertet',
+    a11y: 'Live-Partie: {white} gegen {black}',
+    page: 'Live-Partie {n} von {total}',
+  },
   stats: {
     online: 'Spieler online',
     games: 'Laufende Partien',

@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Polygon, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
-import { PLACE_ORIGIN } from '@/components/boardLayout';
+import { PLACE_ORIGIN, placeAt } from '@/components/boardLayout';
 import { MOVE_CLASS, type BadgeIcon } from '@/constants/analysis';
 
 /**
@@ -24,8 +24,11 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
   const ink = shade(c.color, -0.42);
   const relief = shade(c.color, 0.32);
   const full = variant === 'full';
-  // On the board a symbol reads better than an icon; the Masterpiece keeps its crown.
-  const miniUsesSymbol = !full && !!c.glyph && cls !== 'masterpiece';
+  // On the board a symbol reads better than an icon.
+  const miniUsesSymbol = !full && !!c.glyph;
+  // A Masterpiece can be made by any piece (a rook sacrifice that forces mate),
+  // so it shows "!!!" rather than a piece-like icon, on the full coin too.
+  const symbolOnly = cls === 'masterpiece';
 
   return (
     <View accessibilityRole="image" accessibilityLabel={c.label} style={{ width: size, height: size }}>
@@ -59,15 +62,25 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
             <Embossed ink={relief} relief={ink} depth={-0.9}>
               {(fill) => <ArcLabel text={c.label.toUpperCase()} fill={fill} />}
             </Embossed>
-            <G transform={c.glyph ? 'translate(50 50) scale(0.74)' : 'translate(50 56) scale(0.88)'}>
-              <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.4)} depth={1.8}>
-                {(fill) => <Icon name={c.icon} fill={fill} />}
+            {symbolOnly ? (
+              <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.5)} depth={1.8}>
+                {(fill) => (
+                  <SvgText x="50" y="66" fill={fill} fontSize="34" fontWeight="700" fontFamily="Inter_700Bold" letterSpacing={-2} textAnchor="middle">
+                    {c.glyph}
+                  </SvgText>
+                )}
               </Embossed>
-            </G>
-            {c.glyph && (
+            ) : (
+              <G transform={c.glyph ? 'translate(50 50) scale(0.74)' : 'translate(50 56) scale(0.88)'}>
+                <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.4)} depth={1.8}>
+                  {(fill) => <Icon name={c.icon} fill={fill} />}
+                </Embossed>
+              </G>
+            )}
+            {c.glyph && !symbolOnly && (
               <Embossed ink={shade(c.color, -0.45)} relief={shade(c.color, 0.5)} depth={1.4}>
                 {(fill) => (
-                  <SvgText x="50" y="87" fill={fill} fontSize={c.glyph!.length > 2 ? 17 : 19} fontWeight="700" fontFamily="Montserrat_700Bold" textAnchor="middle">
+                  <SvgText x="50" y="87" fill={fill} fontSize={c.glyph!.length > 2 ? 17 : 19} fontWeight="700" fontFamily="Inter_700Bold" textAnchor="middle">
                     {c.glyph}
                   </SvgText>
                 )}
@@ -85,7 +98,7 @@ export function MoveBadge({ cls, size = 24, variant = 'mini' }: { cls: MoveClass
             strokeWidth="1.2"
             fontSize={c.glyph!.length > 2 ? 34 : c.glyph!.length > 1 ? 44 : 52}
             fontWeight="700"
-            fontFamily="Montserrat_700Bold"
+            fontFamily="Inter_700Bold"
             letterSpacing={c.glyph!.length > 1 ? -2 : 0}
             textAnchor="middle">
             {c.glyph}
@@ -115,7 +128,7 @@ function Embossed({ ink, relief, depth = 1, children }: { ink: string; relief: s
   );
 }
 
-/** Approximate advance widths of Montserrat Bold capitals, in ems. */
+/** Approximate advance widths of bold capitals (Inter Bold), in ems. */
 const CAP_WIDTH: Record<string, number> = {
   ' ': 0.3, I: 0.3, J: 0.55, L: 0.58, E: 0.64, F: 0.62, T: 0.62, S: 0.64, Z: 0.66, Y: 0.7, K: 0.72, B: 0.74, P: 0.72, R: 0.73,
   X: 0.72, V: 0.74, A: 0.77, U: 0.77, N: 0.8, H: 0.8, D: 0.8, O: 0.82, C: 0.76, G: 0.8, Q: 0.82, M: 0.92, W: 1.0,
@@ -152,7 +165,7 @@ function ArcLabel({ text, fill }: { text: string; fill: string }) {
             fill={fill}
             fontSize={fontSize}
             fontWeight="700"
-            fontFamily="Montserrat_700Bold"
+            fontFamily="Inter_700Bold"
             textAnchor="middle"
             transform={`rotate(${deg.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)})`}>
             {ch}
@@ -286,32 +299,34 @@ function squareBox(sq: Square, orientation: Color, cell: number) {
  */
 export function BoardMoveBadge({ square, cls, size, orientation }: { square: Square; cls: MoveClass; size: number; orientation: Color }) {
   const cell = size / 8;
-  const badge = Math.round(Math.max(20, Math.min(38, cell * 0.52)));
+  const badge = Math.round(Math.max(22, Math.min(48, cell * 0.62)));
   const box = squareBox(square, orientation, cell);
   // Hang the badge over the corner, but keep it inside the board.
-  const left = Math.min(size - badge, box.left + cell - badge * 0.7);
-  const top = Math.max(0, box.top - badge * 0.3);
-  const [scale] = useState(() => new Animated.Value(0));
+  const left = Math.min(size - badge, box.left + cell - badge * 0.72);
+  const top = Math.max(0, box.top - badge * 0.28);
+  // Entrance: drops onto the corner from a little above, overshoots, and settles
+  // with a small coin-like wobble. Replays for every move.
+  const [pop] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    scale.setValue(0.4);
-    Animated.spring(scale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: Platform.OS !== 'web' }).start();
-  }, [square, cls, scale]);
+    pop.setValue(0);
+    Animated.spring(pop, { toValue: 1, friction: 4.5, tension: 140, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [square, cls, pop]);
+  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
+  const lift = pop.interpolate({ inputRange: [0, 1], outputRange: [-badge * 0.6, 0] });
+  const spin = pop.interpolate({ inputRange: [0, 1], outputRange: ['-35deg', '0deg'] });
+  const opacity = pop.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' });
   return (
     // Placed from the board's centre with transforms so it never mirrors (see placeAt).
+    // The position lives on a plain View and only the entrance is animated: with the
+    // native driver, iOS and Android keep the transform from the first render, so a
+    // translate inside the animated transform left the badge on the first move's square.
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, PLACE_ORIGIN, { width: size, height: size }]}>
-      <Animated.View
-        style={[
-          styles.lift,
-          {
-            position: 'absolute',
-            width: badge,
-            height: badge,
-            borderRadius: badge / 2,
-            transform: [{ translateX: left + badge / 2 - size / 2 }, { translateY: top + badge / 2 - size / 2 }, { scale }],
-          },
-        ]}>
-        <MoveBadge cls={cls} size={badge} />
-      </Animated.View>
+      <View style={placeAt(left, top, badge, badge, size)}>
+        <Animated.View
+          style={[styles.lift, { width: badge, height: badge, borderRadius: badge / 2, opacity, transform: [{ translateY: lift }, { scale }, { rotate: spin }] }]}>
+          <MoveBadge cls={cls} size={badge} />
+        </Animated.View>
+      </View>
     </View>
   );
 }

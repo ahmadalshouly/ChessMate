@@ -69,9 +69,14 @@ export class ProfileService {
     const privacy = rec.settings.privacy;
     const showGames = isMe || privacy.showGames;
     const recentGames = showGames ? (await this.deps.games(user.id, RECENT_GAMES)).map((g) => toRecent(g, user.id)) : null;
-    const online = isMe || privacy.showOnline ? (this.deps.isOnline?.(user.id) ?? null) : null;
+    // Viewing your own profile means you are using the app right now, so you are online
+    // even if the live socket is still (re)connecting.
+    const online = isMe ? true : privacy.showOnline ? (this.deps.isOnline?.(user.id) ?? null) : null;
     return {
       id: user.id,
+      title: this.deps.titleOf?.(user.id) ?? null,
+      roleTag: this.deps.roleTagOf?.(user.id) ?? null,
+      playerTag: rec.playerTag ?? null,
       username: user.username,
       displayName: rec.displayName ?? user.username,
       avatar: rec.avatar,
@@ -79,6 +84,7 @@ export class ProfileService {
       country: rec.country,
       createdAt: user.createdAt,
       online,
+      liveGameId: online && !isMe ? (this.deps.liveGameOf?.(user.id) ?? null) : null,
       ratings,
       totals,
       recentGames,
@@ -102,7 +108,7 @@ export class ProfileService {
       const before = white ? g.whiteRating : g.blackRating;
       const delta = white ? g.whiteDelta : g.blackDelta;
       if (delta === null) continue;
-      points.push({ t: g.endedAt, rating: before + delta, gameId: g.id });
+      points.push({ t: g.endedAt, rating: Math.round(before + delta), gameId: g.id });
     }
     return points.reverse();
   }
@@ -115,6 +121,7 @@ export class ProfileService {
       bio: edit.bio === undefined ? rec.bio : edit.bio,
       country: edit.country === undefined ? rec.country : edit.country,
       avatar: edit.avatar ?? rec.avatar,
+      playerTag: edit.playerTag === undefined ? (rec.playerTag ?? null) : edit.playerTag,
       updatedAt: this.now(),
     };
     await this.store.save(next);
@@ -134,6 +141,9 @@ export class ProfileService {
   }
 }
 
+/** Rating points are whole numbers on screen: 1523, +8, −6. */
+const roundOrNull = (v: number | null) => (v === null ? null : Math.round(v));
+
 export function toRecent(g: FinishedGame, userId: string): RecentGame {
   const color = g.whiteId === userId ? 'w' : 'b';
   const score = g.result === '1-0' ? 1 : g.result === '0-1' ? 0 : 0.5;
@@ -144,12 +154,13 @@ export function toRecent(g: FinishedGame, userId: string): RecentGame {
     timeControl: formatTimeControl({ initialMs: g.initialMs, incrementMs: g.incrementMs }),
     rated: g.rated,
     color,
-    opponent: color === 'w' ? { username: g.blackName, rating: g.blackRating } : { username: g.whiteName, rating: g.whiteRating },
+    opponent: color === 'w' ? { username: g.blackName, rating: Math.round(g.blackRating) } : { username: g.whiteName, rating: Math.round(g.whiteRating) },
     result: g.result,
     outcome: mine === 1 ? 'win' : mine === 0 ? 'loss' : 'draw',
     reason: g.reason,
-    ratingDelta: color === 'w' ? g.whiteDelta : g.blackDelta,
+    ratingDelta: roundOrNull(color === 'w' ? g.whiteDelta : g.blackDelta),
     moves: Math.ceil(g.moves.length / 2),
     endedAt: g.endedAt,
+    accuracy: g.accuracy ?? null,
   };
 }

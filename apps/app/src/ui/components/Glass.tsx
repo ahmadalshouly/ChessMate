@@ -1,10 +1,9 @@
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { Elevation, GlassStrength, Radius, Space } from '../theme/tokens';
+import { LiquidLayers, PressableScale, type LiquidLayerKind } from './liquid';
 import { Text } from './Text';
 
 export interface GlassViewProps extends ViewProps {
@@ -13,19 +12,25 @@ export interface GlassViewProps extends ViewProps {
   radius?: Radius;
   padding?: Space;
   elevation?: Elevation;
-  /** Draw the bright top edge. Default true. */
+  /** Draw the top sheen. Default true. */
   highlight?: boolean;
   /** Turn blur off (for long lists or nested glass) and use the tint only. */
   flat?: boolean;
+  /**
+   * - panel (default): content cards. Native Liquid Glass on iOS 26 with a faint tint for text.
+   * - chrome: floating navigation (bars, sheets). Native Liquid Glass on iOS 26.
+   * - control: buttons and small capsules. Native Liquid Glass on iOS 26, reacts to touch.
+   */
+  kind?: LiquidLayerKind;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
 }
 
 /**
- * The glass primitive every surface is built on: backdrop blur, a translucent tint, a
- * hairline edge and a soft sheen across the top third, the way light catches real glass.
- * On Android, `expo-blur` falls back to tint only, which still reads as frosted against
- * the page backdrop.
+ * The glass primitive every surface is built on: backdrop blur with extra saturation, a thin
+ * tint, a specular rim (bright along the top, a soft bounce along the bottom) and a sheen
+ * across the top, the way light catches real glass. Chrome and controls switch to Apple's
+ * native Liquid Glass on iOS 26 (see `liquid.tsx`).
  */
 export function GlassView({
   strength = 'regular',
@@ -34,16 +39,15 @@ export function GlassView({
   elevation = 'md',
   highlight = true,
   flat,
+  kind = 'panel',
   style,
   children,
   ...rest
 }: GlassViewProps) {
   const t = useAppTheme();
   const c = t.colors;
-  const dark = c.scheme === 'dark';
-  const fill = strength === 'strong' ? c.surfaceStrong : strength === 'subtle' ? c.surfaceSubtle : c.surface;
+  const fill = kind !== 'panel' ? c.chrome : strength === 'strong' ? c.surfaceStrong : strength === 'subtle' ? c.surfaceSubtle : c.surface;
   const r = t.radii[radius];
-  const sheen = dark ? (['rgba(255,255,255,0.055)', 'rgba(255,255,255,0)'] as const) : (['rgba(255,255,255,0.7)', 'rgba(255,255,255,0)'] as const);
   return (
     <View
       {...rest}
@@ -53,16 +57,7 @@ export function GlassView({
         padding !== undefined && { padding: t.space[padding] },
         style,
       ]}>
-      {!flat && Platform.OS !== 'android' && (
-        <BlurView intensity={t.blur[strength]} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-      )}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} />
-      {highlight && (
-        <>
-          <LinearGradient pointerEvents="none" colors={sheen} locations={[0, 1]} style={[styles.sheen, { borderTopLeftRadius: r, borderTopRightRadius: r }]} />
-          <View pointerEvents="none" style={[styles.edge, { left: r * 0.6, right: r * 0.6, backgroundColor: c.glassHighlight }]} />
-        </>
-      )}
+      <LiquidLayers kind={kind} radius={r} intensity={t.blur[strength]} fill={fill} flat={flat} sheen={highlight} interactive={kind === 'control'} />
       {children}
     </View>
   );
@@ -109,19 +104,17 @@ export function Card({ title, subtitle, headerRight, onPress, gap = 'md', paddin
     );
   }
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <PressableScale onPress={onPress} accessibilityRole="button" scaleTo={0.985}>
       {({ pressed }) => (
-        <GlassView {...glass} padding={padding} style={[{ gap: t.space[gap], transform: [{ scale: pressed ? 0.99 : 1 }] }, style]}>
+        <GlassView {...glass} padding={padding} style={[{ gap: t.space[gap] }, style]}>
           {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: t.colors.surfacePressed }]} />}
           {body}
         </GlassView>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '45%' },
-  edge: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth, opacity: 0.9 },
 });

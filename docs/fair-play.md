@@ -11,7 +11,7 @@ Everything lives in `apps/server/src/fairplay/`. The game server stays the only 
 | Rate limiting | `rateLimit.ts` | Token buckets per socket (all messages, moves, seeks) and per IP (new connections). Over the limit gets a `rate_limited` error; persistent abuse closes the socket with code `4008`. |
 | Engine correlation | `analysis.ts`, `engine.ts` | Background job after each rated game: Stockfish evaluates every position; per side we compute accuracy, top-move match rate, average centipawn loss and move-time regularity, skipping the opening, forced moves and already-decided positions. |
 | Review queue | `service.ts`, `store.ts` | Each player's last 20 analysed games are pooled and compared with what is normal for their rating. Strong evidence opens a case ranked by a 0–100 score. Players can also be reported by hand. |
-| Bans and refunds | `service.ts` | A moderator ban closes the account's sockets (code `4010`), forfeits its live game, blocks sign-in, and gives back the rating points its opponents lost to it in rated games in the last 90 days. |
+| Bans and refunds | `service.ts` | A moderator ban forfeits the account's live game, cancels its search and open game, and gives back the rating points its opponents lost to it in rated games in the last 90 days. The player can still sign in (games, puzzles, analysis, notifications) but the server refuses play actions with `account_restricted`, and the app shows an "Online play is off" banner on every screen. They get an in-app notice and an email explaining why. |
 | Admin API | `adminHttp.ts` | HTTP routes for the review queue, protected by a bearer token. |
 
 ## Flag rules (defaults, all in `DEFAULT_THRESHOLDS`)

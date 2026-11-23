@@ -5,13 +5,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Board } from '@/components/Board';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
-import { MoveList } from '@/components/game/MoveList';
-import { DockNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { MoveStrip } from '@/components/game/MoveStrip';
+import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
-import { moveLabel, useHistoryNav } from '@/components/game/useHistoryNav';
+import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
+import { GameStartHandshake, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Screen } from '@/components/ui';
 import { useMoveFeedback } from '@/lib/feedback';
+import { prepareReview } from '@/features/engine';
+import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
@@ -28,7 +31,12 @@ export default function LocalPlay() {
   const game = useRef(new Game());
   const [view, setView] = useState<{ fen: string; history: PlayedMove[] }>(() => ({ fen: new Game().fen, history: [] }));
   const [flip, setFlip] = useState(false);
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState<'more' | 'undo' | null>(null);
+  const toggle = (p: 'more' | 'undo') => setPanel((cur) => (cur === p ? null : p));
+  const confirmThen = (fn: () => void) => () => {
+    setPanel(null);
+    fn();
+  };
 
   const sync = () => setView({ fen: game.current.fen, history: game.current.history() });
   const play = (uci: string) => {
@@ -47,12 +55,15 @@ export default function LocalPlay() {
   // Practice games are saved to the archive when they end, or on request.
   const session = useRef({ id: `pr_${Date.now().toString(36)}`, startedAt: Date.now() });
   const [savedId, setSavedId] = useState<string | null>(null);
+  const intro = useGameStartHandshake(session.current.id, history.length);
   const save = () => {
     void saveGame(practiceGame(session.current.id, history, outcome, session.current.startedAt));
     setSavedId(session.current.id);
   };
   useEffect(() => {
-    if (outcome) save();
+    if (!outcome) return;
+    save();
+    prepareReview(history.map((m) => m.uci));
   }, [outcome]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const undo = () => {
@@ -61,14 +72,14 @@ export default function LocalPlay() {
     nav.toLive();
     sync();
   };
-  const openReview = () => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w' } });
+  const reviewEntry = useReviewEntry(outcome ? { moves: history.map((m) => m.uci) } : null);
+  const openReview = () => reviewEntry.press(() => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w' } }));
 
   const orientation: Color = flip ? 'b' : 'w';
   const top: Color = orientation === 'w' ? 'b' : 'w';
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
   const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START_FEN);
   const lastShown = nav.live ? history[history.length - 1] : shownMove;
-  const side = colorLabel(snapshot.turn);
 
   const card = (c: Color) => (
     <PlayerCard
@@ -81,10 +92,10 @@ export default function LocalPlay() {
   );
 
   const actions: GameAction[] = [
+    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
       ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview }
-      : { key: 'undo', icon: 'undo-variant', label: tr('practice.undo'), onPress: undo, disabled: history.length === 0 },
-    { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => setPanel((p) => !p), active: panel },
+      : { key: 'undo', icon: 'undo-variant', label: tr('practice.undo'), onPress: () => toggle('undo'), active: panel === 'undo', disabled: history.length === 0 },
     { key: 'flip', icon: 'swap-vertical', label: tr('game.action.flip'), onPress: () => setFlip((f) => !f) },
     { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
     { key: 'forward', icon: dirIcon('chevron-right'), label: tr('game.action.forward'), onPress: nav.forward, disabled: !nav.canForward, repeat: true },
@@ -101,54 +112,42 @@ export default function LocalPlay() {
         top={card(top)}
         bottom={card(orientation)}
         renderBoard={(size) => (
-          <Board
-            fen={boardFen}
-            orientation={orientation}
-            size={size}
-            selected={nav.live ? interaction.selected : null}
-            targets={nav.live ? interaction.targets : []}
-            lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
-            checkSquare={checkSquareOf(boardFen)}
-            onSquarePress={nav.live ? interaction.onSquarePress : undefined}
-            {...(nav.live ? interaction.dragProps : {})}
-          />
+          <>
+            <Board
+              fen={boardFen}
+              orientation={orientation}
+              size={size}
+              selected={nav.live ? interaction.selected : null}
+              targets={nav.live ? interaction.targets : []}
+              lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
+              checkSquare={checkSquareOf(boardFen)}
+              onSquarePress={nav.live ? interaction.onSquarePress : undefined}
+              {...(nav.live ? interaction.dragProps : {})}
+            />
+            {intro.active && <GameStartHandshake size={size} cut={intro.cut} onDone={intro.done} />}
+          </>
         )}
-        dock={
-          <MoveList
-            sans={history.map((m) => m.san)}
-            shown={nav.shown}
-            onSelect={nav.goTo}
-            header={
-              <>
-                {outcome ? (
-                  <DockNotice icon="trophy-outline" text={`${outcome.result} · ${reasonText(outcome.reason)}`} strong>
-                    <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} primary />
-                  </DockNotice>
-                ) : snapshot.inCheck ? (
-                  <DockNotice icon="alert-outline" text={tr('practice.toMoveInCheck', { color: side })} />
-                ) : null}
-                {!nav.live && (
-                  <DockNotice icon="history" text={tr('game.viewingMove', { move: moveLabel(history, nav.shown) })}>
-                    <NoticeButton icon="skip-next" label={tr('game.live')} onPress={nav.toLive} />
-                  </DockNotice>
-                )}
-              </>
-            }
-          />
+        strip={<MoveStrip sans={history.map((m) => m.san)} shown={nav.shown} onSelect={nav.goTo} onLive={nav.toLive} />}
+        notices={
+          nav.live && outcome ? (
+            <BoardNotice icon="trophy-outline" text={`${outcome.result} · ${reasonText(outcome.reason)}`} strong>
+              <NoticeButton icon="chart-box-outline" label={reviewEntry.label ?? tr('game.action.review')} onPress={openReview} primary />
+            </BoardNotice>
+          ) : null
         }
-        panel={
-          panel ? (
+        onDismissPopover={() => setPanel(null)}
+        popover={
+          panel === 'more' ? (
             <OptionsPanel
               title={tr('game.more.title')}
-              onClose={() => setPanel(false)}
+              onClose={() => setPanel(null)}
               items={(moreItems.length ? moreItems : [{ key: 'flip', icon: 'swap-vertical' as const, label: tr('game.more.flip'), onPress: () => setFlip((f) => !f) }]).map((it) => ({
                 ...it,
-                onPress: () => {
-                  setPanel(false);
-                  it.onPress();
-                },
+                onPress: confirmThen(it.onPress),
               }))}
             />
+          ) : panel === 'undo' ? (
+            <ConfirmPanel icon="undo-variant" title={tr('game.confirm.undoTitle')} confirmLabel={tr('game.confirm.undo')} onConfirm={confirmThen(undo)} onCancel={() => setPanel(null)} />
           ) : null
         }
         actions={actions}

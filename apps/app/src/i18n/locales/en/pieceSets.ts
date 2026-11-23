@@ -31,4 +31,32 @@ export const pieceSets = {
     name: 'Shapes',
     note: 'Abstract, for fun',
   },
+  cburnett: {
+    name: 'Cburnett',
+    note: 'The familiar online look',
+  },
+  firi: {
+    name: 'Firi',
+    note: 'Clean, rounded',
+  },
+  skulls: {
+    name: 'Skulls',
+    note: 'Spooky',
+  },
+  eyes: {
+    name: 'Eyes',
+    note: 'Wide-eyed, playful',
+  },
+  cats: {
+    name: 'Cats',
+    note: 'Purr-fectly silly',
+  },
+  kaneo: {
+    name: 'Kaneo',
+    note: 'Smooth, modern',
+  },
+  moonlight: {
+    name: 'Moonlight',
+    note: 'Navy and moon yellow',
+  },
 };

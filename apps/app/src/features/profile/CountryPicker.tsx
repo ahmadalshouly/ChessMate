@@ -1,4 +1,4 @@
-import { COUNTRIES, countryFlag } from '@chessmate/core';
+import { COUNTRIES } from '@chessmate/core';
 import { useMemo, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
@@ -6,6 +6,7 @@ import { Text } from '@/ui/primitives';
 import { Button, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { CountryFlag } from '@/components/CountryFlag';
 import { countryLabel } from '@/i18n/chess';
 
 import { Field } from './controls';
@@ -38,7 +39,10 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
         accessibilityLabel={tr('profile.country.label')}
         onPress={() => setOpen(true)}
         style={[styles.select, { borderColor: t.border, backgroundColor: t.surface }]}>
-        <Text style={{ color: value ? t.text : t.muted, fontSize: 15 }}>{value ? `${countryFlag(value)}  ${countryLabel(value)}` : tr('profile.country.notSet')}</Text>
+        <View style={styles.choice}>
+          <CountryFlag code={value} size={14} decorative />
+          <Text style={{ color: value ? t.text : t.muted, fontSize: 15, flexShrink: 1 }}>{value ? countryLabel(value) : tr('profile.country.notSet')}</Text>
+        </View>
         <Text style={{ color: t.muted }}>▾</Text>
       </Pressable>
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -54,10 +58,10 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
                   accessibilityRole="button"
                   onPress={() => pick(code || null)}
                   style={({ pressed }) => [styles.item, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
-                  <Text style={{ color: t.text, fontSize: 16, fontWeight: (code || null) === value ? '700' : '400' }}>
-                    {code ? `${countryFlag(code)}  ` : ''}
-                    {name}
-                  </Text>
+                  <View style={styles.choice}>
+                    <CountryFlag code={code} size={14} decorative />
+                    <Text style={{ color: t.text, fontSize: 16, fontWeight: (code || null) === value ? '700' : '400', flexShrink: 1 }}>{name}</Text>
+                  </View>
                 </Pressable>
               )}
             />
@@ -70,7 +74,8 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
 }
 
 const styles = StyleSheet.create({
-  select: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, flexDirection: 'row', justifyContent: 'space-between' },
+  select: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modal: { flex: 1, width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center', padding: 16, paddingTop: 56, gap: 12 },
   item: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
 });

@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { ColorTokens } from '../theme/tokens';
+import { PressableScale, rimShadow } from './liquid';
 import { Text } from './Text';
 
 export type BadgeTone = 'neutral' | 'solid' | 'outline' | 'success' | 'warning' | 'danger' | 'live';
@@ -72,24 +73,26 @@ export function Chip({ label, selected, onPress, icon, disabled }: ChipProps) {
   const t = useAppTheme();
   const c = t.colors;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected, disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
+      scaleTo={0.94}
       style={({ pressed }) => [
         styles.chip,
         {
           backgroundColor: selected ? c.accent : pressed ? c.surfacePressed : c.surface,
-          borderColor: selected ? c.accent : c.border,
+          borderColor: selected ? c.accent : c.glassBorder,
           opacity: disabled ? 0.4 : 1,
         },
+        rimShadow(c, selected ? 'bright' : 'soft'),
       ]}>
       {icon}
       <Text variant="label" color={selected ? c.onAccent : c.text}>
         {label}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 

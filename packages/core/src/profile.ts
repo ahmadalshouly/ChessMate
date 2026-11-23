@@ -1,3 +1,5 @@
+import { isPlayerTag, type PlayerTag, type RoleTag } from './roleTags';
+import type { ChessTitle } from './titles';
 import type { TimeCategory } from './timeControl';
 import type { GameEndReason, GameResult } from './types';
 
@@ -39,10 +41,22 @@ export const BOARD_THEMES = [
   'amethyst',
   'rose',
   'sand',
+  'coral',
+  'olive',
+  'sky',
+  'ruby',
+  'mint',
+  'teal',
+  'sakura',
+  'coffee',
+  'charcoal',
+  'sandstone',
+  'honey',
+  'apricot',
 ] as const;
 export type BoardTheme = (typeof BOARD_THEMES)[number];
 /** Piece sets. Artwork and credits live in apps/app/art/pieces. */
-export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes'] as const;
+export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes', 'eyes', 'cats', 'skulls', 'cburnett', 'firi', 'kaneo', 'moonlight'] as const;
 export type PieceSet = (typeof PIECE_SETS)[number];
 /** Ids from older versions, mapped to their closest current choice when settings are loaded. */
 const LEGACY_VALUES: Record<string, Record<string, string>> = {
@@ -50,6 +64,9 @@ const LEGACY_VALUES: Record<string, Record<string, string>> = {
 };
 export const VISIBILITY = ['everyone', 'friends', 'nobody'] as const;
 export type Visibility = (typeof VISIBILITY)[number];
+/** Who may send a friend request. "friendsOfFriends" needs at least one mutual friend. */
+export const FRIEND_REQUEST_AUDIENCE = ['everyone', 'friendsOfFriends', 'nobody'] as const;
+export type FriendRequestAudience = (typeof FRIEND_REQUEST_AUDIENCE)[number];
 
 export interface UserSettings {
   board: {
@@ -67,6 +84,12 @@ export interface UserSettings {
     lowTime: boolean;
     /** Vibrate on moves, captures and game end (phones only). */
     haptics: boolean;
+    /**
+     * Play sounds while the phone is on silent (iPhone silent switch, Android silent or
+     * vibrate). Off by default: a muted phone stays quiet. Replaces the earlier `silentMode`,
+     * which defaulted to on, so everyone starts from the new default once.
+     */
+    playOnSilent: boolean;
   };
   gameplay: {
     /** Ask before sending a move in online games. */
@@ -87,17 +110,35 @@ export interface UserSettings {
     showOnline: boolean;
     showRatingHistory: boolean;
     showGames: boolean;
+    /** Who may send you a direct challenge. Invite links you share yourself always work. */
     challenges: Visibility;
     messages: Visibility;
+    friendRequests: FriendRequestAudience;
+    /** Who may watch your live games. Your opponent always sees the game. */
+    spectators: Visibility;
+    /** Show up when other players search by username. Friends can always find you. */
+    searchable: boolean;
+    /** Let players follow you (their feed shows your games). */
+    allowFollows: boolean;
   };
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
   board: { theme: 'graphite', pieces: 'classic', coordinates: true, highlightLastMove: true, showLegalMoves: true },
-  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true },
+  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true, playOnSilent: false },
   gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true, premoves: true },
   notifications: { gameStart: true, yourTurn: true, challenges: true, friendRequests: true, email: false },
-  privacy: { showOnline: true, showRatingHistory: true, showGames: true, challenges: 'everyone', messages: 'friends' },
+  privacy: {
+    showOnline: true,
+    showRatingHistory: true,
+    showGames: true,
+    challenges: 'everyone',
+    messages: 'friends',
+    friendRequests: 'everyone',
+    spectators: 'everyone',
+    searchable: true,
+    allowFollows: true,
+  },
 };
 
 export type SettingsPatch = { [K in keyof UserSettings]?: Partial<UserSettings[K]> };
@@ -108,6 +149,8 @@ const ENUMS: Record<string, readonly string[]> = {
   'gameplay.confirmMoves': ['never', 'correspondence', 'always'],
   'privacy.challenges': VISIBILITY,
   'privacy.messages': VISIBILITY,
+  'privacy.friendRequests': FRIEND_REQUEST_AUDIENCE,
+  'privacy.spectators': VISIBILITY,
 };
 
 /**
@@ -174,6 +217,7 @@ export interface ProfileEdit {
   bio?: string | null;
   country?: string | null;
   avatar?: Avatar;
+  playerTag?: PlayerTag | null;
 }
 
 export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { error: string; field: string } {
@@ -204,6 +248,10 @@ export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { e
     }
     edit.avatar = { id: a.id as AvatarId, tone: a.tone as AvatarTone };
   }
+  if (input.playerTag !== undefined) {
+    if (input.playerTag !== null && !isPlayerTag(input.playerTag)) return { error: 'Pick a tag from the list', field: 'playerTag' };
+    edit.playerTag = input.playerTag;
+  }
   return { edit };
 }
 
@@ -233,17 +281,27 @@ export interface RecentGame {
   ratingDelta: number | null;
   moves: number;
   endedAt: number;
+  /** Accuracy per side once the game has a saved review (shown instead of a Review button). */
+  accuracy?: { w: number; b: number } | null;
 }
 
 export interface PublicProfile {
   id: string;
   username: string;
+  /** Verified chess title (GM, IM, ...), granted by staff after an application. */
+  title?: ChessTitle | null;
+  /** Official tag (ChessMate staff, streamer, coach, ...), only set by admins. */
+  roleTag?: RoleTag | null;
+  /** Tag the player picked for themselves (Tactician, Night owl, ...). */
+  playerTag?: PlayerTag | null;
   displayName: string;
   avatar: Avatar;
   bio: string | null;
   country: string | null;
   createdAt: number;
   online: boolean | null;
+  /** The live game they are playing right now, when their online status is visible. */
+  liveGameId?: string | null;
   ratings: CategoryStats[];
   totals: { games: number; wins: number; losses: number; draws: number };
   /** Null when the player hides their games. */
@@ -314,4 +372,12 @@ export function countryName(code: string | null | undefined): string | null {
 export function countryFlag(code: string | null | undefined): string {
   if (!code || !/^[A-Za-z]{2}$/.test(code)) return '';
   return String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+// ---------- privacy checks ----------
+
+/** Whether a "who can …" setting lets this person in. The owner always passes. */
+export function audienceAllows(setting: Visibility, viewer: { self?: boolean; friend: boolean }): boolean {
+  if (viewer.self) return true;
+  return setting === 'everyone' || (setting === 'friends' && viewer.friend);
 }

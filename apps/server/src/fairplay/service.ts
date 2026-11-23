@@ -16,6 +16,12 @@ export interface FairPlayOptions {
   reopenMargin?: number;
   now?: () => number;
   log?: (msg: string) => void;
+  /**
+   * Gives rating points back to an opponent of a banned account. The game
+   * server wires this to RatingService so refunds reach the real ratings (and
+   * the database); without it the player store is updated (tests).
+   */
+  refund?: (r: RatingRefund & { cheaterId: string }) => void;
 }
 
 export interface FinishedGame extends GameForAnalysis {
@@ -197,11 +203,15 @@ export class FairPlayService {
       if (g.refunded) continue;
       const opp = g.white.id === cheaterId ? g.black : g.white;
       if (opp.delta >= 0) continue;
-      const p = this.players.get(opp.id);
-      if (!p) continue;
-      const r = p.ratings[g.category] ?? DEFAULT_RATING;
       const points = Math.round(-opp.delta * 10) / 10;
-      this.players.save({ ...p, ratings: { ...p.ratings, [g.category]: { ...r, rating: r.rating + points } } });
+      if (this.opts.refund) {
+        this.opts.refund({ gameId: g.gameId, playerId: opp.id, category: g.category, points, cheaterId });
+      } else {
+        const p = this.players.get(opp.id);
+        if (!p) continue;
+        const r = p.ratings[g.category] ?? DEFAULT_RATING;
+        this.players.save({ ...p, ratings: { ...p.ratings, [g.category]: { ...r, rating: r.rating + points } } });
+      }
       this.store.markRefunded(g.gameId);
       refunds.push({ gameId: g.gameId, playerId: opp.id, category: g.category, points });
       this.store.audit({ at: this.now(), playerId: opp.id, action: 'refunded', by: 'system', note: `+${points} (${g.category}) from game ${g.gameId} vs ${cheaterId}` });

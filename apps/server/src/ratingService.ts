@@ -4,6 +4,8 @@ import {
   historyEntry,
   isProvisionalRating,
   matchmakingGap,
+  RATING_CEILING,
+  RATING_FLOOR,
   rateGame,
   ratePuzzleAttempt,
   ratingCategoryOf,
@@ -140,6 +142,37 @@ export class RatingService {
       ],
     );
     return { rated: true, category, w, b };
+  }
+
+  /**
+   * Staff correction: moves a rating by `delta` points without counting a game
+   * (fair-play refunds, manual adjustments). Logged in history under `sourceId`
+   * so the rating chart shows the step.
+   */
+  adjust(userId: string, category: RatingCategory, delta: number, sourceId: string, now: number): { before: CategoryRating; after: CategoryRating } {
+    const before = getCategoryRating(this.repo.getAll(userId), category);
+    const rating = Math.max(RATING_FLOOR, Math.min(RATING_CEILING, before.rating + delta));
+    const after: CategoryRating = { ...before, rating, peak: before.peak === null ? null : Math.max(before.peak, rating) };
+    this.repo.commit(
+      [{ userId, category, rating: after }],
+      [
+        {
+          userId,
+          category,
+          sourceId,
+          opponentId: null,
+          opponentRating: 0,
+          score: 0.5,
+          ratingBefore: before.rating,
+          ratingAfter: rating,
+          rdBefore: before.rd,
+          rdAfter: before.rd,
+          delta: Math.round(rating - before.rating),
+          at: now,
+        },
+      ],
+    );
+    return { before, after };
   }
 
   /** Rates a puzzle attempt; returns the player's change and the puzzle's new rating to store. */

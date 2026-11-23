@@ -2,6 +2,9 @@ export const play = {
   casual: 'Casual',
   rated: 'Rated',
   connecting: 'Connecting…',
+  setup: {
+    title: 'Game setup',
+  },
   lobby: {
     waiting: { one: '{count} waiting', other: '{count} waiting' },
     auto: 'Auto',
@@ -19,7 +22,7 @@ export const play = {
     autoHint: 'Starts near your rating, widens while you wait.',
     windowHint: 'Within {n} points of your rating.',
     yourSide: 'Your side',
-    yourSideHint: 'Used when you post an open game.',
+    yourSideHint: 'You are only paired with someone happy to take the other side.',
     gameInProgress: 'Game in progress',
     stillRunning: 'Your game is still running.',
     posted: 'Open game posted',
@@ -66,6 +69,9 @@ export const play = {
     oppGoneWait: 'Opponent disconnected. Waiting for them to return.',
     firstMoveWhite: 'You play white. Make your first move.',
     firstMoveBlack: 'You play black. Waiting for white’s first move.',
+    firstMoveYou: 'Make your first move within {n}s or the game is aborted.',
+    firstMoveOpp: 'Waiting for {name} to make the first move ({n}s). The game is aborted if they do not move.',
+    firstMoveCountdown: '{n}s to move',
     opponentToMove: 'Opponent to move.',
     premoveHint: 'Opponent to move. Tap or drag a piece to queue a premove.',
   },
@@ -78,9 +84,17 @@ export const play = {
   confirmResign: 'Confirm resign',
   confirmMoveQ: 'Play {san}?',
   over: {
+    victory: 'Victory!',
+    /** The one word on the full-screen result stamp. */
+    stamp: {
+      win: 'Victory',
+      loss: 'Defeat',
+      draw: 'Draw',
+    },
     checkmate: 'Checkmate',
     newRating: 'New rating',
     review: 'Learn from this game',
+    reviewGame: 'Review game',
     unrated: {
       casual: 'Casual game · your rating is unchanged',
       guest: 'Guest game · sign in to earn a rating',
