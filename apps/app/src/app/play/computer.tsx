@@ -28,6 +28,7 @@ import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { ResultHeader, Scoreline, STAMP_MS, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
+import { GameStartHandshake, HANDSHAKE_MS, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
 const botTagline = (b: BotProfile) => translate(`bots.${b.id}` as TKey);
@@ -219,6 +220,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const myTurn = snapshot.turn === me && !outcome;
   const lockOptions = useGameLock(!outcome && view.history.length > 0);
   const nav = useHistoryNav(view.history.length);
+  // Each mount is a new game (the screen remounts it for a rematch).
+  const [gameKey] = useState(() => `bot_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`);
+  const intro = useGameStartHandshake(gameKey, view.history.length);
 
   // Bot's turn: think after a short pause so the player's move is visible.
   useEffect(() => {
@@ -226,7 +230,8 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     const token = ++epoch.current;
     setThinking(true);
     const moves = game.current.uciHistory();
-    const pause = 250 + Math.min(500, bot.level * 60);
+    // Playing black, the computer waits for the handshake before its first move.
+    const pause = 250 + Math.min(500, bot.level * 60) + (intro.active && moves.length === 0 ? HANDSHAKE_MS : 0);
     const id = nextFrame(() => {
       if (token !== epoch.current) return;
       const started = Date.now();
@@ -365,6 +370,15 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
               onSquarePress={nav.live ? interaction.onSquarePress : undefined}
               {...(nav.live ? interaction.dragProps : {})}
             />
+            {intro.active && (
+              <GameStartHandshake
+                size={size}
+                white={me === 'w' ? user.displayName || tr('computer.you') : bot.name}
+                black={me === 'b' ? user.displayName || tr('computer.you') : bot.name}
+                cut={intro.cut}
+                onDone={intro.done}
+              />
+            )}
             {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}

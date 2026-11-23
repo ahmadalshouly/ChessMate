@@ -20,6 +20,7 @@ import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem 
 import { PlayerCard } from '@/components/game/PlayerCard';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
+import { GameStartHandshake, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { GameOverCard, endResult } from '@/components/play/GameOverCard';
 import { ResultPopup } from '@/components/play/ResultPopup';
 import { Pill, Row } from '@/components/play/Controls';
@@ -117,6 +118,8 @@ export default function OnlinePlay() {
   };
 
   const nav = useHistoryNav(history.length);
+  // Two hands shake over the board as a new game begins (not on a reconnect mid-game).
+  const intro = useGameStartHandshake(live ? (gameId ?? null) : null, history.length);
   const [panel, setPanel] = useState<Popup | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [chatSeen, setChatSeen] = useState(0);
@@ -389,6 +392,7 @@ export default function OnlinePlay() {
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />
+            {intro.active && <GameStartHandshake size={boardSize} white={players.w.name} black={players.b.name} cut={intro.cut} onDone={intro.done} />}
             {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}

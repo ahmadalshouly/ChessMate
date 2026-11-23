@@ -76,4 +76,9 @@ export const game: Messages<typeof en> = {
     close: 'إخفاء النتيجة',
     showResult: 'النتيجة',
   },
+  intro: {
+    goodLuck: 'حظاً موفقاً',
+    match: '{white} ضد {black}',
+    a11y: 'يتصافح اللاعبان. تبدأ المباراة.',
+  },
 };
