@@ -50,6 +50,7 @@ import type { BroadcastAnalyzer } from './watch/analysis';
 import type { BroadcastSync } from './watch/sync';
 import { AwardsService, gameFacts } from './awards/service';
 import { habitsRoutes } from './habits/http';
+import { reviewEvalRoutes } from './engine/reviewHttp';
 import { PlayHabitsService } from './habits/service';
 import type { CommunityService } from './community/service';
 import type { MessageService } from './messages/service';
@@ -297,6 +298,14 @@ export class ChessServer {
       },
     });
     routes.push(awardsRoutes(this.awards, opts.resolveUser ?? devResolveUser));
+    routes.push(
+      reviewEvalRoutes({
+        analysis: opts.analysis,
+        resolveUser: opts.resolveUser ?? devResolveUser,
+        inLiveGame: (id) => !!this.activeRoomOf(id),
+        isLivePosition: (fen) => this.isLivePosition(fen),
+      }),
+    );
     this.habits = opts.habits ?? new PlayHabitsService();
     routes.push(habitsRoutes(this.habits, opts.resolveUser ?? devResolveUser, (id, until) => this.startBreak(id, until)));
     if (opts.community) {

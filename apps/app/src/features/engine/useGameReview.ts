@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { playClient } from '@/lib/playClient';
 
-import { canReviewLocally, keepReview, reviewLocally, type ReviewSnapshot } from './localReview';
+import { keepReview, reviewLocally, type ReviewSnapshot } from './localReview';
 import { fetchSavedReview, noteAccuracy, publishReview } from './savedReviews';
 
 export interface ReviewRequestParams {
@@ -23,6 +23,8 @@ export interface GameReviewState {
   error: { code: ReviewErrorCode; message?: string } | null;
   /** Where the review comes from: graded on this device, or the saved review of the game. */
   source: 'device' | 'saved' | null;
+  /** Whose engine is grading: this device's, or the server's when the device can't run one (or it stalled). */
+  where: 'device' | 'server' | null;
   /** Still checking whether the game already has a saved review. */
   checking: boolean;
   /** Milliseconds from opening the review to the last move graded. */
@@ -31,9 +33,10 @@ export interface GameReviewState {
 }
 
 /**
- * The review of a finished game. Reviews are graded only on the player's
- * device (Stockfish in Web Workers, or a WebView on phones); the server never
- * runs an engine for them.
+ * The review of a finished game. Reviews are graded on the player's device
+ * (Stockfish in Web Workers, or a WebView on phones). When the device can't
+ * run the engine, or it fails or stalls, the server's engine grades the moves
+ * that are left (see localReview.ts), so a review always finishes.
  *
  * 1. An online game that already has a saved review opens that review (from
  *    any account), without grading again.
@@ -77,11 +80,6 @@ export function useGameReview(request: ReviewRequestParams, enabled = true): Gam
     };
 
     const startLocal = () => {
-      if (!canReviewLocally()) {
-        // A saved review may still arrive; only an error if there is none.
-        if (!gameId) setError({ code: 'no_engine' });
-        return;
-      }
       stopLocal = reviewLocally(request, (snap) => {
         if (!active || haveSaved) return;
         if (snap.error) {
@@ -119,10 +117,7 @@ export function useGameReview(request: ReviewRequestParams, enabled = true): Gam
         (s) => {
           if (!active) return;
           setChecking(false);
-          if (!s) {
-            if (!canReviewLocally()) setError({ code: 'no_engine' });
-            return;
-          }
+          if (!s) return;
           haveSaved = true;
           stopLocal?.();
           stopLocal = null;
@@ -131,9 +126,7 @@ export function useGameReview(request: ReviewRequestParams, enabled = true): Gam
           finish(s);
         },
         () => {
-          if (!active) return;
-          setChecking(false);
-          if (!canReviewLocally()) setError({ code: 'no_engine' });
+          if (active) setChecking(false);
         },
       );
       startLocal();
@@ -146,13 +139,14 @@ export function useGameReview(request: ReviewRequestParams, enabled = true): Gam
 
   const retry = () => setAttempt((a) => a + 1);
 
-  if (saved) return { review: saved, final: true, progress: null, error: null, source: 'saved', checking: false, tookMs, retry };
+  if (saved) return { review: saved, final: true, progress: null, error: null, source: 'saved', where: null, checking: false, tookMs, retry };
   return {
     review: local?.review ?? null,
     final: !!local?.final && !!local.review,
     progress: local ? { done: local.done, total: local.total } : null,
     error,
     source: local ? 'device' : null,
+    where: local?.where ?? null,
     checking,
     tookMs,
     retry,

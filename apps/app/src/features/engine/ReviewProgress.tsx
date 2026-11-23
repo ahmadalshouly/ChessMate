@@ -22,6 +22,8 @@ import { MOVE_CLASS } from '@/constants/analysis';
 import { useT } from '@/i18n';
 import { GlassView, Text, rimShadow, useAppTheme } from '@/ui';
 
+import { useSmoothProgress } from './smoothProgress';
+
 const BAR = 14;
 /** Where the game's phases start, as a share of the positions graded (grading runs in game order). */
 const STAGES = [
@@ -41,6 +43,8 @@ export interface ReviewProgressProps {
   tookMs?: number | null;
   /** The last move graded so far, shown as a ticker under the bar. */
   latest?: ReviewedMove;
+  /** Whose engine is grading: this device's (default) or the server's. */
+  where?: 'device' | 'server' | null;
 }
 
 /**
@@ -50,19 +54,20 @@ export interface ReviewProgressProps {
  * move ticking in with its badge. Monochrome, like the rest of the app; only
  * the move badges carry colour.
  */
-export function ReviewProgress({ done, total, checking, finished, tookMs, latest }: ReviewProgressProps) {
+export function ReviewProgress({ done, total, checking, finished, tookMs, latest, where }: ReviewProgressProps) {
   const tr = useT();
   const t = useAppTheme();
   const c = t.colors;
   const reduced = useReducedMotion();
-  const share = finished ? 1 : total > 0 ? Math.min(1, done / total) : 0;
+  // Moves steadily between results instead of pausing and then jumping.
+  const share = useSmoothProgress(done, total, { active: !checking, finished });
   const pct = Math.round(share * 100);
   const [trackW, setTrackW] = useState(0);
 
   // The fill eases to each new value instead of jumping.
   const fill = useSharedValue(0);
   useEffect(() => {
-    fill.value = withTiming(Math.max(0.02, share), { duration: reduced ? 0 : 300, easing: Easing.out(Easing.cubic) });
+    fill.value = withTiming(Math.max(0.02, share), { duration: reduced ? 0 : 140, easing: Easing.linear });
   }, [share, reduced, fill]);
   // Pixels, not percent: percentage widths do not animate reliably on the web.
   const fillStyle = useAnimatedStyle(() => ({ width: fill.value * trackW }));
@@ -184,9 +189,17 @@ export function ReviewProgress({ done, total, checking, finished, tookMs, latest
           </Animated.View>
         ) : (
           <Animated.View entering={reduced ? undefined : FadeIn.duration(200)} style={styles.ticker}>
-            <MaterialCommunityIcons name={checking ? 'cloud-search-outline' : 'cellphone-cog'} size={16} color={c.muted} />
+            <MaterialCommunityIcons name={checking ? 'cloud-search-outline' : where === 'server' ? 'cloud-cog-outline' : 'cellphone-cog'} size={16} color={c.muted} />
             <Text variant="caption" tone="muted" numberOfLines={1}>
-              {checking ? tr('review.progressCard.savedHint') : finished ? tr('review.progressCard.deviceDone') : tr('review.progressCard.device')}
+              {checking
+                ? tr('review.progressCard.savedHint')
+                : where === 'server'
+                  ? finished
+                    ? tr('review.progressCard.serverDone')
+                    : tr('review.progressCard.server')
+                  : finished
+                    ? tr('review.progressCard.deviceDone')
+                    : tr('review.progressCard.device')}
             </Text>
           </Animated.View>
         )}

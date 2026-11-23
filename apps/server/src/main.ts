@@ -58,7 +58,7 @@ const coach = new CoachService({
   log: (m) => console.warn(m),
 });
 console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set ANTHROPIC_API_KEY to enable it (rule-based feedback in the meantime)');
-// The engine serves the analysis board and broadcasts; game reviews run on players' devices.
+// The engine serves the analysis board, broadcasts, and game reviews for devices that can't run their own engine.
 const { service: analysis, engine } = createAnalysisService(process.env);
 const puzzleStore = await openPuzzleStore();
 const puzzles = new PuzzleApi({ store: puzzleStore });

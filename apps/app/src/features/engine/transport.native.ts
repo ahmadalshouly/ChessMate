@@ -1,6 +1,7 @@
 import { Asset } from 'expo-asset';
 import { File } from 'expo-file-system';
 import { useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 
 import type { EngineTransport, FarmHandler, FarmOut } from './engineTypes';
 
@@ -13,15 +14,21 @@ export type { EngineTransport, FarmHandler } from './engineTypes';
  * app, so this works offline and needs nothing from the server.
  */
 
-/** Phones get fewer engines than desktops: enough to be quick, without heating up. */
-const MAX_ENGINES = 3;
+/**
+ * Phones get fewer engines than desktops: enough to be quick, without heating
+ * up. Android gets two: its WebView runs in a separate process that the system
+ * kills first when memory runs low, taking every engine with it.
+ */
+const MAX_ENGINES = Platform.OS === 'android' ? 2 : 3;
+/** Engine files go to the WebView in slices of this many characters (see hostHtml.ts). */
+const SLICE = 256 * 1024;
 const START_TIMEOUT_MS = 20_000;
 
 interface HostState {
   /** Bumped for every new transport, so the WebView restarts clean. */
   session: number;
-  /** The init message (engine script and WASM), once loaded. */
-  payload: string | null;
+  /** The messages that start the engines (engine script and WASM in slices, then init), once loaded. */
+  payload: string[] | null;
 }
 
 let state: HostState = { session: 0, payload: null };
@@ -30,7 +37,7 @@ let farmHandler: FarmHandler | null = null;
 let onReady: ((size: number) => void) | null = null;
 let onFail: ((err: Error) => void) | null = null;
 let sender: ((msg: string) => void) | null = null;
-let payloadCache: Promise<string> | null = null;
+let payloadCache: Promise<{ js: string; wasm: string }> | null = null;
 
 function setState(next: HostState) {
   state = next;
@@ -62,7 +69,7 @@ export function hostMessage(raw: string) {
     return;
   }
   if (m.t === 'loaded') {
-    if (state.payload) sender?.(state.payload);
+    if (state.payload && sender) for (const msg of state.payload) sender(msg);
   } else if (m.t === 'ready') {
     onReady?.(m.size);
   } else if (m.t === 'error' && onFail) {
@@ -72,13 +79,13 @@ export function hostMessage(raw: string) {
   }
 }
 
-function loadPayload(): Promise<string> {
+function loadFiles(): Promise<{ js: string; wasm: string }> {
   payloadCache ??= (async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- Metro bundles these as assets
     const [js, wasm] = await Asset.loadAsync([require('./assets/stockfish.js.txt'), require('../../../public/engine/stockfish.wasm')]);
     if (!js?.localUri || !wasm?.localUri) throw new Error('Engine files are missing');
     const [jsText, wasmB64] = await Promise.all([new File(js.localUri).text(), new File(wasm.localUri).base64()]);
-    return JSON.stringify({ t: 'init', js: jsText, wasm: wasmB64, max: MAX_ENGINES });
+    return { js: jsText, wasm: wasmB64 };
   })();
   payloadCache.catch(() => (payloadCache = null));
   return payloadCache;
@@ -88,8 +95,18 @@ export function transportSupported(): boolean {
   return true;
 }
 
-export async function openTransport(onMessage: FarmHandler): Promise<EngineTransport> {
-  const payload = await loadPayload();
+function payloadFor(files: { js: string; wasm: string }, max: number): string[] {
+  const out: string[] = [];
+  for (const k of ['js', 'wasm'] as const) {
+    const d = files[k];
+    for (let i = 0; i < d.length; i += SLICE) out.push(JSON.stringify({ t: 'part', k, d: d.slice(i, i + SLICE) }));
+  }
+  out.push(JSON.stringify({ t: 'init', max }));
+  return out;
+}
+
+export async function openTransport(onMessage: FarmHandler, max = MAX_ENGINES): Promise<EngineTransport> {
+  const payload = payloadFor(await loadFiles(), Math.min(max, MAX_ENGINES));
   return new Promise<EngineTransport>((resolve, reject) => {
     const timer = setTimeout(() => fail(new Error('The engine did not start')), START_TIMEOUT_MS);
     const close = () => {

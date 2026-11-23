@@ -26,6 +26,8 @@ interface Pending {
 
 /** Engines are shut down after this long without work, to give memory and battery back. */
 const IDLE_MS = 60_000;
+/** Failed starts (or crashes) in a row before the device engine is given up on for this session. */
+const MAX_FAILURES = 2;
 
 export class AbortError extends Error {
   constructor() {
@@ -38,20 +40,22 @@ export class AbortError extends Error {
  * Stockfish on the player's own device. The engines and their queue live off
  * the app's thread (farmSource.ts: a Web Worker on the web, a hidden WebView
  * on phones); this class sends searches and resolves their results. It starts
- * on first use and stops itself when idle. If the engine can't run here,
- * `usable` turns false and callers use the server instead.
+ * on first use and stops itself when idle. After a failure it tries once more
+ * with a single engine (a phone short on memory can kill a WebView running
+ * several); if that fails too, `usable` turns false and reviews use the
+ * server's engine instead.
  */
 class LocalEngine {
   private transport: EngineTransport | null = null;
   private opening: Promise<EngineTransport> | null = null;
   private pending = new Map<number, Pending>();
   private nextId = 1;
-  private broken = false;
+  private failures = 0;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** False once the engine has failed on this device (or never could run). */
   get usable(): boolean {
-    return !this.broken && transportSupported();
+    return this.failures < MAX_FAILURES && transportSupported();
   }
 
   search(fen: string, opts: LocalSearchOptions): Promise<LocalSearchResult> {
@@ -83,7 +87,8 @@ class LocalEngine {
   private start(): Promise<EngineTransport> {
     if (this.transport) return Promise.resolve(this.transport);
     if (!this.opening) {
-      const opening = openTransport((m) => this.onMessage(m)).then((t) => {
+      // After a failure, one engine only: lighter on a phone that is short of memory.
+      const opening = openTransport((m) => this.onMessage(m), this.failures > 0 ? 1 : undefined).then((t) => {
         if (this.opening !== opening) {
           // Shut down while starting.
           t.dispose();
@@ -104,6 +109,8 @@ class LocalEngine {
     if (m.t === 'error') return this.failAll(new Error(m.message));
     if (m.t === 'cancelled') return this.settleAbort(m.id);
     if (m.t !== 'result') return;
+    // A result means the engine works here: forget earlier failures.
+    this.failures = 0;
     const p = this.pending.get(m.id);
     if (!p) return;
     this.pending.delete(m.id);
@@ -124,7 +131,7 @@ class LocalEngine {
 
   private failAll(err: Error) {
     if (err instanceof AbortError) return;
-    this.broken = true;
+    this.failures++;
     const all = [...this.pending.values()];
     this.pending.clear();
     this.shutdown();

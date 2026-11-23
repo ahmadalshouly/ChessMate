@@ -19,7 +19,7 @@ import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
 import { moveFeedback } from '@/lib/feedback';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useAuth } from '@/lib/auth';
-import { analyzeLocally, canReviewLocally, serverGameId, useGameReview } from '@/features/engine';
+import { analyzeLocally, serverGameId, useGameReview } from '@/features/engine';
 import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
 
 const EVAL_BAR = 20;
@@ -131,7 +131,7 @@ export default function Review() {
   const branchFens = useMemo(() => [branchBase, ...branchHistory.map((m) => m.fenAfter)], [branchBase, branchHistory]);
   const needed = branch ? [branchFens[branch.cursor]!, ...branchFens.slice(0, branch.cursor).reverse()].find((f) => !seen.has(positionKey(f))) : undefined;
   useEffect(() => {
-    if (!needed || !canReviewLocally()) return;
+    if (!needed) return;
     const ctrl = new AbortController();
     const id = setTimeout(() => {
       // Ahead of anything still queued for the review.
@@ -353,6 +353,7 @@ export default function Review() {
               finished={final}
               tookMs={graded.tookMs}
               latest={moves[moves.length - 1]}
+              where={graded.where}
             />
           ) : null}
           {review && branch && (

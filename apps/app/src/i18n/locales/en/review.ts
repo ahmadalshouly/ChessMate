@@ -41,7 +41,7 @@ export const review = {
   },
   entry: 'Accuracy ○ {w} · ● {b}',
   noEngine: 'This device can’t run the engine, and this game has no saved review yet.',
-  engineFailed: 'The engine on your device stopped. Try again.',
+  engineFailed: 'Neither your device nor the ChessMate server could grade this game right now. Check your connection and try again.',
   depthSaved: 'Engine depth {n} · saved review',
   progressCard: {
     title: 'Reviewing your game',
@@ -51,6 +51,8 @@ export const review = {
     savedHint: 'Reviewed games open instantly',
     device: 'Stockfish is grading on your device',
     deviceDone: 'Graded on your device',
+    server: 'Stockfish is grading on ChessMate’s server',
+    serverDone: 'Graded on ChessMate’s server',
     done: 'All moves graded',
     tookS: 'Graded in {s} s',
     stage: {

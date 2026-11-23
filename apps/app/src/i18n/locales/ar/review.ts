@@ -44,7 +44,7 @@ export const review: Messages<typeof en> = {
   },
   entry: 'الدقة ○ {w} · ● {b}',
   noEngine: 'لا يستطيع هذا الجهاز تشغيل المحرك، ولا توجد مراجعة محفوظة لهذه المباراة بعد.',
-  engineFailed: 'توقف المحرك على جهازك. حاول مرة أخرى.',
+  engineFailed: 'تعذّر تقييم هذه المباراة الآن على جهازك وعلى خادم ChessMate. تحقق من اتصالك وحاول مرة أخرى.',
   depthSaved: 'عمق المحرك {n} · مراجعة محفوظة',
   progressCard: {
     title: 'جارٍ مراجعة مباراتك',
@@ -54,6 +54,8 @@ export const review: Messages<typeof en> = {
     savedHint: 'المباريات التي رُوجعت تفتح فورًا',
     device: 'Stockfish يقيّم على جهازك',
     deviceDone: 'تم التقييم على جهازك',
+    server: 'يقيّم Stockfish على خادم ChessMate',
+    serverDone: 'تم التقييم على خادم ChessMate',
     done: 'تم تقييم كل النقلات',
     tookS: 'تم التقييم في {s} ث',
     stage: {
