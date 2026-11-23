@@ -34,4 +34,24 @@ export const pieceSets: Messages<typeof en> = {
     name: 'أشكال',
     note: 'تجريدي وللمرح',
   },
+  cburnett: {
+    name: 'كبرنت',
+    note: 'المظهر المألوف على الإنترنت',
+  },
+  firi: {
+    name: 'فيري',
+    note: 'نظيف ومستدير',
+  },
+  skulls: {
+    name: 'جماجم',
+    note: 'مخيف وللمرح',
+  },
+  eyes: {
+    name: 'عيون',
+    note: 'يقظ وللمرح',
+  },
+  prmi: {
+    name: 'قطط',
+    note: 'قططي وللمرح',
+  },
 };

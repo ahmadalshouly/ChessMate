@@ -34,4 +34,24 @@ export const pieceSets: Messages<typeof en> = {
     name: 'Formen',
     note: 'Abstrakt, zum Spaß',
   },
+  cburnett: {
+    name: 'Cburnett',
+    note: 'Der vertraute Online-Look',
+  },
+  firi: {
+    name: 'Firi',
+    note: 'Klar und rund',
+  },
+  skulls: {
+    name: 'Skulls',
+    note: 'Schaurig, zum Spaß',
+  },
+  eyes: {
+    name: 'Eyes',
+    note: 'Wachsam, zum Spaß',
+  },
+  prmi: {
+    name: 'Katzen',
+    note: 'Katzig, zum Spaß',
+  },
 };

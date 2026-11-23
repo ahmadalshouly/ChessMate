@@ -31,4 +31,24 @@ export const pieceSets = {
     name: 'Shapes',
     note: 'Abstract, for fun',
   },
+  cburnett: {
+    name: 'Cburnett',
+    note: 'The familiar online look',
+  },
+  firi: {
+    name: 'Firi',
+    note: 'Clean, rounded',
+  },
+  skulls: {
+    name: 'Skulls',
+    note: 'Spooky, for fun',
+  },
+  eyes: {
+    name: 'Eyes',
+    note: 'Watchful, for fun',
+  },
+  prmi: {
+    name: 'Cats',
+    note: 'Feline, for fun',
+  },
 };

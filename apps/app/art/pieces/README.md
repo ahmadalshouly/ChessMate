@@ -15,8 +15,14 @@ after adding or changing a set (needs Playwright with Chromium).
 | `bold` | Bold | kiwen-suwi | [neverRare](https://github.com/neverRare) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 | `caramel` | Caramel | RhosGFX pieces | [RhosGFX](https://rhosgfx.itch.io/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `shapes` | Shapes | chess_shapes | [flugsio](https://github.com/flugsio/chess_shapes) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `cburnett` | Cburnett | SVG chess pieces (as shipped in [lila](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett)) | [Colin M.L. Burnett](https://commons.wikimedia.org/wiki/User:Cburnett) | [BSD 3-Clause](cburnett/LICENSE), chosen from the author's GFDL / CC BY-SA 3.0 / GPL 2+ / BSD choice |
+| `firi` | Firi | Firi piece set (chess SVGs as shipped in [lila](https://github.com/lichess-org/lila/tree/master/public/piece/firi)) | [James Faure](https://github.com/jfaure/Firi-pieceset) | [CC BY 4.0](firi/LICENSE.txt) |
+| `skulls` | Skulls | Skulls ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](skulls/LICENSE) |
+| `eyes` | Eyes | Eyes ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](eyes/LICENSE) |
+| `prmi` | Cats | Prmi ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](prmi/LICENSE) |
 
-Changes from the originals: SVGs are rasterised to 192px PNGs; the `glass` set recolours
+Changes from the originals: SVGs are rasterised to 192px PNGs; the chess-art "fancy" files are
+renamed from `wk.svg` to `wK.svg`; the `glass` set recolours
 Chessnut as described above. The rendered `shapes` PNGs stay under CC BY-SA 4.0.
 
 The app shows these credits under **Settings > Board > Piece artwork credits**
@@ -30,3 +36,19 @@ The app shows these credits under **Settings > Board > Piece artwork credits**
 3. Add the id to `PIECE_SETS` in `packages/core/src/profile.ts` and its credits to
    `PIECE_SET_INFO` in `apps/app/src/features/board/pieceSets.ts`.
 4. Run `node apps/app/art/build-pieces.mjs` and commit the PNGs and `pieceImages.ts`.
+
+## Checked and left out
+
+Sets in lila's `COPYING.md` that don't meet the rule above, so they are not bundled:
+
+- CC BY-NC / CC BY-NC-SA (non-commercial): anarcandy, caliente, california, cardinal, chessboart,
+  cooke, disguised, dubrovny, fresca, gioco, horsey, icpieces, maestro, minimal-warmth, monarchy,
+  staunty, tatiana, xkcd.
+- GPL / AGPL: merida, mono, mpchess, letter, pirouetti, pixel (and lila's board textures, AGPL).
+- Freeware, personal-use only, no-derivatives or unknown: alpha, chess7, companion, leipzig,
+  reillycraig, riohacha, shahi-ivory-brown, governor, kosal.
+- Listed as CC BY 4.0 but under lila's "non-free" heading, so unclear: papercut, totoy.
+- chess-art's `freak` set is MIT but shows drug use, so it was left out on content grounds.
+
+Board themes are flat colour pairs defined in code (`src/ui/theme/boardThemes.ts`), so they carry
+no third-party artwork or licence.
