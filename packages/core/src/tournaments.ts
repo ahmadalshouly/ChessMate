@@ -147,8 +147,41 @@ export interface TournamentStanding {
   playing: boolean;
 }
 
+/** One game a tournament started, with its result once it ends. */
+export interface TournamentGameView {
+  gameId: string;
+  /** Swiss round; null in arenas. */
+  round: number | null;
+  white: { userId: string; username: string; points: number };
+  black: { userId: string; username: string; points: number };
+  /** 1-0, 0-1, 1/2-1/2, or * while it is played. */
+  result: '1-0' | '0-1' | '1/2-1/2' | '*';
+  /** How it ended (checkmate, resignation, timeout, aborted, ...); null while it is played. */
+  endReason: string | null;
+  /** It scored. Aborted games and games cut off by the timer do not. */
+  counted: boolean;
+  startedAt: number;
+  endedAt: number | null;
+}
+
+/** A tournament chat message. */
+export interface TournamentChatMessage {
+  id: string;
+  userId: string;
+  username: string;
+  text: string;
+  /** Posted by tournament staff. */
+  staff: boolean;
+  at: number;
+  /** Staff hid it (only staff see hidden messages). */
+  hidden?: boolean;
+  hiddenBy?: string | null;
+}
+
 export interface TournamentDetail extends TournamentSummary {
   standings: TournamentStanding[];
+  /** Finished games, newest first (public view: scored games only). */
+  games: TournamentGameView[];
   /** Games of this tournament being played right now. */
   liveGames: { gameId: string; white: string; black: string }[];
   /** The viewer's live tournament game, if any. */

@@ -490,6 +490,22 @@ export class AdminService {
     return player;
   }
 
+  /** Posts in a tournament chat as staff (marked as staff for players). */
+  async postTournamentChat(actor: Actor, id: string, input: { text?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    return this.tournamentCall(() => this.tournamentService().postChat(actor.id, id, input, { staff: true, username: actor.username }));
+  }
+
+  /** Hides a tournament chat message from players (or shows it again). Hidden messages stay visible to staff. */
+  async hideTournamentChat(actor: Actor, id: string, input: { messageId?: unknown; hidden?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    const messageId = typeof input.messageId === 'string' ? input.messageId : '';
+    const hidden = input.hidden !== false;
+    const m = await this.tournamentCall(() => this.tournamentService().hideChat(id, messageId, hidden, actor.username));
+    await this.audit(actor, hidden ? 'tournament.chat_hide' : 'tournament.chat_show', { type: 'user', id: m.userId, name: m.username }, m.text, { tournamentId: id, messageId });
+    return m;
+  }
+
   async sponsorApplications(actor: Actor) {
     this.require(actor, 'tournaments.manage');
     return this.tournamentService().sponsorApplications();

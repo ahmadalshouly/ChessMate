@@ -297,7 +297,7 @@ export default function OnlinePlay() {
             ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } }) }]
             : []),
           ...(view.tournamentId
-            ? [{ key: 'tournament', icon: 'trophy-outline' as const, label: tr('tournaments.back'), onPress: () => router.push({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) }]
+            ? [{ key: 'tournament', icon: 'trophy-outline' as const, label: tr('tournaments.back'), onPress: () => router.dismissTo({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) }]
             : []),
           { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
         ]
@@ -384,7 +384,7 @@ export default function OnlinePlay() {
             {connectionNotice}
             {sponsor ? (
               <View style={styles.sponsor}>
-                <SponsorBadge sponsor={sponsor} size="sm" />
+                <SponsorBadge sponsor={sponsor} size="lg" />
               </View>
             ) : null}
           </>
@@ -407,7 +407,7 @@ export default function OnlinePlay() {
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />
-            {intro.active && <GameStartHandshake size={boardSize} white={players.w.name} black={players.b.name} cut={intro.cut} onDone={intro.done} />}
+            {intro.active && <GameStartHandshake size={boardSize} white={players.w.name} black={players.b.name} cut={intro.cut} onDone={intro.done} sponsor={sponsor} />}
             {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}
@@ -449,6 +449,16 @@ export default function OnlinePlay() {
             onReview={reviewable ? openReview : undefined}
             reviewLabel={reviewEntry.label ?? undefined}
             onClose={() => setHideResult(true)}
+            sponsor={sponsor}
+            onTournament={
+              view.tournamentId
+                ? () => {
+                    // Back to the tournament page already open below (or open it), without stacking another one.
+                    setHideResult(true);
+                    router.dismissTo({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } });
+                  }
+                : undefined
+            }
           />
         )}
         {over && endResult(view) && (
@@ -463,7 +473,7 @@ const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
   restricted: { marginHorizontal: 12, marginTop: 8 },
-  sponsor: { alignItems: 'center', paddingTop: 6 },
+  sponsor: { alignItems: 'center', paddingTop: 8, paddingBottom: 4 },
   // The result card scrolls inside the board when it is taller than the board (small phones).
   overlayScroll: { width: '100%', maxHeight: '100%' },
   overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },

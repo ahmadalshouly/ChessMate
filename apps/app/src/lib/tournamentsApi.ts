@@ -1,4 +1,4 @@
-import type { PayoutMethod, SponsorApplicationInput, TournamentDetail, TournamentSummary } from '@chessmate/core';
+import type { PayoutMethod, SponsorApplicationInput, TournamentChatMessage, TournamentDetail, TournamentSummary } from '@chessmate/core';
 
 import { API_URL } from './config';
 import { apiRequest } from './social/api';
@@ -13,6 +13,8 @@ export const tournamentsApi = {
   checkout: (id: string, returnUrl: string) => apiRequest<{ url: string }>('POST', `/api/tournaments/${tid(id)}/checkout`, { acceptRules: true, returnUrl }),
   withdraw: (id: string) => apiRequest<{ tournament: TournamentDetail }>('POST', `/api/tournaments/${tid(id)}/withdraw`),
   requestPayout: (id: string, body: { method: PayoutMethod; details: string; note: string | null }) => apiRequest<{ tournament: TournamentDetail }>('POST', `/api/tournaments/${tid(id)}/payout`, body),
+  chat: (id: string) => apiRequest<{ messages: TournamentChatMessage[] }>('GET', `/api/tournaments/${tid(id)}/chat`, undefined, { optionalAuth: true }),
+  postChat: (id: string, text: string) => apiRequest<{ message: TournamentChatMessage }>('POST', `/api/tournaments/${tid(id)}/chat`, { text }),
   applySponsor: (body: SponsorApplicationInput) => apiRequest<{ ok: true }>('POST', '/api/sponsors', body, { optionalAuth: true }),
 };
 

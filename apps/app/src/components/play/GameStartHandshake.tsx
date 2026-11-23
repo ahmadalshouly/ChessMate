@@ -1,7 +1,9 @@
+import type { TournamentSponsor } from '@chessmate/core';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 
+import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { useT } from '@/i18n';
 import { Text, rimShadow, shadows, useColors } from '@/ui';
 
@@ -59,7 +61,22 @@ const IMAGE_RATIO = 548 / 1200;
  * fades it out at once. When it ends it unmounts, so it costs nothing while
  * the game is played.
  */
-export function GameStartHandshake({ size, white, black, cut, onDone }: { size: number; white?: string; black?: string; cut?: boolean; onDone?: () => void }) {
+export function GameStartHandshake({
+  size,
+  white,
+  black,
+  cut,
+  onDone,
+  sponsor,
+}: {
+  size: number;
+  white?: string;
+  black?: string;
+  cut?: boolean;
+  onDone?: () => void;
+  /** Tournament games: "Presented by" the sponsor under the names. */
+  sponsor?: TournamentSponsor | null;
+}) {
   const tr = useT();
   const c = useColors();
   const dark = c.scheme === 'dark';
@@ -127,6 +144,11 @@ export function GameStartHandshake({ size, white, black, cut, onDone }: { size: 
                 {tr('game.intro.match', { white, black })}
               </Text>
             ) : null}
+            {sponsor ? (
+              <View style={styles.sponsor}>
+                <SponsorBadge sponsor={sponsor} size="md" />
+              </View>
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -139,4 +161,5 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   tag: { paddingHorizontal: 22, paddingVertical: 10, alignItems: 'center', gap: 2, maxWidth: 320, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },
   tagTitle: { fontSize: 18, letterSpacing: 0.2 },
+  sponsor: { marginTop: 6 },
 });

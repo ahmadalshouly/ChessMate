@@ -704,6 +704,58 @@ export const tournamentPlayers = pgTable(
   (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
 );
 
+/**
+ * Every game a tournament started, with its result once it ends. `counted`
+ * says whether it scored (aborted games and games cut off by the timer do not).
+ */
+export const tournamentGames = pgTable(
+  'tournament_games',
+  {
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    gameId: text('game_id').notNull(),
+    /** Swiss round (null in arenas). */
+    round: integer('round'),
+    whiteId: text('white_id').notNull(),
+    blackId: text('black_id').notNull(),
+    whiteName: text('white_name').notNull(),
+    blackName: text('black_name').notNull(),
+    /** 1-0 | 0-1 | 1/2-1/2 | * (still playing) */
+    result: text('result').notNull().default('*'),
+    endReason: text('end_reason'),
+    counted: boolean('counted').notNull().default(false),
+    /** Tournament points each side scored (as stored: Swiss points are doubled). */
+    whitePoints: integer('white_points').notNull().default(0),
+    blackPoints: integer('black_points').notNull().default(0),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    endedAt: ts('ended_at'),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.gameId] }), index('tournament_games_started_idx').on(t.tournamentId, t.startedAt)],
+);
+
+/** Tournament chat. Staff can hide a message; hidden messages stay for staff to read. */
+export const tournamentMessages = pgTable(
+  'tournament_messages',
+  {
+    id: id(),
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    body: text('body').notNull(),
+    /** Posted by staff from the admin view. */
+    staff: boolean('staff').notNull().default(false),
+    /** The profanity filter changed the text. */
+    filtered: boolean('filtered').notNull().default(false),
+    createdAt: createdAt(),
+    hiddenAt: ts('hidden_at'),
+    hiddenBy: text('hidden_by'),
+  },
+  (t) => [index('tournament_messages_tournament_idx').on(t.tournamentId, t.createdAt)],
+);
+
 /** Stripe Checkout payments for tournament entry fees. */
 export const tournamentPayments = pgTable(
   'tournament_payments',
@@ -768,6 +820,8 @@ export type DirectMessage = typeof directMessages.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
 export type TournamentPlayer = typeof tournamentPlayers.$inferSelect;
 export type TournamentPayment = typeof tournamentPayments.$inferSelect;
+export type TournamentGame = typeof tournamentGames.$inferSelect;
+export type TournamentMessage = typeof tournamentMessages.$inferSelect;
 export type SponsorApplication = typeof sponsorApplications.$inferSelect;
 export type PayoutRequest = typeof payoutRequests.$inferSelect;
 

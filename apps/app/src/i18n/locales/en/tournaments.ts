@@ -152,4 +152,22 @@ export const tournaments = {
   joinedWait: 'You are in. Pairing starts when the tournament does.',
   signInToJoin: 'Sign in to join',
   back: 'Back to the tournament',
+  results: {
+    title: 'Results',
+    round: 'Round {n}',
+    points: 'Points {white} / {black}',
+    notCounted: 'Not counted',
+    tournamentOver: 'Cut off when the tournament ended',
+    all: { one: 'Show all {count}', other: 'Show all {count}' },
+    less: 'Show fewer',
+  },
+  chat: {
+    title: 'Chat',
+    placeholder: 'Say something to everyone in the tournament',
+    empty: 'No messages yet. Say hello!',
+    signIn: 'Sign in to chat',
+    staff: 'Staff',
+    hidden: 'Hidden',
+    hiddenBy: 'Hidden by {name}',
+  },
 };
