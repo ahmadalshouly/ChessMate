@@ -248,7 +248,10 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     return ok;
   };
   const interaction = useBoardInteraction(view.fen, (c) => c === me && myTurn, play);
-  useMoveFeedback(view.history, !!outcome, { startCue: true });
+  useMoveFeedback(view.history, !!outcome, {
+    startCue: true,
+    result: outcome ? (outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss') : undefined,
+  });
   // Grade the game as soon as it ends (on the device where it can), so Review opens with every badge ready.
   useEffect(() => {
     if (!outcome) return;
