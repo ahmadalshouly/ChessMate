@@ -96,4 +96,18 @@ describe('buildReview', () => {
   it('requires one evaluation per position', () => {
     expect(() => buildReview(START_FEN, moves, evals.slice(1))).toThrow();
   });
+
+  it('extends a partial review to the same result as a full build', () => {
+    let partial = null as ReturnType<typeof buildReview> | null;
+    for (let k = 1; k <= moves.length; k++) partial = buildReview(START_FEN, moves.slice(0, k), evals.slice(0, k + 1), partial);
+    expect(partial).toEqual(review);
+  });
+
+  it('regrades moves whose engine results changed', () => {
+    const early = buildReview(START_FEN, moves.slice(0, 3), [...evals.slice(0, 3), ev(-45, 'd2d4')]);
+    expect(buildReview(START_FEN, moves, evals, early)).toEqual(review);
+    // A review of another game is not reused.
+    const other = buildReview(START_FEN, ['e2e4'], [ev(30, 'e2e4'), ev(30, 'e7e5')]);
+    expect(buildReview(START_FEN, moves, evals, other)).toEqual(review);
+  });
 });

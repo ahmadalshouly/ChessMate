@@ -224,7 +224,8 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     let review: GameReview | null = job.last.review;
     if (plies > 0 && plies !== review?.moves.length) {
       try {
-        review = buildReview(initialFen, moves.slice(0, plies), evals.slice(0, plies + 1) as PositionEval[]);
+        // Grades only the moves added since the last partial review.
+        review = buildReview(initialFen, moves.slice(0, plies), evals.slice(0, plies + 1) as PositionEval[], review);
       } catch {
         // Keep the previous partial result.
       }
@@ -263,7 +264,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   }
   if (timer) clearTimeout(timer);
   const all = evals as PositionEval[];
-  const review = buildReview(initialFen, moves, all);
+  const review = buildReview(initialFen, moves, all, job.last.review);
   const entry = { review, evals: all };
   remember(job.key, entry);
   void save(job.key, entry);

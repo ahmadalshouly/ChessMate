@@ -119,8 +119,12 @@ export function judgeMove(params: {
   book?: boolean;
   /** Engine's second choice before the move (White's view), when analysed with multipv 2+. */
   secondBestScore?: Score;
-  /** Material the move offers, if any. */
-  sacrifice?: { piece: PieceType; amount: number } | null;
+  /**
+   * Material the move offers, if any. Finding it is the costly part of judging
+   * a move, so it may be passed as a function, called only for a move that
+   * could earn !! or !!!.
+   */
+  sacrifice?: { piece: PieceType; amount: number } | null | (() => { piece: PieceType; amount: number } | null);
   movedPiece?: PieceType;
   isRecapture?: boolean;
   /** Loss of the opponent's previous move. */
@@ -136,8 +140,8 @@ export function judgeMove(params: {
   const top = params.playedIsBest || loss < TOP_LOSS;
   const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING;
   if (top && !easilyWinning) {
-    const sac = params.sacrifice;
-    if (sac && after >= SOUND_AFTER) {
+    const sac = after >= SOUND_AFTER ? (typeof params.sacrifice === 'function' ? params.sacrifice() : params.sacrifice) : null;
+    if (sac) {
       // !!! (Masterpiece) is reserved for a queen sacrifice that leads to a forced mate.
       // Any other sound sacrifice, queen or not, is !!.
       const mateFor = params.playedScore.mate !== undefined && (params.mover === 'w' ? params.playedScore.mate > 0 : params.playedScore.mate < 0);
