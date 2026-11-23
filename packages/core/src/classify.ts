@@ -43,9 +43,12 @@ export function staticExchange(chess: Chess, square: Square): number {
 /** Net material the opponent could win on each of the mover's pieces (not pawns or king), with the opponent to move. */
 function looseMaterial(chess: Chess, mover: Color): Map<Square, number> {
   const out = new Map<Square, number>();
+  const opponent: Color = mover === 'w' ? 'b' : 'w';
   for (const sq of ALL_SQUARES) {
     const p = chess.get(sq);
     if (!p || p.color !== mover || p.type === 'k' || p.type === 'p') continue;
+    // Cheap check first: a piece nothing attacks can't be won (the exchange below lists every legal move).
+    if (!chess.isAttacked(sq, opponent)) continue;
     const won = staticExchange(chess, sq);
     if (won > 0) out.set(sq, won);
   }
@@ -99,7 +102,7 @@ function immediateRecoup(chess: Chess, square: Square): number {
 export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null {
   const chess = new Chess(fenBefore);
   const mover = chess.turn() as Color;
-  const before = looseBefore(fenBefore, mover);
+  let before: Map<Square, number> | null = null;
   let played: Move;
   try {
     played = chess.move(parseUci(uci));
@@ -114,6 +117,8 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
     const p = chess.get(sq)!;
     // What the mover just took pays back part of an offer on the destination square.
     const amount = sq === played.to ? won - capturedValue : won;
+    if (amount < 2) continue;
+    before ??= looseBefore(fenBefore, mover);
     const already = before.get(sq === played.to ? played.from : sq) ?? 0;
     if (amount - already < 2) continue;
     if (amount - immediateRecoup(chess, sq) < 2) continue;
@@ -169,7 +174,8 @@ export function classifyMove(input: ClassifyInput): MoveJudgement {
     legalMoveCount,
     book: input.book,
     secondBestScore: input.secondBestScore,
-    sacrifice: movedPiece ? findSacrifice(input.fenBefore, input.uci) : null,
+    // Only searched for a move that could earn !! or !!! (most moves can't): it is slow.
+    sacrifice: movedPiece ? () => findSacrifice(input.fenBefore, input.uci) : null,
     movedPiece,
     isRecapture,
     previousLoss: input.previousLoss,

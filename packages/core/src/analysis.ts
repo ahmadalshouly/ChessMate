@@ -184,11 +184,20 @@ export interface GameReview {
  * Builds a full review from per-position engine results.
  * `evals[i]` is the analysis of the position before move i; `evals[moves.length]`
  * is the final position.
+ *
+ * `previous` is an earlier review of the start of the same game (a review
+ * being filled in as moves are graded). Each move's grade depends only on the
+ * moves and results up to it, so the moves it already graded with the same
+ * engine results are kept as they are and only the rest are graded. Grading a
+ * move is the slow part (the board checks for sacrifices and tactics), so
+ * rebuilding from scratch every time a few more moves come in grew with the
+ * square of the game's length.
  */
-export function buildReview(initialFen: string, moves: string[], evals: PositionEval[]): GameReview {
+export function buildReview(initialFen: string, moves: string[], evals: PositionEval[], previous?: GameReview | null): GameReview {
   if (evals.length !== moves.length + 1) throw new Error('Need one evaluation per position');
-  const game = new Game(initialFen);
-  const reviewed: ReviewedMove[] = [];
+  const kept = previous ? reusableMoves(previous, initialFen, moves, evals) : [];
+  const game = new Game(kept.length ? kept[kept.length - 1]!.fenAfter : initialFen);
+  const reviewed: ReviewedMove[] = [...kept];
   const counts = {
     w: Object.fromEntries(MOVE_CLASSES.map((c) => [c, 0])),
     b: Object.fromEntries(MOVE_CLASSES.map((c) => [c, 0])),
@@ -197,10 +206,17 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
   let depth = Infinity;
   // Moves stay theory while every position so far lies on a known opening line.
   const theory = bookTimeline(moves, initialFen);
-  let inBook = true;
-  let previousLoss: number | undefined;
+  // Still in theory after the kept moves only if every one of them was a theory move.
+  let inBook = kept.every((m) => m.judgement.classification === 'book');
+  let previousLoss: number | undefined = kept[kept.length - 1]?.judgement.loss;
+  for (const m of kept) {
+    counts[m.color][m.judgement.classification]++;
+    acc[m.color].push(m.judgement.accuracy);
+  }
+  for (let i = 0; i < kept.length; i++) depth = Math.min(depth, evals[i]!.depth || depth);
 
   moves.forEach((uci, i) => {
+    if (i < kept.length) return;
     const before = evals[i]!;
     const after = evals[i + 1]!;
     const fenBefore = game.fen;
@@ -259,6 +275,23 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     counts,
     depth: Number.isFinite(depth) ? depth : 0,
   };
+}
+
+const sameScore = (a: Score, b: Score) => a.cp === b.cp && a.mate === b.mate;
+
+/** The moves of `previous` that grade the same with these moves and engine results. */
+function reusableMoves(previous: GameReview, initialFen: string, moves: string[], evals: PositionEval[]): ReviewedMove[] {
+  if (previous.moves.length > moves.length || previous.initialFen !== new Game(initialFen).fen) return [];
+  let n = 0;
+  for (const m of previous.moves) {
+    const i = m.ply - 1;
+    if (i !== n || m.uci !== moves[i]) break;
+    const before = evals[i]!;
+    const after = evals[i + 1]!;
+    if (!sameScore(m.scoreBefore, before.score) || !sameScore(m.scoreAfter, after.score) || m.bestMove !== (before.bestMove ?? m.uci)) break;
+    n++;
+  }
+  return previous.moves.slice(0, n);
 }
 
 /** Structured input for the AI coach about one reviewed move. */
