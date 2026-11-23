@@ -1,18 +1,15 @@
 import {
   Game,
   START_FEN,
-  classifyMove,
   importPosition,
   openingTimeline,
   parseUci,
-  positionKey,
-  terminalScore,
-  type MoveJudgement,
   type PositionAnalysis,
 } from '@chessmate/core';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -22,16 +19,19 @@ import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { ARROW_COLORS, MOVE_CLASS, formatEval } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
-import { translate, useT } from '@/i18n';
+import { dirIcon, translate, useT } from '@/i18n';
+import { ActionBar } from '@/components/game/ActionBar';
 import { serverText } from '@/i18n/serverMessages';
 import { moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
 import { useEngine } from '@/lib/useEngine';
+import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
+import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
+import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 
 const EVAL_BAR = 20;
 /** Depth an engine result needs before it is used to grade moves. */
-const GRADE_DEPTH = 12;
 
 /**
  * Analysis board: explore any position (from a FEN, a PGN, or a finished
@@ -45,13 +45,22 @@ export default function Analysis() {
   const [cursor, setCursor] = useState(() => clampPly(Number(params.ply ?? line.length), line.length));
   const [flip, setFlip] = useState(false);
   const [engineOn, setEngineOn] = useState(true);
-  const [multipv, setMultipv] = useState(3);
+  const settings = useEngineSettings();
+  const multipv = settings.lines;
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const t = useTheme();
   const tr = useT();
-  const size = useBoardSize(300) - EVAL_BAR - 6;
+  const { height: winH } = useWindowDimensions();
+  // Wide screens (web, tablets): a big board on the left, panel scrolls on the right.
+  // Phones: board and move buttons stay put; the panel scrolls underneath.
+  const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 404, reserve: 130 });
+  const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.56);
+  const size = Math.max(200, Math.floor((boardSpace - EVAL_BAR - 6) / 8) * 8);
+  // The panel beside the board scrolls within the window height (web).
+  const [fillH, onFill] = useFillHeight();
   const engine = useEngine();
 
   const history = useMemo(() => Game.fromUciMoves(line, start).history(), [line, start]);
@@ -64,9 +73,10 @@ export default function Analysis() {
   }, [start]);
 
   const play = (uci: string) => {
-    const played = new Game(fen).move(uci);
+    const g = new Game(fen);
+    const played = g.move(uci);
     if (!played) return false;
-    moveFeedback(played.san);
+    moveFeedback(played.san, g.fen);
     if (line[cursor] === played.uci) setCursor(cursor + 1);
     else {
       setLine([...line.slice(0, cursor), played.uci]);
@@ -80,9 +90,9 @@ export default function Analysis() {
   const { analyze, stop } = engine;
   useEffect(() => {
     if (!engineOn) return stop();
-    const id = setTimeout(() => analyze(fen, multipv), 120);
+    const id = setTimeout(() => analyze(fen, multipv, { depth: settings.depth, movetimeMs: settings.seconds * 1000 }), 120);
     return () => clearTimeout(id);
-  }, [fen, engineOn, multipv, analyze, stop]);
+  }, [fen, engineOn, multipv, settings.depth, settings.seconds, analyze, stop]);
 
   // Arrow keys step through the line on web.
   useEffect(() => {
@@ -106,7 +116,8 @@ export default function Analysis() {
     if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
   }
   const openings = useMemo(() => openingTimeline(line, start), [line, start]);
-  const grades = useMemo(() => gradeLine(start, history, seen, openings), [start, history, seen, openings]);
+  const allGrades = useMemo(() => gradeLine(start, history, seen, openings), [start, history, seen, openings]);
+  const grades = settings.grades ? allGrades : [];
   const lastGrade = cursor > 0 ? grades[cursor - 1] : undefined;
 
   const analysis = engineOn && engine.state.analysis?.fen === new Game(fen).fen ? engine.state.analysis : null;
@@ -140,49 +151,79 @@ export default function Analysis() {
     return ply % 2 === 0 ? `${num}.` : i === 0 ? `${num}…` : '';
   };
 
+  const boardArea = (
+    <View style={{ width: size + EVAL_BAR + 6, gap: 10 }}>
+      <View style={[styles.boardRow, { direction: 'ltr' }]}>
+        <EvalBar score={engineOn ? (top?.score ?? null) : null} orientation={orientation} height={size} width={EVAL_BAR} />
+        <View style={{ width: size, height: size }}>
+          <Board
+            fen={fen}
+            orientation={orientation}
+            size={size}
+            selected={interaction.selected}
+            targets={interaction.targets}
+            lastMove={last ? { from: last.from, to: last.to } : null}
+            checkSquare={checkSquareOf(fen)}
+            onSquarePress={interaction.onSquarePress}
+            {...interaction.dragProps}
+          />
+          {engineOn && settings.arrows && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
+          {engineOn && last && lastGrade && <BoardMoveBadge square={last.to} cls={lastGrade.classification} size={size} orientation={orientation} />}
+        </View>
+      </View>
+
+      {/* Move navigation follows the board, which stays left-to-right in every language. */}
+      <ActionBar
+        actions={[
+          { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setCursor(0), disabled: cursor === 0 },
+          { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setCursor((c) => Math.max(0, c - 1)), disabled: cursor === 0, repeat: true },
+          { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setCursor((c) => Math.min(line.length, c + 1)), disabled: cursor >= line.length, repeat: true },
+          { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setCursor(line.length), disabled: cursor >= line.length },
+          { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+        ]}
+      />
+    </View>
+  );
+
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
-          <View style={[styles.boardRow, { direction: 'ltr' }]}>
-            <EvalBar score={engineOn ? (top?.score ?? null) : null} orientation={orientation} height={size} width={EVAL_BAR} />
-            <View style={{ width: size, height: size }}>
-              <Board
-                fen={fen}
-                orientation={orientation}
-                size={size}
-                selected={interaction.selected}
-                targets={interaction.targets}
-                lastMove={last ? { from: last.from, to: last.to } : null}
-                checkSquare={checkSquareOf(fen)}
-                onSquarePress={interaction.onSquarePress}
-                {...interaction.dragProps}
-              />
-              {engineOn && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
-              {engineOn && last && lastGrade && <BoardMoveBadge square={last.to} cls={lastGrade.classification} size={size} orientation={orientation} />}
+      <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
+        <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
+        <ScrollView
+          style={[styles.panel, wide && { flexGrow: 0, flexShrink: 0, flexBasis: panelWidth, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
+          contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
+          keyboardShouldPersistTaps="handled">
+          <Pressable
+            onPress={() => setSettingsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={tr('analysis.settings.title')}
+            style={({ pressed }) => [styles.settingsRow, { borderColor: t.border, backgroundColor: pressed ? t.border : t.surface }]}>
+            <Ionicons name="options-outline" size={18} color={t.text} />
+            <View style={{ flex: 1 }}>
+              <Label bold>{tr('analysis.settings.title')}</Label>
+              <Label muted>{tr('analysis.settings.summary', { depth: settings.depth, lines: settings.lines, seconds: settings.seconds })}</Label>
             </View>
-          </View>
-
-          {/* Move navigation follows the board, which stays left-to-right in every language. */}
-          <View style={[styles.row, { direction: 'ltr' }]}>
-            <NavButton label="⏮" onPress={() => setCursor(0)} disabled={cursor === 0} />
-            <NavButton label="◀" onPress={() => setCursor(cursor - 1)} disabled={cursor === 0} />
-            <NavButton label="▶" onPress={() => setCursor(cursor + 1)} disabled={cursor >= line.length} />
-            <NavButton label="⏭" onPress={() => setCursor(line.length)} disabled={cursor >= line.length} />
-            <NavButton label="⇅" onPress={() => setFlip((f) => !f)} />
-          </View>
-
+            <Ionicons name="chevron-forward" size={16} color={t.muted} />
+          </Pressable>
           <Card>
             <View style={styles.row}>
               <Label bold size={18}>
                 {analysis?.terminal ? terminalText(analysis.terminal) : top ? formatEval(top.score) : engineOn ? '…' : tr('analysis.engineOff')}
               </Label>
-              {!!analysis?.depth && <Label muted>{tr('analysis.depth', { n: analysis.depth })}</Label>}
+              {!!analysis?.depth && <Label muted>{tr('analysis.depthOf', { n: analysis.depth, max: settings.depth })}</Label>}
               <View style={styles.toggle}>
-                <Pressable onPress={() => setMultipv((m) => (m === 1 ? 3 : 1))} accessibilityRole="button">
+                <Pressable onPress={() => setEngineSettings({ lines: multipv === 1 ? 3 : 1 })} accessibilityRole="button">
                   <Label muted>{tr('analysis.lines', { count: multipv })}</Label>
                 </Pressable>
                 <Switch value={engineOn} onValueChange={setEngineOn} accessibilityLabel={tr('analysis.engine')} />
+                <Pressable
+                  onPress={() => setSettingsOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr('analysis.settings.title')}
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.gear, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
+                  <Ionicons name="options-outline" size={18} color={t.text} />
+                </Pressable>
               </View>
             </View>
             {engineOn && last && lastGrade && (
@@ -267,65 +308,10 @@ export default function Analysis() {
               FEN: {fen}
             </Text>
           </Card>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
+      <EngineSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} engineOn={engineOn} onEngineOn={setEngineOn} />
     </Screen>
-  );
-}
-
-/** Stores a result unless a deeper (or equally deep but wider) one is already known. */
-function remember(prev: Map<string, PositionAnalysis>, a: PositionAnalysis): Map<string, PositionAnalysis> {
-  const key = positionKey(a.fen);
-  const old = prev.get(key);
-  if (old && (old.depth > a.depth || (old.depth === a.depth && old.lines.length > a.lines.length))) return prev;
-  const next = new Map(prev);
-  next.set(key, a);
-  return next;
-}
-
-/**
- * Grades each move of the line from the engine results seen so far. A move is
- * graded once both the position before it and the one after it have been
- * analysed; the rest stay undefined until the player visits them.
- */
-function gradeLine(
-  start: string,
-  history: { fenAfter: string; uci: string }[],
-  seen: Map<string, PositionAnalysis>,
-  openings: ({ ply: number } | null)[],
-): (MoveJudgement | undefined)[] {
-  const out: (MoveJudgement | undefined)[] = [];
-  let inBook = true;
-  history.forEach((m, i) => {
-    inBook = inBook && !!openings[i + 1] && openings[i + 1]!.ply === i + 1;
-    const fenBefore = i === 0 ? start : history[i - 1]!.fenAfter;
-    const before = seen.get(positionKey(fenBefore));
-    const after = seen.get(positionKey(m.fenAfter));
-    const best = before?.lines[0];
-    const playedScore = after?.terminal ? terminalScore(after.fen, after.terminal) : after?.lines[0]?.score;
-    if (!best || !playedScore) return out.push(undefined);
-    out.push(
-      classifyMove({
-        fenBefore,
-        uci: m.uci,
-        bestScore: best.score,
-        bestMove: best.pv[0],
-        secondBestScore: before.lines[1]?.score,
-        playedScore,
-        book: inBook,
-        previousUci: history[i - 1]?.uci,
-        previousLoss: out[i - 1]?.loss,
-      }),
-    );
-  });
-  return out;
-}
-
-function NavButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <View style={{ flex: 1 }}>
-      <Button variant="secondary" title={label} onPress={onPress} disabled={disabled} />
-    </View>
   );
 }
 
@@ -368,7 +354,13 @@ function clampPly(n: number, max: number) {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 12, alignItems: 'center' },
+  layout: { flex: 1, minHeight: 0 },
+  layoutWide: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingHorizontal: 16 },
+  fixed: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
+  panel: { flex: 1, flexGrow: 1 },
+  panelContent: { gap: 12, paddingVertical: 12, paddingHorizontal: 2, paddingBottom: 32 },
+  settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
+  gear: { width: 32, height: 32, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
   // `direction` goes inline: StyleSheet.create rejects it on the web.
   boardRow: { flexDirection: 'row', gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },

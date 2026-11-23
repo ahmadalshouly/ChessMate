@@ -52,6 +52,14 @@
             "de"
           ]
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ChessMate to use your camera to scan friends' QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
       ]
     ],
     "experiments": {

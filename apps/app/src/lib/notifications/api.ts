@@ -1,6 +1,4 @@
 import { mergeNotificationPrefs, defaultNotificationPrefs, type AppNotification, type NotificationPrefs } from '@chessmate/core';
-import { Platform } from 'react-native';
-
 import { SERVER_URL } from '../config';
 
 /** HTTP base of the API. Same host as the game server unless EXPO_PUBLIC_API_URL is set. */
@@ -13,31 +11,26 @@ export const API_URL: string = (() => {
 type TokenProvider = () => string | null | Promise<string | null>;
 
 /**
- * Until accounts land, the app uses a development identity so the
- * notification center works locally. The accounts work should call
- * `setNotificationsTokenProvider(() => session?.token ?? null)`.
+ * The signed-in account's access token. Set by the root layout from the auth
+ * session; signed out, there is no inbox to read.
  */
-function devToken(): string {
-  const key = 'chessmate.devUser';
-  try {
-    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem(key);
-      if (saved) return saved;
-      const t = `dev:web-${Math.random().toString(36).slice(2, 10)}:You`;
-      localStorage.setItem(key, t);
-      return t;
-    }
-  } catch {
-    // Storage blocked: fall through to a per-launch identity.
-  }
-  return `dev:${Platform.OS}-${Math.random().toString(36).slice(2, 10)}:You`;
+let provider: TokenProvider = () => null;
+let account: string | null = null;
+const listeners = new Set<() => void>();
+
+/** `accountId` tells a token refresh apart from a different account signing in. */
+export function setNotificationsTokenProvider(p: TokenProvider | null, accountId: string | null = null) {
+  provider = p ?? (() => null);
+  const next = p ? accountId : null;
+  if (next === account) return;
+  account = next;
+  for (const l of listeners) l();
 }
 
-let fallbackToken: string | null = null;
-let provider: TokenProvider = () => (fallbackToken ??= devToken());
-
-export function setNotificationsTokenProvider(p: TokenProvider) {
-  provider = p;
+/** Called whenever the account behind the inbox changes (sign-in, sign-out, switch). */
+export function onNotificationsAccountChange(l: () => void): () => void {
+  listeners.add(l);
+  return () => listeners.delete(l);
 }
 
 export class ApiError extends Error {

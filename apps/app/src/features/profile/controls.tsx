@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Switch, View, type TextInputProps } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
+import { fonts } from '@/ui';
 
 import { useTheme } from '@/constants/theme';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
@@ -73,7 +74,7 @@ export function Divider() {
 
 export function SectionTitle({ children }: { children: string }) {
   const t = useTheme();
-  return <Text style={{ color: t.muted, fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>{children}</Text>;
+  return <Text style={{ color: t.muted, fontFamily: fonts.labelBold, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' }}>{children}</Text>;
 }
 
 const styles = StyleSheet.create({

@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -33,6 +34,10 @@ const id = () =>
     .$defaultFn(() => randomUUID());
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const ts = (name: string) => timestamp(name, { withTimezone: true });
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => 'bytea',
+  fromDriver: (v) => (Buffer.isBuffer(v) ? v : Buffer.from(v)),
+});
 
 // ---------------------------------------------------------------- enums
 
@@ -97,6 +102,21 @@ export const users = pgTable(
     lastSeenAt: ts('last_seen_at'),
     /** Soft delete: keeps game history intact. */
     deletedAt: ts('deleted_at'),
+    /**
+     * Closed by staff (fair play, abuse, on request). A closed account cannot
+     * sign in or play; reopening clears these columns. Unlike deletedAt the
+     * account and its username stay reserved.
+     */
+    closedAt: ts('closed_at'),
+    /** fair_play | abuse | multiple_accounts | requested | other */
+    closedReason: text('closed_reason'),
+    closedNote: text('closed_note'),
+    closedBy: text('closed_by'),
+    /** Verified chess title (GM, IM, FM, ...), granted by staff. */
+    title: text('title'),
+    titleGrantedAt: ts('title_granted_at'),
+    /** Official role tag next to the name (staff, streamer, coach, ...), set by admins only. */
+    roleTag: text('role_tag'),
   },
   (t) => [
     uniqueIndex('users_username_lower_idx').on(sql`lower(${t.username})`),
@@ -275,6 +295,26 @@ export const moves = pgTable(
   (t) => [primaryKey({ columns: [t.gameId, t.ply] })],
 );
 
+/**
+ * Finished engine reviews (every move graded, accuracy per side), stored so
+ * opening a game review is a lookup instead of a fresh Stockfish run. Keyed by
+ * content (start position + moves), so a review of the same moves is shared
+ * whether it came from an online game, a computer game or the analysis board.
+ */
+export const gameReviews = pgTable(
+  'game_reviews',
+  {
+    /** sha256 of "<initial fen>|<uci moves>". */
+    key: text('key').primaryKey(),
+    /** The online game it was made for, when there is one (not a foreign key: guest games may not be stored). */
+    gameId: text('game_id'),
+    /** The GameReview from @chessmate/core, as JSON. */
+    review: jsonb('review').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('game_reviews_game_idx').on(t.gameId)],
+);
+
 // ---------------------------------------------------------------- social
 
 /**
@@ -403,10 +443,143 @@ export const puzzleAttempts = pgTable(
   (t) => [index('puzzle_attempts_user_idx').on(t.userId, t.createdAt), index('puzzle_attempts_puzzle_idx').on(t.puzzleId)],
 );
 
+// ---------------------------------------------------------------- administration
+
+/**
+ * Every staff action, append-only. Actor and target names are copied so the
+ * log stays readable after renames or deletions (no foreign keys on purpose).
+ */
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: id(),
+    /** User id of the staff member, or "system" for automatic actions. */
+    actorId: text('actor_id').notNull(),
+    actorName: text('actor_name').notNull(),
+    /** e.g. "account.close", "chat.mute", "rating.adjust", "fairplay.dismiss". */
+    action: text('action').notNull(),
+    /** "user", "report", "game" or "case". */
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id'),
+    targetName: text('target_name'),
+    reason: text('reason'),
+    details: jsonb('details').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('admin_audit_created_idx').on(t.createdAt),
+    index('admin_audit_target_idx').on(t.targetId, t.createdAt),
+    index('admin_audit_actor_idx').on(t.actorId, t.createdAt),
+  ],
+);
+
+/** Formal warnings a player has received; shown to staff as their record. */
+export const playerWarnings = pgTable(
+  'player_warnings',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Same categories as player reports (abusive_chat, unsporting...). */
+    category: text('category').notNull(),
+    message: text('message').notNull(),
+    issuedBy: text('issued_by').notNull(),
+    issuedByName: text('issued_by_name').notNull(),
+    reportId: text('report_id'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('player_warnings_user_idx').on(t.userId, t.createdAt)],
+);
+
+/** Player reports (chat abuse, cheating...) with the evidence captured at report time. */
+export const moderationReports = pgTable(
+  'moderation_reports',
+  {
+    id: text('id').primaryKey(),
+    targetId: text('target_id').notNull(),
+    reporterId: text('reporter_id').notNull(),
+    status: text('status').notNull(),
+    /** The whole report as the moderation module sees it (chat, moves, resolution). */
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    createdAt: ts('created_at').notNull(),
+  },
+  (t) => [index('moderation_reports_status_idx').on(t.status, t.createdAt), index('moderation_reports_target_idx').on(t.targetId)],
+);
+
+/** Active chat mutes. */
+export const chatBans = pgTable('chat_bans', {
+  playerId: text('player_id').primaryKey(),
+  until: ts('until').notNull(),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+});
+
+/**
+ * Fair-play data (engine reports, cases, bans, rated-game deltas for refunds,
+ * case log), one JSON document per row so the service's shapes can evolve
+ * without migrations. Loaded into memory at boot and written through.
+ */
+export const fairPlayRecords = pgTable(
+  'fair_play_records',
+  {
+    /** report | case | ban | game | log */
+    kind: text('kind').notNull(),
+    /** Unique within a kind: player id for cases and bans, game id for games, a random id otherwise. */
+    key: text('key').notNull(),
+    playerId: text('player_id'),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.key] }), index('fair_play_player_idx').on(t.playerId)],
+);
+
+/** A player's request for a verified title, with the proof they attached. */
+export const titleApplications = pgTable(
+  'title_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    fullName: text('full_name').notNull(),
+    fideId: text('fide_id'),
+    federation: text('federation'),
+    note: text('note'),
+    /** pending | approved | rejected | withdrawn */
+    status: text('status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedByName: text('reviewed_by_name'),
+    reviewNote: text('review_note'),
+    reviewedAt: ts('reviewed_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('title_app_user_idx').on(t.userId, t.createdAt), index('title_app_status_idx').on(t.status, t.createdAt)],
+);
+
+/** Certificates and letters attached to a title application. Kept in the database so a single server needs no file storage. */
+export const titleDocuments = pgTable(
+  'title_documents',
+  {
+    id: id(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => titleApplications.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    mime: text('mime').notNull(),
+    size: integer('size').notNull(),
+    data: bytea('data').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('title_doc_app_idx').on(t.applicationId)],
+);
+
 // ---------------------------------------------------------------- row types
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+export type TitleApplicationRow = typeof titleApplications.$inferSelect;
+export type TitleDocumentRow = typeof titleDocuments.$inferSelect;
 export type RefreshSession = typeof refreshSessions.$inferSelect;
 export type NewRefreshSession = typeof refreshSessions.$inferInsert;
 export type PasswordReset = typeof passwordResets.$inferSelect;
@@ -421,3 +594,573 @@ export type Follow = typeof follows.$inferSelect;
 export type ActivityRow = typeof activity.$inferSelect;
 export type Puzzle = typeof puzzles.$inferSelect;
 export type PuzzleAttempt = typeof puzzleAttempts.$inferSelect;
+export type UserRole = (typeof userRole.enumValues)[number];
+export type AdminAuditRow = typeof adminAuditLog.$inferSelect;
+export type PlayerWarningRow = typeof playerWarnings.$inferSelect;
+
+// ---------------------------------------------------------------- messages
+
+/**
+ * Direct messages between players, plus messages from ChessMate staff
+ * (`kind` 'staff') and announcements to everyone (`kind` 'broadcast', one row
+ * per recipient so read state stays per player). Game chat is separate.
+ */
+export const directMessages = pgTable(
+  'direct_messages',
+  {
+    id: id(),
+    senderId: text('sender_id').notNull(),
+    recipientId: text('recipient_id').notNull(),
+    body: text('body').notNull(),
+    /** user | staff | broadcast */
+    kind: text('kind').notNull().default('user'),
+    createdAt: createdAt(),
+    readAt: ts('read_at'),
+  },
+  (t) => [index('direct_messages_recipient_idx').on(t.recipientId, t.createdAt), index('direct_messages_sender_idx').on(t.senderId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------- tournaments
+
+/** Arena tournaments created by staff. Players join; the server pairs them while it runs. */
+export const tournaments = pgTable(
+  'tournaments',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    /** scheduled | running | finished | cancelled */
+    status: text('status').notNull(),
+    initialMs: integer('initial_ms').notNull(),
+    incrementMs: integer('increment_ms').notNull(),
+    rated: boolean('rated').notNull().default(true),
+    startsAt: ts('starts_at').notNull(),
+    durationMinutes: integer('duration_minutes').notNull(),
+    maxPlayers: integer('max_players'),
+    /** Free text shown as the prize pool ("$500", "ChessMate Premium for a year"). */
+    prizePool: text('prize_pool'),
+    /** Prize per place: [{ place: 1, prize: '$250' }, ...]. */
+    prizes: jsonb('prizes').$type<{ place: number; prize: string }[]>().notNull().default([]),
+    createdBy: text('created_by').notNull(),
+    createdAt: createdAt(),
+    finishedAt: ts('finished_at'),
+    /** Entry fee in the smallest currency unit (cents); 0 = free. Paid through Stripe on the web. */
+    entryFeeCents: integer('entry_fee_cents').notNull().default(0),
+    currency: text('currency').notNull().default('eur'),
+    minRating: integer('min_rating'),
+    maxRating: integer('max_rating'),
+    /** Rated games a player must have played in this speed to join. */
+    minRatedGames: integer('min_rated_games').notNull().default(0),
+    /** May players join after the start? */
+    lateJoin: boolean('late_join').notNull().default(true),
+    /** Extra rules players accept when joining (shown with the standard arena rules). */
+    rules: text('rules'),
+    sponsorName: text('sponsor_name'),
+    sponsorUrl: text('sponsor_url'),
+    /** Logo as a data URL (PNG/JPEG/WebP, at most ~300 KB), served at /api/tournaments/:id/logo. */
+    sponsorLogo: text('sponsor_logo'),
+    /** Format, rounds, end mode and arena scoring options (core `TournamentSettings`); {} = defaults. */
+    settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+    /** Swiss: the round being played (0 before the first). */
+    currentRound: integer('current_round').notNull().default(0),
+  },
+  (t) => [index('tournaments_starts_idx').on(t.startsAt)],
+);
+
+export interface TournamentPlayerState {
+  drawRun?: number;
+  lossRun?: number;
+  opponents?: string[];
+  colors?: ('w' | 'b')[];
+  byes?: number;
+}
+
+export const tournamentPlayers = pgTable(
+  'tournament_players',
+  {
+    tournamentId: text('tournament_id')
+      .notNull()
+      .references(() => tournaments.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    rating: integer('rating').notNull(),
+    score: integer('score').notNull().default(0),
+    games: integer('games').notNull().default(0),
+    wins: integer('wins').notNull().default(0),
+    draws: integer('draws').notNull().default(0),
+    losses: integer('losses').notNull().default(0),
+    /** Consecutive wins; from the third in a row a win counts double. */
+    streak: integer('streak').notNull().default(0),
+    withdrawn: boolean('withdrawn').notNull().default(false),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Removed by staff; cannot rejoin. */
+    disqualified: boolean('disqualified').notNull().default(false),
+    /** Entry fee paid (paid tournaments only). */
+    paid: boolean('paid').notNull().default(false),
+    rulesAcceptedAt: ts('rules_accepted_at'),
+    /** Draw and loss runs (arena streak options) and Swiss history: opponents, colours, byes. */
+    state: jsonb('state').$type<TournamentPlayerState>().notNull().default({}),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
+);
+
+/** Stripe Checkout payments for tournament entry fees. */
+export const tournamentPayments = pgTable(
+  'tournament_payments',
+  {
+    id: id(),
+    tournamentId: text('tournament_id').notNull(),
+    userId: text('user_id').notNull(),
+    stripeSessionId: text('stripe_session_id').notNull().unique(),
+    amountCents: integer('amount_cents').notNull(),
+    currency: text('currency').notNull(),
+    /** pending | paid | expired | refunded */
+    status: text('status').notNull().default('pending'),
+    createdAt: createdAt(),
+    paidAt: ts('paid_at'),
+  },
+  (t) => [index('tournament_payments_player_idx').on(t.tournamentId, t.userId)],
+);
+
+/** "Sponsor a tournament" applications; staff review them and get in touch. */
+export const sponsorApplications = pgTable('sponsor_applications', {
+  id: id(),
+  userId: text('user_id'),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  company: text('company'),
+  website: text('website'),
+  budget: text('budget'),
+  message: text('message').notNull(),
+  /** new | contacted | accepted | declined */
+  status: text('status').notNull().default('new'),
+  staffNote: text('staff_note'),
+  reviewedBy: text('reviewed_by'),
+  createdAt: createdAt(),
+  updatedAt: ts('updated_at'),
+});
+
+/** Prize winners asking to be paid; staff review them and get in touch. */
+export const payoutRequests = pgTable(
+  'payout_requests',
+  {
+    id: id(),
+    tournamentId: text('tournament_id').notNull(),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    place: integer('place').notNull(),
+    prize: text('prize').notNull(),
+    /** paypal | bank | other */
+    method: text('method').notNull(),
+    details: text('details').notNull(),
+    note: text('note'),
+    /** new | contacted | paid | rejected */
+    status: text('status').notNull().default('new'),
+    staffNote: text('staff_note'),
+    reviewedBy: text('reviewed_by'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at'),
+  },
+  (t) => [uniqueIndex('payout_requests_player_idx').on(t.tournamentId, t.userId)],
+);
+
+export type DirectMessage = typeof directMessages.$inferSelect;
+export type Tournament = typeof tournaments.$inferSelect;
+export type TournamentPlayer = typeof tournamentPlayers.$inferSelect;
+export type TournamentPayment = typeof tournamentPayments.$inferSelect;
+export type SponsorApplication = typeof sponsorApplications.$inferSelect;
+export type PayoutRequest = typeof payoutRequests.$inferSelect;
+
+// ---------------------------------------------------------------- community: news and forum
+
+/** News posts written by staff. Players like and comment. */
+export const newsPosts = pgTable(
+  'news_posts',
+  {
+    id: id(),
+    authorId: text('author_id').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** Picture (data URL), served at /api/news/:id/image. */
+    image: text('image'),
+    links: jsonb('links').$type<{ label: string; url: string }[]>().notNull().default([]),
+    pinned: boolean('pinned').notNull().default(false),
+    likeCount: integer('like_count').notNull().default(0),
+    commentCount: integer('comment_count').notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at'),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('news_posts_created_idx').on(t.createdAt)],
+);
+
+export const newsLikes = pgTable(
+  'news_likes',
+  {
+    postId: text('post_id')
+      .notNull()
+      .references(() => newsPosts.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.userId] })],
+);
+
+export const newsComments = pgTable(
+  'news_comments',
+  {
+    id: id(),
+    postId: text('post_id')
+      .notNull()
+      .references(() => newsPosts.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('news_comments_post_idx').on(t.postId, t.createdAt)],
+);
+
+/** Forum topics started by players; staff can pin, lock and remove them. */
+export const forumTopics = pgTable(
+  'forum_topics',
+  {
+    id: id(),
+    userId: text('user_id').notNull(),
+    category: text('category').notNull().default('general'),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    pinned: boolean('pinned').notNull().default(false),
+    locked: boolean('locked').notNull().default(false),
+    replyCount: integer('reply_count').notNull().default(0),
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('forum_topics_activity_idx').on(t.lastActivityAt)],
+);
+
+export const forumReplies = pgTable(
+  'forum_replies',
+  {
+    id: id(),
+    topicId: text('topic_id')
+      .notNull()
+      .references(() => forumTopics.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    deletedAt: ts('deleted_at'),
+  },
+  (t) => [index('forum_replies_topic_idx').on(t.topicId, t.createdAt)],
+);
+
+export type NewsPost = typeof newsPosts.$inferSelect;
+export type NewsComment = typeof newsComments.$inferSelect;
+export type ForumTopic = typeof forumTopics.$inferSelect;
+export type ForumReply = typeof forumReplies.$inferSelect;
+
+// ---------------------------------------------------------------- play habits: limits and streaks
+
+/**
+ * Per player: the self-chosen play limit (anti-addiction) and the daily streak.
+ * The server enforces the limit: while `lockedUntil` is in the future no game
+ * can be started, and the limit cannot be loosened or switched off.
+ */
+export const playHabits = pgTable('play_habits', {
+  userId: text('user_id').primaryKey(),
+  limitsEnabled: boolean('limits_enabled').notNull().default(false),
+  maxGames: integer('max_games').notNull().default(5),
+  windowMinutes: integer('window_minutes').notNull().default(60),
+  cooldownMinutes: integer('cooldown_minutes').notNull().default(60),
+  lockedUntil: ts('locked_until'),
+  /** End times (ms) of games inside the current window. */
+  recentGames: jsonb('recent_games').$type<number[]>().notNull().default([]),
+  streakStart: ts('streak_start'),
+  lastPlayedAt: ts('last_played_at'),
+  bestStreak: integer('best_streak').notNull().default(0),
+  /** Minutes east of UTC, from the player's device: streak days follow their calendar. */
+  tzOffsetMin: integer('tz_offset_min').notNull().default(0),
+  lastComputerGameAt: ts('last_computer_game_at'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PlayHabits = typeof playHabits.$inferSelect;
+
+/**
+ * Award counters per player (core `AwardStats`), updated after every finished
+ * game. Built from the player's game history the first time it is needed.
+ */
+export const awardStats = pgTable('award_stats', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  stats: jsonb('stats').$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Award levels earned, with when and in which game. */
+export const userAwards = pgTable(
+  'user_awards',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    awardId: text('award_id').notNull(),
+    level: smallint('level').notNull(),
+    gameId: text('game_id'),
+    earnedAt: ts('earned_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.awardId, t.level] }), index('user_awards_recent_idx').on(t.userId, t.earnedAt)],
+);
+export type UserAward = typeof userAwards.$inferSelect;
+
+/** Server-wide switches staff can change (key → JSON value). */
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').$type<unknown>().notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Approved streamers: their channels and whether they are live now. */
+export const streamers = pgTable('streamers', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  headline: text('headline').notNull().default(''),
+  channels: jsonb('channels').$type<{ platform: string; url: string }[]>().notNull().default([]),
+  liveTitle: text('live_title'),
+  liveUrl: text('live_url'),
+  liveSince: ts('live_since'),
+  /** Viewers watching now, as the platform reports it (detected streams). */
+  liveViewers: integer('live_viewers'),
+  /** Preview picture of the stream. */
+  liveThumbnail: text('live_thumbnail'),
+  /** What a player embeds: "twitch:<channel>", "youtube:<video id>" or "kick:<channel>". */
+  liveEmbed: text('live_embed'),
+  /** True when ChessMate found the stream itself (it also ends it when the stream stops). */
+  liveAuto: boolean('live_auto').notNull().default(false),
+  approvedAt: ts('approved_at').notNull().defaultNow(),
+});
+
+/** Requests to become a streamer. */
+export const streamerApplications = pgTable(
+  'streamer_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    channels: jsonb('channels').$type<{ platform: string; url: string }[]>().notNull(),
+    about: text('about').notNull(),
+    status: text('status').notNull().default('pending'),
+    note: text('note'),
+    reviewedBy: text('reviewed_by'),
+    createdAt: createdAt(),
+    reviewedAt: ts('reviewed_at'),
+  },
+  (t) => [index('streamer_applications_user_idx').on(t.userId), index('streamer_applications_status_idx').on(t.status)],
+);
+
+/** Chess events ChessMate broadcasts (created by staff or organisers, or imported). */
+export const broadcastEvents = pgTable(
+  'broadcast_events',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    shortDescription: text('short_description').notNull().default(''),
+    description: text('description').notNull().default(''),
+    location: text('location').notNull().default(''),
+    startsAt: ts('starts_at').notNull(),
+    endsAt: ts('ends_at').notNull(),
+    format: text('format').notNull().default('other'),
+    timeControl: text('time_control').notNull().default(''),
+    website: text('website'),
+    /** Data URL, served at /api/events/:id/logo. */
+    logo: text('logo'),
+    /** Cover picture (data URL), served at /api/watch/events/:id/cover. */
+    cover: text('cover'),
+    links: jsonb('links').$type<{ label: string; url: string }[]>().notNull().default([]),
+    published: boolean('published').notNull().default(false),
+    featured: boolean('featured').notNull().default(false),
+    hidden: boolean('hidden').notNull().default(false),
+    source: text('source').notNull().default('chessmate'),
+    /** Id at the source (Lichess tournament id) for imported events. */
+    externalId: text('external_id'),
+    sourceUrl: text('source_url'),
+    createdBy: text('created_by'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('broadcast_events_starts_idx').on(t.startsAt), uniqueIndex('broadcast_events_external_idx').on(t.source, t.externalId)],
+);
+
+/** Organisers allowed to manage one event. */
+export const broadcastOrganizers = pgTable(
+  'broadcast_organizers',
+  {
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    addedBy: text('added_by'),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.eventId, t.userId] }), index('broadcast_organizers_user_idx').on(t.userId)],
+);
+
+export const broadcastPlayers = pgTable(
+  'broadcast_players',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    title: text('title'),
+    rating: integer('rating'),
+    federation: text('federation'),
+    fideId: text('fide_id'),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('broadcast_players_event_idx').on(t.eventId)],
+);
+
+export const broadcastRounds = pgTable(
+  'broadcast_rounds',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    name: text('name').notNull(),
+    startsAt: ts('starts_at'),
+    /** manual | pgnUrl | lichess */
+    sourceKind: text('source_kind').notNull().default('manual'),
+    sourceUrl: text('source_url'),
+    lichessRoundId: text('lichess_round_id'),
+    /** Lichess says the round is over: stop polling it. */
+    sourceFinished: boolean('source_finished').notNull().default(false),
+    lastSyncAt: ts('last_sync_at'),
+    syncError: text('sync_error'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('broadcast_rounds_event_idx').on(t.eventId)],
+);
+
+/** One analysed position of a broadcast game. */
+export interface BroadcastEvalEntry {
+  /** Position key (first four FEN fields), to notice when the moves changed. */
+  f: string;
+  /** Score, White's view. */
+  s: { cp?: number; mate?: number };
+  /** Best move (UCI) and the start of the best line. */
+  b?: string;
+  pv?: string[];
+  d: number;
+  /** Second-best score (White's view), to spot only moves. */
+  s2?: { cp?: number; mate?: number };
+}
+
+export const broadcastGames = pgTable(
+  'broadcast_games',
+  {
+    id: id(),
+    roundId: text('round_id')
+      .notNull()
+      .references(() => broadcastRounds.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    board: integer('board').notNull(),
+    whiteName: text('white_name').notNull(),
+    blackName: text('black_name').notNull(),
+    whiteTitle: text('white_title'),
+    blackTitle: text('black_title'),
+    whiteRating: integer('white_rating'),
+    blackRating: integer('black_rating'),
+    whiteFed: text('white_fed'),
+    blackFed: text('black_fed'),
+    whitePlayerId: text('white_player_id'),
+    blackPlayerId: text('black_player_id'),
+    result: text('result').notNull().default('*'),
+    initialFen: text('initial_fen').notNull(),
+    moves: jsonb('moves').$type<string[]>().notNull().default([]),
+    clocks: jsonb('clocks').$type<(number | null)[]>().notNull().default([]),
+    /** Summary for lists, so they need not read the moves. */
+    fen: text('fen').notNull(),
+    ply: integer('ply').notNull().default(0),
+    lastMove: text('last_move'),
+    whiteClockMs: integer('white_clock_ms'),
+    blackClockMs: integer('black_clock_ms'),
+    clockAt: ts('clock_at'),
+    /** Engine evaluation of each position (index = plies played), filled in live. */
+    evals: jsonb('evals').$type<(BroadcastEvalEntry | null)[]>().notNull().default([]),
+    /** Move grades (core MoveClass) for the moves analysed so far, index = ply - 1. */
+    grades: jsonb('grades').$type<(string | null)[]>().notNull().default([]),
+    /** Summary for lists: evaluation of the latest position and the last move's grade. */
+    evalScore: jsonb('eval_score').$type<{ cp?: number; mate?: number } | null>(),
+    lastGrade: text('last_grade'),
+    /** How the game ended (checkmate, resign, timeout, …), worked out when it finishes. */
+    ending: text('ending'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('broadcast_games_round_board_idx').on(t.roundId, t.board), index('broadcast_games_event_idx').on(t.eventId)],
+);
+
+export const broadcastNews = pgTable(
+  'broadcast_news',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    authorId: text('author_id'),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** Picture (data URL), served at /api/watch/news/:id/image. */
+    image: text('image'),
+    links: jsonb('links').$type<{ label: string; url: string }[]>().notNull().default([]),
+    createdAt: createdAt(),
+  },
+  (t) => [index('broadcast_news_event_idx').on(t.eventId, t.createdAt)],
+);
+
+/** Requests to broadcast an event on ChessMate. */
+export const broadcastApplications = pgTable(
+  'broadcast_applications',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    eventName: text('event_name').notNull(),
+    organization: text('organization').notNull(),
+    website: text('website'),
+    location: text('location').notNull(),
+    startsAt: ts('starts_at').notNull(),
+    endsAt: ts('ends_at').notNull(),
+    description: text('description').notNull(),
+    coverage: text('coverage').notNull().default(''),
+    status: text('status').notNull().default('pending'),
+    note: text('note'),
+    eventId: text('event_id'),
+    reviewedBy: text('reviewed_by'),
+    createdAt: createdAt(),
+    reviewedAt: ts('reviewed_at'),
+  },
+  (t) => [index('broadcast_applications_user_idx').on(t.userId), index('broadcast_applications_status_idx').on(t.status)],
+);
+
+export type BroadcastEventRow = typeof broadcastEvents.$inferSelect;
+export type BroadcastPlayerRow = typeof broadcastPlayers.$inferSelect;
+export type BroadcastRoundRow = typeof broadcastRounds.$inferSelect;
+export type BroadcastGameRow = typeof broadcastGames.$inferSelect;
+export type BroadcastNewsRow = typeof broadcastNews.$inferSelect;
+export type BroadcastApplicationRow = typeof broadcastApplications.$inferSelect;
+export type StreamerRow = typeof streamers.$inferSelect;
+export type StreamerApplicationRow = typeof streamerApplications.$inferSelect;

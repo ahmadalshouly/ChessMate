@@ -44,15 +44,15 @@ export const pieceSets: Messages<typeof en> = {
   },
   skulls: {
     name: 'Skulls',
-    note: 'Schaurig, zum Spaß',
+    note: 'Schaurig',
   },
   eyes: {
     name: 'Eyes',
-    note: 'Wachsam, zum Spaß',
+    note: 'Großäugig, verspielt',
   },
-  prmi: {
+  cats: {
     name: 'Katzen',
-    note: 'Katzig, zum Spaß',
+    note: 'Herrlich albern',
   },
   kaneo: {
     name: 'Kaneo',

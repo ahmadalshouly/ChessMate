@@ -1,0 +1,31 @@
+import type { Messages } from '../../core';
+import type { qr as en } from '../en/qr';
+
+export const qr: Messages<typeof en> = {
+  addTitle: 'الإضافة برمز QR',
+  addBody: 'اعرض رمزك أو افتح رمز صديق.',
+  scanHint: 'امسحه بكاميرا الهاتف لفتح هذا الملف وإضافته صديقًا.',
+  share: 'مشاركة',
+  shareMessage: 'أضف {name} على ChessMate',
+  copied: 'نُسخ الرابط',
+  shareFailed: 'تعذّرت مشاركة الرابط',
+  shareProfile: 'مشاركة',
+  yourCode: 'رمزك',
+  signInForCode: 'سجّل الدخول لتحصل على رمز QR خاص بك.',
+  theirCode: 'رمز صديقك',
+  theirCodeBody: 'امسح رمز صديقك بكاميرا هاتفك: يفتح ملفه مع زر «إضافة صديق». أو الصق هنا الرابط من رمزه.',
+  linkLabel: 'رابط الملف أو اسم المستخدم',
+  open: 'فتح الملف',
+  invalidLink: 'هذا ليس رابط ملف ChessMate ولا اسم مستخدم.',
+  scanTitle: 'مسح رمز QR',
+  scanBody: 'وجّه الكاميرا إلى رمز صديقك.',
+  scanButton: 'مسح رمز QR',
+  scanAim: 'وجّه الكاميرا إلى رمز QR الخاص بصديقك في ChessMate.',
+  scanNotProfile: 'رمز QR هذا ليس ملفًا في ChessMate.',
+  cameraTitle: 'الوصول إلى الكاميرا',
+  cameraBody: 'يحتاج ChessMate إلى الكاميرا لمسح رمز صديقك. لا يُسجَّل أي شيء.',
+  cameraBlocked: 'الوصول إلى الكاميرا متوقف لـ ChessMate. فعّله من الإعدادات لمسح الرموز.',
+  allowCamera: 'السماح بالكاميرا',
+  openSettings: 'فتح الإعدادات',
+  pasteInstead: 'الصق رابطًا بدلًا من ذلك',
+};

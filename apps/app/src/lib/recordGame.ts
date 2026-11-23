@@ -15,19 +15,20 @@ export function useRecordOnlineGame(view: GameView | null) {
   useEffect(() => {
     if (!view?.outcome || saved.current === view.gameId) return;
     const { outcome, white, black, timeControl } = view;
-    if (outcome.reason === 'aborted') return;
+    // Secret Queen games cannot be replayed with standard rules, so they stay out of the archive.
+    if (outcome.reason === 'aborted' || view.variant === 'secretQueen') return;
     saved.current = view.gameId;
     const delta = (c: 'w' | 'b') => {
       const rc = view.ratingChange?.[c];
-      return rc ? Math.round(rc.after.rating - rc.before.rating) : null;
+      return rc ? Math.round(rc.after.rating) - Math.round(rc.before.rating) : null;
     };
     void saveGame({
       id: `on_${view.gameId}`,
       source: 'online',
       white: white.name,
       black: black.name,
-      whiteRating: white.rating,
-      blackRating: black.rating,
+      whiteRating: white.rating == null ? null : Math.round(white.rating),
+      blackRating: black.rating == null ? null : Math.round(black.rating),
       whiteDelta: delta('w'),
       blackDelta: delta('b'),
       myColor: view.you,

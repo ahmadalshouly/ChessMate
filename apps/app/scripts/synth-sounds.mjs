@@ -1,4 +1,4 @@
-// Synthesises ChessMate's castle, promote and low-time cues as 16-bit mono WAVs.
+// Synthesises ChessMate's win and lose cues as 16-bit mono WAVs (board sounds: synth-wood.mjs).
 // Every sample is generated here, so the sounds are original and need no licence.
 // Usage: node apps/app/scripts/synth-sounds.mjs
 import { Buffer } from 'node:buffer';
@@ -12,20 +12,6 @@ const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'sound
 /** Seeded noise so the files are byte-identical on every run. */
 let seed = 7;
 const noise = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x3fffffff) - 1;
-
-/** A short wooden knock: filtered noise burst plus a damped low body tone. */
-function knock(buf, at, gain = 1, pitch = 1) {
-  const start = Math.round(at * RATE);
-  const len = Math.round(0.09 * RATE);
-  let lp = 0;
-  for (let i = 0; i < len && start + i < buf.length; i++) {
-    const t = i / RATE;
-    lp += 0.35 * (noise() - lp);
-    const click = lp * Math.exp(-t * 90);
-    const body = Math.sin(2 * Math.PI * 190 * pitch * t) * Math.exp(-t * 38) + 0.5 * Math.sin(2 * Math.PI * 410 * pitch * t) * Math.exp(-t * 60);
-    buf[start + i] += gain * (0.55 * click + 0.6 * body);
-  }
-}
 
 /** A soft bell-like tone with a few inharmonic partials. */
 function bell(buf, at, freq, dur, gain = 1) {
@@ -67,23 +53,6 @@ function write(name, seconds, draw) {
   writeFileSync(join(out, `${name}.wav`), Buffer.concat([header, data]));
 }
 
-// King and rook landing: two knocks, the second slightly higher.
-write('castle', 0.24, (b) => {
-  knock(b, 0, 1, 1);
-  knock(b, 0.085, 0.9, 1.18);
-});
-// Promotion: a knock and a rising two-note chime.
-write('promote', 0.5, (b) => {
-  knock(b, 0, 0.8);
-  bell(b, 0.03, 784, 0.35, 0.5);
-  bell(b, 0.12, 1175, 0.38, 0.55);
-});
-// Low time: two short, soft ticks that stand out without startling.
-write('lowtime', 0.42, (b) => {
-  bell(b, 0, 1320, 0.12, 0.8);
-  bell(b, 0.2, 1320, 0.12, 0.8);
-});
-
 /** Applause-like crowd: many tiny filtered claps scattered over time with a swell and fade. */
 function cheer(buf, at, dur, gain = 1) {
   const start = Math.round(at * RATE);
@@ -119,4 +88,4 @@ write('lose', 1.1, (b) => {
   bell(b, 0.28, 349, 0.9, 0.6);
   bell(b, 0.28, 220, 0.9, 0.25);
 });
-console.log('wrote castle.wav, promote.wav, lowtime.wav, win.wav, lose.wav to', out);
+console.log('wrote win.wav, lose.wav to', out);

@@ -41,15 +41,15 @@ export const pieceSets = {
   },
   skulls: {
     name: 'Skulls',
-    note: 'Spooky, for fun',
+    note: 'Spooky',
   },
   eyes: {
     name: 'Eyes',
-    note: 'Watchful, for fun',
+    note: 'Wide-eyed, playful',
   },
-  prmi: {
+  cats: {
     name: 'Cats',
-    note: 'Feline, for fun',
+    note: 'Purr-fectly silly',
   },
   kaneo: {
     name: 'Kaneo',

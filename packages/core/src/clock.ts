@@ -12,6 +12,8 @@ export interface ClockState {
   running: Color | null;
   /** Timestamp (ms) at which the running clock last started. */
   startedAt: number | null;
+  /** Sides that get no increment (a tournament player who went frenzy). */
+  noIncrement?: Partial<Record<Color, boolean>>;
 }
 
 export function createClock(tc: TimeControl): ClockState {
@@ -53,7 +55,7 @@ export function pressClock(
   return {
     clock: {
       ...clock,
-      remainingMs: { ...clock.remainingMs, [color]: left + clock.incrementMs },
+      remainingMs: { ...clock.remainingMs, [color]: left + (clock.noIncrement?.[color] ? 0 : clock.incrementMs) },
       running: opponent,
       startedAt: now,
     },
@@ -88,3 +90,6 @@ export function formatClock(ms: number): string {
   const sec = String(s % 60).padStart(2, '0');
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
+
+/** Time each player has to make their first move before an online game is aborted. */
+export const FIRST_MOVE_TIMEOUT_MS = 30_000;

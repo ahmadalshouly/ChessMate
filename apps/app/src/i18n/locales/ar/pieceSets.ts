@@ -44,15 +44,15 @@ export const pieceSets: Messages<typeof en> = {
   },
   skulls: {
     name: 'جماجم',
-    note: 'مخيف وللمرح',
+    note: 'مخيف',
   },
   eyes: {
     name: 'عيون',
-    note: 'يقظ وللمرح',
+    note: 'عيون واسعة ومرح',
   },
-  prmi: {
+  cats: {
     name: 'قطط',
-    note: 'قططي وللمرح',
+    note: 'سخيف بشكل لطيف',
   },
   kaneo: {
     name: 'كانيو',

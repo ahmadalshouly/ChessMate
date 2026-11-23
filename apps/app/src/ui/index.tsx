@@ -37,3 +37,4 @@ export function UIProvider({ children, storage, initial }: { children: ReactNode
     </ThemeProvider>
   );
 }
+export { PressableScale, nativeLiquidGlass, rimShadow, useReduceTransparency } from './components/liquid';

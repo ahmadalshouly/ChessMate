@@ -15,16 +15,15 @@ after adding or changing a set (needs Playwright with Chromium).
 | `bold` | Bold | kiwen-suwi | [neverRare](https://github.com/neverRare) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 | `caramel` | Caramel | RhosGFX pieces | [RhosGFX](https://rhosgfx.itch.io/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `shapes` | Shapes | chess_shapes | [flugsio](https://github.com/flugsio/chess_shapes) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `eyes` | Eyes | Eyes (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](eyes/LICENSE) |
+| `cats` | Cats | Prmi (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](cats/LICENSE) |
+| `skulls` | Skulls | Skulls (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](skulls/LICENSE) |
 | `cburnett` | Cburnett | SVG chess pieces (as shipped in [lila](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett)) | [Colin M.L. Burnett](https://commons.wikimedia.org/wiki/User:Cburnett) | [BSD 3-Clause](cburnett/LICENSE), chosen from the author's GFDL / CC BY-SA 3.0 / GPL 2+ / BSD choice |
 | `firi` | Firi | Firi piece set (chess SVGs as shipped in [lila](https://github.com/lichess-org/lila/tree/master/public/piece/firi)) | [James Faure](https://github.com/jfaure/Firi-pieceset) | [CC BY 4.0](firi/LICENSE.txt) |
-| `skulls` | Skulls | Skulls ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](skulls/LICENSE) |
-| `eyes` | Eyes | Eyes ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](eyes/LICENSE) |
-| `prmi` | Cats | Prmi ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](prmi/LICENSE) |
 | `kaneo` | Kaneo | Kaneo piece set | [Kadagaden](https://github.com/Kadagaden/chess-pieces) | [CC BY 4.0](kaneo/LICENSE.txt) |
 | `moonlight` | Moonlight | Kaneo Midnight piece set | [Kadagaden](https://github.com/Kadagaden/chess-pieces) | [CC BY 4.0](moonlight/LICENSE.txt) |
 
-Changes from the originals: SVGs are rasterised to 192px PNGs; the chess-art "fancy" files are
-renamed from `wk.svg` to `wK.svg`; the `glass` set recolours
+Changes from the originals: SVGs are rasterised to 192px PNGs; the `glass` set recolours
 Chessnut as described above. The rendered `shapes` PNGs stay under CC BY-SA 4.0.
 
 The app shows these credits under **Settings > Board > Piece artwork credits**

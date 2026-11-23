@@ -1,6 +1,6 @@
 # ChessMate UI kit
 
-Black and white, casual but professional, frosted glass. Three type voices: Montserrat (from the logo) for titles, Geist for reading, Geist Mono for anything that counts. Everything a screen needs comes from one import:
+Black and white, casual but professional, Liquid Glass. Three type voices: Montserrat (from the logo) for titles, Geist for reading, Geist Mono for anything that counts. Everything a screen needs comes from one import:
 
 ```tsx
 import { Screen, Card, Button, Text, useAppTheme } from '@/ui';
@@ -71,6 +71,26 @@ Older code that uses `useTheme()` from `@/constants/theme` and `Screen/Card/Butt
 <GlassView strength="regular" radius="lg" padding="lg">…</GlassView>   {/* the primitive */}
 <Card title="Play online" subtitle="Rated" headerRight={<Badge label="1520" />} onPress={open}>…</Card>
 ```
+
+### Liquid Glass
+
+Glass comes in three kinds (`<GlassView kind=…>`):
+
+| Kind | Use | iOS 26+ | Everywhere else |
+| --- | --- | --- | --- |
+| `panel` (default) | Content cards, lists | Native Liquid Glass with a faint tint for text | Hand-drawn glass |
+| `chrome` | Floating navigation: tab bar, header capsule, sidebar, sheets, menus | Native Liquid Glass | Hand-drawn glass, `chrome` tint |
+| `control` | Glass buttons, icon buttons | Native Liquid Glass, reacts to touch | Hand-drawn glass, `chrome` tint |
+
+Hand-drawn glass = backdrop blur with extra saturation, a thin tint, a top sheen and a **specular rim** (`rimShadow(c)`: a bright inset line along the top, a softer one along the bottom) instead of a heavy outline. Use `rimShadow` on any hand-built surface (chips, selected rows, clock pills) so it matches. Selected items inside glass sit on a `glassSelected` lens. Floating chrome lifts off the page with `shadows.float`, a box shadow that is not clipped by the glass's `overflow: hidden`.
+
+Pressables that should feel like glass under the finger use `<PressableScale scaleTo={0.95}>` (Reanimated spring on the UI thread). `Button`, `IconButton`, `Chip`, `Card onPress` and the tab bar already do.
+
+Performance: the board's squares and pieces are never glass. For long lists (dozens of glass rows) pass `flat`, which skips both the blur and native glass and keeps the tint. *Reduce Transparency* turns every glass layer into a solid `surfaceSolid` fill.
+
+On phones, content scrolls on behind the floating tab bar: the shell hands its screens the bar's height as the bottom safe-area inset, so `Screen`, `Page` and any scroll view that pads by `useSafeAreaInsets().bottom` still reaches its last row. A hand-built scroll view in a tab screen must do the same. `Modal` reads the device's own insets, so sheets don't float above the bar's space.
+
+Inside the app shell the shell draws the one page backdrop; `<Screen>` detects this (`BackdropContext`) and leaves its own background off, so the page runs unbroken under the header and tab bar.
 
 Android has no backdrop blur, and it draws `elevation` as a solid shadow that shows through translucent fills as a grey slab. So on Android the glass tokens (`surface`, `surfaceStrong`, `surfaceSubtle`) are near-opaque and the `sm`/`md` shadows have no elevation (see `androidGlass` in `theme/tokens.ts`). Use the tokens rather than hand-written `rgba(...)` fills and the panels stay readable over the board on every platform.
 

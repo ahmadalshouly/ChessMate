@@ -4,11 +4,14 @@ import { router, type Href } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 
-import { notificationsApi } from './api';
+import { notificationsApi, onNotificationsAccountChange } from './api';
+import { playClient } from '../playClient';
 import { currentPushStatus, disablePush, enablePush, pushSupported, type PushStatus } from './push';
 import { translate } from '@/i18n';
 
 const POLL_MS = 30_000;
+/** With the live connection up, new notifications are pushed; poll only now and then (read state from other devices). */
+const POLL_EVERY_N_WHEN_LIVE = 6;
 
 export interface NotificationsContextValue {
   items: AppNotification[];
@@ -88,11 +91,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // Poll while the app is in the foreground and refresh when it comes back.
   useEffect(() => {
     void refresh();
-    let timer: ReturnType<typeof setInterval> | null = setInterval(() => void refresh(), POLL_MS);
+    let ticks = 0;
+    const poll = () => {
+      ticks++;
+      if (playClient.getState().connection === 'online' && ticks % POLL_EVERY_N_WHEN_LIVE !== 0) return;
+      void refresh();
+    };
+    let timer: ReturnType<typeof setInterval> | null = setInterval(poll, POLL_MS);
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') {
         void refresh();
-        timer ??= setInterval(() => void refresh(), POLL_MS);
+        timer ??= setInterval(poll, POLL_MS);
       } else if (timer) {
         clearInterval(timer);
         timer = null;
@@ -158,6 +167,37 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (p) setPrefs(p);
   }, []);
   useEffect(() => void loadPrefs(), [loadPrefs]);
+
+  // Live: the server pushes each new notification over the socket, so the inbox,
+  // badge and in-app banner update at once instead of on the next poll.
+  useEffect(
+    () =>
+      playClient.onServerMessage((m) => {
+        if (m.t !== 'notification') return;
+        const n = m.notification;
+        setItems((prev) => [n, ...prev.filter((p) => p.id !== n.id)]);
+        setUnread(m.unread);
+        seen.current?.add(n.id);
+        setIncoming(n);
+      }),
+    [],
+  );
+
+  // A different account (or none): start from an empty inbox and load theirs.
+  useEffect(
+    () =>
+      onNotificationsAccountChange(() => {
+        seen.current = null;
+        setItems([]);
+        setUnread(0);
+        setIncoming(null);
+        setPrefs(null);
+        setLoading(true);
+        void refresh();
+        void loadPrefs();
+      }),
+    [refresh, loadPrefs],
+  );
 
   const updatePrefs = useCallback(async (patch: Record<string, unknown>) => {
     const next = await notificationsApi.savePrefs(patch).catch(() => null);
