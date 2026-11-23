@@ -1,4 +1,4 @@
-import type { Color } from '@chessmate/core';
+import type { Color, Presence } from '@chessmate/core';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -23,7 +23,11 @@ interface HeadToHead {
  * games, each opening its replay) with a Challenge button. Shown on their
  * profile and their Social page; refreshed whenever the page comes back.
  */
-export function HeadToHeadCard({ userId, name }: { userId: string; name: string }) {
+/**
+ * `presence` decides the action: Watch while they play a live game, Challenge
+ * only while they are online, nothing when offline or hidden.
+ */
+export function HeadToHeadCard({ userId, name, presence }: { userId: string; name: string; presence: Presence | null }) {
   const c = useAppTheme().colors;
   const tr = useT();
   const [h2h, setH2h] = useState<HeadToHead | null>(null);
@@ -56,12 +60,22 @@ export function HeadToHeadCard({ userId, name }: { userId: string; name: string 
         <Text variant="heading" style={styles.title} numberOfLines={2}>
           {tr('h2h.title', { name })}
         </Text>
-        <Button
-          size="sm"
-          title={tr('h2h.challenge')}
-          onPress={challenge}
-          leftIcon={<MaterialCommunityIcons name="sword-cross" size={15} color={c.onAccent} />}
-        />
+        {presence?.status === 'playing' && presence.gameId ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            title={tr('friends.watch')}
+            onPress={() => router.push(`/watch/${presence.gameId}`)}
+            leftIcon={<MaterialCommunityIcons name="eye-outline" size={15} color={c.text} />}
+          />
+        ) : presence?.status === 'online' ? (
+          <Button
+            size="sm"
+            title={tr('h2h.challenge')}
+            onPress={challenge}
+            leftIcon={<MaterialCommunityIcons name="sword-cross" size={15} color={c.onAccent} />}
+          />
+        ) : null}
       </View>
 
       {error ? (

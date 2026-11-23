@@ -65,6 +65,8 @@ export interface ProfileDeps {
   /** Official role tag set by admins, when titles are on (database mode). */
   roleTagOf?(userId: string): RoleTag | null;
   isOnline?(userId: string): boolean;
+  /** Id of the game the player is in right now, if any. */
+  liveGameOf?(userId: string): string | null;
 }
 
 /** Profile fields and settings this module owns. */

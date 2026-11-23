@@ -1,6 +1,6 @@
-import type { Color } from '@chessmate/core';
+import { materialBalance, type Color } from '@chessmate/core';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
@@ -29,6 +29,7 @@ export default function WatchScreen() {
   const players = { w: s.white, b: s.black };
   const ms = (c: Color) => (s.clock ? clockRemaining(s.clock, c, s.clockOffset, now) : null);
   const last = s.history[s.history.length - 1];
+  const material = useMemo(() => materialBalance(s.fen), [s.fen]);
 
   return (
     <Screen>
@@ -41,7 +42,7 @@ export default function WatchScreen() {
             </Card>
           ) : (
             <>
-              <PlayerBar player={players[top]} ms={ms(top)} active={s.clock?.running === top} />
+              <PlayerBar player={players[top]} ms={ms(top)} active={s.clock?.running === top} side={top} material={material} />
               <Board
                 fen={s.fen}
                 orientation={orientation}
@@ -49,7 +50,7 @@ export default function WatchScreen() {
                 lastMove={last ? { from: last.from, to: last.to } : null}
                 checkSquare={checkSquareOf(s.fen)}
               />
-              <PlayerBar player={players[orientation]} ms={ms(orientation)} active={s.clock?.running === orientation} />
+              <PlayerBar player={players[orientation]} ms={ms(orientation)} active={s.clock?.running === orientation} side={orientation} material={material} />
               <Card style={{ marginTop: 8 }}>
                 <View style={styles.row}>
                   <Label muted>
