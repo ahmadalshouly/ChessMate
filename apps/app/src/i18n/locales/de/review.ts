@@ -44,7 +44,7 @@ export const review: Messages<typeof en> = {
   },
   entry: 'Genauigkeit ○ {w} · ● {b}',
   noEngine: 'Dieses Gerät kann die Engine nicht ausführen, und für diese Partie gibt es noch keine gespeicherte Analyse.',
-  engineFailed: 'Die Engine auf deinem Gerät wurde gestoppt. Versuch es noch einmal.',
+  engineFailed: 'Weder dein Gerät noch der ChessMate-Server konnte diese Partie gerade bewerten. Prüfe deine Verbindung und versuch es noch einmal.',
   depthSaved: 'Engine-Tiefe {n} · gespeicherte Analyse',
   progressCard: {
     title: 'Deine Partie wird analysiert',
@@ -54,6 +54,8 @@ export const review: Messages<typeof en> = {
     savedHint: 'Analysierte Partien öffnen sofort',
     device: 'Stockfish bewertet auf deinem Gerät',
     deviceDone: 'Auf deinem Gerät bewertet',
+    server: 'Stockfish bewertet auf dem ChessMate-Server',
+    serverDone: 'Auf dem ChessMate-Server bewertet',
     done: 'Alle Züge bewertet',
     tookS: 'In {s} s bewertet',
     stage: {

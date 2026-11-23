@@ -13,6 +13,6 @@ export function transportSupported(): boolean {
   return false;
 }
 
-export function openTransport(_onMessage: FarmHandler): Promise<EngineTransport> {
+export function openTransport(_onMessage: FarmHandler, _max?: number): Promise<EngineTransport> {
   return Promise.reject(new Error('No on-device engine on this platform'));
 }

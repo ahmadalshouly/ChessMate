@@ -30,9 +30,9 @@ export function transportSupported(): boolean {
  * Web: Stockfish compiled to WebAssembly, one Web Worker per spare core, fed by
  * a coordinating worker so the page's own rendering never holds the engines up.
  */
-export function openTransport(onMessage: FarmHandler): Promise<EngineTransport> {
+export function openTransport(onMessage: FarmHandler, max = 4): Promise<EngineTransport> {
   if (!transportSupported()) return Promise.reject(new Error('This browser cannot run the engine'));
-  const size = engineCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, 4);
+  const size = engineCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, max);
   const blobUrl = URL.createObjectURL(new Blob([FARM_SOURCE, BOOT], { type: 'text/javascript' }));
   const farm = new Worker(blobUrl);
   URL.revokeObjectURL(blobUrl);
