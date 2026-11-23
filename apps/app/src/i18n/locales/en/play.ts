@@ -85,6 +85,12 @@ export const play = {
   confirmMoveQ: 'Play {san}?',
   over: {
     victory: 'Victory!',
+    /** The one word on the full-screen result stamp. */
+    stamp: {
+      win: 'Victory',
+      loss: 'Defeat',
+      draw: 'Draw',
+    },
     checkmate: 'Checkmate',
     newRating: 'New rating',
     review: 'Learn from this game',

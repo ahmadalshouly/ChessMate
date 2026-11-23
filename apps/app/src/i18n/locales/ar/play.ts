@@ -95,6 +95,12 @@ export const play: Messages<typeof en> = {
   confirmMoveQ: 'هل تلعب {san}؟',
   over: {
     victory: 'فوز!',
+    /** The one word on the full-screen result stamp. */
+    stamp: {
+      win: 'فوز',
+      loss: 'خسارة',
+      draw: 'تعادل',
+    },
     checkmate: 'كش مات',
     newRating: 'التقييم الجديد',
     review: 'تعلّم من هذه المباراة',
