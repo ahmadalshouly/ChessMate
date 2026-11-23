@@ -151,6 +151,8 @@ interface Connection {
   watching: Set<string>;
   /** Tournaments whose chat this socket follows. */
   tournaments: Set<string>;
+  /** Watch events whose chat this socket follows. */
+  events: Set<string>;
 }
 
 /** Close code sent to an account closed for fair-play violations. */
@@ -199,6 +201,8 @@ export class ChessServer {
   private readonly spectators = new Map<string, Set<WebSocket>>();
   /** Sockets following a tournament's chat, by tournament id. */
   private readonly tournamentFollowers = new Map<string, Set<WebSocket>>();
+  /** Sockets following a Watch event's chat, by event id. */
+  private readonly eventFollowers = new Map<string, Set<WebSocket>>();
   private readonly social: SocialService | undefined;
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
@@ -281,7 +285,21 @@ export class ChessServer {
           if (!on && tag === 'streamer') await titles.setRoleTag(userId, null);
         },
       });
-      opts.events.attach({ notify, gamesChanged: (ids) => opts.broadcastAnalyzer?.gamesChanged(ids) });
+      opts.events.attach({
+        notify,
+        gamesChanged: (ids) => opts.broadcastAnalyzer?.gamesChanged(ids),
+        chatEvent: (eventId, event) => {
+          const msg: ServerMessage =
+            event.kind === 'posted'
+              ? { t: 'eventChat', eventId, message: event.message }
+              : { t: 'eventChatHidden', eventId, messageId: event.messageId, hidden: event.hidden, ...(event.message ? { message: event.message } : {}) };
+          for (const ws of this.eventFollowers.get(eventId) ?? []) this.send(ws, msg);
+        },
+        // Closed accounts and chat mutes can read the chat but not post.
+        chatBlockedReason: (id) =>
+          this.restrictionOf(id) ? 'Your account is restricted, so you cannot post' : this.moderation.activeBan(id) ? 'You are muted for now, so you cannot post' : null,
+        eventDeleted: (eventId) => this.eventFollowers.delete(eventId),
+      });
       routes.push(
         watchRoutes({
           streamers: opts.streamers,
@@ -453,7 +471,7 @@ export class ChessServer {
   // ---- connection handling ----
 
   private onConnection(ws: WebSocket) {
-    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()), watching: new Set(), tournaments: new Set() };
+    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()), watching: new Set(), tournaments: new Set(), events: new Set() };
     const helloTimeout = setTimeout(() => !conn.player && ws.close(4001, 'hello timeout'), 10_000);
     ws.on('message', (data) => {
       const msg = decodeClient(String(data));
@@ -473,6 +491,7 @@ export class ChessServer {
       clearTimeout(helloTimeout);
       for (const id of conn.watching) this.unwatch(ws, id);
       for (const id of conn.tournaments) this.tournamentFollowers.get(id)?.delete(ws);
+      for (const id of conn.events) this.unfollowEvent(ws, id);
       if (conn.player) this.onDisconnect(conn.player.id, ws);
     });
   }
@@ -677,6 +696,18 @@ export class ChessServer {
         if (set && set.size === 0) this.tournamentFollowers.delete(id);
         return;
       }
+      case 'eventSub': {
+        const id = String(msg.eventId);
+        if (conn.events.size >= 5 && !conn.events.has(id)) return this.send(ws, err('bad_request', 'Following too many events'));
+        const set = this.eventFollowers.get(id) ?? new Set();
+        set.add(ws);
+        this.eventFollowers.set(id, set);
+        conn.events.add(id);
+        return;
+      }
+      case 'eventUnsub':
+        conn.events.delete(String(msg.eventId));
+        return this.unfollowEvent(ws, String(msg.eventId));
       case 'unwatch':
         conn.watching.delete(String(msg.gameId));
         return this.unwatch(ws, String(msg.gameId));
@@ -844,6 +875,12 @@ export class ChessServer {
 
   /** Disconnects a banned account and forfeits its live game. */
   /** Why this player may not play online right now (fair-play ban), or null. */
+  private unfollowEvent(ws: WebSocket, eventId: string) {
+    const set = this.eventFollowers.get(eventId);
+    set?.delete(ws);
+    if (set && set.size === 0) this.eventFollowers.delete(eventId);
+  }
+
   restrictionOf(playerId: string): 'fair_play' | null {
     return this.fairPlay.isBanned(playerId) || this.opts.admin?.closedReasonOf(playerId) === 'fair_play' ? 'fair_play' : null;
   }

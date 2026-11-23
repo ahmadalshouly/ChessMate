@@ -6,6 +6,7 @@ import type {
   MyStreamerState,
   StreamerApplicationView,
   StreamerView,
+  TournamentChatMessage,
 } from '@chessmate/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
@@ -69,6 +70,10 @@ export const watchApi = {
   removeGame: (gameId: string) => api<E>('DELETE', `/games/${gameId}`).then((r) => r.event),
   addNews: (id: string, body: { title: string; body: string; image?: string | null; links?: { label: string; url: string }[] }) => api<E>('POST', `/events/${id}/news`, body).then((r) => r.event),
   removeNews: (newsId: string) => api<E>('DELETE', `/news/${newsId}`).then((r) => r.event),
+  // Live chat
+  chat: (id: string) => api<{ messages: TournamentChatMessage[] }>('GET', `/events/${id}/chat`, undefined, true).then((r) => r.messages),
+  postChat: (id: string, text: string) => api<{ message: TournamentChatMessage }>('POST', `/events/${id}/chat`, { text }).then((r) => r.message),
+  hideChat: (messageId: string, hidden: boolean) => api<{ message: TournamentChatMessage }>('POST', `/chat/${messageId}/hide`, { hidden }).then((r) => r.message),
   // Applications to broadcast
   myEventApplications: () => api<{ applications: EventApplicationView[] }>('GET', '/event-applications').then((r) => r.applications),
   eventApplications: (status?: string) => api<{ applications: EventApplicationView[] }>('GET', `/event-applications/all${status ? `?status=${status}` : ''}`).then((r) => r.applications),

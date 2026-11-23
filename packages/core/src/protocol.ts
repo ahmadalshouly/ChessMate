@@ -136,7 +136,10 @@ export type ClientMessage =
   | { t: 'unwatch'; gameId: string }
   /** Follow a tournament's chat live (messages are posted over HTTP; new and hidden ones arrive here). */
   | { t: 'tournamentSub'; tournamentId: string }
-  | { t: 'tournamentUnsub'; tournamentId: string };
+  | { t: 'tournamentUnsub'; tournamentId: string }
+  /** Follow a Watch event's chat live (same as tournaments: post over HTTP, new and hidden messages arrive here). */
+  | { t: 'eventSub'; eventId: string }
+  | { t: 'eventUnsub'; eventId: string };
 
 export type ServerMessage =
   | {
@@ -211,6 +214,10 @@ export type ServerMessage =
   | { t: 'tournamentChat'; tournamentId: string; message: TournamentChatMessage }
   /** Staff hid a tournament chat message (or showed it again: then `message` is sent). */
   | { t: 'tournamentChatHidden'; tournamentId: string; messageId: string; hidden: boolean; message?: TournamentChatMessage }
+  /** A new message in a Watch event chat you follow. */
+  | { t: 'eventChat'; eventId: string; message: TournamentChatMessage }
+  /** An organiser hid an event chat message (or showed it again: then `message` is sent). */
+  | { t: 'eventChatHidden'; eventId: string; messageId: string; hidden: boolean; message?: TournamentChatMessage }
   | { t: 'reported'; reportId: string }
   | { t: 'notification'; notification: AppNotification; unread: number }
   | { t: 'analysis'; id: number; analysis: PositionAnalysis; done: boolean }

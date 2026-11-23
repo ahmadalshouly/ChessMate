@@ -6,13 +6,17 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 're
 import { useTicker } from '@/components/PlayerBar';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { LinkList, PostImage, pictureUri } from '@/features/media/MediaFields';
+import { TournamentChat } from '@/features/tournaments/TournamentChat';
 import { EventLogo, GameThumb, StatusPill, dateRange, openLink } from '@/features/watch/components';
+import { useEventChat } from '@/features/watch/useEventChat';
 import { formatAgo, formatDateTime, useT } from '@/i18n';
 import { CountryFlag } from '@/components/CountryFlag';
+import { useSocialIdentity } from '@/lib/social/session';
 import { usePolled, watchApi } from '@/lib/watchApi';
 import { Badge, Button, Chip, GlassView, Row, Screen, Skeleton, Stack, Tabs, Text, useAppTheme } from '@/ui';
 
-type Tab = 'games' | 'standings' | 'players' | 'news' | 'about';
+type Tab = 'games' | 'chat' | 'standings' | 'players' | 'news' | 'about';
+const TABS: Tab[] = ['games', 'chat', 'standings', 'players', 'news', 'about'];
 /** Rounds with more boards show the rest as a list, to keep the page light. */
 const MAX_BOARDS = 24;
 
@@ -26,7 +30,18 @@ export default function EventScreen() {
   const load = useCallback(() => watchApi.event(String(id)), [id]);
   const { data: e, error, loading, refresh } = usePolled<EventDetail>(id ? load : null, { fastMs: 3_000, slowMs: 30_000, isLive: (d) => d.status === 'live' });
   // ?tab=standings opens a tab directly (shared links).
-  const [tab, setTab] = useState<Tab>(() => (['games', 'standings', 'players', 'news', 'about'].includes(String(tabParam)) ? (tabParam as Tab) : 'games'));
+  const [tab, setTab] = useState<Tab>(() => (TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'games'));
+  const me = useSocialIdentity();
+  // The chat is live; its tab counts messages that came in while another tab was open.
+  const chat = useEventChat(id ? String(id) : undefined);
+  const [chatSeen, setChatSeen] = useState(0);
+  const [hiding, setHiding] = useState<string | null>(null);
+  const changeTab = (next: Tab) => {
+    // Opening or leaving the chat marks what is there as read.
+    if (tab === 'chat' || next === 'chat') setChatSeen(chat.messages.length);
+    setTab(next);
+  };
+  const unread = tab === 'chat' ? 0 : Math.max(0, chat.messages.length - chatSeen);
   const [roundId, setRoundId] = useState<string | null>(null);
   const round = e?.rounds.find((r) => r.id === (roundId ?? e.currentRound?.id)) ?? e?.rounds[e.rounds.length - 1];
   const games = useMemo(() => [...(round?.games ?? [])].sort((a, b) => a.board - b.board), [round]);
@@ -79,10 +94,50 @@ export default function EventScreen() {
       </GlassView>
 
       <Tabs
-        items={(['games', 'standings', 'players', 'news', 'about'] as Tab[]).map((k) => ({ key: k, label: k === 'news' && e.news.length ? `${tr('watch.tabs.news')} (${e.news.length})` : tr(`watch.tabs.${k}`) }))}
+        items={TABS.map((k) => ({
+          key: k,
+          label: tr(`watch.tabs.${k}`),
+          count: k === 'news' ? e.news.length || undefined : k === 'chat' ? unread || undefined : undefined,
+        }))}
         value={tab}
-        onChange={setTab}
+        onChange={changeTab}
       />
+
+      {tab === 'chat' && (
+        <Stack gap="sm">
+          <TournamentChat
+            messages={chat.messages}
+            meId={me?.userId}
+            placeholder={tr('watch.chat.placeholder')}
+            onSend={me ? chat.send : undefined}
+            disabledReason={
+              <Button variant="secondary" size="sm" title={tr('tournaments.chat.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: `/watch/events/${e.id}?tab=chat` } })} />
+            }
+            actions={
+              e.canManage
+                ? (m) => (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title={m.hidden ? tr('admin.tournaments.showMessage') : tr('admin.tournaments.hideMessage')}
+                      loading={hiding === m.id}
+                      onPress={() => {
+                        setHiding(m.id);
+                        chat
+                          .hide(m.id, !m.hidden)
+                          .catch(() => {})
+                          .finally(() => setHiding(null));
+                      }}
+                    />
+                  )
+                : undefined
+            }
+          />
+          <Text variant="caption" tone="muted">
+            {tr('watch.chat.autoDelete')}
+          </Text>
+        </Stack>
+      )}
 
       {tab === 'games' &&
         (e.rounds.length === 0 ? (

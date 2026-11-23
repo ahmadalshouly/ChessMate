@@ -1,4 +1,5 @@
 import {
+  CHAT_RATE,
   EVENT_LIMITS,
   Game,
   LICHESS_ORIGIN,
@@ -15,6 +16,7 @@ import {
   isChessTitle,
   lichessTourToEvent,
   parseBroadcastPgn,
+  prepareChat,
   roundStatusOf,
   type BroadcastPgnGame,
   type ChessTitle,
@@ -33,6 +35,7 @@ import {
   type LichessBroadcastRound,
   type LichessBroadcastTour,
   type StaffRole,
+  type TournamentChatMessage,
 } from '@chessmate/core';
 import {
   addOrganizer,
@@ -48,6 +51,8 @@ import {
   getAppSetting,
   getEvent,
   getEventApplication,
+  getEventMessage,
+  getUser,
   getEventCover,
   getEventLogo,
   getEventNewsImage,
@@ -58,13 +63,16 @@ import {
   insertAudit,
   insertEvent,
   insertEventApplication,
+  insertEventMessage,
   insertEventNews,
   insertPlayers,
   insertRound,
   listAllOrganizers,
   listEventApplications,
+  listEventMessages,
   listEventNews,
   listEvents,
+  listEventsEndedBy,
   listGameSummaries,
   listOrganizers,
   listPlayers,
@@ -72,12 +80,15 @@ import {
   removeOrganizer,
   reviewEventApplication,
   setAppSetting,
+  setEventFinishedAt,
+  setEventMessageHidden,
   updateEvent,
   updateGame,
   updatePlayer,
   updateGameFeds,
   updateRound,
   upsertGames,
+  type BroadcastMessageRow,
   type BroadcastRoundRow,
   type Database,
   type EventApplicationWithUser,
@@ -100,6 +111,12 @@ export interface EventHooks {
   notify(userId: string, title: string, body: string, url: string | null): void;
   /** New moves or results in these games (live analysis picks them up). */
   gamesChanged?(ids: string[]): void;
+  /** A chat message was posted, hidden or shown again: tell everyone following the event. */
+  chatEvent?(eventId: string, event: { kind: 'posted'; message: TournamentChatMessage } | { kind: 'hidden'; messageId: string; hidden: boolean; message?: TournamentChatMessage }): void;
+  /** Why this account may not post in chat right now (restricted, muted), or null. */
+  chatBlockedReason?(userId: string): string | null;
+  /** An event was deleted (a day after it finished): drop anything kept for it. */
+  eventDeleted?(eventId: string): void;
 }
 
 export interface WatchSettings {
@@ -118,6 +135,10 @@ export interface PgnApplyResult {
 const DETAIL_TTL_MS = 2_000;
 const LIST_TTL_MS = 8_000;
 const SETTINGS_KEY = 'watch.settings';
+/** Chat messages sent when the page opens. */
+const CHAT_PAGE = 200;
+/** Events are deleted, chat and all, this long after they finish. */
+export const EVENT_KEEP_AFTER_FINISH_MS = 24 * 3_600_000;
 const RESULTS: readonly GameResult[] = ['1-0', '0-1', '1/2-1/2', '*'];
 
 /** Everything about an event that does not depend on who is looking. */
@@ -212,6 +233,8 @@ export class EventService {
   private readonly viewedAt = new Map<string, number>();
   private listCache: { at: number; rows: EventListRow[] } | null = null;
   private settingsCache: WatchSettings | null = null;
+  /** Recent chat posts per user (rate limit). */
+  private readonly chatTimes = new Map<string, number[]>();
 
   constructor(private readonly opts: EventServiceOptions) {}
 
@@ -537,9 +560,118 @@ export class EventService {
     this.requireAdmin(viewer);
     const row = await getEvent(this.db, eventId);
     if (!row || !(await deleteEvent(this.db, eventId))) throw new WatchError(404, 'Event not found');
-    this.organizers.delete(eventId);
-    this.invalidate(eventId);
+    this.forget(eventId);
     await this.audit(viewer, 'event.delete', { id: eventId, name: row.name });
+  }
+
+  /** Drops everything kept in memory for a deleted event. */
+  private forget(eventId: string) {
+    this.organizers.delete(eventId);
+    this.viewedAt.delete(eventId);
+    this.invalidate(eventId);
+    this.hooks.eventDeleted?.(eventId);
+  }
+
+  /**
+   * Deletes events a day after they finish: the event, its rounds, games,
+   * players, news and chat (all cascade from the event row). An event counts
+   * as finished once its last scheduled day has begun and nothing is left to
+   * play; the time that is first seen is stored, so the day is counted from
+   * then even across restarts. Returns how many events were deleted.
+   */
+  async sweepFinished(): Promise<number> {
+    const now = this.now();
+    let removed = 0;
+    for (const row of await listEventsEndedBy(this.db, new Date(now))) {
+      const b = await this.build(row.id);
+      if (!b) continue;
+      const finished = b.summary.status === 'finished';
+      if (!finished) {
+        // A round was added or reopened: it is not over after all.
+        if (row.finishedAt) await setEventFinishedAt(this.db, row.id, null);
+        continue;
+      }
+      if (!row.finishedAt) {
+        await setEventFinishedAt(this.db, row.id, new Date(now));
+        continue;
+      }
+      if (now - row.finishedAt.getTime() < EVENT_KEEP_AFTER_FINISH_MS) continue;
+      if (await deleteEvent(this.db, row.id)) {
+        this.forget(row.id);
+        removed++;
+        console.info(`watch: deleted event "${row.name}" (${row.id}), finished ${new Date(row.finishedAt).toISOString()}`);
+      }
+    }
+    return removed;
+  }
+
+  // Live chat
+
+  private chatView(m: BroadcastMessageRow, staffView: boolean): TournamentChatMessage {
+    return {
+      id: m.id,
+      userId: m.userId,
+      username: m.username,
+      text: m.body,
+      staff: m.staff,
+      at: m.createdAt.getTime(),
+      ...(staffView && m.hiddenAt ? { hidden: true, hiddenBy: m.hiddenBy } : {}),
+    };
+  }
+
+  /** The event's chat: the latest messages, oldest first. Organisers also see hidden ones (marked). */
+  async chat(viewer: string | null, eventId: string): Promise<TournamentChatMessage[]> {
+    const b = await this.build(eventId);
+    if (!b || !this.visible(b, viewer)) throw new WatchError(404, 'Event not found');
+    const staff = this.canManage(viewer, eventId);
+    const rows = await listEventMessages(this.db, eventId, CHAT_PAGE);
+    return rows.filter((m) => staff || !m.hiddenAt).map((m) => this.chatView(m, staff));
+  }
+
+  /**
+   * Posts to the event chat. Anyone signed in may talk, except accounts that
+   * are restricted or muted. Messages from the event's organisers and
+   * ChessMate staff are marked as such.
+   */
+  async postChat(viewer: string, eventId: string, input: { text?: unknown }): Promise<TournamentChatMessage> {
+    const b = await this.build(eventId);
+    if (!b || !this.visible(b, viewer)) throw new WatchError(404, 'Event not found');
+    const blocked = this.hooks.chatBlockedReason?.(viewer);
+    if (blocked) throw new WatchError(403, blocked);
+    const prepared = prepareChat(input.text);
+    if (!prepared) throw new WatchError(400, 'Write a message first');
+    const now = this.now();
+    const times = (this.chatTimes.get(viewer) ?? []).filter((t) => now - t < CHAT_RATE.windowMs);
+    if (times.length >= CHAT_RATE.max) throw new WatchError(409, 'Slow down: too many messages');
+    times.push(now);
+    this.chatTimes.set(viewer, times);
+    const u = await getUser(this.db, viewer);
+    if (!u || u.closedAt) throw new WatchError(403, 'Sign in with an open account to chat');
+    const row = await insertEventMessage(this.db, {
+      eventId,
+      userId: viewer,
+      username: u.displayName || u.username,
+      body: prepared.text,
+      staff: this.canManage(viewer, eventId),
+      filtered: prepared.filtered,
+      createdAt: new Date(now),
+    });
+    const view = this.chatView(row, false);
+    this.hooks.chatEvent?.(eventId, { kind: 'posted', message: view });
+    return view;
+  }
+
+  /** Organisers and staff hide (or show again) a chat message. */
+  async hideChat(viewer: string, messageId: string, hidden: boolean): Promise<TournamentChatMessage> {
+    const m = await getEventMessage(this.db, messageId);
+    if (!m) throw new WatchError(404, 'No such message');
+    this.requireManager(viewer, m.eventId);
+    const by = this.opts.usernameOf?.(viewer) ?? (await getUser(this.db, viewer))?.username ?? viewer;
+    m.hiddenAt = hidden ? new Date(this.now()) : null;
+    m.hiddenBy = hidden ? by : null;
+    await setEventMessageHidden(this.db, messageId, m.hiddenAt, m.hiddenBy);
+    this.hooks.chatEvent?.(m.eventId, { kind: 'hidden', messageId, hidden, ...(hidden ? {} : { message: this.chatView(m, false) }) });
+    return this.chatView(m, true);
   }
 
   // Organisers
@@ -957,6 +1089,9 @@ export class EventService {
    */
   async importLichessTour(tour: LichessBroadcastTour, rounds: LichessBroadcastRound[]): Promise<BroadcastRoundRow[]> {
     let e = await findEventByExternal(this.db, 'lichess', tour.id);
+    // A tournament that is already over is not imported (again): finished events are deleted a day after.
+    const lastDay = tour.dates?.[tour.dates.length - 1];
+    if (!e && rounds.length > 0 && rounds.every((r) => r.finished) && (lastDay === undefined || lastDay < this.now())) return [];
     if (!e) {
       const v = lichessTourToEvent(tour, rounds);
       const created = await insertEvent(this.db, {

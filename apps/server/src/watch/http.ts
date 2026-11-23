@@ -96,6 +96,10 @@ export function watchRoutes(deps: { streamers: StreamerService; events: EventSer
   on('POST', `/games/${ID}`, async ({ me, params, body }) => ({ event: await events.setResult(me(), params[0]!, (await body()).result) }));
   on('DELETE', `/games/${ID}`, async ({ me, params }) => ({ event: await events.removeGame(me(), params[0]!) }));
   on('POST', `/events/${ID}/news`, async ({ me, params, body }) => ({ event: await events.addNews(me(), params[0]!, await body()) }), 2 * 1024 * KB);
+  // Live chat (new messages also arrive on the game server's connection: eventSub).
+  on('GET', `/events/${ID}/chat`, async ({ viewer, params }) => ({ messages: await events.chat(viewer, params[0]!) }));
+  on('POST', `/events/${ID}/chat`, async ({ me, params, body }) => ({ message: await events.postChat(me(), params[0]!, await body()) }), 4 * KB);
+  on('POST', `/chat/${ID}/hide`, async ({ me, params, body }) => ({ message: await events.hideChat(me(), params[0]!, (await body()).hidden !== false) }), 4 * KB);
   on('DELETE', `/news/${ID}`, async ({ me, params }) => ({ event: await events.removeNews(me(), params[0]!) }));
 
   // Applications to broadcast
