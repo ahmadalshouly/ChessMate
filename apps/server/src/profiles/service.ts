@@ -84,6 +84,7 @@ export class ProfileService {
       country: rec.country,
       createdAt: user.createdAt,
       online,
+      liveGameId: online && !isMe ? (this.deps.liveGameOf?.(user.id) ?? null) : null,
       ratings,
       totals,
       recentGames,

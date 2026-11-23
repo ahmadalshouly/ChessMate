@@ -140,7 +140,13 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
         <ProfileActions profile={profile} />
       </GlassView>
 
-      {!profile.isMe && signedIn && <HeadToHeadCard userId={profile.id} name={profile.displayName} />}
+      {!profile.isMe && signedIn && (
+        <HeadToHeadCard
+          userId={profile.id}
+          name={profile.displayName}
+          presence={profile.liveGameId ? { status: 'playing', gameId: profile.liveGameId } : profile.online ? { status: 'online' } : null}
+        />
+      )}
 
       <ProfileStreamer userId={profile.id} />
 

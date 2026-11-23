@@ -94,6 +94,7 @@ async function start() {
     const { base, profileDeps } = services(new MemoryAuthStore());
     const server = new ChessServer(base);
     profileDeps.online = (id) => server.isOnline(id);
+    profileDeps.liveGame = (id) => server.liveGameOf(id);
     return { server, close: async () => {} };
   }
   const db = openDb();
@@ -184,6 +185,7 @@ async function start() {
   });
   // Profiles show the same live presence as friends lists.
   profileDeps.online = (id) => server.isOnline(id);
+  profileDeps.liveGame = (id) => server.liveGameOf(id);
   return { server, close: () => db.close() };
 }
 

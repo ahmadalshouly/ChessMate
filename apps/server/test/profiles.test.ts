@@ -106,6 +106,9 @@ describe('profile API', () => {
     live.add('acc1');
     expect(accounts.isOnline('acc1')).toBe(true);
     expect(accounts.isOnline('acc2')).toBe(false);
+    expect(accounts.liveGameOf('acc1')).toBeNull();
+    accounts.liveGame = (id) => (id === 'acc1' ? 'g1' : null);
+    expect(accounts.liveGameOf('acc1')).toBe('g1');
   });
 
   it('deletes the account after a password confirmation', async () => {

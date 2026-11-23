@@ -273,6 +273,8 @@ export interface PublicProfile {
   country: string | null;
   createdAt: number;
   online: boolean | null;
+  /** The live game they are playing right now, when their online status is visible. */
+  liveGameId?: string | null;
   ratings: CategoryStats[];
   totals: { games: number; wins: number; losses: number; draws: number };
   /** Null when the player hides their games. */
