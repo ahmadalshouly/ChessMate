@@ -86,6 +86,8 @@ export interface TournamentBridge {
   notify(userId: string, title: string, body: string, url: string): void;
   /** Why this account may not post in chat right now (restricted, muted), or null. */
   chatBlockedReason?(userId: string): string | null;
+  /** A chat message was posted, hidden or shown again: tell everyone following the tournament. */
+  chatEvent?(tournamentId: string, event: { kind: 'posted'; message: TournamentChatMessage } | { kind: 'hidden'; messageId: string; hidden: boolean; message?: TournamentChatMessage }): void;
 }
 
 interface Player {
@@ -582,6 +584,7 @@ export class TournamentService {
     });
     e.chat.push(row);
     if (e.chat.length > CHAT_KEEP) e.chat.splice(0, e.chat.length - CHAT_KEEP);
+    this.bridge?.chatEvent?.(id, { kind: 'posted', message: this.chatView(row, false) });
     return this.chatView(row, !!opts.staff);
   }
 
@@ -593,6 +596,7 @@ export class TournamentService {
     m.hiddenAt = hidden ? new Date(this.now()) : null;
     m.hiddenBy = hidden ? by : null;
     await setTournamentMessageHidden(this.db, messageId, m.hiddenAt, m.hiddenBy);
+    this.bridge?.chatEvent?.(id, { kind: 'hidden', messageId, hidden, ...(hidden ? {} : { message: this.chatView(m, false) }) });
     return this.chatView(m, true);
   }
 

@@ -146,6 +146,8 @@ interface Connection {
   limiter: ConnectionLimiter;
   /** Games this socket is spectating. */
   watching: Set<string>;
+  /** Tournaments whose chat this socket follows. */
+  tournaments: Set<string>;
 }
 
 /** Close code sent to an account closed for fair-play violations. */
@@ -192,6 +194,8 @@ export class ChessServer {
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly graceTimers = new Map<string, NodeJS.Timeout>();
   private readonly spectators = new Map<string, Set<WebSocket>>();
+  /** Sockets following a tournament's chat, by tournament id. */
+  private readonly tournamentFollowers = new Map<string, Set<WebSocket>>();
   private readonly social: SocialService | undefined;
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
@@ -333,6 +337,13 @@ export class ChessServer {
           return this.createGame(w, b, tc, rated, this.now(), { tournamentId, frenzy }).id;
         },
         notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'tournament', title, body, url }),
+        chatEvent: (tournamentId, event) => {
+          const msg: ServerMessage =
+            event.kind === 'posted'
+              ? { t: 'tournamentChat', tournamentId, message: event.message }
+              : { t: 'tournamentChatHidden', tournamentId, messageId: event.messageId, hidden: event.hidden, ...(event.message ? { message: event.message } : {}) };
+          for (const ws of this.tournamentFollowers.get(tournamentId) ?? []) this.send(ws, msg);
+        },
         // Closed accounts and chat mutes can read the tournament chat but not post.
         chatBlockedReason: (id) =>
           this.restrictionOf(id) ? 'Your account is restricted, so you cannot post' : this.moderation.activeBan(id) ? 'You are muted for now, so you cannot post' : null,
@@ -438,7 +449,7 @@ export class ChessServer {
   // ---- connection handling ----
 
   private onConnection(ws: WebSocket) {
-    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()), watching: new Set() };
+    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()), watching: new Set(), tournaments: new Set() };
     const helloTimeout = setTimeout(() => !conn.player && ws.close(4001, 'hello timeout'), 10_000);
     ws.on('message', (data) => {
       const msg = decodeClient(String(data));
@@ -457,6 +468,7 @@ export class ChessServer {
     ws.on('close', () => {
       clearTimeout(helloTimeout);
       for (const id of conn.watching) this.unwatch(ws, id);
+      for (const id of conn.tournaments) this.tournamentFollowers.get(id)?.delete(ws);
       if (conn.player) this.onDisconnect(conn.player.id, ws);
     });
   }
@@ -643,6 +655,23 @@ export class ChessServer {
           this.send(ws, { t: 'gameState', game: room.snapshot(this.now()) });
           this.broadcast(room, { t: 'watching', gameId: room.id, spectators: set.size });
         });
+      }
+      case 'tournamentSub': {
+        const id = String(msg.tournamentId);
+        if (conn.tournaments.size >= 5 && !conn.tournaments.has(id)) return this.send(ws, err('bad_request', 'Following too many tournaments'));
+        const set = this.tournamentFollowers.get(id) ?? new Set();
+        set.add(ws);
+        this.tournamentFollowers.set(id, set);
+        conn.tournaments.add(id);
+        return;
+      }
+      case 'tournamentUnsub': {
+        const id = String(msg.tournamentId);
+        conn.tournaments.delete(id);
+        const set = this.tournamentFollowers.get(id);
+        set?.delete(ws);
+        if (set && set.size === 0) this.tournamentFollowers.delete(id);
+        return;
       }
       case 'unwatch':
         conn.watching.delete(String(msg.gameId));

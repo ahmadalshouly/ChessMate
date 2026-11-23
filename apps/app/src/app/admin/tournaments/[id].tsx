@@ -9,6 +9,7 @@ import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { TournamentChat } from '@/features/tournaments/TournamentChat';
 import { TournamentResults } from '@/features/tournaments/TournamentResults';
 import { formatDateTime, useT } from '@/i18n';
+import { playClient } from '@/lib/playClient';
 import { Badge, Button, GlassView, Row, Stack, Text, useToast } from '@/ui';
 
 /**
@@ -43,6 +44,19 @@ export default function AdminTournamentMonitor() {
       setBusy(null);
     }
   };
+
+  // The chat is live: refresh as soon as someone writes or a message is hidden.
+  useEffect(() => {
+    if (!id) return;
+    const stop = playClient.followTournament(id);
+    const off = playClient.onServerMessage((m) => {
+      if ((m.t === 'tournamentChat' || m.t === 'tournamentChatHidden') && m.tournamentId === id) reload();
+    });
+    return () => {
+      off();
+      stop();
+    };
+  }, [id, reload]);
 
   const remove = async (userId: string, name: string) => {
     setBusy(userId);

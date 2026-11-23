@@ -7,6 +7,7 @@ import type { AppNotification } from './notifications';
 import type { Rating } from './rating';
 import type { Presence, SocialEvent } from './social';
 import type { TimeControl } from './timeControl';
+import type { TournamentChatMessage } from './tournaments';
 import type { GameVariant, SecretReveal, SecretSquares } from './secretQueen';
 import type { Color, Square } from './types';
 
@@ -132,7 +133,10 @@ export type ClientMessage =
   | { t: 'analyzeStop'; id: number }
   /** Spectate a live game: the server then sends gameState and every later game event. */
   | { t: 'watch'; gameId: string }
-  | { t: 'unwatch'; gameId: string };
+  | { t: 'unwatch'; gameId: string }
+  /** Follow a tournament's chat live (messages are posted over HTTP; new and hidden ones arrive here). */
+  | { t: 'tournamentSub'; tournamentId: string }
+  | { t: 'tournamentUnsub'; tournamentId: string };
 
 export type ServerMessage =
   | {
@@ -203,6 +207,10 @@ export type ServerMessage =
   | { t: 'chat'; line: ChatLine }
   /** Full chat log of a game, sent on (re)join. */
   | { t: 'chatHistory'; gameId: string; lines: ChatLine[] }
+  /** A new message in a tournament chat you follow. */
+  | { t: 'tournamentChat'; tournamentId: string; message: TournamentChatMessage }
+  /** Staff hid a tournament chat message (or showed it again: then `message` is sent). */
+  | { t: 'tournamentChatHidden'; tournamentId: string; messageId: string; hidden: boolean; message?: TournamentChatMessage }
   | { t: 'reported'; reportId: string }
   | { t: 'notification'; notification: AppNotification; unread: number }
   | { t: 'analysis'; id: number; analysis: PositionAnalysis; done: boolean }
