@@ -39,6 +39,8 @@ export interface FinishedGame {
   reason: GameEndReason;
   moves: string[];
   endedAt: number;
+  /** Accuracy per side once the game has a saved review. */
+  accuracy?: { w: number; b: number } | null;
 }
 
 export type AccountResult = { ok: true } | { ok: false; status: number; field?: string; message: string };

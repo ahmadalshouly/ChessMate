@@ -240,6 +240,8 @@ export interface RecentGame {
   ratingDelta: number | null;
   moves: number;
   endedAt: number;
+  /** Accuracy per side once the game has a saved review (shown instead of a Review button). */
+  accuracy?: { w: number; b: number } | null;
 }
 
 export interface PublicProfile {

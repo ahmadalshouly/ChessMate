@@ -1,6 +1,6 @@
 import type { Challenge, ChallengeColor, ChallengeEndReason } from './challenge';
 import type { ChatLine, QuickMessageId, ReportReason } from './chat';
-import type { GameReview, PositionAnalysis } from './analysis';
+import type { PositionAnalysis } from './analysis';
 import type { ClockState } from './clock';
 import type { GameOutcome } from './game';
 import type { AppNotification } from './notifications';
@@ -130,10 +130,6 @@ export type ClientMessage =
   // Engine analysis (refused while the player has a live game).
   | { t: 'analyze'; id: number; fen: string; multipv?: number; depth?: number; /** Think-time cap, ms (server clamps to ANALYSIS_LIMITS.maxMoveTimeMs). */ movetimeMs?: number }
   | { t: 'analyzeStop'; id: number }
-  /** `cachedOnly`: answer only from a finished review (else `not_found`), never start one: the app grades games on the device and asks the server just for stored results. */
-  | { t: 'review'; id: number; moves: string[]; initialFen?: string; gameId?: string; cachedOnly?: boolean }
-  /** A game just ended on the device (computer or local play): grade it now so Review opens instantly. No reply. */
-  | { t: 'prepareReview'; moves: string[]; initialFen?: string }
   /** Spectate a live game: the server then sends gameState and every later game event. */
   | { t: 'watch'; gameId: string }
   | { t: 'unwatch'; gameId: string };
@@ -210,8 +206,6 @@ export type ServerMessage =
   | { t: 'reported'; reportId: string }
   | { t: 'notification'; notification: AppNotification; unread: number }
   | { t: 'analysis'; id: number; analysis: PositionAnalysis; done: boolean }
-  | { t: 'reviewProgress'; id: number; done: number; total: number }
-  | { t: 'reviewResult'; id: number; review: GameReview }
   | { t: 'watching'; gameId: string; spectators: number }
   /** A friend or followed player came online, went offline, or started/finished a game. */
   | { t: 'presence'; userId: string; presence: Presence }

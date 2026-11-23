@@ -1,113 +1,159 @@
-import type { ErrorCode, GameReview } from '@chessmate/core';
+import type { GameReview } from '@chessmate/core';
 import { useEffect, useRef, useState } from 'react';
 
 import { playClient } from '@/lib/playClient';
-import type { useEngine } from '@/lib/useEngine';
 
-import { canReviewLocally, reviewLocally, type ReviewSnapshot } from './localReview';
+import { canReviewLocally, keepReview, reviewLocally, type ReviewSnapshot } from './localReview';
+import { fetchSavedReview, noteAccuracy, publishReview } from './savedReviews';
 
 export interface ReviewRequestParams {
   moves: string[];
   initialFen: string;
+  /** Server id of an online game: its review is saved and shared. */
   gameId?: string;
 }
+
+export type ReviewErrorCode = 'engine_locked' | 'no_engine' | 'engine_failed';
 
 export interface GameReviewState {
   /** Moves graded so far; the whole game once `final`. */
   review: GameReview | null;
   final: boolean;
   progress: { done: number; total: number } | null;
-  error: { code?: ErrorCode; message: string } | null;
-  /** Where the grades come from: this device's engine, or the server. */
-  source: 'device' | 'server' | null;
+  error: { code: ReviewErrorCode; message?: string } | null;
+  /** Where the review comes from: graded on this device, or the saved review of the game. */
+  source: 'device' | 'saved' | null;
+  /** Still checking whether the game already has a saved review. */
+  checking: boolean;
   /** Milliseconds from opening the review to the last move graded. */
   tookMs: number | null;
   retry: () => void;
 }
 
 /**
- * The review of a finished game, graded as fast as this device allows:
+ * The review of a finished game. Reviews are graded only on the player's
+ * device (Stockfish in Web Workers, or a WebView on phones); the server never
+ * runs an engine for them.
  *
- * 1. On the device (Stockfish in Web Workers, or a WebView on phones), moves
- *    stream in from the first one while the rest are searched. A game reviewed
- *    before, or prepared when it ended, opens finished.
- * 2. For online games the server is asked at the same time for a review it
- *    already stored (it grades online games when they end); if it has one, that
- *    wins and the device stops.
- * 3. If the device can't run the engine, the server grades it as before.
+ * 1. An online game that already has a saved review opens that review (from
+ *    any account), without grading again.
+ * 2. Otherwise this device grades it, moves streaming in from the first one.
+ *    A game reviewed before, or prepared when it ended, opens finished.
+ * 3. When it finishes, an online game's review is saved for everyone (the
+ *    server accepts it from the two players only).
+ *
+ * Pass `enabled: false` (signed out) to do nothing.
  */
-export function useGameReview(request: ReviewRequestParams, server: ReturnType<typeof useEngine>): GameReviewState {
+export function useGameReview(request: ReviewRequestParams, enabled = true): GameReviewState {
   const [attempt, setAttempt] = useState(0);
-  const [mode, setMode] = useState<'device' | 'server' | null>(null);
   const [local, setLocal] = useState<ReviewSnapshot | null>(null);
+  const [saved, setSaved] = useState<GameReview | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<GameReviewState['error']>(null);
   const [tookMs, setTookMs] = useState<number | null>(null);
   const started = useRef(0);
-  const { review: serverReview } = server;
-  const stopLocal = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (!request.moves.length && !request.gameId) return;
+    if (!enabled || !request.moves.length) return;
     started.current = Date.now();
     setTookMs(null);
     setLocal(null);
-    // Engine help stays off during a live game, on the device as on the server.
+    setSaved(null);
+    setError(null);
+    // Engine help stays off during a live game.
     const live = !!playClient.getState().game && !playClient.getState().game?.outcome;
-    if (!request.moves.length || live || !canReviewLocally()) {
-      setMode('server');
-      serverReview(request);
+    if (live) {
+      setError({ code: 'engine_locked' });
       return;
     }
-    setMode('device');
-    if (request.gameId) serverReview(request, { cachedOnly: true });
-    const stop = reviewLocally(request, (snap) => {
-      if (snap.error) {
-        // The device engine failed: the server takes over.
-        stopLocal.current?.();
-        stopLocal.current = null;
-        setMode('server');
-        serverReview(request);
+    let active = true;
+    let stopLocal: (() => void) | null = null;
+    let haveSaved = false;
+    const { gameId } = request;
+
+    const finish = (review: GameReview) => {
+      setTookMs(Date.now() - started.current);
+      noteAccuracy(request, review.accuracy);
+    };
+
+    const startLocal = () => {
+      if (!canReviewLocally()) {
+        // A saved review may still arrive; only an error if there is none.
+        if (!gameId) setError({ code: 'no_engine' });
         return;
       }
-      setLocal(snap);
-      if (snap.final) setTookMs(Date.now() - started.current);
-    });
-    stopLocal.current = stop;
-    return () => {
-      stop();
-      if (stopLocal.current === stop) stopLocal.current = null;
+      stopLocal = reviewLocally(request, (snap) => {
+        if (!active || haveSaved) return;
+        if (snap.error) {
+          setError({ code: 'engine_failed', message: snap.error });
+          return;
+        }
+        setLocal(snap);
+        if (!snap.final || !snap.review) return;
+        finish(snap.review);
+        // First review of an online game: save it so nobody grades it again.
+        if (gameId && snap.evals) {
+          publishReview(gameId, snap.evals).then(
+            (s) => {
+              if (!active || !s) return;
+              keepReview(request, s);
+              noteAccuracy(request, s.accuracy);
+              setSaved(s);
+              haveSaved = true;
+            },
+            () => {
+              // Offline: kept on this device, saved the next time it is opened.
+            },
+          );
+        }
+      });
     };
-  }, [request, attempt, serverReview]);
 
-  // A stored server review (online games) beats grading on the device.
-  const stored = mode === 'device' && !local?.final ? server.state.review : null;
-  useEffect(() => {
-    if (!stored) return;
-    stopLocal.current?.();
-    stopLocal.current = null;
-    setTookMs(Date.now() - started.current);
-  }, [stored]);
+    if (!gameId) {
+      startLocal();
+    } else {
+      // Ask for a saved review first; the device starts at the same time so
+      // nothing is lost when there is none, and stops if there is.
+      setChecking(true);
+      fetchSavedReview(gameId).then(
+        (s) => {
+          if (!active) return;
+          setChecking(false);
+          if (!s) {
+            if (!canReviewLocally()) setError({ code: 'no_engine' });
+            return;
+          }
+          haveSaved = true;
+          stopLocal?.();
+          stopLocal = null;
+          keepReview(request, s);
+          setSaved(s);
+          finish(s);
+        },
+        () => {
+          if (!active) return;
+          setChecking(false);
+          if (!canReviewLocally()) setError({ code: 'no_engine' });
+        },
+      );
+      startLocal();
+    }
+    return () => {
+      active = false;
+      stopLocal?.();
+    };
+  }, [request, attempt, enabled]);
 
   const retry = () => setAttempt((a) => a + 1);
 
-  if (mode === 'server' || stored) {
-    const s = server.state;
-    const review = stored ?? s.review;
-    return {
-      review,
-      final: !!review,
-      progress: s.reviewProgress,
-      error: review ? null : s.error,
-      source: review || mode === 'server' ? 'server' : null,
-      tookMs: stored ? tookMs : null,
-      retry,
-    };
-  }
+  if (saved) return { review: saved, final: true, progress: null, error: null, source: 'saved', checking: false, tookMs, retry };
   return {
     review: local?.review ?? null,
-    final: !!local?.final,
+    final: !!local?.final && !!local.review,
     progress: local ? { done: local.done, total: local.total } : null,
-    error: null,
-    source: mode === 'device' ? 'device' : null,
+    error,
+    source: local ? 'device' : null,
+    checking,
     tookMs,
     retry,
   };

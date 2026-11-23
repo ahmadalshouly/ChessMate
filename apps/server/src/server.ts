@@ -6,7 +6,6 @@ import {
   encode,
   formatTimeControl,
   positionKey,
-  START_FEN,
   timeCategory,
   type Challenge,
   type ChallengeEndReason,
@@ -685,15 +684,7 @@ export class ChessServer {
       }
       case 'analyze':
       case 'analyzeStop':
-      case 'review':
         return this.onAnalysisMessage(player, ws, msg);
-      case 'prepareReview': {
-        // Only for games played off the server; nothing is sent back, and Review is still locked during live games.
-        if (!Array.isArray(msg.moves) || !msg.moves.every((m) => typeof m === 'string')) return;
-        if (this.activeRoomOf(player.id)) return;
-        void this.opts.analysis?.precompute({ moves: msg.moves, initialFen: typeof msg.initialFen === 'string' ? msg.initialFen : START_FEN });
-        return;
-      }
       default:
         return this.send(ws, err('bad_request', 'Unknown message'));
     }
@@ -706,7 +697,7 @@ export class ChessServer {
    * position that is currently on the board in a live game (so a second
    * account cannot be used to look up moves).
    */
-  private onAnalysisMessage(player: Player, ws: WebSocket, msg: Extract<ClientMessage, { t: 'analyze' | 'analyzeStop' | 'review' }>) {
+  private onAnalysisMessage(player: Player, ws: WebSocket, msg: Extract<ClientMessage, { t: 'analyze' | 'analyzeStop' }>) {
     const analysis = this.opts.analysis;
     if (msg.t === 'analyzeStop') return analysis?.stop(player.id, msg.id);
     const id = Number(msg.id);
@@ -715,32 +706,13 @@ export class ChessServer {
     if (this.activeRoomOf(player.id)) return locked();
     const send = (m: ServerMessage) => this.send(ws, m);
 
-    if (msg.t === 'analyze') {
-      if (typeof msg.fen !== 'string' || msg.fen.length > 120) return this.send(ws, { ...err('bad_request', 'Invalid position'), id });
-      if (this.isLivePosition(msg.fen)) return locked();
-      void analysis.analyze(
-        player.id,
-        { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined, movetimeMs: Number(msg.movetimeMs) || undefined },
-        send,
-      );
-      return;
-    }
-
-    let moves: string[];
-    let initialFen: string;
-    if (msg.gameId) {
-      const room = this.rooms.get(String(msg.gameId));
-      if (room && !room.outcome) return locked();
-      moves = room ? room.game.uciHistory() : msg.moves;
-      initialFen = room ? room.initialFen : (msg.initialFen ?? START_FEN);
-    } else {
-      moves = msg.moves;
-      initialFen = msg.initialFen ?? START_FEN;
-    }
-    if (!Array.isArray(moves) || !moves.every((m) => typeof m === 'string') || typeof initialFen !== 'string') {
-      return this.send(ws, { ...err('bad_request', 'Invalid move list'), id });
-    }
-    void analysis.review(player.id, { id, moves, initialFen, gameId: msg.gameId ? String(msg.gameId) : undefined, cachedOnly: msg.cachedOnly === true }, send);
+    if (typeof msg.fen !== 'string' || msg.fen.length > 120) return this.send(ws, { ...err('bad_request', 'Invalid position'), id });
+    if (this.isLivePosition(msg.fen)) return locked();
+    void analysis.analyze(
+      player.id,
+      { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined, movetimeMs: Number(msg.movetimeMs) || undefined },
+      send,
+    );
   }
 
   private isLivePosition(fen: string): boolean {
@@ -1114,8 +1086,6 @@ export class ChessServer {
         }
         if (!r.secret) this.opts.persistence?.gameEnded(r, outcome, ratingChange);
         if (outcome.reason !== 'aborted' && !r.secret) {
-          // Grade every move now so Review opens with the badges already there.
-          void this.opts.analysis?.precompute({ gameId: r.id, moves: r.game.uciHistory(), initialFen: r.initialFen });
           this.fairPlay.gameFinished({
             gameId: r.id,
             initialFen: r.initialFen,

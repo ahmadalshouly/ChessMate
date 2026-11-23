@@ -14,6 +14,7 @@ import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
 import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
+import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useCurrentUser } from '@/lib/currentUser';
 import { dirIcon, translate, useT, type TKey } from '@/i18n';
@@ -258,6 +259,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     void reportComputerGame(view.history.length);
     return () => clearTimeout(id);
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci) } : null);
 
   // Takeback: return to the last position where it was the player's turn.
   const plyCount = view.history.length;
@@ -287,19 +289,20 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const botColor: Color = me === 'w' ? 'b' : 'w';
   const orientation: Color = flip ? 'b' : 'w';
   const botOnTop = orientation === me;
-  const openReview = () => {
-    // The result popup is a modal: close it, or it stays on top of the review.
-    setHideResult(true);
-    router.push({
-      pathname: '/review',
-      params: {
-        moves: view.history.map((m) => m.uci).join(','),
-        orientation: me,
-        white: me === 'w' ? user.displayName : bot.name,
-        black: me === 'b' ? user.displayName : bot.name,
-      },
+  const openReview = () =>
+    reviewEntry.press(() => {
+      // The result popup is a modal: close it, or it stays on top of the review.
+      setHideResult(true);
+      router.push({
+        pathname: '/review',
+        params: {
+          moves: view.history.map((m) => m.uci).join(','),
+          orientation: me,
+          white: me === 'w' ? user.displayName : bot.name,
+          black: me === 'b' ? user.displayName : bot.name,
+        },
+      });
     });
-  };
 
   const botCard = (
     <PlayerCard
@@ -401,7 +404,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
             </View>
             {plyCount > 0 && (
               <View style={styles.resultButtons}>
-                <NoticeButton icon="chart-box-outline" label={tr('play.over.reviewGame')} onPress={openReview} primary wide />
+                <NoticeButton icon="chart-box-outline" label={reviewEntry.label ?? tr('play.over.reviewGame')} onPress={openReview} primary wide />
               </View>
             )}
             <View style={styles.resultButtons}>

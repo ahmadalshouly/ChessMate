@@ -78,6 +78,7 @@ export function GameOverCard({
   onNewGame,
   onLobby,
   onReview,
+  reviewLabel,
   onClose,
 }: {
   view: GameView;
@@ -87,6 +88,8 @@ export function GameOverCard({
   onLobby: () => void;
   /** Opens the full engine review; hidden for aborted games. It is the card's main action. */
   onReview?: () => void;
+  /** Replaces "Review game": the accuracy once the game is reviewed, or "Sign in to review". */
+  reviewLabel?: string;
   /** Hides the card to look at the final position. */
   onClose?: () => void;
 }) {
@@ -156,7 +159,7 @@ export function GameOverCard({
       {view.rematchDeclined && <Label muted>{tr('play.over.declined')}</Label>}
       {canReview && (
         <View style={styles.buttons}>
-          <CardButton icon="chart-box-outline" label={tr('play.over.reviewGame')} onPress={onReview!} primary />
+          <CardButton icon="chart-box-outline" label={reviewLabel ?? tr('play.over.reviewGame')} onPress={onReview!} primary />
         </View>
       )}
       <View style={styles.buttons}>

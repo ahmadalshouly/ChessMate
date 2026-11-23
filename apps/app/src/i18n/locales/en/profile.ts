@@ -29,6 +29,7 @@ export const profile = {
   bestRating: 'Best · {category}',
   score: 'Score',
   review: 'Review',
+  accuracyA11y: 'Accuracy {n} percent. Open the review',
   gamesHint: 'Tap a game to replay it move by move, or Review to see the engine\'s take.',
   recentGames: 'Recent games',
   noGames: 'No finished games yet.',

@@ -158,5 +158,6 @@ export function toRecent(g: FinishedGame, userId: string): RecentGame {
     ratingDelta: roundOrNull(color === 'w' ? g.whiteDelta : g.blackDelta),
     moves: Math.ceil(g.moves.length / 2),
     endedAt: g.endedAt,
+    accuracy: g.accuracy ?? null,
   };
 }
