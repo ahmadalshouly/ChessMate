@@ -1,5 +1,5 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatMoney, formatTimeControl, timeCategory, type TournamentDetail } from '@chessmate/core';
+import { formatMoney, formatTimeControl, timeCategory, type TournamentChatMessage, type TournamentDetail } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
@@ -18,6 +18,8 @@ import { formatLabel, formatScore, scoringRules, settingsOf, tournamentClock } f
 import { JoinSheet } from '@/features/tournaments/JoinSheet';
 import { PayoutSheet } from '@/features/tournaments/PayoutSheet';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
+import { TournamentChat } from '@/features/tournaments/TournamentChat';
+import { TournamentResults } from '@/features/tournaments/TournamentResults';
 import { webLink } from '@/lib/links';
 
 /**
@@ -39,6 +41,8 @@ export default function TournamentScreen() {
   const [joining, setJoining] = useState(false);
   const [payout, setPayout] = useState(false);
   const [paymentsEnabled, setPaymentsEnabled] = useState(false);
+  const [chat, setChat] = useState<TournamentChatMessage[]>([]);
+  const [allResults, setAllResults] = useState(false);
   const now = useTicker(tour?.status === 'running' || tour?.status === 'scheduled');
 
   const load = useCallback(() => {
@@ -50,6 +54,10 @@ export default function TournamentScreen() {
         setError(null);
       },
       (e: Error) => setError(e.message),
+    );
+    tournamentsApi.chat(id).then(
+      (r) => setChat(r.messages),
+      () => {},
     );
   }, [id]);
   // Standings move fast only while it runs; before and after, a slow refresh is plenty.
@@ -163,7 +171,10 @@ export default function TournamentScreen() {
                   {tour.yourGameId ? (
                     <Button title={tr('tournaments.toGame')} onPress={() => router.push('/play/online')} rightIcon={<Ionicons name="arrow-forward" size={16} color={c.onAccent} />} />
                   ) : tour.status === 'running' ? (
-                    <Text variant="label">{tr('tournaments.waitingPairing')}</Text>
+                    <View style={{ gap: 4 }}>
+                      <Text variant="label">{tr('tournaments.waitingPairing')}</Text>
+                      {tour.sponsor ? <SponsorBadge sponsor={tour.sponsor} size="sm" /> : null}
+                    </View>
                   ) : (
                     <Text variant="label">{tr('tournaments.joinedWait')}</Text>
                   )}
@@ -284,6 +295,43 @@ export default function TournamentScreen() {
             </ListGroup>
           )}
         </View>
+
+        {tour.games.length > 0 && (
+          <View style={{ gap: t.space.md }}>
+            <SectionHeader
+              title={tr('tournaments.results.title')}
+              action={
+                tour.games.length > 10 ? (
+                  <Button size="sm" variant="ghost" title={allResults ? tr('tournaments.results.less') : tr('tournaments.results.all', { count: tour.games.length })} onPress={() => setAllResults(!allResults)} />
+                ) : undefined
+              }
+            />
+            <TournamentResults games={tour.games} meId={me?.userId} limit={allResults ? undefined : 10} />
+          </View>
+        )}
+
+        {tour.status !== 'cancelled' && (
+          <View style={{ gap: t.space.md }}>
+            <SectionHeader title={tr('tournaments.chat.title')} />
+            <TournamentChat
+              messages={chat}
+              meId={me?.userId}
+              onSend={
+                me && !tour.you?.disqualified
+                  ? async (text) => {
+                      const { message } = await tournamentsApi.postChat(tour.id, text);
+                      setChat((prev) => [...prev, message]);
+                    }
+                  : undefined
+              }
+              disabledReason={
+                !me ? (
+                  <Button variant="secondary" size="sm" title={tr('tournaments.chat.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: `/tournaments/${tour.id}` } })} />
+                ) : null
+              }
+            />
+          </View>
+        )}
       </View>
       <JoinSheet tournament={tour} visible={joining} busy={busy} onClose={() => setJoining(false)} onAccept={() => void accept()} />
       {prize && (

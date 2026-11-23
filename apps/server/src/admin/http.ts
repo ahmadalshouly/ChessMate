@@ -57,8 +57,10 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /tournaments/:id             same fields, while it has not started
  *   POST /tournaments/:id/cancel      { reason? }
  *   POST /tournaments/:id/start       start a scheduled tournament now
- *   GET  /tournaments/:id             live monitor (players, payments)
+ *   GET  /tournaments/:id             live monitor (players, every game and result, the whole chat, payments)
  *   POST /tournaments/:id/remove      { userId, reason? } remove a player
+ *   POST /tournaments/:id/chat        { text } post in the tournament chat as staff
+ *   POST /tournaments/:id/hidechat    { messageId, hidden } hide or show a chat message
  *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
  *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  */
@@ -161,6 +163,10 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ tournament: await admin.tournamentMonitor(actor, id!) });
         case 'POST tournaments/:id/remove':
           return ok({ player: await admin.removeTournamentPlayer(actor, id!, await body()) });
+        case 'POST tournaments/:id/chat':
+          return ok({ message: await admin.postTournamentChat(actor, id!, await body()) });
+        case 'POST tournaments/:id/hidechat':
+          return ok({ message: await admin.hideTournamentChat(actor, id!, await body()) });
         case 'GET sponsors':
           return ok({ applications: await admin.sponsorApplications(actor) });
         case 'POST sponsors/:id':

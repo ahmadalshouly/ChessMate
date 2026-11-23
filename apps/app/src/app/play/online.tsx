@@ -384,7 +384,7 @@ export default function OnlinePlay() {
             {connectionNotice}
             {sponsor ? (
               <View style={styles.sponsor}>
-                <SponsorBadge sponsor={sponsor} size="sm" />
+                <SponsorBadge sponsor={sponsor} size="md" />
               </View>
             ) : null}
           </>
@@ -407,7 +407,7 @@ export default function OnlinePlay() {
               onSquarePress={nav.live ? board.onSquarePress : undefined}
               {...(nav.live ? board.dragProps : {})}
             />
-            {intro.active && <GameStartHandshake size={boardSize} white={players.w.name} black={players.b.name} cut={intro.cut} onDone={intro.done} />}
+            {intro.active && <GameStartHandshake size={boardSize} white={players.w.name} black={players.b.name} cut={intro.cut} onDone={intro.done} sponsor={sponsor} />}
             {/* The result opens full screen (ResultPopup below) so everything fits without scrolling. */}
           </>
         )}
@@ -449,6 +449,8 @@ export default function OnlinePlay() {
             onReview={reviewable ? openReview : undefined}
             reviewLabel={reviewEntry.label ?? undefined}
             onClose={() => setHideResult(true)}
+            sponsor={sponsor}
+            onTournament={view.tournamentId ? () => router.push({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) : undefined}
           />
         )}
         {over && endResult(view) && (

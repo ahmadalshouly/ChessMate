@@ -1,4 +1,4 @@
-import { formatTimeControl, type Color } from '@chessmate/core';
+import { formatTimeControl, type Color, type TournamentSponsor } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { type ComponentProps } from 'react';
@@ -9,6 +9,7 @@ import { Text } from '@/ui/primitives';
 import { pickIndex } from '@/components/play/GameEndCelebration';
 import { ResultHeader, Scoreline, STAMP_MS, reasonText, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
 import { Label } from '@/components/ui';
+import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { useTheme } from '@/constants/theme';
 import { translate, useT } from '@/i18n';
 import type { GameView } from '@/lib/playClient';
@@ -64,6 +65,8 @@ export function GameOverCard({
   onReview,
   reviewLabel,
   onClose,
+  sponsor,
+  onTournament,
 }: {
   view: GameView;
   onRematch: () => void;
@@ -76,6 +79,10 @@ export function GameOverCard({
   reviewLabel?: string;
   /** Hides the card to look at the final position. */
   onClose?: () => void;
+  /** Tournament games: the sponsor, shown under the score. */
+  sponsor?: TournamentSponsor | null;
+  /** Tournament games: back to the tournament (standings, next pairing). */
+  onTournament?: () => void;
 }) {
   const t = useTheme();
   const tr = useT();
@@ -106,6 +113,11 @@ export function GameOverCard({
         crestDelay={reduced ? 0 : (result ? STAMP_MS : 250) + 300}
       />
       <Scoreline white={view.white.name} black={view.black.name} score={view.outcome!.result} you={view.you} />
+      {sponsor ? (
+        <View style={[styles.sponsor, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]}>
+          <SponsorBadge sponsor={sponsor} size="md" />
+        </View>
+      ) : null}
       {result && <Text style={[styles.line, { color: t.text }]}>{endLine(result, view.gameId)}</Text>}
       {change && delta !== null ? (
         <View style={[styles.rating, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]}>
@@ -125,6 +137,11 @@ export function GameOverCard({
       {oppOffered && <Label bold>{tr('play.over.wantsRematch', { name: opponent.name })}</Label>}
       {iOffered && <Label muted>{tr('play.over.rematchWaiting', { name: opponent.name })}</Label>}
       {view.rematchDeclined && <Label muted>{tr('play.over.declined')}</Label>}
+      {onTournament && (
+        <View style={styles.buttons}>
+          <CardButton icon="trophy-outline" label={tr('tournaments.back')} onPress={onTournament} primary={!canReview} />
+        </View>
+      )}
       {canReview && (
         <View style={styles.buttons}>
           <CardButton icon="chart-box-outline" label={reviewLabel ?? tr('play.over.reviewGame')} onPress={onReview!} primary />
@@ -179,6 +196,7 @@ function CardButton({ icon, label, onPress, primary, disabled }: { icon: Compone
 const styles = StyleSheet.create({
   solid: { width: '100%', maxWidth: 460, borderRadius: 28, borderWidth: StyleSheet.hairlineWidth, padding: 18, gap: 12, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
   line: { fontSize: 15, fontWeight: '500', lineHeight: 21 },
+  sponsor: { alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   ratingValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'], marginStart: 'auto' },
   delta: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },

@@ -3,10 +3,14 @@ import type { Database } from '../client';
 import {
   payoutRequests,
   sponsorApplications,
+  tournamentGames,
+  tournamentMessages,
   tournamentPayments,
   tournamentPlayers,
   tournaments,
   type PayoutRequest,
+  type TournamentGame,
+  type TournamentMessage,
   type SponsorApplication,
   type Tournament,
   type TournamentPayment,
@@ -59,6 +63,40 @@ export async function saveTournamentPlayer(db: Database, p: typeof tournamentPla
         state: p.state,
       },
     });
+}
+
+// ---------------------------------------------------------------- games and results
+
+export async function tournamentGamesOf(db: Database, tournamentId: string): Promise<TournamentGame[]> {
+  return db.select().from(tournamentGames).where(eq(tournamentGames.tournamentId, tournamentId)).orderBy(asc(tournamentGames.startedAt));
+}
+
+/** Insert or replace one tournament game (started, then again with its result). */
+export async function saveTournamentGame(db: Database, g: typeof tournamentGames.$inferInsert): Promise<void> {
+  await db
+    .insert(tournamentGames)
+    .values(g)
+    .onConflictDoUpdate({
+      target: [tournamentGames.tournamentId, tournamentGames.gameId],
+      set: { result: g.result, endReason: g.endReason, counted: g.counted, whitePoints: g.whitePoints, blackPoints: g.blackPoints, endedAt: g.endedAt },
+    });
+}
+
+// ---------------------------------------------------------------- chat
+
+/** The latest messages of a tournament, oldest first. */
+export async function tournamentMessagesOf(db: Database, tournamentId: string, limit = 500): Promise<TournamentMessage[]> {
+  const rows = await db.select().from(tournamentMessages).where(eq(tournamentMessages.tournamentId, tournamentId)).orderBy(desc(tournamentMessages.createdAt)).limit(limit);
+  return rows.reverse();
+}
+
+export async function insertTournamentMessage(db: Database, m: typeof tournamentMessages.$inferInsert): Promise<TournamentMessage> {
+  const [row] = await db.insert(tournamentMessages).values(m).returning();
+  return row!;
+}
+
+export async function setTournamentMessageHidden(db: Database, id: string, hiddenAt: Date | null, hiddenBy: string | null): Promise<void> {
+  await db.update(tournamentMessages).set({ hiddenAt, hiddenBy }).where(eq(tournamentMessages.id, id));
 }
 
 // ---------------------------------------------------------------- entry fees (Stripe)

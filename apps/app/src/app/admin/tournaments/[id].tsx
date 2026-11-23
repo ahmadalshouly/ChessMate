@@ -6,13 +6,17 @@ import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, ErrorLine, PageHeader, Section, useLoad } from '@/features/admin/ui';
 import { formatLabel, formatScore, tournamentClock } from '@/features/tournaments/format';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
+import { TournamentChat } from '@/features/tournaments/TournamentChat';
+import { TournamentResults } from '@/features/tournaments/TournamentResults';
 import { formatDateTime, useT } from '@/i18n';
 import { Badge, Button, GlassView, Row, Stack, Text, useToast } from '@/ui';
 
 /**
  * Live monitor of one tournament for staff: refreshes every few seconds; shows
- * standings, games to watch, every player (paid, paused, removed, rules
- * accepted) and entry fee payments. Staff can remove a player.
+ * games to watch, every player (paid, paused, removed, rules accepted), every
+ * game with its result (aborted and uncounted ones too), the whole chat
+ * (hidden messages included) and entry fee payments. Staff can remove a
+ * player, post in the chat as staff, and hide or show chat messages.
  */
 export default function AdminTournamentMonitor() {
   const tr = useT();
@@ -27,6 +31,18 @@ export default function AdminTournamentMonitor() {
     const timer = setInterval(reload, 4000);
     return () => clearInterval(timer);
   }, [t?.status, reload]);
+
+  const hideMessage = async (messageId: string, hidden: boolean) => {
+    setBusy(messageId);
+    try {
+      await api.hideTournamentChat(id!, messageId, hidden);
+      reload();
+    } catch (e) {
+      toast.show({ title: e instanceof Error ? e.message : tr('admin.common.failed'), tone: 'danger' });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const remove = async (userId: string, name: string) => {
     setBusy(userId);
@@ -106,8 +122,32 @@ export default function AdminTournamentMonitor() {
             </Stack>
           </Section>
 
+          <Section title={tr('admin.tournaments.allGames', { count: t.allGames.length })} index={3}>
+            {t.allGames.length === 0 ? <Text tone="muted">{tr('admin.tournaments.noGames')}</Text> : <TournamentResults games={t.allGames} staff />}
+          </Section>
+
+          <Section title={tr('admin.tournaments.chat', { count: t.chat.length })} index={4}>
+            <TournamentChat
+              messages={t.chat}
+              placeholder={tr('admin.tournaments.chatAsStaff')}
+              onSend={async (text) => {
+                await api.postTournamentChat(id!, text);
+                reload();
+              }}
+              actions={(m) => (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title={m.hidden ? tr('admin.tournaments.showMessage') : tr('admin.tournaments.hideMessage')}
+                  loading={busy === m.id}
+                  onPress={() => void hideMessage(m.id, !m.hidden)}
+                />
+              )}
+            />
+          </Section>
+
           {t.payments.length > 0 && (
-            <Section title={tr('admin.tournaments.payments')} index={3}>
+            <Section title={tr('admin.tournaments.payments')} index={5}>
               <Stack gap="xs">
                 {t.payments.map((p, i) => (
                   <Text key={i} variant="caption">

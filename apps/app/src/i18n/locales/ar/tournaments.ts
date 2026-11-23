@@ -150,4 +150,22 @@ export const tournaments: Messages<typeof en> = {
   joinedWait: 'أنت منضم. يبدأ الإقران مع بدء البطولة.',
   signInToJoin: 'سجّل الدخول للانضمام',
   back: 'العودة إلى البطولة',
+  results: {
+    title: 'النتائج',
+    round: 'الجولة {n}',
+    points: 'النقاط {white} / {black}',
+    notCounted: 'لا تُحتسب',
+    tournamentOver: 'توقفت عند انتهاء البطولة',
+    all: { one: 'عرض الكل ({count})', other: 'عرض الكل ({count})' },
+    less: 'عرض أقل',
+  },
+  chat: {
+    title: 'الدردشة',
+    placeholder: 'قل شيئًا لجميع المشاركين في البطولة',
+    empty: 'لا رسائل بعد. ألقِ التحية!',
+    signIn: 'سجّل الدخول للدردشة',
+    staff: 'الإدارة',
+    hidden: 'مخفية',
+    hiddenBy: 'أخفاها {name}',
+  },
 };
