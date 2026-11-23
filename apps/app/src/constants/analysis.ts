@@ -41,7 +41,7 @@ const CLASS_STYLE: Record<MoveClass, Omit<MoveClassStyle, 'label' | 'phrase'>> =
   best: { symbol: '★', icon: 'star', color: '#C99A22' },
   excellent: { symbol: '✓', icon: 'check', color: '#C0784A' },
   good: { symbol: '✓', icon: 'trend-check', color: '#4E9A47' },
-  book: { symbol: 'Book', icon: 'book', color: '#7A5137' },
+  book: { symbol: 'Theory', icon: 'book', color: '#7A5137' },
   forced: { symbol: '→', icon: 'arrow', color: '#6E7681' },
   inaccuracy: { symbol: '?!', glyph: '?!', icon: 'trend-down', color: '#E0B83C' },
   mistake: { symbol: '?', glyph: '?', icon: 'cross', color: '#E07B2C' },
@@ -70,6 +70,13 @@ export const MOVE_CLASS = Object.fromEntries(
     },
   ]),
 ) as Record<MoveClass, MoveClassStyle>;
+
+/** Square tint for a graded move: the classification colour, half transparent so the board shows through. */
+export function moveClassTint(cls: MoveClass): string {
+  const hex = CLASS_STYLE[cls].color;
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.55)`;
+}
 
 export const REVIEW_ORDER: MoveClass[] = ['masterpiece', 'brilliant', 'great', 'best', 'excellent', 'good', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 
