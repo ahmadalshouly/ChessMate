@@ -43,7 +43,7 @@ export const pages = {
     cookiesTitle: 'Cookies',
     cookies: 'ChessMate only uses the storage it needs to work. Optional external media (live-stream players) load only with your consent. Details and your choices are in the cookie policy.',
     deleteTitle: 'Deleting your data',
-    delete: 'You can ask the team to delete your account and data through Support. Records needed for fair play or legal reasons may be kept for a limited time.',
+    delete: 'You can delete your account and data yourself under Settings → Danger zone → Delete account, or ask the team through Support. Records needed for fair play or legal reasons may be kept for a limited time.',
   },
   cookies: {
     title: 'Cookie policy',

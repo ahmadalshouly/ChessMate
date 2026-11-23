@@ -45,7 +45,7 @@ pnpm dev:server
 | `STOCKFISH_PATH` | unset (analysis off) | UCI engine binary used for analysis |
 | `FAIRPLAY_ENGINE_DEPTH` | `14` | Search depth per position |
 | `FAIRPLAY_ADMIN_TOKEN` | unset (admin API off) | Bearer token for `/admin/fairplay/*` |
-| `TRUST_PROXY` | unset | Read the client IP from `X-Forwarded-For` (only behind your own proxy) |
+| `TRUST_PROXY` | unset | Where the player's IP comes from behind a proxy: `fly` reads `Fly-Client-IP` (set in `fly.toml`), `1` reads the last `X-Forwarded-For` entry (one proxy of your own). Unset uses the socket address |
 
 ## Admin API
 

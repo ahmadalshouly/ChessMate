@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { clientIp } from '../clientIp';
 import { RateLimiter } from './rateLimit';
 import { AuthError, type AccessIdentity, type AuthService } from './service';
 
@@ -96,12 +97,6 @@ export function publicBaseUrl(req: IncomingMessage): string {
   const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0]?.trim();
   const encrypted = (req.socket as { encrypted?: boolean }).encrypted;
   return `${proto === 'https' || proto === 'http' ? proto : encrypted ? 'https' : 'http'}://${req.headers.host ?? 'localhost'}`;
-}
-
-function clientIp(req: IncomingMessage): string {
-  // Only trust X-Forwarded-For when explicitly running behind a proxy.
-  const fwd = process.env.TRUST_PROXY === '1' ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0]?.trim() : '';
-  return fwd || req.socket.remoteAddress || 'unknown';
 }
 
 /**

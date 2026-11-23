@@ -43,7 +43,7 @@ export const pages = {
     cookiesTitle: 'Cookies',
     cookies: 'ChessMate speichert nur, was es zum Funktionieren braucht. Optionale externe Medien (Livestream-Player) werden nur mit deiner Einwilligung geladen. Details und deine Auswahl findest du in der Cookie-Richtlinie.',
     deleteTitle: 'Daten löschen',
-    delete: 'Über die Hilfe kannst du das Team bitten, dein Konto und deine Daten zu löschen. Daten, die für Fair Play oder aus rechtlichen Gründen nötig sind, können eine begrenzte Zeit aufbewahrt werden.',
+    delete: 'Du kannst dein Konto und deine Daten selbst unter Einstellungen → Gefahrenzone → Konto löschen löschen oder das Team über die Hilfe darum bitten. Daten, die für Fair Play oder aus rechtlichen Gründen nötig sind, können eine begrenzte Zeit aufbewahrt werden.',
   },
   cookies: {
     title: 'Cookie-Richtlinie',

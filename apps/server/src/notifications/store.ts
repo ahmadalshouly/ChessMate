@@ -19,8 +19,8 @@ export interface PushTokenRow {
 
 /**
  * Storage boundary for notifications, preferences and push tokens. Sync on
- * purpose to match the node:sqlite accounts database; a Postgres version
- * would make these async.
+ * purpose: reads sit on hot paths. The Postgres store (dbStore.ts) serves
+ * reads from memory and writes through in the background.
  */
 export interface NotificationStore {
   add(n: StoredNotification): void;
@@ -33,6 +33,8 @@ export interface NotificationStore {
   addPushToken(row: PushTokenRow): void;
   removePushToken(token: string, userId?: string): void;
   pushTokens(userId: string): PushTokenRow[];
+  /** Waits for pending background writes (stores that persist asynchronously). */
+  flush?(): Promise<void>;
 }
 
 const strip = ({ userId: _u, collapseKey: _c, ...n }: StoredNotification): AppNotification => n;

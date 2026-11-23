@@ -11,6 +11,8 @@ primary_region = "fra"
   PORT = "8787"
   STOCKFISH_PATH = "/usr/games/stockfish"
   ENGINE_WORKERS = "1"
+  # Requests arrive through Fly's proxy: rate limits read the player's address from Fly-Client-IP.
+  TRUST_PROXY = "fly"
 
 [http_service]
   internal_port = 8787

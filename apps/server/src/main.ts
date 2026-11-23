@@ -11,6 +11,7 @@ import { CoachService } from './coach/coachService';
 import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
+import { DbNotificationStore } from './notifications/dbStore';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
 import { AccountProfileBackend, DbProfileStore, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
 import { PuzzleApi } from './puzzles/api';
@@ -175,6 +176,8 @@ async function start() {
     events,
     broadcastSync,
     broadcastAnalyzer,
+    // The inbox, notification settings and push tokens survive restarts and deploys.
+    notificationStore: await DbNotificationStore.load(db.db),
     // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
     // tokens also get an account row on first use so friends and search can be tried.
     resolveUser: async (token) => {

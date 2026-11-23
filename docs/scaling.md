@@ -81,8 +81,10 @@ Millions of concurrent players need several game servers, which takes:
    balancer hashing on player or game id).
 2. **A shared message bus** (Redis or NATS) for what crosses servers:
    presence, notifications, challenges, friend events and the matchmaking pool.
-3. **Notifications in the database**: the inbox is kept in memory today and is
-   lost on restart.
+3. **Notifications read from the database**: the inbox, notification settings
+   and push tokens are saved in Postgres, but each server serves them from its
+   own memory copy loaded at startup. Several servers need them read from the
+   database (or a shared cache) instead.
 4. **The engine as its own service** (section 2).
 
 That is a planned piece of work, best started once the load test shows where

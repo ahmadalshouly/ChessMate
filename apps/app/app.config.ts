@@ -14,6 +14,10 @@ const { networkInterfaces } = require('node:os') as { networkInterfaces(): Recor
  *    the laptop). Left out of EAS builds.
  * 2. Sign in with Apple and Google: the Apple capability, and the app's bundle
  *    ID as a URL scheme so Google can redirect back to installed builds.
+ *
+ * Store builds (EAS profile "production") must name a public wss:// game
+ * server, or the app would look for one on the local network. The build
+ * stops here instead of shipping that.
  */
 function lanAddress(): string | undefined {
   const virtual = /vethernet|wsl|hyper-v|virtualbox|vmware|docker|loopback|tailscale|zerotier|vpn/i;
@@ -29,6 +33,9 @@ function lanAddress(): string | undefined {
 }
 
 export default ({ config }: ConfigContext): ExpoConfig => {
+  if (process.env.EAS_BUILD_PROFILE === 'production' && !/^wss:\/\/[^/]+/.test(process.env.EXPO_PUBLIC_SERVER_URL ?? '')) {
+    throw new Error('Production builds need EXPO_PUBLIC_SERVER_URL set to the public game server, e.g. wss://chessmate-server.fly.dev/ws (eas.json → build.production.env)');
+  }
   const base = config as ExpoConfig;
   const scheme = Array.isArray(base.scheme) ? base.scheme : base.scheme ? [base.scheme] : [];
   const bundleId = base.ios?.bundleIdentifier ?? 'com.chessmate.app';
