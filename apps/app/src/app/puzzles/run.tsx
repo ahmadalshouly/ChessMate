@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
+import { Segmented } from '@/components/play/Controls';
 import { PuzzleBoard } from '@/components/PuzzleBoard';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
@@ -16,7 +17,9 @@ const COPY: Record<PuzzleRunMode, { title: TKey; rules: TKey }> = {
   streak: { title: 'puzzles.run.streakTitle', rules: 'puzzles.run.streakRules' },
   rush: { title: 'puzzles.run.rushTitle', rules: 'puzzles.run.rushRules' },
 };
-const RULE_PARAMS = { minutes: RUSH_DURATION_MS / 60_000, lives: RUSH_LIVES };
+/** Rush lengths the player can pick. Personal bests only count at the standard length. */
+const RUSH_MINUTES = [1, 3, 5, 10] as const;
+const STANDARD_RUSH_MINUTES = RUSH_DURATION_MS / 60_000;
 
 type Phase = 'ready' | 'playing' | 'over';
 
@@ -41,6 +44,10 @@ export default function PuzzleRun() {
   const [exhausted, setExhausted] = useState(false);
   const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxMisses = mode === 'rush' ? RUSH_LIVES : 1;
+  const [rushMinutes, setRushMinutes] = useState<number>(STANDARD_RUSH_MINUTES);
+  /** Length of the rush being played, fixed when it starts. */
+  const [playedMinutes, setPlayedMinutes] = useState(STANDARD_RUSH_MINUTES);
+  const countsForBest = mode !== 'rush' || playedMinutes === STANDARD_RUSH_MINUTES;
 
   const fetchMore = useCallback(
     async (offset: number) => {
@@ -71,9 +78,10 @@ export default function PuzzleRun() {
     setBest(null);
     setExhausted(false);
     ended.current = false;
+    setPlayedMinutes(rushMinutes);
     await fetchMore(0);
     setPhase('playing');
-    setDeadline(mode === 'rush' ? Date.now() + RUSH_DURATION_MS : null);
+    setDeadline(mode === 'rush' ? Date.now() + rushMinutes * 60_000 : null);
   };
 
   const end = useCallback(
@@ -81,12 +89,14 @@ export default function PuzzleRun() {
       if (ended.current) return;
       ended.current = true;
       setPhase('over');
+      // Personal bests compare like with like, so only standard-length rushes are saved.
+      if (!countsForBest) return;
       puzzleApi
         .saveRun(mode, finalScore)
         .then(setBest)
         .catch(() => setBest({ best: finalScore }));
     },
-    [mode],
+    [mode, countsForBest],
   );
 
   // Rush clock.
@@ -142,7 +152,18 @@ export default function PuzzleRun() {
               <Label size={22} bold>
                 {tr(COPY[mode].title)}
               </Label>
-              <Label muted>{tr(COPY[mode].rules, RULE_PARAMS)}</Label>
+              <Label muted>{tr(COPY[mode].rules, { count: rushMinutes, minutes: rushMinutes, lives: RUSH_LIVES })}</Label>
+              {mode === 'rush' && (
+                <>
+                  <Label bold>{tr('puzzles.run.length')}</Label>
+                  <Segmented
+                    options={RUSH_MINUTES.map((m) => ({ value: m, label: tr('puzzles.run.minutes', { n: m }) }))}
+                    value={rushMinutes}
+                    onChange={setRushMinutes}
+                  />
+                  {rushMinutes !== STANDARD_RUSH_MINUTES && <Label muted size={13}>{tr('puzzles.run.unrankedLength', { minutes: STANDARD_RUSH_MINUTES })}</Label>}
+                </>
+              )}
               {error && <Label muted>{error}</Label>}
               <Button title={tr('puzzles.run.start')} onPress={start} />
             </Card>
@@ -168,7 +189,15 @@ export default function PuzzleRun() {
             <Card>
               <Label muted>{mode === 'rush' ? (left === 0 ? tr('puzzles.run.timeUp') : tr('puzzles.run.outOfLives')) : tr('puzzles.run.streakOver')}</Label>
               <Text style={[styles.final, { color: t.text }]}>{score}</Text>
-              <Label muted>{best ? (best.newBest ? tr('puzzles.run.newBest') : tr('puzzles.run.best', { n: best.best })) : tr('common.saving')}</Label>
+              <Label muted>
+                {!countsForBest
+                  ? tr('puzzles.run.unrankedLength', { minutes: STANDARD_RUSH_MINUTES })
+                  : best
+                    ? best.newBest
+                      ? tr('puzzles.run.newBest')
+                      : tr('puzzles.run.best', { n: best.best })
+                    : tr('common.saving')}
+              </Label>
               <Button title={tr('puzzles.run.again')} onPress={start} />
             </Card>
           )}

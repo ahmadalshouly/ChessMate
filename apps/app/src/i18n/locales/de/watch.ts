@@ -9,4 +9,5 @@ export const watch: Messages<typeof en> = {
   ended: 'Diese Partie ist beendet oder existiert nicht.',
   couldNotOpen: 'Diese Partie konnte nicht geöffnet werden.',
   live: { one: 'Live · {count} schaut zu', other: 'Live · {count} schauen zu' },
+  none: 'Gerade laufen keine Partien. Sobald Freunde oder Spieler, denen du folgst, eine Partie starten, erscheint sie hier.',
 };

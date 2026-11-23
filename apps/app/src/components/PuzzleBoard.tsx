@@ -1,5 +1,5 @@
-import { Game, type PuzzleDto, type Square } from '@chessmate/core';
-import { useEffect, useRef } from 'react';
+import { Game, premoveDests, type PuzzleDto, type Square } from '@chessmate/core';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
@@ -7,6 +7,7 @@ import { Board } from '@/components/Board';
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { gameEndFeedback, moveFeedback } from '@/lib/feedback';
+import { haptic } from '@/lib/haptics';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import type { usePuzzle } from '@/lib/usePuzzle';
 import { translate, useT } from '@/i18n';
@@ -42,7 +43,7 @@ export function PuzzleBoard({
 }) {
   const t = useTheme();
   const tr = useT();
-  const interaction = useBoardInteraction(view.fen, (c) => view.canMove && c === view.solver, view.play);
+  const interaction = usePuzzleInteraction(view);
   const side = colorLabel(view.solver);
   const tone = view.feedback === 'wrong' || view.feedback === 'failed' ? t.danger : view.feedback === 'solved' || view.feedback === 'correct' ? SUCCESS[t.scheme] : t.text;
   const over = view.feedback === 'solved' || view.feedback === 'failed';
@@ -58,6 +59,7 @@ export function PuzzleBoard({
         targets={interaction.selected ? interaction.targets : view.hint?.to ? [view.hint.to] : []}
         lastMove={view.lastMove}
         checkSquare={checkSquareOf(view.fen)}
+        premove={view.premove}
         onSquarePress={interaction.onSquarePress}
         {...interaction.dragProps}
       />
@@ -87,6 +89,56 @@ export function PuzzleBoard({
       </Card>
     </View>
   );
+}
+
+/**
+ * Board input for a puzzle: normal moves on the solver's turn, and premoves
+ * while the opponent's move is still playing out. Tapping elsewhere or
+ * right-clicking cancels a queued premove.
+ */
+function usePuzzleInteraction(view: PuzzleView) {
+  const normal = useBoardInteraction(view.fen, (c) => view.canMove && c === view.solver, view.play);
+  const [picked, setSelected] = useState<Square | null>(null);
+  const game = new Game(view.fen);
+  // Leaving premove mode (the turn came back or the puzzle ended) drops a half-made premove.
+  const selected = view.canPremove ? picked : null;
+
+  if (!view.canPremove) {
+    const cancel = () => {
+      normal.clear();
+      if (view.premove) view.setPremove(null);
+    };
+    return { ...normal, dragProps: { ...normal.dragProps, onCancel: cancel } };
+  }
+
+  const movable = (sq: Square) => game.raw.get(sq)?.color === view.solver;
+  const destsFrom = (from: Square) => premoveDests(view.fen, view.solver, from);
+  const targets = selected ? destsFrom(selected) : [];
+
+  const onSquarePress = (sq: Square) => {
+    if (selected && targets.includes(sq)) {
+      view.setPremove({ from: selected, to: sq });
+      setSelected(null);
+      return;
+    }
+    if (view.premove) view.setPremove(null);
+    if (movable(sq)) setSelected(sq === selected ? null : sq);
+    else setSelected(null);
+  };
+
+  const onPieceDrop = (from: Square, to: Square) => {
+    setSelected(null);
+    if (!movable(from)) return;
+    if (destsFrom(from).includes(to)) view.setPremove({ from, to });
+    else haptic('illegal');
+  };
+
+  const cancel = () => {
+    setSelected(null);
+    if (view.premove) view.setPremove(null);
+  };
+
+  return { selected, targets, onSquarePress, clear: cancel, dragProps: { canDrag: movable, onPieceDrop, onCancel: cancel } };
 }
 
 /** Move cues for the solver's moves and the puzzle's replies, worked out from the position change. */

@@ -13,6 +13,7 @@ export const nav: Messages<typeof en> = {
   signInToSave: 'سجّل الدخول لحفظ المباريات',
   openProfile: 'افتح الملف الشخصي',
   puzzles: 'الألغاز',
+  watch: 'مشاهدة',
   elo: 'ELO',
   section: 'التنقل',
 };

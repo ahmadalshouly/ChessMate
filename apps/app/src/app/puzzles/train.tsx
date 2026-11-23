@@ -80,7 +80,7 @@ export default function PuzzleTrainer() {
                   </Label>
                 )}
                 <Button title={tr('puzzles.train.next')} onPress={load} />
-                {daily && <Button variant="secondary" title={tr('puzzles.train.back')} onPress={() => router.back()} />}
+                {daily && <Button variant="secondary" title={tr('puzzles.train.back')} onPress={() => router.dismissTo('/puzzles')} />}
               </Card>
             )}
           </View>

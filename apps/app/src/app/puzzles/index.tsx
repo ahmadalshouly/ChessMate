@@ -45,9 +45,6 @@ export default function PuzzlesHome() {
     <Screen>
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
-          <Label size={28} bold>
-            {tr('nav.puzzles')}
-          </Label>
           {error && (
             <Card>
               <Label bold>{tr('play.offline')}</Label>

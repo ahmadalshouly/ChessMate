@@ -96,6 +96,7 @@ function RootStack() {
         <Stack.Screen name="play/index" options={{ title: tr('nav.play') }} />
         <Stack.Screen name="play/online" options={{ title: tr('titles.playOnline') }} />
         <Stack.Screen name="play/local" options={{ title: tr('titles.practice') }} />
+        <Stack.Screen name="puzzles/index" options={{ title: tr('nav.puzzles') }} />
         <Stack.Screen name="leaderboard" options={{ title: tr('titles.leaderboards') }} />
         <Stack.Screen name="play/computer" options={{ title: tr('titles.computer') }} />
         {/* Account flow: own full-screen glass layout, no stack header. */}
