@@ -18,6 +18,10 @@ after adding or changing a set (needs Playwright with Chromium).
 | `eyes` | Eyes | Eyes (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](eyes/LICENSE) |
 | `cats` | Cats | Prmi (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](cats/LICENSE) |
 | `skulls` | Skulls | Skulls (fancy sets) | [Maurizio Monge](https://github.com/maurimo/chess-art) | [MIT](skulls/LICENSE) |
+| `cburnett` | Cburnett | SVG chess pieces (as shipped in [lila](https://github.com/lichess-org/lila/tree/master/public/piece/cburnett)) | [Colin M.L. Burnett](https://commons.wikimedia.org/wiki/User:Cburnett) | [BSD 3-Clause](cburnett/LICENSE), chosen from the author's GFDL / CC BY-SA 3.0 / GPL 2+ / BSD choice |
+| `firi` | Firi | Firi piece set (chess SVGs as shipped in [lila](https://github.com/lichess-org/lila/tree/master/public/piece/firi)) | [James Faure](https://github.com/jfaure/Firi-pieceset) | [CC BY 4.0](firi/LICENSE.txt) |
+| `kaneo` | Kaneo | Kaneo piece set | [Kadagaden](https://github.com/Kadagaden/chess-pieces) | [CC BY 4.0](kaneo/LICENSE.txt) |
+| `moonlight` | Moonlight | Kaneo Midnight piece set | [Kadagaden](https://github.com/Kadagaden/chess-pieces) | [CC BY 4.0](moonlight/LICENSE.txt) |
 
 Changes from the originals: SVGs are rasterised to 192px PNGs; the `glass` set recolours
 Chessnut as described above. The rendered `shapes` PNGs stay under CC BY-SA 4.0.
@@ -33,3 +37,22 @@ The app shows these credits under **Settings > Board > Piece artwork credits**
 3. Add the id to `PIECE_SETS` in `packages/core/src/profile.ts` and its credits to
    `PIECE_SET_INFO` in `apps/app/src/features/board/pieceSets.ts`.
 4. Run `node apps/app/art/build-pieces.mjs` and commit the PNGs and `pieceImages.ts`.
+
+## Checked and left out
+
+Sets in lila's `COPYING.md` that don't meet the rule above, so they are not bundled:
+
+- CC BY-NC / CC BY-NC-SA (non-commercial): anarcandy, caliente, california, cardinal, chessboart,
+  cooke, disguised, dubrovny, fresca, gioco, horsey, icpieces, maestro, minimal-warmth, monarchy,
+  staunty, tatiana, xkcd.
+- GPL / AGPL: merida, mono, mpchess, letter, pirouetti, pixel (and lila's board textures, AGPL).
+- Freeware, personal-use only, no-derivatives or unknown: alpha, chess7, companion, leipzig,
+  reillycraig, riohacha, shahi-ivory-brown, governor, kosal.
+- Listed as CC BY 4.0 but under lila's "non-free" heading, so unclear: papercut, totoy.
+- From Kadagaden/chess-pieces (CC BY 4.0): 1 Kbyte Gambit (a remake of Pinot W. Ichwandardi's pixel
+  art, whose own licence isn't stated) and Maestro BW (derived from lila's CC BY-NC-SA Maestro).
+- chess-art's `freak` set is MIT but shows drug use, so it was left out on content grounds.
+
+Board themes are flat colour pairs defined in code (`src/ui/theme/boardThemes.ts`), so they carry
+no third-party artwork or licence. Sandstone, Honey and Apricot use the square colours of
+Kadagaden's 8x8 boards in [chess-pieces](https://github.com/Kadagaden/chess-pieces) (CC BY 4.0).

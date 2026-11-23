@@ -34,4 +34,32 @@ export const pieceSets: Messages<typeof en> = {
     name: 'Formen',
     note: 'Abstrakt, zum Spaß',
   },
+  cburnett: {
+    name: 'Cburnett',
+    note: 'Der vertraute Online-Look',
+  },
+  firi: {
+    name: 'Firi',
+    note: 'Klar und rund',
+  },
+  skulls: {
+    name: 'Skulls',
+    note: 'Schaurig',
+  },
+  eyes: {
+    name: 'Eyes',
+    note: 'Großäugig, verspielt',
+  },
+  cats: {
+    name: 'Katzen',
+    note: 'Herrlich albern',
+  },
+  kaneo: {
+    name: 'Kaneo',
+    note: 'Glatt und modern',
+  },
+  moonlight: {
+    name: 'Mondlicht',
+    note: 'Marineblau und Mondgelb',
+  },
 };

@@ -66,4 +66,52 @@ export const boardThemes: Messages<typeof en> = {
     name: 'Sand',
     note: 'Wüstenlicht',
   },
+  coral: {
+    name: 'Koralle',
+    note: 'Warmer Sonnenuntergang',
+  },
+  olive: {
+    name: 'Olive',
+    note: 'Gedecktes Grün',
+  },
+  sky: {
+    name: 'Himmel',
+    note: 'Hellblau',
+  },
+  ruby: {
+    name: 'Rubin',
+    note: 'Tiefrot',
+  },
+  mint: {
+    name: 'Minze',
+    note: 'Frisches Grün',
+  },
+  teal: {
+    name: 'Petrol',
+    note: 'Lagune',
+  },
+  sakura: {
+    name: 'Sakura',
+    note: 'Kirschblüte',
+  },
+  coffee: {
+    name: 'Kaffee',
+    note: 'Geröstetes Braun',
+  },
+  charcoal: {
+    name: 'Anthrazit',
+    note: 'Gedämpftes Licht',
+  },
+  sandstone: {
+    name: 'Sandstein',
+    note: 'Braun auf Sand',
+  },
+  honey: {
+    name: 'Honig',
+    note: 'Braun auf Gelb',
+  },
+  apricot: {
+    name: 'Aprikose',
+    note: 'Sanfter Pfirsich',
+  },
 };
