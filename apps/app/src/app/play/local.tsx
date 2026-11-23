@@ -80,7 +80,6 @@ export default function LocalPlay() {
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
   const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START_FEN);
   const lastShown = nav.live ? history[history.length - 1] : shownMove;
-  const side = colorLabel(snapshot.turn);
 
   const card = (c: Color) => (
     <PlayerCard
@@ -134,8 +133,6 @@ export default function LocalPlay() {
             <BoardNotice icon="trophy-outline" text={`${outcome.result} · ${reasonText(outcome.reason)}`} strong>
               <NoticeButton icon="chart-box-outline" label={reviewEntry.label ?? tr('game.action.review')} onPress={openReview} primary />
             </BoardNotice>
-          ) : nav.live && snapshot.inCheck ? (
-            <BoardNotice icon="alert-outline" text={tr('practice.toMoveInCheck', { color: side })} />
           ) : null
         }
         onDismissPopover={() => setPanel(null)}
