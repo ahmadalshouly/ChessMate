@@ -69,7 +69,9 @@ export class ProfileService {
     const privacy = rec.settings.privacy;
     const showGames = isMe || privacy.showGames;
     const recentGames = showGames ? (await this.deps.games(user.id, RECENT_GAMES)).map((g) => toRecent(g, user.id)) : null;
-    const online = isMe || privacy.showOnline ? (this.deps.isOnline?.(user.id) ?? null) : null;
+    // Viewing your own profile means you are using the app right now, so you are online
+    // even if the live socket is still (re)connecting.
+    const online = isMe ? true : privacy.showOnline ? (this.deps.isOnline?.(user.id) ?? null) : null;
     return {
       id: user.id,
       title: this.deps.titleOf?.(user.id) ?? null,
