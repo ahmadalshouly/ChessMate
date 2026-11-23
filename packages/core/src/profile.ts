@@ -84,8 +84,12 @@ export interface UserSettings {
     lowTime: boolean;
     /** Vibrate on moves, captures and game end (phones only). */
     haptics: boolean;
-    /** Play sounds while the phone is on silent (iPhone silent switch, Android silent or vibrate). */
-    silentMode: boolean;
+    /**
+     * Play sounds while the phone is on silent (iPhone silent switch, Android silent or
+     * vibrate). Off by default: a muted phone stays quiet. Replaces the earlier `silentMode`,
+     * which defaulted to on, so everyone starts from the new default once.
+     */
+    playOnSilent: boolean;
   };
   gameplay: {
     /** Ask before sending a move in online games. */
@@ -121,7 +125,7 @@ export interface UserSettings {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   board: { theme: 'graphite', pieces: 'classic', coordinates: true, highlightLastMove: true, showLegalMoves: true },
-  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true, silentMode: true },
+  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true, playOnSilent: false },
   gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true, premoves: true },
   notifications: { gameStart: true, yourTurn: true, challenges: true, friendRequests: true, email: false },
   privacy: {

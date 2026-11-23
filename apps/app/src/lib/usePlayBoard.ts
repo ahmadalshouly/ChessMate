@@ -146,6 +146,8 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
       setSelected(null);
       return;
     }
+    // A piece is picked up and tapped onto a square it cannot go to: an illegal move.
+    if (selected && sq !== selected && !movable(sq)) illegalMoveFeedback();
     if (!myTurn && hasQueue && !movable(sq)) playClient.clearPremoves();
     if (movable(sq)) setSelected(sq === selected ? null : sq);
     else setSelected(null);

@@ -92,8 +92,8 @@ export function SettingsScreen() {
                   <ToggleRow
                     title={tr('settings.sound.silentMode')}
                     detail={tr(Platform.OS === 'ios' ? 'settings.sound.silentModeDetailIos' : 'settings.sound.silentModeDetailAndroid')}
-                    value={s.sound.silentMode}
-                    onChange={(v) => set({ sound: { silentMode: v } })}
+                    value={s.sound.playOnSilent}
+                    onChange={(v) => set({ sound: { playOnSilent: v } })}
                   />
                 )}
               </>

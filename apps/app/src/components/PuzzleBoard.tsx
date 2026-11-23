@@ -6,8 +6,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Board } from '@/components/Board';
 import { useFillHeight } from '@/lib/useWideBoard';
 import { Badge, Button, GlassView, Row, Stack, Text, useAppTheme } from '@/ui';
-import { gameEndFeedback, moveFeedback } from '@/lib/feedback';
-import { haptic } from '@/lib/haptics';
+import { gameEndFeedback, illegalMoveFeedback, moveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import type { usePuzzle } from '@/lib/usePuzzle';
 import { translate, useT } from '@/i18n';
@@ -208,6 +207,7 @@ function usePuzzleInteraction(view: PuzzleView) {
       setPicked(null);
       return;
     }
+    if (selected && sq !== selected && !movable(sq)) illegalMoveFeedback();
     if (view.premove) view.setPremove(null);
     if (movable(sq)) setPicked(sq === selected ? null : sq);
     else setPicked(null);
@@ -217,7 +217,7 @@ function usePuzzleInteraction(view: PuzzleView) {
     setPicked(null);
     if (!movable(from)) return;
     if (destsFrom(from).includes(to)) view.setPremove({ from, to });
-    else haptic('illegal');
+    else illegalMoveFeedback();
   };
 
   const cancel = () => {
