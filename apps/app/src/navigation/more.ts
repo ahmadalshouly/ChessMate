@@ -58,6 +58,7 @@ export const MORE_SECTIONS: MoreSection[] = [
       { key: 'support', label: 'more.support', icon: 'help-buoy-outline', href: '/support' },
       { key: 'donate', label: 'more.donate', icon: 'heart-outline', href: '/donate' },
       { key: 'privacy', label: 'more.privacy', icon: 'lock-closed-outline', href: '/privacy' },
+      { key: 'cookies', label: 'more.cookies', icon: 'finger-print-outline', href: '/cookies' },
       { key: 'fairPlay', label: 'more.fairPlay', icon: 'shield-checkmark-outline', href: '/fair-play' },
     ],
   },

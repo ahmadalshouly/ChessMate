@@ -50,5 +50,6 @@ import { pages } from './pages';
 import { limits, streak } from './habits';
 import { awards } from './awards';
 import { media } from './media';
+import { cookies } from './cookies';
 
-export const de: Messages<typeof en> = { tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const de: Messages<typeof en> = { cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };

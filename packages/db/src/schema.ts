@@ -1164,3 +1164,22 @@ export type BroadcastNewsRow = typeof broadcastNews.$inferSelect;
 export type BroadcastApplicationRow = typeof broadcastApplications.$inferSelect;
 export type StreamerRow = typeof streamers.$inferSelect;
 export type StreamerApplicationRow = typeof streamerApplications.$inferSelect;
+
+// ---------------------------------------------------------------- profile settings
+
+/**
+ * Profile fields and settings owned by the profile module (apps/server/src/profiles),
+ * one row per account. Settings are the whole UserSettings object from @chessmate/core;
+ * missing keys are filled from defaults when read, so new settings need no migration.
+ */
+export const userProfiles = pgTable('user_profiles', {
+  userId: text('user_id').primaryKey(),
+  displayName: text('display_name'),
+  bio: text('bio'),
+  country: text('country'),
+  avatar: jsonb('avatar').notNull(),
+  settings: jsonb('settings').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export type UserProfileRow = typeof userProfiles.$inferSelect;

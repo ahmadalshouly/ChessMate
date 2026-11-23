@@ -915,6 +915,41 @@ export class ChessServer {
 
   // ---- challenges and invite links ----
 
+  private createChallenge(
+    player: Player,
+    ws: WebSocket,
+    to: Player | null,
+    msg: Extract<ClientMessage, { t: 'challengeCreate' }>,
+    now: number,
+  ) {
+    const tc = msg.timeControl;
+    const created = this.challenges.create(
+      {
+        from: playerInfo(player, this.ratings.forTimeControl(player.id, tc, this.now())),
+        to: to && playerInfo(to, this.ratings.forTimeControl(to.id, tc, this.now())),
+        timeControl: tc,
+        // Guests never play rated; an open invite is re-checked when someone accepts.
+        rated: !!msg.rated && !isGuest(player) && (!to || !isGuest(to)),
+        color: msg.color,
+      },
+      now,
+    );
+    if (typeof created === 'string') return this.send(ws, challengeErr(created));
+    this.sendToPlayer(player.id, { t: 'challenge', challenge: created });
+    if (to) {
+      this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
+      // Inbox, push when away, and the in-app banner wherever they are in the app.
+      this.notifications.notify(to.id, {
+        kind: 'challenge',
+        title: `${created.from.name} challenges you`,
+        body: `${formatTimeControl(tc)} ${created.rated ? 'rated' : 'casual'} · tap to accept or decline`,
+        url: `/play/online?challenge=${created.id}`,
+        data: { challengeId: created.id, from: player.id },
+        collapseKey: `challenge:${player.id}`,
+      });
+    }
+  }
+
   private onChallengeMessage(
     player: Player,
     ws: WebSocket,
@@ -922,8 +957,7 @@ export class ChessServer {
     now: number,
   ) {
     if (msg.t === 'challengeCreate') {
-      const tc = msg.timeControl;
-      if (!validTimeControl(tc)) return this.send(ws, err('bad_request', 'Invalid time control'));
+      if (!validTimeControl(msg.timeControl)) return this.send(ws, err('bad_request', 'Invalid time control'));
       if (!['w', 'b', 'random'].includes(msg.color)) return this.send(ws, err('bad_request', 'Invalid colour'));
       if (this.activeRoomOf(player.id)) return this.send(ws, err('busy', 'Finish your current game first'));
       let to: Player | null = null;
@@ -931,32 +965,21 @@ export class ChessServer {
         to = typeof msg.to === 'string' ? (this.store.get(msg.to) ?? null) : null;
         if (!to) return this.send(ws, err('not_found', 'No such player'));
       }
-      const created = this.challenges.create(
-        {
-          from: playerInfo(player, this.ratings.forTimeControl(player.id, tc, this.now())),
-          to: to && playerInfo(to, this.ratings.forTimeControl(to.id, tc, this.now())),
-          timeControl: tc,
-          // Guests never play rated; an open invite is re-checked when someone accepts.
-          rated: !!msg.rated && !isGuest(player) && (!to || !isGuest(to)),
-          color: msg.color,
-        },
-        now,
-      );
-      if (typeof created === 'string') return this.send(ws, challengeErr(created));
-      this.sendToPlayer(player.id, { t: 'challenge', challenge: created });
-      if (to) {
-        this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
-        // Inbox, push when away, and the in-app banner wherever they are in the app.
-        this.notifications.notify(to.id, {
-          kind: 'challenge',
-          title: `${created.from.name} challenges you`,
-          body: `${formatTimeControl(tc)} ${created.rated ? 'rated' : 'casual'} · tap to accept or decline`,
-          url: `/play/online?challenge=${created.id}`,
-          data: { challengeId: created.id, from: player.id },
-          collapseKey: `challenge:${player.id}`,
-        });
+      if (to && this.social) {
+        // "Who can challenge me" (Settings → Privacy) and blocks, checked before anything is created.
+        const target = to;
+        return void this.social
+          .canChallenge(player.id, target.id)
+          .then((refusal) => {
+            if (refusal) return this.send(ws, err('forbidden', refusal));
+            this.createChallenge(player, ws, target, msg, now);
+          })
+          .catch((e) => {
+            console.error('challenge privacy check failed', e);
+            this.send(ws, err('bad_request', 'Something went wrong'));
+          });
       }
-      return;
+      return this.createChallenge(player, ws, to, msg, now);
     }
 
     if (!isChallengeId(msg.id)) return this.send(ws, err('bad_request', 'Invalid challenge id'));
@@ -1180,7 +1203,8 @@ export class ChessServer {
   /** Tells friends and followers that this user's presence changed. */
   private pushPresence(userId: string) {
     if (!this.social || !isAccountId(userId)) return;
-    const presence = this.presenceOf(userId);
+    // Players who hide their online status always look offline to others.
+    const presence = this.social.presenceFor(userId, this.presenceOf(userId));
     this.social
       .audience(userId)
       .then((ids) => {

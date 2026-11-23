@@ -23,5 +23,6 @@ export const more = {
   support: 'Support',
   donate: 'Donate',
   privacy: 'Privacy',
+  cookies: 'Cookies',
   fairPlay: 'Fair play policy',
 };

@@ -12,7 +12,7 @@ import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
-import { AccountProfileBackend, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
+import { AccountProfileBackend, DbProfileStore, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
 import { PuzzleApi } from './puzzles/api';
 import { loadBundledPuzzles, openPuzzleStore } from './puzzles/setup';
 import { Moderation } from './moderation';
@@ -68,11 +68,14 @@ const puzzles = new PuzzleApi({ store: puzzleStore });
 const ratingRepo = new MemoryRatingRepository();
 const ratings = new RatingService(ratingRepo);
 
-function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number) => Promise<FinishedGame[]>) {
+function services(
+  authStore: AuthStore,
+  gamesOf?: (userId: string, limit: number) => Promise<FinishedGame[]>,
+  profileStore: MemoryProfileStore | DbProfileStore = new MemoryProfileStore(),
+) {
   const auth = new AuthService({ store: authStore, mailer: mailerFromEnv(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
   const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend(), gamesOf);
-  const profileStore = new MemoryProfileStore();
   const profiles = profileRoutes(profileDeps, profileStore);
   const base: ServerOptions = {
     port,
@@ -102,7 +105,8 @@ async function start() {
   const stale = await abortStaleGames(db.db);
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
-  const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db));
+  // Profiles and settings (privacy included) live in the database, so they survive restarts.
+  const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db), await DbProfileStore.load(db.db));
   base.http = [
     ...(base.http ?? []),
     donateRoutes(stripeFromEnv()),
@@ -117,8 +121,8 @@ async function start() {
   profileDeps.titles = admin.titles;
   const persistence = new DbGamePersistence(db.db);
   const store = await DbPlayerStore.load(db.db, persistence);
-  const privacy = (id: string) => profileStore.get(id)?.settings.privacy.messages ?? DEFAULT_SETTINGS.privacy.messages;
-  const messages = new MessageService({ db: db.db, privacyOf: privacy, isStaff: (id) => isStaff(admin.roleOf(id)) });
+  const privacyOf = (id: string) => profileStore.get(id)?.settings.privacy ?? DEFAULT_SETTINGS.privacy;
+  const messages = new MessageService({ db: db.db, privacyOf: (id) => privacyOf(id).messages, isStaff: (id) => isStaff(admin.roleOf(id)) });
   admin.messages = messages;
   const community = new CommunityService({ db: db.db, isStaff: (id) => isStaff(admin.roleOf(id)) });
   // Play limits and streaks; breaks in force are loaded so a restart can't lift them.
@@ -161,7 +165,7 @@ async function start() {
     store,
     persistence,
     leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)),
-    social: new SocialService(db.db),
+    social: new SocialService(db.db, { privacyOf }),
     messages,
     tournaments,
     community,
