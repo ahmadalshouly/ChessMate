@@ -13,7 +13,8 @@ import { reasonText } from '@/components/play/GameOverCard';
 import { GameStartHandshake, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Screen } from '@/components/ui';
 import { useMoveFeedback } from '@/lib/feedback';
-import { prepareReview } from '@/lib/useEngine';
+import { prepareReview } from '@/features/engine';
+import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
@@ -71,7 +72,8 @@ export default function LocalPlay() {
     nav.toLive();
     sync();
   };
-  const openReview = () => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w' } });
+  const reviewEntry = useReviewEntry(outcome ? { moves: history.map((m) => m.uci) } : null);
+  const openReview = () => reviewEntry.press(() => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w' } }));
 
   const orientation: Color = flip ? 'b' : 'w';
   const top: Color = orientation === 'w' ? 'b' : 'w';
@@ -130,7 +132,7 @@ export default function LocalPlay() {
         notices={
           nav.live && outcome ? (
             <BoardNotice icon="trophy-outline" text={`${outcome.result} · ${reasonText(outcome.reason)}`} strong>
-              <NoticeButton icon="chart-box-outline" label={tr('game.action.review')} onPress={openReview} primary />
+              <NoticeButton icon="chart-box-outline" label={reviewEntry.label ?? tr('game.action.review')} onPress={openReview} primary />
             </BoardNotice>
           ) : nav.live && snapshot.inCheck ? (
             <BoardNotice icon="alert-outline" text={tr('practice.toMoveInCheck', { color: side })} />

@@ -22,6 +22,8 @@ import { HeadToHeadCard } from '@/components/HeadToHead';
 import { AwardsSummary } from '@/features/awards/AwardsSummary';
 import { ProfileStreamer } from '@/features/watch/ProfileStreamer';
 import { TitleBadge } from '@/features/titles/TitleBadge';
+import { formatAccuracy } from '@/features/engine/useReviewEntry';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
 
@@ -348,7 +350,20 @@ function GameRow({ game }: { game: RecentGame }) {
               {d > 0 ? `+${d}` : d === 0 ? '±0' : `−${Math.abs(d)}`}
             </Text>
           )}
-          {game.moves > 0 && <Button size="sm" variant="secondary" title={tr('profile.review')} onPress={() => openGame(game, true)} />}
+          {game.moves > 0 &&
+            (game.accuracy ? (
+              // Reviewed: the player's accuracy in place of Review; it opens the saved review.
+              <Button
+                size="sm"
+                variant="secondary"
+                title={`${formatAccuracy(game.accuracy[game.color])}%`}
+                leftIcon={<MaterialCommunityIcons name="chart-box-outline" size={14} color={c.text} />}
+                accessibilityLabel={tr('profile.accuracyA11y', { n: formatAccuracy(game.accuracy[game.color]) })}
+                onPress={() => openGame(game, true)}
+              />
+            ) : (
+              <Button size="sm" variant="secondary" title={tr('profile.review')} onPress={() => openGame(game, true)} />
+            ))}
         </Row>
       }
       chevron

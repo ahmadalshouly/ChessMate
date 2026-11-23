@@ -1,12 +1,14 @@
 import { formatTimeControl, opponentOf, viewerOutcome, type ArchivedGame } from '@chessmate/core';
 import { BlurView } from 'expo-blur';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 import { fonts } from '@/ui';
 
 import { useTheme } from '@/constants/theme';
 import { formatDate as formatLocalDate, translate, useI18n, useT, type TKey } from '@/i18n';
+import { useReviewAccuracy } from '@/features/engine/savedReviews';
+import { formatAccuracy } from '@/features/engine/useReviewEntry';
 
 /** Pill toggle used by the archive filters. */
 export function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -126,8 +128,24 @@ export function GameRow({ game, onPress }: { game: ArchivedGame; onPress: () => 
           {gameMeta(game)}
         </Text>
       </View>
+      <RowAccuracy game={game} />
       <Text style={[styles.chevron, { color: t.muted }]}>{rtl ? '‹' : '›'}</Text>
     </Pressable>
+  );
+}
+
+/** A reviewed game's accuracy (yours, or both sides when you didn't play it). */
+function RowAccuracy({ game }: { game: ArchivedGame }) {
+  const t = useTheme();
+  const tr = useT();
+  const req = useMemo(() => ({ moves: game.moves, initialFen: game.initialFen }), [game.moves, game.initialFen]);
+  const acc = useReviewAccuracy(req);
+  if (!acc) return null;
+  const text = game.myColor ? `${formatAccuracy(acc[game.myColor])}%` : `○ ${formatAccuracy(acc.w)} · ● ${formatAccuracy(acc.b)}`;
+  return (
+    <View style={[styles.acc, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]} accessibilityLabel={tr('review.entry', { w: formatAccuracy(acc.w), b: formatAccuracy(acc.b) })}>
+      <Text style={[styles.accText, { color: t.text, fontFamily: fonts.monoMedium }]}>{text}</Text>
+    </View>
   );
 }
 
@@ -170,6 +188,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
   sub: { fontSize: 13 },
   chevron: { fontSize: 24, fontWeight: '300' },
+  acc: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },
+  accText: { fontSize: 12, fontVariant: ['tabular-nums'] },
   stat: { alignItems: 'center', flex: 1 },
   statValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
   statLabel: { fontFamily: fonts.label, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 },

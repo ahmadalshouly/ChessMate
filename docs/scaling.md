@@ -20,26 +20,23 @@ If the app feels slow on your laptop, check these first. The Docker image and
 
 ## 2. Keep the chess engine from eating the server
 
-Stockfish is the only CPU-heavy part. Reviewing one 40-move game costs about a
-minute of engine time (80 positions × up to 0.8 s); the analysis board up to
-15 s per position.
+Stockfish is the only CPU-heavy part. Game reviews no longer use the server's
+engine at all: they are graded on the player's device, and the first review of
+an online game is saved (one small database row) and fetched by everyone after.
+The server's engine serves the analysis board (up to 15 s per position) and
+broadcast evaluations.
 
 Done in code:
-- The engine queue serves the analysis board first, then reviews a player is
-  waiting for, then background reviews of finished games (which only use spare
-  engine time and are skipped when 100 are waiting; they are reviewed when
-  someone opens them).
 - When 64 analysis requests are already waiting, the next one gets "The engine
   is busy right now" at once instead of waiting minutes.
-- Finished reviews are stored and reused, so a game is analysed once.
+- Saved reviews are rebuilt from the device's engine results with the same
+  grading code (no engine time), so a game is graded once, on a phone.
 
 Settings (environment):
 - `ENGINE_WORKERS`: Stockfish processes. Use at most (CPU cores − 1) on the
   game server so moves are never starved, or run analysis on its own machine.
 - `ENGINE_THREADS=1`, `ENGINE_HASH_MB=64` per process: more workers beat more
   threads for many users.
-- `REVIEW_MOVETIME_MS` (default 800) and `REVIEW_DEPTH` (default 18): lower
-  them on launch day if reviews queue up.
 
 Next step when needed: run the engine as its own service (the same server code
 with only analysis enabled), so games and analysis scale separately.

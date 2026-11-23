@@ -32,6 +32,7 @@ export const profile: Messages<typeof en> = {
   bestRating: 'الأفضل · {category}',
   score: 'النتيجة',
   review: 'مراجعة',
+  accuracyA11y: 'الدقة {n} بالمئة. افتح المراجعة',
   gamesHint: 'اضغط على مباراة لإعادة عرضها نقلة بنقلة، أو على مراجعة لرؤية تقييم المحرك.',
   recentGames: 'المباريات الأخيرة',
   noGames: 'لا مباريات منتهية بعد.',

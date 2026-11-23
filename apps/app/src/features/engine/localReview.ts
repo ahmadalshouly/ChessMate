@@ -34,6 +34,8 @@ export interface ReviewSnapshot {
   error?: string;
   /** Answered from a review already on this device, without searching. */
   cached?: boolean;
+  /** Engine results per position, on the finished snapshot (absent for reviews kept from before they were saved). */
+  evals?: PositionEval[];
 }
 
 export interface ReviewRequest {
@@ -53,15 +55,26 @@ interface Job {
 }
 
 const jobs = new Map<string, Job>();
+interface Finished {
+  review: GameReview;
+  evals?: PositionEval[];
+}
 /** Finished reviews this session, newest last. */
-const finished = new Map<string, GameReview>();
+const finished = new Map<string, Finished>();
+/** Told about every review finished on this device (for accuracy badges and saving it). */
+const finishedListeners = new Set<(req: ReviewRequest, review: GameReview, evals?: PositionEval[]) => void>();
+
+export function onReviewFinished(fn: (req: ReviewRequest, review: GameReview, evals?: PositionEval[]) => void): () => void {
+  finishedListeners.add(fn);
+  return () => finishedListeners.delete(fn);
+}
 /** Every position the device has searched this session (positions repeat across games and retries). */
 const evalCache = new Map<string, PositionEval>();
 const MAX_FINISHED = 30;
 const MAX_EVALS = 6000;
 /** Saved reviews survive restarts; kept small, since storage on phones is limited. */
-const STORE_PREFIX = 'review:v1:';
-const STORE_INDEX = 'review:v1:index';
+const STORE_PREFIX = 'review:v2:';
+const STORE_INDEX = 'review:v2:index';
 const MAX_STORED = 20;
 /** Partial results are rebuilt at most this often while moves come in. */
 const EMIT_MS = 250;
@@ -72,7 +85,7 @@ export function reviewKey(initialFen: string, moves: string[]): string {
 }
 
 /** Short stable id for storage keys (FNV-1a, two seeds). */
-function hashKey(s: string): string {
+export function hashKey(s: string): string {
   let a = 0x811c9dc5;
   let b = 0x01000193 ^ s.length;
   for (let i = 0; i < s.length; i++) {
@@ -88,21 +101,30 @@ export function canReviewLocally(): boolean {
   return localEngine.usable;
 }
 
-/** A finished review already on this device (memory, then storage). */
-export async function storedReview(req: ReviewRequest): Promise<GameReview | null> {
+/** A finished review already on this device (memory, then storage), with its engine results when kept. */
+export async function storedReview(req: ReviewRequest): Promise<Finished | null> {
   const key = reviewKey(req.initialFen, req.moves);
   const hit = finished.get(key);
   if (hit) return hit;
   try {
     const raw = await AsyncStorage.getItem(STORE_PREFIX + hashKey(key));
     if (!raw) return null;
-    const saved = JSON.parse(raw) as { key: string; review: GameReview };
+    const saved = JSON.parse(raw) as { key: string; review: GameReview; evals?: PositionEval[] };
     if (saved.key !== key) return null;
-    remember(key, saved.review);
-    return saved.review;
+    const entry = { review: saved.review, evals: saved.evals };
+    remember(key, entry);
+    return entry;
   } catch {
     return null;
   }
+}
+
+/** Keeps a review saved on the server on this device too, so it opens without a request next time. */
+export function keepReview(req: ReviewRequest, review: GameReview) {
+  const key = reviewKey(req.initialFen, req.moves);
+  const entry = { review, evals: finished.get(key)?.evals };
+  remember(key, entry);
+  void save(key, entry);
 }
 
 /**
@@ -172,7 +194,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
 
   const saved = await storedReview(req);
   if (signal.aborted) return;
-  if (saved) return emit({ review: saved, done: total, total, final: true, cached: true });
+  if (saved) return emit({ review: saved.review, evals: saved.evals, done: total, total, final: true, cached: true });
 
   const evals: (PositionEval | undefined)[] = new Array(total);
   let done = 0;
@@ -233,10 +255,13 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     return emit({ ...job.last, final: true, error: e instanceof Error ? e.message : 'Engine error' });
   }
   if (timer) clearTimeout(timer);
-  const review = buildReview(initialFen, moves, evals as PositionEval[]);
-  remember(job.key, review);
-  void save(job.key, review);
-  emit({ review, done: total, total, final: true });
+  const all = evals as PositionEval[];
+  const review = buildReview(initialFen, moves, all);
+  const entry = { review, evals: all };
+  remember(job.key, entry);
+  void save(job.key, entry);
+  emit({ review, evals: all, done: total, total, final: true });
+  finishedListeners.forEach((l) => l(req, review, all));
 }
 
 /**
@@ -261,19 +286,23 @@ function cacheEval(fen: string, ev: PositionEval) {
   if (evalCache.size > MAX_EVALS) evalCache.delete(evalCache.keys().next().value!);
 }
 
-function remember(key: string, review: GameReview) {
+function remember(key: string, entry: Finished) {
   finished.delete(key);
-  finished.set(key, review);
+  finished.set(key, entry);
   if (finished.size > MAX_FINISHED) finished.delete(finished.keys().next().value!);
 }
 
-async function save(key: string, review: GameReview) {
+/** Engine lines are cut to this many moves when kept (only the first few are shown or sent). */
+const KEEP_PV = 8;
+
+async function save(key: string, entry: Finished) {
   try {
     const id = hashKey(key);
     const index: string[] = JSON.parse((await AsyncStorage.getItem(STORE_INDEX)) ?? '[]');
     const next = [...index.filter((k) => k !== id), id];
     const drop = next.splice(0, Math.max(0, next.length - MAX_STORED));
-    await AsyncStorage.setItem(STORE_PREFIX + id, JSON.stringify({ key, review }));
+    const evals = entry.evals?.map((e) => ({ ...e, pv: e.pv.slice(0, KEEP_PV) }));
+    await AsyncStorage.setItem(STORE_PREFIX + id, JSON.stringify({ key, review: entry.review, evals }));
     await AsyncStorage.setItem(STORE_INDEX, JSON.stringify(next));
     if (drop.length) await AsyncStorage.multiRemove(drop.map((k) => STORE_PREFIX + k));
   } catch {

@@ -51,7 +51,8 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 - **One Expo app for all three platforms** (Expo Router, React Native Web). Shared UI, shared logic.
 - **Server is authoritative.** Clients send moves with the ply they expect; the server validates, runs the clocks and broadcasts. Clients play moves optimistically and resync on rejection.
 - **Live analysis and the coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
-- **Game reviews run on the player's device** (`apps/app/src/features/engine`): Stockfish compiled to WebAssembly, in Web Workers on the web and in a hidden WebView on iOS/Android, one engine per spare core. Moves appear graded from the first one while the rest are searched, finished reviews are kept on the device, and a game is graded as soon as it ends so Review usually opens finished. Online games also use the review the server stored when the game ended, if it has one. If the device can't run the engine, the server grades the game as before. Like the server, the app refuses engine help while you have a live game.
+- **Game reviews run only on the player's device** (`apps/app/src/features/engine`): Stockfish compiled to WebAssembly, in Web Workers on the web and in a hidden WebView on iOS/Android, one engine per spare core. The server never grades a review. Moves appear graded from the first one while the rest are searched, finished reviews are kept on the device, and a game is graded as soon as it ends so Review usually opens finished. Review is for signed-in accounts; guests see **Sign in to review**. Like the server, the app refuses engine help while you have a live game.
+- **Saved reviews.** The first review of an online game is saved on the server (`POST /api/games/:id/review` with the device's per-position engine results; only the two players may save it, and the server rebuilds the grades and accuracy itself from those results). From then on anyone signed in who opens that game, for example from a profile, gets the saved review instead of a fresh one, and reviewed games show their accuracy where the Review button was.
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
 - **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) is never linked into our code: on the server it runs as a separate process, and in the app as a separate, unmodified engine file (Stockfish.js, `apps/app/public/engine`, with its license) that only exchanges UCI text with the app. Refresh it with `node apps/app/scripts/vendor-engine.mjs` after upgrading the `stockfish` dev dependency.
 - **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
@@ -171,12 +172,14 @@ Then open the app and tap **Try a sample review** on the home screen. Details: [
 
 ## Engine analysis
 
-The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games. The app gets:
+The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games, for the analysis board and broadcasts. Game reviews run on the player's device instead (see above). The app gets:
 
 - **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move. Every move you play or step through gets a badge on the moved piece once the engine has seen the position before and after it (depth 12+).
-- **Game review** (after an online game → Review game, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
+- **Game review** (signed in; after a game → Review game, from game history or a profile, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
 
-Reviews are graded ahead of time and saved. When an online game ends the server grades it in the background (one game at a time, on one engine), and games against the computer or pass-and-play are sent to the server for grading as soon as they end. Finished reviews are stored in the database (`game_reviews` table, keyed by start position and moves), so tapping **Review game** just fetches them, even after a server restart. If you open Review before grading has finished, it joins the running job and speeds it up with every engine. Set `REVIEW_PRECOMPUTE=off` to grade only when Review is opened.
+Reviews are graded on the device as soon as a game ends, so Review usually opens finished. An online game's first review is saved in the database (`game_reviews` table, one per game), so opening it again, from any account, just fetches it, and its accuracy replaces the Review button on the result screen, in game history and on profile rows. Games against the computer and pass-and-play keep their reviews on the device.
+
+To try it: sign in with two accounts (one in a private window), play an online game between them, then tap **Review game** on one side. When grading finishes the button reads *Accuracy ○ 84.2 · ● 71.5*; open the other account's profile from the first one and its recent game shows the accuracy and opens the same review without grading again.
 
 Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visuals in `apps/app/src/components/MoveBadge.tsx`):
 
@@ -201,7 +204,7 @@ Which Stockfish runs:
 1. `STOCKFISH_PATH` set: that native binary (fastest; used by the Docker image).
 2. Otherwise the `stockfish` npm package's WebAssembly build, run by a child Node process. This is installed by `pnpm install`, so nothing extra is needed for local development on Windows, macOS or Linux.
 
-Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 18) and `REVIEW_MOVETIME_MS` (default 800, per position). Reviews look at two engine lines per position (to spot only moves) and spread positions across all `ENGINE_WORKERS`, so more workers make reviews faster. The analysis board searches to depth 22 by default. For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
+Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`. The analysis board searches to depth 22 by default. For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
 
 ```powershell
 $env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"

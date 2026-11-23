@@ -1,4 +1,4 @@
-import { listUserGames, type Database, type GameRow } from '@chessmate/db';
+import { listUserGames, reviewAccuracies, type Database, type GameRow } from '@chessmate/db';
 import type { GameEndReason, GameResult, TimeCategory } from '@chessmate/core';
 
 import type { FinishedGame } from './types';
@@ -32,6 +32,10 @@ export function toFinishedGame(g: GameRow): FinishedGame {
 export function dbGamesOf(db: Database) {
   return async (userId: string, limit: number): Promise<FinishedGame[]> => {
     const rows = await listUserGames(db, userId, { limit: limit + 10 });
-    return rows.filter((g) => g.result !== '*' && g.endReason !== 'aborted').slice(0, limit).map(toFinishedGame);
+    const games = rows.filter((g) => g.result !== '*' && g.endReason !== 'aborted').slice(0, limit).map(toFinishedGame);
+    // Reviewed games show their accuracy on the profile instead of a Review button.
+    const acc = await reviewAccuracies(db, games.map((g) => g.id)).catch(() => new Map<string, { w: number; b: number }>());
+    for (const g of games) g.accuracy = acc.get(g.id) ?? null;
+    return games;
   };
 }

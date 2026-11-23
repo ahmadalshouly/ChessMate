@@ -37,6 +37,7 @@ import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
 import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
+import { useReviewEntry } from '@/features/engine/useReviewEntry';
 
 type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'frenzy';
 
@@ -84,9 +85,11 @@ export default function OnlinePlay() {
   useEffect(() => {
     if (!view || !endReason || endReason === 'aborted' || view.variant === 'secretQueen') return;
     const moves = view.history.map((m) => m.uci);
-    const id = setTimeout(() => prepareReview(moves, { online: true }), PREPARE_DELAY_MS);
+    const id = setTimeout(() => prepareReview(moves, { gameId: view.gameId }), PREPARE_DELAY_MS);
     return () => clearTimeout(id);
   }, [gameId, endReason]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Review is for signed-in players; once graded, the button shows the accuracy.
+  const reviewEntry = useReviewEntry(view?.outcome ? { moves: view.history.map((m) => m.uci), gameId: view.gameId } : null);
 
   const you: Color = view?.you ?? 'w';
   const opp: Color = you === 'w' ? 'b' : 'w';
@@ -227,14 +230,15 @@ export default function OnlinePlay() {
   const revealText = (r: (typeof view.reveals)[number]) =>
     tr(`secretQueen.revealed.${r.reason}`, { side: r.color === 'w' ? tr('play.white') : tr('play.black'), square: r.square });
 
-  const openReview = () => {
-    // The result popup is a modal: close it, or it stays on top of the review.
-    setHideResult(true);
-    router.push({
-      pathname: '/review',
-      params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
+  const openReview = () =>
+    reviewEntry.press(() => {
+      // The result popup is a modal: close it, or it stays on top of the review.
+      setHideResult(true);
+      router.push({
+        pathname: '/review',
+        params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
+      });
     });
-  };
   const confirmThen = (fn: () => void) => () => {
     setPanel(null);
     fn();
@@ -432,6 +436,7 @@ export default function OnlinePlay() {
             onNewGame={newGame}
             onLobby={toLobby}
             onReview={reviewable ? openReview : undefined}
+            reviewLabel={reviewEntry.label ?? undefined}
             onClose={() => setHideResult(true)}
           />
         )}

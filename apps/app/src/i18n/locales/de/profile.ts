@@ -32,6 +32,7 @@ export const profile: Messages<typeof en> = {
   bestRating: 'Beste · {category}',
   score: 'Punkte',
   review: 'Analyse',
+  accuracyA11y: 'Genauigkeit {n} Prozent. Analyse öffnen',
   gamesHint: 'Tippe auf eine Partie, um sie Zug für Zug nachzuspielen, oder auf Analyse für die Engine-Bewertung.',
   recentGames: 'Letzte Partien',
   noGames: 'Noch keine beendeten Partien.',

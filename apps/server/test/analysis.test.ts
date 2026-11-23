@@ -1,4 +1,4 @@
-import { decodeServer, encode, type ClientMessage, type ServerMessage, type GameReview, type UciInfo } from '@chessmate/core';
+import { decodeServer, encode, type ClientMessage, type ServerMessage, type UciInfo } from '@chessmate/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { AnalysisService, EnginePool, type Engine, type SearchOptions, type SearchResult } from '../src/engine';
@@ -85,22 +85,13 @@ describe('engine analysis over the game socket', () => {
     a.close();
   });
 
-  it('reviews a game move by move', async () => {
+  it('no longer grades game reviews on the server', async () => {
     const a = await client('guest:Reviewer');
-    a.send({ t: 'review', id: 3, moves: ['e2e4', 'e7e5', 'g1f3'] });
-    const progress = (await a.next((m) => m.t === 'reviewProgress')) as Extract<ServerMessage, { t: 'reviewProgress' }>;
-    expect(progress.total).toBe(4);
-    const r = (await a.next((m) => m.t === 'reviewResult')) as Extract<ServerMessage, { t: 'reviewResult' }>;
-    expect(r.review.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3']);
-    expect(r.review.moves[0]!.judgement.classification).toBe('book');
-    a.close();
-  });
-
-  it('rejects illegal move lists', async () => {
-    const a = await client('guest:Reviewer');
-    a.send({ t: 'review', id: 4, moves: ['e2e5'] });
+    const before = engine.searches.length;
+    a.send({ t: 'review', id: 3, moves: ['e2e4', 'e7e5', 'g1f3'] } as unknown as ClientMessage);
     const e = (await a.next((m) => m.t === 'error')) as Extract<ServerMessage, { t: 'error' }>;
-    expect(e).toMatchObject({ code: 'bad_request', id: 4 });
+    expect(e.code).toBe('bad_request');
+    expect(engine.searches.length).toBe(before);
     a.close();
   });
 
@@ -119,19 +110,19 @@ describe('engine analysis over the game socket', () => {
 
     a.send({ t: 'analyze', id: 5, fen: '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1' });
     expect(await a.next((m) => m.t === 'error')).toMatchObject({ code: 'engine_locked', id: 5 });
-    a.send({ t: 'review', id: 6, moves: [], gameId: start.game.gameId });
-    expect(await a.next((m) => m.t === 'error')).toMatchObject({ code: 'engine_locked', id: 6 });
 
     // Someone else asking about the exact live position is refused too.
     spy.send({ t: 'analyze', id: 7, fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1' });
     expect(await spy.next((m) => m.t === 'error')).toMatchObject({ code: 'engine_locked', id: 7 });
 
-    // After the game ends, the review is available.
+    // After the game ends, analysis is available again, and the server does not grade the game.
+    const before = engine.searches.length;
     a.send({ t: 'resign', gameId: start.game.gameId });
     await a.next((m) => m.t === 'gameOver');
-    a.send({ t: 'review', id: 8, moves: [], gameId: start.game.gameId });
-    const r = (await a.next((m) => m.t === 'reviewResult')) as Extract<ServerMessage, { t: 'reviewResult' }>;
-    expect(r.review.moves.map((m) => m.uci)).toEqual(['e2e4']);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(engine.searches.length).toBe(before);
+    a.send({ t: 'analyze', id: 8, fen: '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1' });
+    expect(await a.next((m) => m.t === 'analysis' && m.done)).toMatchObject({ id: 8 });
     for (const c of [a, b, spy]) c.close();
   });
 });
@@ -153,89 +144,5 @@ describe('without an engine', () => {
     expect(await got).toMatchObject({ code: 'engine_unavailable', id: 1 });
     ws.close();
     await bare.close();
-  });
-});
-
-describe('stored reviews', () => {
-  const memoryStore = () => {
-    const rows = new Map<string, { review: GameReview; gameId?: string }>();
-    return {
-      rows,
-      get: async (k: string) => rows.get(k)?.review,
-      put: async (k: string, review: GameReview, gameId?: string) => void rows.set(k, { review, gameId }),
-    };
-  };
-  const collect = () => {
-    const sent: ServerMessage[] = [];
-    return { sent, send: (m: ServerMessage) => void sent.push(m) };
-  };
-  const moves = ['e2e4', 'e7e5', 'g1f3', 'b8c6'];
-  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-
-  it('reviews finished games in the background and answers Review from the store', async () => {
-    const store = memoryStore();
-    const fake = new FakeEngine();
-    const svc = new AnalysisService(new EnginePool(async () => fake, 2), { store });
-    await svc.precompute({ gameId: 'g1', moves, initialFen: START });
-    expect([...store.rows.values()][0]!.gameId).toBe('g1');
-    expect(fake.searches).toHaveLength(moves.length + 1);
-
-    // A fresh service (a restart) reads it back without touching the engine.
-    const fresh = new FakeEngine();
-    const after = new AnalysisService(new EnginePool(async () => fresh, 1), { store });
-    const { sent, send } = collect();
-    const r = await after.review('p1', { id: 1, moves, initialFen: START }, send);
-    expect(r?.moves.map((m) => m.uci)).toEqual(moves);
-    expect(fresh.searches).toHaveLength(0);
-    expect(sent.map((m) => m.t)).toEqual(['reviewResult']);
-    svc.close();
-    after.close();
-  });
-
-  it('answers a cached-only review from the store, and never starts one', async () => {
-    const store = memoryStore();
-    const fake = new FakeEngine();
-    const svc = new AnalysisService(new EnginePool(async () => fake, 1), { store });
-    const miss = collect();
-    expect(await svc.review('p1', { id: 3, moves, initialFen: START, cachedOnly: true }, miss.send)).toBeNull();
-    expect(miss.sent).toEqual([{ t: 'error', code: 'not_found', message: 'No stored review', id: 3 }]);
-    expect(fake.searches).toHaveLength(0);
-
-    await svc.precompute({ gameId: 'g9', moves, initialFen: START });
-    const hit = collect();
-    const r = await svc.review('p1', { id: 4, moves, initialFen: START, cachedOnly: true }, hit.send);
-    expect(r?.moves).toHaveLength(moves.length);
-    expect(hit.sent.map((m) => m.t)).toEqual(['reviewResult']);
-    svc.close();
-  });
-
-  it('joins a background review that is still running instead of starting again', async () => {
-    const store = memoryStore();
-    const fake = new FakeEngine();
-    const svc = new AnalysisService(new EnginePool(async () => fake, 2), { store });
-    const bg = svc.precompute({ gameId: 'g2', moves, initialFen: START });
-    await new Promise((r) => setTimeout(r, 1));
-    const { sent, send } = collect();
-    const r = await svc.review('p1', { id: 9, moves, initialFen: START, gameId: 'g2' }, send);
-    await bg;
-    expect(r?.moves).toHaveLength(moves.length);
-    expect(fake.searches).toHaveLength(moves.length + 1);
-    expect(sent.at(-1)).toMatchObject({ t: 'reviewResult', id: 9 });
-    expect(sent.some((m) => m.t === 'reviewProgress')).toBe(true);
-    expect(store.rows.size).toBe(1);
-    svc.close();
-  });
-
-  it('keeps a background review going when the player leaves', async () => {
-    const store = memoryStore();
-    const svc = new AnalysisService(new EnginePool(async () => new FakeEngine(), 1), { store });
-    const bg = svc.precompute({ gameId: 'g3', moves, initialFen: START });
-    await new Promise((r) => setTimeout(r, 1));
-    const pending = svc.review('p1', { id: 1, moves, initialFen: START }, () => {});
-    svc.cancel('p1');
-    expect(await pending).toBeNull();
-    await bg;
-    expect(store.rows.size).toBe(1);
-    svc.close();
   });
 });

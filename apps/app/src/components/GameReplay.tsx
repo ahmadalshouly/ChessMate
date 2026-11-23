@@ -14,6 +14,8 @@ import { deleteGame } from '@/lib/archive';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useWideBoard } from '@/lib/useWideBoard';
 import { canDownload, copyText, downloadPgn, pgnFileName, sharePgn } from '@/lib/share';
+import { serverGameId } from '@/features/engine';
+import { useReviewEntry } from '@/features/engine/useReviewEntry';
 
 
 function resultLine(g: ArchivedGame): string {
@@ -49,6 +51,9 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const pgn = useMemo(() => gameToPgn(game), [game]);
+  const onlineId = game.source === 'online' ? serverGameId(game.id) : undefined;
+  // A reviewed game shows its accuracy where the Review button was.
+  const reviewEntry = useReviewEntry({ moves: game.moves, initialFen: game.initialFen, gameId: onlineId });
 
   const go = (p: number) => setPly(Math.max(0, Math.min(history.length, p)));
   const plyRef = useRef(ply);
@@ -243,12 +248,14 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
               <Label muted>{tr('games.replay.played', { date: formatDate(game.endedAt) })}</Label>
               {history.length > 0 && (
                 <Button
-                  title={tr('analysis.review')}
+                  title={reviewEntry.label ?? tr('analysis.review')}
                   onPress={() =>
-                    router.push({
-                      pathname: '/review',
-                      params: { gameId: game.source === 'online' ? game.id : undefined, moves: game.moves.join(','), initialFen: game.initialFen, orientation, white: game.white, black: game.black },
-                    })
+                    reviewEntry.press(() =>
+                      router.push({
+                        pathname: '/review',
+                        params: { gameId: onlineId, moves: game.moves.join(','), initialFen: game.initialFen, orientation, white: game.white, black: game.black },
+                      }),
+                    )
                   }
                 />
               )}

@@ -14,13 +14,13 @@ import { useTheme } from '@/constants/theme';
 import { dirIcon, useT } from '@/i18n';
 import { ActionBar } from '@/components/game/ActionBar';
 import { moveFeedbackText } from '@/i18n/chess';
-import { serverText } from '@/i18n/serverMessages';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
 import { moveFeedback } from '@/lib/feedback';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
-import { useEngine } from '@/lib/useEngine';
-import { analyzeLocally, canReviewLocally, useGameReview } from '@/features/engine';
+import { useAuth } from '@/lib/auth';
+import { analyzeLocally, canReviewLocally, serverGameId, useGameReview } from '@/features/engine';
+import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
 
 const EVAL_BAR = 20;
 /** Classes where the played move needs no "better move" arrow. */
@@ -33,14 +33,16 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
 /**
  * Game review: Stockfish grades every move of a finished game (best to
  * blunder), with accuracy per side and the better move shown on the board.
- * The engine runs on the player's device where it can, and moves appear
- * graded from the first one while the rest of the game is still being
- * searched. The per-move results are what the AI coach explains.
+ * For signed-in players only. The engine runs on the player's device, and
+ * moves appear graded from the first one while the rest of the game is still
+ * being searched; an online game's first review is saved, and opening it again
+ * (from any account) shows that review instead of grading again. The per-move
+ * results are what the AI coach explains.
  */
 export default function Review() {
   const tr = useT();
   const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string }>();
-  const engine = useEngine();
+  const signedIn = useAuth().status === 'signedIn';
   const t = useTheme();
   const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 140 });
   const size = boardSpace - EVAL_BAR - 6;
@@ -56,16 +58,29 @@ export default function Review() {
     () => ({
       moves: (params.moves ?? '').split(',').filter(Boolean),
       initialFen: params.initialFen || START_FEN,
-      gameId: params.gameId || undefined,
+      gameId: params.gameId ? serverGameId(params.gameId) : undefined,
     }),
     [params.moves, params.initialFen, params.gameId],
   );
 
-  const graded = useGameReview(request, engine);
+  const graded = useGameReview(request, signedIn);
   // While grading, `review` holds the moves graded so far (from the first one on).
   const review = graded.review;
   const final = graded.final;
   const moves = review?.moves ?? [];
+
+  // The reviewing card stays a moment after grading ends, to show it is done
+  // (not for a review that opens finished, from this device or saved).
+  const [sawGrading, setSawGrading] = useState(false);
+  const [doneShown, setDoneShown] = useState(false);
+  if (!final && !sawGrading && graded.progress && graded.progress.done < graded.progress.total) setSawGrading(true);
+  const lingering = final && sawGrading && !doneShown;
+  useEffect(() => {
+    if (!lingering) return;
+    const id = setTimeout(() => setDoneShown(true), 1600);
+    return () => clearTimeout(id);
+  }, [lingering]);
+  const showProgress = !final || lingering;
 
   // While the engine works, the board plays the game through move by move,
   // so there is something to watch instead of a bare progress bar.
@@ -110,35 +125,26 @@ export default function Review() {
   const fen = branch ? (branchMove?.fenAfter ?? branchBase) : mainFen;
   const orientation = flip ? 'b' : 'w';
 
-  // The engine checks every position of your line (the one shown first, then the ones
-  // before it), so each of your moves gets a grade like in the review.
-  const { analyze, stop } = engine;
+  // The device engine checks every position of your line (the one shown first, then the
+  // ones before it), so each of your moves gets a grade like in the review.
   const [seen, setSeen] = useState<Map<string, PositionAnalysis>>(() => new Map());
-  const latest = engine.state.analysis;
-  const [recorded, setRecorded] = useState(latest);
-  if (latest !== recorded) {
-    setRecorded(latest);
-    if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
-  }
   const branchFens = useMemo(() => [branchBase, ...branchHistory.map((m) => m.fenAfter)], [branchBase, branchHistory]);
   const needed = branch ? [branchFens[branch.cursor]!, ...branchFens.slice(0, branch.cursor).reverse()].find((f) => !seen.has(positionKey(f))) : undefined;
   useEffect(() => {
-    if (!needed) return stop();
+    if (!needed || !canReviewLocally()) return;
     const ctrl = new AbortController();
-    const onServer = () => analyze(needed, 2, { depth: GRADE_DEPTH + 4, movetimeMs: 1500 });
     const id = setTimeout(() => {
-      if (!canReviewLocally()) return onServer();
-      // On the device, ahead of anything still queued for the review.
+      // Ahead of anything still queued for the review.
       analyzeLocally(needed, { depth: GRADE_DEPTH + 2, signal: ctrl.signal }).then(
         (a) => setSeen((prev) => remember(prev, a)),
-        (e: Error) => e.name !== 'AbortError' && onServer(),
+        () => {},
       );
     }, 120);
     return () => {
       clearTimeout(id);
       ctrl.abort();
     };
-  }, [needed, analyze, stop]);
+  }, [needed]);
   const branchGrades = useMemo(() => (branch ? gradeLine(branchBase, branchHistory, seen, []) : []), [branch, branchBase, branchHistory, seen]);
   const branchGrade = branch && branch.cursor > 0 ? branchGrades[branch.cursor - 1] : undefined;
   const shownAnalysis = branch ? seen.get(positionKey(fen)) : undefined;
@@ -224,7 +230,23 @@ export default function Review() {
     arrows.push({ from: m.from, to: m.to, color: BEST_MOVE_ARROW });
   }
 
-  if (!request.moves.length && !request.gameId) {
+  if (!signedIn) {
+    return (
+      <Screen>
+        <View style={styles.page}>
+          <Card>
+            <Label bold size={17}>
+              {tr('review.signIn.title')}
+            </Label>
+            <Label muted>{tr('review.signIn.body')}</Label>
+            <Button title={tr('review.signIn.button')} onPress={() => router.push('/sign-in')} />
+          </Card>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!request.moves.length) {
     return (
       <Screen>
         <View style={styles.page}>
@@ -238,7 +260,6 @@ export default function Review() {
   }
 
   const progress = graded.progress;
-  const pct = progress ? Math.round((100 * progress.done) / Math.max(1, progress.total)) : 0;
   const step = (fn: (p: number) => number) => {
     setAutoplay(false);
     setBranch(null);
@@ -270,6 +291,7 @@ export default function Review() {
                 {...(review ? interaction.dragProps : {})}
               />
               <BoardArrows arrows={arrows} size={size} orientation={orientation} />
+              <BoardScan size={size} active={!final && !graded.error} />
               {current && <BoardMoveBadge square={current.uci.slice(2, 4) as Square} cls={current.judgement.classification} size={size} orientation={orientation} />}
               {branchMove && branchGrade && <BoardMoveBadge square={branchMove.to} cls={branchGrade.classification} size={size} orientation={orientation} />}
             </View>
@@ -306,42 +328,24 @@ export default function Review() {
   ) : null;
   const panel = (
     <>
-          {!final && (
+          {graded.error ? (
             <Card>
-              {graded.error ? (
-                <>
-                  <Label bold>{tr('review.unavailable')}</Label>
-                  <Label muted>
-                    {graded.error.code === 'engine_locked'
-                      ? tr('review.locked')
-                      : serverText(graded.error.message)}
-                  </Label>
-                  <Button variant="secondary" title={tr('common.tryAgain')} onPress={graded.retry} />
-                </>
-              ) : (
-                <>
-                  <View style={styles.row}>
-                    <Label bold>{tr('review.reviewing')}</Label>
-                    <View style={{ marginStart: 'auto' }}>
-                      <Label muted>{pct}%</Label>
-                    </View>
-                  </View>
-                  <View style={[styles.track, { backgroundColor: t.border }]}>
-                    <View style={[styles.fill, { backgroundColor: t.accent, width: `${Math.max(2, pct)}%` }]} />
-                  </View>
-                  <Label muted size={13}>
-                    {graded.source === 'device'
-                      ? tr('review.onDeviceProgress', { done: progress?.done ?? 0, total: progress?.total ?? request.moves.length + 1 })
-                      : progress
-                        ? tr('review.progress', { done: progress.done, total: progress.total })
-                        : engine.state.connected
-                          ? tr('review.waitingEngine')
-                          : tr('play.connecting')}
-                  </Label>
-                </>
-              )}
+              <Label bold>{tr('review.unavailable')}</Label>
+              <Label muted>
+                {graded.error.code === 'engine_locked' ? tr('review.locked') : graded.error.code === 'no_engine' ? tr('review.noEngine') : tr('review.engineFailed')}
+              </Label>
+              {graded.error.code !== 'engine_locked' && <Button variant="secondary" title={tr('common.tryAgain')} onPress={graded.retry} />}
             </Card>
-          )}
+          ) : showProgress ? (
+            <ReviewProgress
+              done={progress?.done ?? 0}
+              total={progress?.total ?? request.moves.length + 1}
+              checking={graded.checking && !progress?.done}
+              finished={final}
+              tookMs={graded.tookMs}
+              latest={moves[moves.length - 1]}
+            />
+          ) : null}
           {review && branch && (
             <Card>
               <View style={styles.row}>
@@ -468,7 +472,7 @@ export default function Review() {
                   })}
                 </View>
                 <Label muted size={12}>
-                  {graded.source === 'device' ? tr('review.depthDevice', { n: review.depth }) : tr('review.depth', { n: review.depth })}
+                  {graded.source === 'saved' ? tr('review.depthSaved', { n: review.depth }) : tr('review.depthDevice', { n: review.depth })}
                 </Label>
               </Card>
               )}

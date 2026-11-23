@@ -1,6 +1,8 @@
-import { getGame, headToHead, type Database } from '@chessmate/db';
+import { getGame, getReviewForGame, headToHead, reviewAccuracies, saveReviewForGame, type Database } from '@chessmate/db';
 
+import { readJson } from '../auth/http';
 import type { HttpRoute } from '../social/http';
+import { reviewFromUpload } from './reviewUpload';
 
 const round = (v: number | null | undefined) => (v === null || v === undefined ? null : Math.round(v));
 
@@ -19,6 +21,8 @@ export interface PublicGame {
   endReason: string | null;
   startedAt: number;
   endedAt: number | null;
+  /** Accuracy per side once the game has a saved review, else null. */
+  accuracy: { w: number; b: number } | null;
 }
 
 export interface GameRouteDeps {
@@ -31,8 +35,16 @@ export interface GameRouteDeps {
 /**
  * Finished games, for opening them from a profile's recent games:
  *
- *   GET /api/games/:id           → { game: PublicGame }
- *   GET /api/games/h2h/:userId   → { h2h: HeadToHead }  your record against that player (signed in)
+ *   GET  /api/games/:id           → { game: PublicGame }
+ *   GET  /api/games/:id/review    → { review: GameReview }  the saved review (signed in), 404 when none yet
+ *   POST /api/games/:id/review    { evals } → { review }    save the review graded on a player's device
+ *   GET  /api/games/h2h/:userId   → { h2h: HeadToHead }  your record against that player (signed in)
+ *
+ * Reviews are graded on players' devices; the server runs no engine for them.
+ * The first review saved for a game is the one everyone sees. Only the two
+ * players can save it (anyone signed in can read it), so nobody can attach a
+ * review to someone else's game; other viewers grade it on their own device
+ * without saving until one of the players reviews it.
  *
  * Live and aborted games are not served here (live games are watched over the socket).
  * If either player keeps their games private, only the two players can open it,
@@ -42,7 +54,8 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
   return async (req, res, url) => {
     const m = /^\/api\/games\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
     const vs = /^\/api\/games\/h2h\/([A-Za-z0-9_-]{1,64})$/.exec(url.pathname);
-    if (!m && !vs) return false;
+    const rv = /^\/api\/games\/([A-Za-z0-9_-]{1,64})\/review$/.exec(url.pathname);
+    if (!m && !vs && !rv) return false;
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'authorization, content-type');
     const json = (status: number, body: unknown) => {
@@ -54,7 +67,7 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
       res.writeHead(204).end();
       return true;
     }
-    if (req.method !== 'GET') return json(405, { error: 'GET only' });
+    if (req.method !== 'GET' && !(rv && req.method === 'POST')) return json(405, { error: 'GET only' });
     const token = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1];
     const viewer = token ? deps.viewerOf(token) : null;
     if (vs) {
@@ -68,12 +81,34 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
       }
     }
     try {
-      const g = await getGame(db, m![1]!);
+      const g = await getGame(db, (m ?? rv)![1]!);
       if (!g || g.status !== 'finished') return json(404, { error: 'No such game' });
       const players = [g.whiteUserId, g.blackUserId].filter((x): x is string => !!x);
       if (!viewer || !players.includes(viewer)) {
         for (const id of players) if (await deps.gamesHidden(id)) return json(404, { error: 'No such game' });
       }
+      if (rv) {
+        // Game review is for signed-in players.
+        res.setHeader('cache-control', 'no-store');
+        if (!viewer) return json(401, { error: 'Sign in to review games' });
+        if (req.method === 'GET') {
+          const review = await getReviewForGame(db, g.id);
+          return review ? json(200, { review }) : json(404, { error: 'Not reviewed yet' });
+        }
+        if (!players.includes(viewer)) return json(403, { error: 'Only the players can save the review of this game' });
+        const saved = await getReviewForGame(db, g.id);
+        if (saved) return json(200, { review: saved });
+        let body: Record<string, unknown>;
+        try {
+          body = await readJson(req, 1024 * 1024);
+        } catch (e) {
+          return json(400, { error: e instanceof Error ? e.message : 'Invalid body' });
+        }
+        const built = reviewFromUpload(g.initialFen, g.moves.map((mv) => mv.uci), body.evals);
+        if ('error' in built) return json(400, { error: built.error });
+        return json(200, { review: await saveReviewForGame(db, g.id, built.review) });
+      }
+      const accuracy = (await reviewAccuracies(db, [g.id])).get(g.id) ?? null;
       const game: PublicGame = {
         id: g.id,
         white: { userId: g.whiteUserId, name: g.whiteName, ratingBefore: round(g.whiteRatingBefore), ratingAfter: round(g.whiteRatingAfter) },
@@ -87,8 +122,10 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
         endReason: g.endReason ?? null,
         startedAt: new Date(g.startedAt).getTime(),
         endedAt: g.endedAt ? new Date(g.endedAt).getTime() : null,
+        accuracy,
       };
-      res.setHeader('cache-control', 'private, max-age=300');
+      // Short: a review saved after the first visit should show up soon.
+      res.setHeader('cache-control', 'private, max-age=30');
       return json(200, { game });
     } catch (e) {
       console.error('game route failed', e);
