@@ -1151,6 +1151,16 @@ export class ChessServer {
 
   // ---- social: presence, spectators, activity ----
 
+  /** True while the player has at least one live socket open (any screen of the app). */
+  isOnline(userId: string): boolean {
+    return (this.sockets.get(userId)?.size ?? 0) > 0;
+  }
+
+  /** Id of the unfinished game this player is in, if any. */
+  liveGameOf(userId: string): string | null {
+    return this.activeRoomOf(userId)?.id ?? null;
+  }
+
   private presenceOf(userId: string): Presence {
     if (!this.sockets.has(userId)) return { status: 'offline' };
     const room = this.activeRoomOf(userId);
