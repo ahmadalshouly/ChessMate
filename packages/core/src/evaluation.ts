@@ -71,6 +71,11 @@ export interface MoveJudgement {
   accuracy: number;
 }
 
+/**
+ * Expected-points loss bands, as chess.com publishes them: best 0, excellent
+ * up to 0.02, good up to 0.05, inaccuracy up to 0.10, mistake up to 0.20,
+ * blunder beyond.
+ */
 const THRESHOLDS: [MoveClass, number][] = [
   ['excellent', 0.02],
   ['good', 0.05],
@@ -80,14 +85,20 @@ const THRESHOLDS: [MoveClass, number][] = [
 
 /** Loss below which a move counts as "as good as the best". */
 const BEST_LOSS = 0.005;
-/** Loss a sacrifice or only move may have and still earn !!, !!! or !. */
-const TOP_LOSS = 0.02;
+/** Loss a sacrifice or only move may have and still earn !!, !!! or !: the best move or within a hair of it. */
+const TOP_LOSS = 0.01;
 /** How much worse the engine's second choice must be for an only move (!). */
 const ONLY_MOVE_GAP = 0.15;
 /** Expected score a sacrifice must keep for the mover to be sound. */
 const SOUND_AFTER = 0.45;
-/** Above this (by centipawns, not mate) the mover is already winning easily, so no !! or !. */
-const ALREADY_WINNING = 0.95;
+/**
+ * At or above this expected score (about +5.5 by centipawns, not mate) the
+ * mover is already completely winning, so a sacrifice or only move is not
+ * special: plenty of moves win.
+ */
+const ALREADY_WINNING = 0.9;
+/** A theory move keeps its badge unless the engine calls it a mistake or worse. */
+const BOOK_MAX_LOSS = 0.1;
 /** Opponent's previous move loss that opens a chance worth noticing. */
 const CHANCE = 0.15;
 /** Loss at which letting such a chance go counts as a miss. */
@@ -120,7 +131,7 @@ export function judgeMove(params: {
   const loss = Math.max(0, before - after);
   const accuracy = moveAccuracy(loss);
   if (params.legalMoveCount === 1) return { classification: 'forced', loss, accuracy };
-  if (params.book && loss < 0.05) return { classification: 'book', loss, accuracy: 100 };
+  if (params.book && loss < BOOK_MAX_LOSS) return { classification: 'book', loss, accuracy: 100 };
 
   const top = params.playedIsBest || loss < TOP_LOSS;
   const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING;

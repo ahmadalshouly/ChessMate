@@ -4,7 +4,7 @@ import { quickFeedback } from './coach';
 import { classifyMove } from './classify';
 import { MOVE_CLASSES, gameAccuracy, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { Game, START_FEN, parseUci, toUci } from './game';
-import { openingTimeline } from './openings';
+import { bookTimeline } from './openings';
 import { analyzePosition } from './threats';
 import type { Color } from './types';
 import type { UciInfo } from './uci';
@@ -195,8 +195,8 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
   } as GameReview['counts'];
   const acc: Record<Color, number[]> = { w: [], b: [] };
   let depth = Infinity;
-  // Moves stay "book" while every position so far is a named opening.
-  const openings = openingTimeline(moves, initialFen);
+  // Moves stay theory while every position so far lies on a known opening line.
+  const theory = bookTimeline(moves, initialFen);
   let inBook = true;
   let previousLoss: number | undefined;
 
@@ -207,7 +207,7 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     const mover = game.turn;
     const legalMoveCount = game.legalMoves().length;
     const played = game.move(uci);
-    inBook = inBook && !!openings[i + 1] && openings[i + 1]!.ply === i + 1;
+    inBook = inBook && theory[i]!;
     if (!played) throw new Error(`Illegal move in review: ${uci}`);
     const fenAfter = game.fen;
     const term = terminalState(fenAfter);
@@ -227,6 +227,8 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
       previousLoss,
     });
     previousLoss = judgement.loss;
+    // A book move the engine calls a mistake takes the game out of theory for good.
+    if (judgement.classification !== 'book') inBook = false;
     const bestLine = pvToSan(fenBefore, before.pv.length ? before.pv : [bestMove]);
     const bestSan = bestLine[0] ?? played.san;
     const insightAfter = analyzePosition(fenAfter, mover);

@@ -205,9 +205,8 @@ export function judgeGame(analysis: GameAnalysis): JudgedMove[] {
       throw new AnalysisError(`Illegal move ${m.uci} at ply ${i + 1}`);
     }
     if (played.san !== m.san) throw new AnalysisError(`Move ${m.san} does not match ${m.uci} at ply ${i + 1}`);
-    const judgement: MoveJudgement = m.book
-      ? { classification: 'book', loss: 0, accuracy: 100 }
-      : classifyMove({
+    // A book move still goes through the engine check, so a "theory" move that loses badly is judged as played.
+    const judgement: MoveJudgement = classifyMove({
           fenBefore: m.fenBefore,
           uci: m.uci,
           bestScore: m.best.score,
@@ -215,6 +214,7 @@ export function judgeGame(analysis: GameAnalysis): JudgedMove[] {
           secondBestScore: m.secondBestScore,
           playedScore: m.scoreAfter,
           legalMoveCount: m.legalMoveCount,
+          book: m.book,
           previousUci: analysis.moves[i - 1]?.uci,
           previousLoss,
         });

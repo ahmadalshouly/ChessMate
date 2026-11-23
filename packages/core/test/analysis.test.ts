@@ -71,7 +71,7 @@ describe('buildReview', () => {
   const review = buildReview(START_FEN, moves, evals);
 
   it('classifies each move', () => {
-    expect(review.moves.map((m) => m.judgement.classification)).toEqual(['inaccuracy', 'best', 'blunder', 'best']);
+    expect(review.moves.map((m) => m.judgement.classification)).toEqual(['book', 'book', 'blunder', 'best']);
     expect(review.moves[2]!.bestSan).toBe('d4');
     expect(review.moves[2]!.feedback).toMatch(/blunder/);
     expect(review.moves[3]!.san).toBe('Qh4#');
@@ -79,7 +79,8 @@ describe('buildReview', () => {
 
   it('summarises accuracy and counts per side', () => {
     expect(review.counts.w.blunder).toBe(1);
-    expect(review.counts.b.best).toBe(2);
+    expect(review.counts.b.book).toBe(1);
+    expect(review.counts.b.best).toBe(1);
     expect(review.accuracy.b).toBe(100);
     expect(review.accuracy.w).toBeLessThan(60);
   });
