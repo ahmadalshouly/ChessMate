@@ -1,15 +1,17 @@
 import type { Presence, SocialUser } from '@chessmate/core';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
+import { Image, Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 
 import { useTheme } from '@/constants/theme';
 import { formatAgo, translate } from '@/i18n';
+import { avatarPhotoUri } from '@/lib/avatarPhoto';
 
-/** Monochrome initial badge; no user images yet. */
+/** The player's profile picture, or a monochrome initial badge when they have none. */
 export function Avatar({ user, size = 40, presence }: { user: SocialUser; size?: number; presence?: Presence | null }) {
   const t = useTheme();
   const letter = (user.displayName || user.username).charAt(0).toUpperCase();
+  const uri = avatarPhotoUri(user.avatarUrl);
   return (
     <View style={{ width: size, height: size }}>
       <View
@@ -17,7 +19,11 @@ export function Avatar({ user, size = 40, presence }: { user: SocialUser; size?:
           styles.avatar,
           { width: size, height: size, borderRadius: size / 2, backgroundColor: t.surface, borderColor: t.glassBorder },
         ]}>
-        <Text style={{ color: t.text, fontWeight: '700', fontSize: size * 0.42 }}>{letter}</Text>
+        {uri ? (
+          <Image source={{ uri }} style={{ width: size, height: size }} accessibilityIgnoresInvertColors />
+        ) : (
+          <Text style={{ color: t.text, fontWeight: '700', fontSize: size * 0.42 }}>{letter}</Text>
+        )}
       </View>
       {presence && presence.status !== 'offline' && <PresenceDot presence={presence} style={styles.dotCorner} />}
     </View>
@@ -142,7 +148,7 @@ export function SearchField(props: TextInputProps) {
 export const timeAgo = formatAgo;
 
 const styles = StyleSheet.create({
-  avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
   dot: { width: 14, height: 14, borderRadius: 7 },
   dotCorner: { position: 'absolute', end: -2, bottom: -2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },

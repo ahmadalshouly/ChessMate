@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { AVATARS, AVATAR_TONES, BIO_MAX, DISPLAY_NAME_MAX, PLAYER_TAGS, type Avatar as AvatarValue, type MyProfile, type PlayerTag } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -5,16 +6,20 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { Text } from '@/ui/primitives';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
+import { Button as SmallButton } from '@/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { ApiError } from '@/features/account/api';
 import { useAccountSession } from '@/features/account/session';
 import { useT } from '@/i18n';
+import { useAuth } from '@/lib/auth';
+import { setMyPhoto } from '@/lib/myPhoto';
 
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 
 import { Avatar, TONES } from './Avatar';
 import { CountryPicker } from './CountryPicker';
 import { Field, SectionTitle } from './controls';
+import { pickAvatarPhoto, type PhotoSource } from './pickPhoto';
 
 export function EditProfile() {
   const t = useTheme();
@@ -27,6 +32,9 @@ export function EditProfile() {
   const [avatar, setAvatar] = useState<AvatarValue>({ id: 'initials', tone: 'ink' });
   const [playerTag, setPlayerTag] = useState<PlayerTag | null>(null);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const { user } = useAuth();
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
 
   useEffect(() => {
@@ -42,6 +50,39 @@ export function EditProfile() {
       })
       .catch((e: Error) => setError({ message: e.message }));
   }, [session]);
+
+  /** Pictures upload straight away (they are not part of Save), so the header shows them at once. */
+  const applyPhoto = (p: MyProfile) => {
+    setAvatar((a) => (p.avatar.photo ? { ...a, photo: p.avatar.photo } : { id: a.id, tone: a.tone }));
+    if (user) setMyPhoto(user.id, p.avatar.photo);
+  };
+
+  const choosePhoto = async (source: PhotoSource) => {
+    setPhotoError(null);
+    try {
+      const picked = await pickAvatarPhoto(source);
+      if ('canceled' in picked) return;
+      if ('denied' in picked) return setPhotoError(tr('profile.editScreen.cameraDenied'));
+      setPhotoBusy(true);
+      applyPhoto(await session.apiFetch<MyProfile>('/api/me/avatar', { method: 'PUT', body: { image: picked.base64 } }));
+    } catch (e) {
+      setPhotoError(e instanceof ApiError ? e.message : tr('profile.editScreen.photoFailed'));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    setPhotoError(null);
+    setPhotoBusy(true);
+    try {
+      applyPhoto(await session.apiFetch<MyProfile>('/api/me/avatar', { method: 'DELETE' }));
+    } catch (e) {
+      setPhotoError(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -71,6 +112,30 @@ export function EditProfile() {
         <View style={styles.inner}>
           <Card>
             <SectionTitle>{tr('profile.editScreen.avatar')}</SectionTitle>
+            <View style={styles.photoRow}>
+              <SmallButton
+                size="sm"
+                variant="secondary"
+                title={tr('profile.editScreen.takePhoto')}
+                leftIcon={<Ionicons name="camera-outline" size={16} color={t.text} />}
+                onPress={() => void choosePhoto('camera')}
+                disabled={photoBusy}
+              />
+              <SmallButton
+                size="sm"
+                variant="secondary"
+                title={tr('profile.editScreen.choosePhoto')}
+                leftIcon={<Ionicons name="images-outline" size={16} color={t.text} />}
+                onPress={() => void choosePhoto('library')}
+                disabled={photoBusy}
+              />
+              {avatar.photo ? (
+                <SmallButton size="sm" variant="ghost" title={tr('profile.editScreen.removePhoto')} onPress={() => void removePhoto()} disabled={photoBusy} />
+              ) : null}
+              {photoBusy && <ActivityIndicator accessibilityLabel={tr('profile.editScreen.uploading')} />}
+            </View>
+            {photoError && <Text style={{ color: t.danger, fontSize: 13 }}>{photoError}</Text>}
+            {avatar.photo ? <Text style={{ color: t.muted, fontSize: 13 }}>{tr('profile.editScreen.photoHint')}</Text> : null}
             <View style={styles.avatarRow}>
               <Avatar avatar={avatar} name={displayName || profile.username} size={84} />
               <View style={{ flex: 1, gap: 10 }}>
@@ -158,6 +223,7 @@ const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
   avatarRow: { flexDirection: 'row', gap: 16, alignItems: 'center' },
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tagChoice: { borderWidth: 2, borderRadius: 16, padding: 2 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

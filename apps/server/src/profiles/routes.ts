@@ -1,5 +1,7 @@
-import { RATED_CATEGORIES, validateProfileEdit, type TimeCategory } from '@chessmate/core';
+import { AVATAR_PHOTO_MAX_BYTES, RATED_CATEGORIES, sniffAvatarPhotoType, validateProfileEdit, type TimeCategory } from '@chessmate/core';
+import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { BlobStore } from '../avatars/storage';
 import { ProfileService } from './service';
 import type { ProfileDeps, ProfileStore } from './types';
 
@@ -7,6 +9,19 @@ import type { ProfileDeps, ProfileStore } from './types';
 export type HttpRoute = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean | Promise<boolean>;
 
 const MAX_BODY = 16 * 1024;
+/** A photo arrives base64-encoded in JSON: 4/3 of its size, plus a little for the wrapper. */
+const MAX_PHOTO_BODY = Math.ceil((AVATAR_PHOTO_MAX_BYTES * 4) / 3) + 1024;
+/** Uploads per player per hour. */
+const PHOTO_UPLOADS_PER_HOUR = 12;
+const PHOTO_PATH = '/api/avatars/';
+const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+/** Where uploaded profile pictures are kept. Without it, the photo endpoints answer 404. */
+export interface PhotoOptions {
+  blobs: BlobStore;
+  /** Told whenever a player's photo changes (database mode mirrors it onto the users row). */
+  onChange?(userId: string, url: string | null): void | Promise<void>;
+}
 
 /**
  * Profile and settings API.
@@ -19,13 +34,22 @@ const MAX_BODY = 16 * 1024;
  *   PATCH  /api/me/settings    partial settings, e.g. { board: { theme: 'slate' } }
  *   POST   /api/me/password    { currentPassword, newPassword }
  *   POST   /api/me/delete      { password }    permanently deletes the account
+ *   PUT    /api/me/avatar      { image: base64 JPEG/PNG/WebP }   sets the profile picture
+ *   DELETE /api/me/avatar                       removes it
+ *   GET    /api/avatars/:file                    the picture itself (immutable, cache forever)
  */
-export function profileRoutes(deps: ProfileDeps, store: ProfileStore, now: () => number = Date.now): HttpRoute & { service: ProfileService } {
+export function profileRoutes(
+  deps: ProfileDeps,
+  store: ProfileStore,
+  now: () => number = Date.now,
+  photos?: PhotoOptions,
+): HttpRoute & { service: ProfileService } {
   const service = new ProfileService(deps, store, now);
+  const uploads = new Map<string, number[]>();
 
   const route = async (req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> => {
     const path = url.pathname;
-    if (!path.startsWith('/api/profiles/') && !path.startsWith('/api/me/')) return false;
+    if (!path.startsWith('/api/profiles/') && !path.startsWith('/api/me/') && !path.startsWith(PHOTO_PATH)) return false;
     cors(req, res);
     if (req.method === 'OPTIONS') {
       res.writeHead(204).end();
@@ -55,8 +79,64 @@ export function profileRoutes(deps: ProfileDeps, store: ProfileStore, now: () =>
     return user;
   }
 
+  /** Storage key of a photo URL this server handed out, or null for anything else. */
+  function photoKey(url: string | null | undefined): string | null {
+    const m = url ? /^\/api\/avatars\/([a-f0-9]{32}\.(?:jpg|png|webp))$/.exec(url) : null;
+    return m ? `avatars/${m[1]}` : null;
+  }
+
+  async function dropPhoto(url: string | null) {
+    const key = photoKey(url);
+    if (key) await photos!.blobs.delete(key).catch((e) => console.warn('could not delete old profile picture', key, e));
+  }
+
+  async function handlePhoto(req: IncomingMessage, res: ServerResponse, path: string, m: string) {
+    if (!photos) throw new HttpError(404, 'not_found', 'Profile pictures are not available on this server');
+    if (path.startsWith(PHOTO_PATH)) {
+      if (m !== 'GET' && m !== 'HEAD') throw new HttpError(405, 'method', 'Method not allowed');
+      const key = photoKey(path);
+      const blob = key ? await photos.blobs.get(key) : null;
+      if (!blob) throw new HttpError(404, 'not_found', 'No such picture');
+      // The file name is a hash of the contents: a new photo gets a new name, so this one never changes.
+      res.writeHead(200, {
+        'content-type': blob.contentType,
+        'content-length': blob.data.length,
+        'cache-control': 'public, max-age=31536000, immutable',
+        'cross-origin-resource-policy': 'cross-origin',
+        'x-content-type-options': 'nosniff',
+      });
+      res.end(m === 'HEAD' ? undefined : blob.data);
+      return;
+    }
+    const user = await me(req);
+    if (m === 'DELETE') {
+      const old = await service.setPhoto(user.id, null);
+      await photos.onChange?.(user.id, null);
+      await dropPhoto(old);
+      return json(res, 200, await service.myProfile(user));
+    }
+    // PUT and POST both upload.
+    const recent = (uploads.get(user.id) ?? []).filter((t) => t > now() - 3_600_000);
+    if (recent.length >= PHOTO_UPLOADS_PER_HOUR) throw new HttpError(429, 'rate_limited', 'Too many new pictures. Try again in a while');
+    const b = (await body(req, MAX_PHOTO_BODY, res)) as { image?: unknown };
+    if (typeof b.image !== 'string' || !b.image) throw new HttpError(400, 'invalid', 'Send the picture as base64 in "image"', 'image');
+    const data = Buffer.from(b.image.replace(/^data:[^,]*,/, ''), 'base64');
+    if (data.length > AVATAR_PHOTO_MAX_BYTES) throw new HttpError(413, 'too_large', 'That picture is too large');
+    const type = sniffAvatarPhotoType(data);
+    if (!type) throw new HttpError(400, 'invalid', 'Use a JPEG, PNG or WebP picture', 'image');
+    const name = `${createHash('sha256').update(user.id).update(data).digest('hex').slice(0, 32)}.${EXT[type]}`;
+    await photos.blobs.put(`avatars/${name}`, data, type);
+    uploads.set(user.id, [...recent, now()]);
+    const url = `${PHOTO_PATH}${name}`;
+    const old = await service.setPhoto(user.id, url);
+    await photos.onChange?.(user.id, url);
+    if (old !== url) await dropPhoto(old);
+    return json(res, 200, await service.myProfile(user));
+  }
+
   async function handle(req: IncomingMessage, res: ServerResponse, url: URL, path: string) {
     const m = req.method ?? 'GET';
+    if (path === '/api/me/avatar' || path.startsWith(PHOTO_PATH)) return handlePhoto(req, res, path, m);
     const prof = /^\/api\/profiles\/([A-Za-z0-9_-]{1,32})(\/rating-history)?$/.exec(path);
     if (prof && m === 'GET') {
       const user = await deps.userByUsername(prof[1]!);
@@ -106,7 +186,9 @@ export function profileRoutes(deps: ProfileDeps, store: ProfileStore, now: () =>
         if (b.password !== undefined && typeof b.password !== 'string') throw new HttpError(400, 'invalid', 'Enter your password to confirm', 'password');
         const r = await deps.deleteAccount(user.id, (b.password as string | undefined) ?? '');
         if (!r.ok) throw new HttpError(r.status, 'invalid', r.message, r.field ?? 'password');
+        const photo = (await service.record(user.id)).avatar.photo ?? null;
         await service.forget(user.id);
+        if (photos) await dropPhoto(photo);
         return json(res, 200, { ok: true });
       }
     }
@@ -136,17 +218,21 @@ function cors(req: IncomingMessage, res: ServerResponse) {
   // Bearer tokens, no cookies: any origin may call the API.
   res.setHeader('access-control-allow-origin', req.headers.origin ?? '*');
   res.setHeader('vary', 'origin');
-  res.setHeader('access-control-allow-methods', 'GET, POST, PATCH, OPTIONS');
+  res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('access-control-allow-headers', 'authorization, content-type');
   res.setHeader('access-control-max-age', '600');
 }
 
-async function body(req: IncomingMessage): Promise<unknown> {
+async function body(req: IncomingMessage, max = MAX_BODY, res?: ServerResponse): Promise<unknown> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const c of req) {
     size += (c as Buffer).length;
-    if (size > MAX_BODY) throw new HttpError(413, 'too_large', 'Request too large');
+    if (size > max) {
+      // The rest of the body is never read: close the connection rather than leave it half-read.
+      res?.setHeader('connection', 'close');
+      throw new HttpError(413, 'too_large', 'Request too large');
+    }
     chunks.push(c as Buffer);
   }
   if (size === 0) return {};

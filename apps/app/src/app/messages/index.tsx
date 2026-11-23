@@ -12,6 +12,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { messagesApi, onDirectMessage, setUnreadMessages } from '@/lib/messagesApi';
 import { useSocialIdentity } from '@/lib/social/session';
 import { Avatar, Badge, Button, GlassView, ListGroup, ListRow, Text, useAppTheme } from '@/ui';
+import { avatarPhotoUri } from '@/lib/avatarPhoto';
 
 /**
  * Messages: conversations with other players and the "ChessMate team" thread
@@ -96,7 +97,7 @@ export default function Messages() {
                               <Ionicons name="shield-checkmark" size={18} color={t.colors.onAccent} />
                             </View>
                           ) : (
-                            <Avatar name={name} />
+                            <Avatar name={name} uri={avatarPhotoUri(c.user?.avatarUrl)} />
                           )
                         }
                         title={name}

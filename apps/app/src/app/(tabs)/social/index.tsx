@@ -14,6 +14,7 @@ import { useSocialIdentity } from '@/lib/social/session';
 import { useSocialLive } from '@/lib/social/useSocialLive';
 import { useUnreadMessages } from '@/lib/messagesApi';
 import { Avatar, Badge, Button, GlassView, ListGroup, ListRow, SectionHeader, Text, useAppTheme } from '@/ui';
+import { avatarPhotoUri } from '@/lib/avatarPhoto';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -100,7 +101,7 @@ export default function Social() {
             {requests.incoming.map((r) => (
               <ListRow
                 key={r.user.id}
-                left={<Avatar name={r.user.displayName} />}
+                left={<Avatar name={r.user.displayName} uri={avatarPhotoUri(r.user.avatarUrl)} />}
                 title={r.user.displayName}
                 subtitle={`@${r.user.username} · ${tr('friends.sentAgo', { ago: formatAgo(r.createdAt) })}`}
                 onPress={() => router.push(`/friends/user/${r.user.id}`)}
@@ -157,7 +158,7 @@ export default function Social() {
               return (
                 <ListRow
                   key={f.user.id}
-                  left={<Avatar name={f.user.displayName} status={f.presence.status} />}
+                  left={<Avatar name={f.user.displayName} uri={avatarPhotoUri(f.user.avatarUrl)} status={f.presence.status} />}
                   title={f.user.displayName}
                   subtitle={presenceText(f)}
                   onPress={() => router.push(`/friends/user/${f.user.id}`)}
@@ -199,7 +200,7 @@ export default function Social() {
               return (
                 <ListRow
                   key={item.id}
-                  left={<Avatar name={who.displayName} size={32} />}
+                  left={<Avatar name={who.displayName} uri={avatarPhotoUri(who.avatarUrl)} size={32} />}
                   title={text}
                   subtitle={formatAgo(item.at)}
                   onPress={() => router.push(`/friends/user/${who.id}`)}

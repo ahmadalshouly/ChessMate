@@ -10,7 +10,7 @@ import type { GameEndReason, GameResult } from './types';
 
 // ---------- avatars ----------
 
-/** Avatars are original monochrome presets; photo uploads can come later. */
+/** Avatars are original monochrome presets, or a photo the player uploaded. */
 export const AVATARS = ['initials', 'king', 'queen', 'rook', 'bishop', 'knight', 'pawn'] as const;
 export type AvatarId = (typeof AVATARS)[number];
 export const AVATAR_TONES = ['ink', 'paper', 'graphite', 'silver'] as const;
@@ -18,8 +18,30 @@ export type AvatarTone = (typeof AVATAR_TONES)[number];
 export interface Avatar {
   id: AvatarId;
   tone: AvatarTone;
+  /**
+   * Uploaded profile picture, as a path on the game server (`/api/avatars/...`). Shown instead
+   * of the preset when set. Only the upload endpoint sets it; profile edits can't.
+   */
+  photo?: string | null;
 }
 export const DEFAULT_AVATAR: Avatar = { id: 'initials', tone: 'ink' };
+
+/** Largest profile picture the server accepts, in bytes (the app sends a 512 px JPEG, well under this). */
+export const AVATAR_PHOTO_MAX_BYTES = 1_500_000;
+/** Side of the square picture the app uploads. */
+export const AVATAR_PHOTO_SIZE = 512;
+/** Image types accepted for profile pictures. */
+export const AVATAR_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type AvatarPhotoType = (typeof AVATAR_PHOTO_TYPES)[number];
+
+/** Image type from the file's first bytes, or null when it is not a JPEG, PNG or WebP. */
+export function sniffAvatarPhotoType(bytes: Uint8Array): AvatarPhotoType | null {
+  const b = (i: number) => bytes[i];
+  if (bytes.length >= 3 && b(0) === 0xff && b(1) === 0xd8 && b(2) === 0xff) return 'image/jpeg';
+  if (bytes.length >= 8 && b(0) === 0x89 && b(1) === 0x50 && b(2) === 0x4e && b(3) === 0x47 && b(4) === 0x0d && b(5) === 0x0a && b(6) === 0x1a && b(7) === 0x0a) return 'image/png';
+  if (bytes.length >= 12 && String.fromCharCode(b(0)!, b(1)!, b(2)!, b(3)!) === 'RIFF' && String.fromCharCode(b(8)!, b(9)!, b(10)!, b(11)!) === 'WEBP') return 'image/webp';
+  return null;
+}
 
 // ---------- settings ----------
 

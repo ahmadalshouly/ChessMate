@@ -1,6 +1,8 @@
 import { DEFAULT_RATING } from '@chessmate/core';
 
 import { useAuth } from '@/lib/auth';
+import { avatarPhotoUri } from '@/lib/avatarPhoto';
+import { useMyPhoto } from '@/lib/myPhoto';
 import { isGuest, usePlay } from '@/lib/playClient';
 import { translate } from '@/i18n';
 
@@ -27,6 +29,7 @@ export type CurrentUser = {
 export function useCurrentUser(): CurrentUser {
   const { status, user, guestName } = useAuth();
   const { me } = usePlay();
+  const photo = useMyPhoto();
   if (status === 'loading') return { status: 'loading', displayName: '', rating: null, provisional: true, avatarUrl: null };
   if (status === 'signedIn' && user) {
     const live = me && !isGuest(me) ? me : null;
@@ -35,7 +38,7 @@ export function useCurrentUser(): CurrentUser {
       displayName: user.username,
       rating: Math.round(live?.rating ?? DEFAULT_RATING.rating),
       provisional: live?.provisional ?? true,
-      avatarUrl: null,
+      avatarUrl: avatarPhotoUri(photo),
     };
   }
   return { status: 'guest', displayName: guestName ?? translate('common.guest'), rating: null, provisional: true, avatarUrl: null };

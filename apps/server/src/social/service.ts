@@ -82,6 +82,7 @@ export const toSocialUser = (u: User): SocialUser => ({
   username: u.username,
   displayName: u.displayName ?? u.username,
   country: u.country ?? null,
+  avatarUrl: u.avatarUrl ?? null,
 });
 
 const ms = (d: Date | string) => new Date(d).getTime();

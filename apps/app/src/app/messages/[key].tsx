@@ -11,6 +11,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { messagesApi, onDirectMessage, setUnreadMessages, type Thread } from '@/lib/messagesApi';
 import { useSocialIdentity } from '@/lib/social/session';
 import { Avatar, GlassView, Text, useAppTheme } from '@/ui';
+import { avatarPhotoUri } from '@/lib/avatarPhoto';
 
 /** One conversation: a player, or the ChessMate team (read only). */
 export default function Conversation() {
@@ -80,7 +81,7 @@ export default function Conversation() {
           headerRight: () =>
             !staff && thread?.user ? (
               <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push(`/friends/user/${thread.user!.id}`)} style={{ paddingHorizontal: 8 }}>
-                <Avatar name={name} size={30} />
+                <Avatar name={name} uri={avatarPhotoUri(thread.user.avatarUrl)} size={30} />
               </Pressable>
             ) : null,
         }}

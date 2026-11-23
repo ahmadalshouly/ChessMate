@@ -56,9 +56,17 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow ChessMate to use your camera to scan friends' QR codes.",
+          "cameraPermission": "Allow ChessMate to use your camera to scan friends' QR codes and take your profile picture.",
           "microphonePermission": false,
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow ChessMate to use a photo from your library as your profile picture.",
+          "cameraPermission": "Allow ChessMate to use your camera to scan friends' QR codes and take your profile picture.",
+          "microphonePermission": false
         }
       ]
     ],

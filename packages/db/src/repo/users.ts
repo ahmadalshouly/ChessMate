@@ -68,3 +68,8 @@ export async function deleteUser(db: Database, id: string): Promise<void> {
 export async function ensureUser(db: Database, input: NewUser & { id: string }): Promise<void> {
   await db.insert(users).values(input).onConflictDoNothing();
 }
+
+/** The player's uploaded profile picture (a path on the game server), or null to clear it. */
+export async function setUserAvatarUrl(db: Database, id: string, avatarUrl: string | null): Promise<void> {
+  await db.update(users).set({ avatarUrl }).where(eq(users.id, id));
+}

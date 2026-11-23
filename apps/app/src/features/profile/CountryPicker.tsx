@@ -4,6 +4,7 @@ import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Button, Screen } from '@/components/ui';
+import { BackdropContext } from '@/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { CountryFlag } from '@/components/CountryFlag';
@@ -46,28 +47,32 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
         <Text style={{ color: t.muted }}>▾</Text>
       </Pressable>
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-        <Screen>
-          <View style={styles.modal}>
-            <Field label={tr('profile.country.search')} value={q} onChangeText={setQ} placeholder={tr('profile.country.placeholder')} autoFocus autoCorrect={false} />
-            <FlatList
-              data={[['', tr('profile.country.notSet')] as const, ...list]}
-              keyExtractor={([c]) => c || 'none'}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item: [code, name] }) => (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => pick(code || null)}
-                  style={({ pressed }) => [styles.item, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
-                  <View style={styles.choice}>
-                    <CountryFlag code={code} size={14} decorative />
-                    <Text style={{ color: t.text, fontSize: 16, fontWeight: (code || null) === value ? '700' : '400', flexShrink: 1 }}>{name}</Text>
-                  </View>
-                </Pressable>
-              )}
-            />
-            <Button variant="secondary" title={tr('common.cancel')} onPress={() => setOpen(false)} />
-          </View>
-        </Screen>
+        {/* A modal is its own window: the app shell's page backdrop is not behind it, so the
+            screen must paint its own themed background (otherwise it shows the window's white). */}
+        <BackdropContext value={false}>
+          <Screen>
+            <View style={styles.modal}>
+              <Field label={tr('profile.country.search')} value={q} onChangeText={setQ} placeholder={tr('profile.country.placeholder')} autoFocus autoCorrect={false} />
+              <FlatList
+                data={[['', tr('profile.country.notSet')] as const, ...list]}
+                keyExtractor={([c]) => c || 'none'}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item: [code, name] }) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => pick(code || null)}
+                    style={({ pressed }) => [styles.item, { borderColor: t.border, opacity: pressed ? 0.6 : 1 }]}>
+                    <View style={styles.choice}>
+                      <CountryFlag code={code} size={14} decorative />
+                      <Text style={{ color: t.text, fontSize: 16, fontWeight: (code || null) === value ? '700' : '400', flexShrink: 1 }}>{name}</Text>
+                    </View>
+                  </Pressable>
+                )}
+              />
+              <Button variant="secondary" title={tr('common.cancel')} onPress={() => setOpen(false)} />
+            </View>
+          </Screen>
+        </BackdropContext>
       </Modal>
     </View>
   );
