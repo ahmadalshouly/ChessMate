@@ -1,0 +1,62 @@
+name: iOS simulator check (Expo Go)
+# Runs the app in Expo Go on an iOS Simulator on a GitHub macOS runner and
+# drives the practice board (tap to move, drag and drop) with Maestro.
+# No EAS build: Expo Go is installed by the Expo CLI and the JS bundle comes
+# from Metro on the runner. Push to a branch named ios-check/<anything>, or
+# run it by hand once this file is on main.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ios-check/**']
+
+concurrency:
+  group: ios-sim-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Boot simulator
+        run: |
+          UDID=$(xcrun simctl list devices available -j | node -e "const d=JSON.parse(require('fs').readFileSync(0)).devices;const all=Object.entries(d).filter(([k])=>k.includes('iOS')).flatMap(([,v])=>v);const p=all.find(x=>/^iPhone 1[5-7]$/.test(x.name))||all.find(x=>x.name.startsWith('iPhone'));console.log(p.udid)")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+      - name: Start Metro and open Expo Go
+        working-directory: apps/app
+        run: |
+          (CI=1 EXPO_NO_TELEMETRY=1 npx expo start --ios --port 8081 > "$RUNNER_TEMP/metro.log" 2>&1 &)
+          for i in $(seq 1 120); do grep -q "Opening exp://" "$RUNNER_TEMP/metro.log" && break; sleep 2; done
+          cat "$RUNNER_TEMP/metro.log" | tail -30
+      - name: Drive the board
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          xcrun simctl io "$UDID" recordVideo --codec h264 "$RUNNER_TEMP/out/board.mp4" &
+          echo $! > "$RUNNER_TEMP/rec.pid"
+          node scripts/ios-check/drive.mjs "$RUNNER_TEMP/out"
+      - name: Stop recording
+        if: always()
+        run: |
+          kill -INT "$(cat "$RUNNER_TEMP/rec.pid")" 2>/dev/null || true
+          sleep 3
+          tail -60 "$RUNNER_TEMP/metro.log" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-board-check
+          path: ${{ runner.temp }}/out
