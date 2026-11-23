@@ -1,4 +1,6 @@
+import { Asset } from 'expo-asset';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { Platform } from 'react-native';
 
 import { getSettings } from '@/features/account/settingsStore';
 
@@ -66,8 +68,44 @@ function rearm(p: AudioPlayer) {
   }
 }
 
+/** The file each player plays, to reload it after a failed load. */
+const players = new WeakMap<AudioPlayer, number>();
+/** Players whose file failed to load, and when they were last reloaded. */
+const failedAt = new WeakMap<AudioPlayer, number>();
+/** Players asked to play while they were (re)loading: they play as soon as they are ready. */
+const waiting = new Set<AudioPlayer>();
+
+/**
+ * Android only: in Expo Go a sound file is not on the phone but streamed from the
+ * computer running Expo. Android's player (ExoPlayer) loads it once, and if that load
+ * fails (two dozen files requested at once at startup, a slow Wi-Fi moment) the player
+ * stays broken and every later play() is silent, for the whole session. So on Android
+ * the file is copied to the phone first (`downloadFirst`), and a player that reports a
+ * load error is reloaded (below) instead of being left dead.
+ */
+function streamedFromDevServer(source: number): boolean {
+  if (Platform.OS !== 'android') return false;
+  try {
+    return /^https?:/.test(Asset.fromModule(source).uri);
+  } catch {
+    return false;
+  }
+}
+
+function reload(p: AudioPlayer, source: number) {
+  const now = Date.now();
+  // At most once a second, so a file that truly cannot load does not spin.
+  if (now - (failedAt.get(p) ?? 0) < 1000) return;
+  failedAt.set(p, now);
+  try {
+    p.replace(source);
+  } catch {
+    // Released player.
+  }
+}
+
 function pool(name: SoundName): AudioPlayer[] {
-  configureSession(getSettings().sound.silentMode);
+  configureSession(getSettings().sound.playOnSilent);
   let list = pools[name];
   if (!list) {
     const takes: readonly number[] = SOURCES[name];
@@ -75,10 +113,17 @@ function pool(name: SoundName): AudioPlayer[] {
     list = [];
     for (let i = 0; i < count; i++) {
       try {
-        const p = createAudioPlayer(takes[i % takes.length]!);
+        const source = takes[i % takes.length]!;
+        const p = createAudioPlayer(source, { downloadFirst: streamedFromDevServer(source) });
         p.addListener('playbackStatusUpdate', (status) => {
           if (status.didJustFinish) rearm(p);
+          if (status.error && Platform.OS === 'android') {
+            if (__DEV__) console.warn(`[sounds] ${name} failed to load: ${status.error}`);
+            reload(p, source);
+          }
+          if (status.isLoaded && waiting.delete(p)) p.play();
         });
+        players.set(p, source);
         list.push(p);
       } catch {
         // No audio on this device.
@@ -140,6 +185,14 @@ export function playSound(name: SoundName): void {
     if (playerVolume.get(p) !== sound.volume) {
       p.volume = sound.volume;
       playerVolume.set(p, sound.volume);
+    }
+    if (Platform.OS === 'android' && !p.isLoaded) {
+      // Still loading, or reloading after an error: play once it is ready, not never.
+      // (Android only: browsers may not load a sound until it is first played.)
+      waiting.add(p);
+      const source = players.get(p);
+      if (source !== undefined && failedAt.has(p)) reload(p, source);
+      return;
     }
     if (p.currentTime > 0.01) {
       // Still ringing (very fast moves) or not yet rewound: rewind first, then play,

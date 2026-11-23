@@ -6,11 +6,12 @@ import { useT } from '@/i18n';
 import { Text, rimShadow, shadows, useColors } from '@/ui';
 
 /** How long the intro lasts from mount to gone, in ms. */
-export const HANDSHAKE_MS = 1500;
+export const HANDSHAKE_MS = 2800;
 const ENTER_MS = 320;
 const SHAKE_AT = 400;
-const LEAVE_AT = 1200;
-const LEAVE_MS = 290;
+// The clasp holds still for about a second after the last pump, so it can be seen.
+const LEAVE_AT = 2400;
+const LEAVE_MS = 400;
 /** When a move is played during the intro it gets out of the way this fast. */
 const CUT_MS = 160;
 
@@ -52,8 +53,8 @@ const IMAGE_RATIO = 548 / 1200;
 /**
  * Two hands meet over the board and shake when a game begins, with a glass
  * "Good luck" tag. The handshake comes in, grips, pumps three times (each
- * pump smaller, swinging slightly as if from the elbows), then lets go. About
- * 1.5 s, drawn over the board only, and touches pass straight through so the
+ * pump smaller, swinging slightly as if from the elbows), holds, then lets go. About
+ * 2.8 s, drawn over the board only, and touches pass straight through so the
  * first move (or a premove) is never held up. A move made during the intro
  * fades it out at once. When it ends it unmounts, so it costs nothing while
  * the game is played.

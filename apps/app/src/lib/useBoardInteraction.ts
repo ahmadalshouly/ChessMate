@@ -57,6 +57,9 @@ export function useBoardInteraction(fen: string, canMove: (color: Color) => bool
       setSelected(null);
       return;
     }
+    // A piece is picked up and tapped onto a square it cannot go to: an illegal move.
+    // (Tapping another of your own pieces just picks that one up instead.)
+    if (selected && sq !== selected && !movable(sq)) illegalMoveFeedback();
     if (movable(sq)) setSelected(sq === selected ? null : sq);
     else setSelected(null);
   };
