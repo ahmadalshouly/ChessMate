@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
@@ -12,6 +13,7 @@ import { Button, GlassView, Text, TextField, useAppTheme } from '@/ui';
 
 /** "Sponsor a tournament": anyone can apply; the team reviews it and gets in touch. */
 export default function SponsorApply() {
+  const insets = useSafeAreaInsets();
   const t = useAppTheme();
   const tr = useT();
   const { user } = useAuth();
@@ -35,7 +37,7 @@ export default function SponsorApply() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 40 + insets.bottom }]} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: tr('tournaments.sponsor.title') }} />
       <View style={[styles.inner, { gap: t.space.lg }]}>
         <View style={{ gap: t.space.sm }}>

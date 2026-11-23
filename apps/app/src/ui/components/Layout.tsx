@@ -92,7 +92,8 @@ const FILES = 8;
 function BoardPattern() {
   const c = useAppTheme().colors;
   const ink = c.scheme === 'dark' ? '255,255,255' : '12,12,13';
-  const peak = c.scheme === 'dark' ? 0.032 : 0.035;
+  // Enough tone for glass on top to refract something, faint enough to stay a texture.
+  const peak = c.scheme === 'dark' ? 0.04 : 0.045;
   const size = SQUARE * FILES;
   const squares = [];
   for (let r = 0; r < FILES; r++) {
