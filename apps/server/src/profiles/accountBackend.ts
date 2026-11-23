@@ -15,6 +15,14 @@ const CATEGORIES: TimeCategory[] = ['bullet', 'blitz', 'rapid', 'classical', 'co
 export class AccountProfileBackend implements ProfileDeps {
   /** Set once the title service is up (database mode). */
   titles: { titleOf(userId: string): ChessTitle | null; roleTagOf(userId: string): RoleTag | null } | null = null;
+  /** Live presence from the game server's sockets, set once the server is up. */
+  online: ((userId: string) => boolean) | null = null;
+  /** The game a player is in right now, from the game server. */
+  liveGame: ((userId: string) => string | null) | null = null;
+
+  liveGameOf(userId: string): string | null {
+    return this.liveGame?.(userId) ?? null;
+  }
 
   titleOf(userId: string): ChessTitle | null {
     return this.titles?.titleOf(userId) ?? null;
@@ -85,7 +93,7 @@ export class AccountProfileBackend implements ProfileDeps {
   }
 
   isOnline(userId: string) {
-    return this.dev?.isOnline(userId) ?? false;
+    return (this.online?.(userId) ?? false) || (this.dev?.isOnline(userId) ?? false);
   }
 
   private async wrap(fn: () => Promise<void>): Promise<AccountResult> {

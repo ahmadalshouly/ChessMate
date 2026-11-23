@@ -91,8 +91,11 @@ function services(authStore: AuthStore, gamesOf?: (userId: string, limit: number
 async function start() {
   if (process.env.CHESSMATE_DB === 'off') {
     console.log('Database disabled (CHESSMATE_DB=off): accounts and games are not saved, friends are off');
-    const { base } = services(new MemoryAuthStore());
-    return { server: new ChessServer(base), close: async () => {} };
+    const { base, profileDeps } = services(new MemoryAuthStore());
+    const server = new ChessServer(base);
+    profileDeps.online = (id) => server.isOnline(id);
+    profileDeps.liveGame = (id) => server.liveGameOf(id);
+    return { server, close: async () => {} };
   }
   const db = openDb();
   await db.migrate();
@@ -150,39 +153,40 @@ async function start() {
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
-  return {
-    server: new ChessServer({
-      ...base,
-      admin,
-      moderation: new Moderation(await DbModerationStore.load(db.db)),
-      fairPlay: { store: await DbFairPlayStore.load(db.db) },
-      store,
-      persistence,
-      leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)),
-      social: new SocialService(db.db),
-      messages,
-      tournaments,
-      community,
-      habits,
-      awards,
-      streamers,
-      events,
-      broadcastSync,
-      broadcastAnalyzer,
-      // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
-      // tokens also get an account row on first use so friends and search can be tried.
-      resolveUser: async (token) => {
-        const account = auth.verifyAccessToken(token);
-        if (account) return account.userId;
-        const id = devResolveUser(token);
-        if (!id) return null;
-        const name = token.split(':').slice(2).join(':');
-        await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
-        return id;
-      },
-    }),
-    close: () => db.close(),
-  };
+  const server = new ChessServer({
+    ...base,
+    admin,
+    moderation: new Moderation(await DbModerationStore.load(db.db)),
+    fairPlay: { store: await DbFairPlayStore.load(db.db) },
+    store,
+    persistence,
+    leaderboards: new Leaderboards(new DbLeaderboardSource(db.db)),
+    social: new SocialService(db.db),
+    messages,
+    tournaments,
+    community,
+    habits,
+    awards,
+    streamers,
+    events,
+    broadcastSync,
+    broadcastAnalyzer,
+    // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
+    // tokens also get an account row on first use so friends and search can be tried.
+    resolveUser: async (token) => {
+      const account = auth.verifyAccessToken(token);
+      if (account) return account.userId;
+      const id = devResolveUser(token);
+      if (!id) return null;
+      const name = token.split(':').slice(2).join(':');
+      await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
+      return id;
+    },
+  });
+  // Profiles show the same live presence as friends lists.
+  profileDeps.online = (id) => server.isOnline(id);
+  profileDeps.liveGame = (id) => server.liveGameOf(id);
+  return { server, close: () => db.close() };
 }
 
 const { server, close } = await start();

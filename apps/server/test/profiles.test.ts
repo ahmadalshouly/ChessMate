@@ -92,7 +92,23 @@ describe('profile API', () => {
     expect((await call('GET', '/api/profiles/carol/rating-history?category=blitz')).status).toBe(403);
     const own = await call<PublicProfile>('GET', '/api/profiles/carol', { token });
     expect(own.data.recentGames).toEqual([]);
+    // You are using the app when you look at your own profile, so it never says offline.
+    expect(own.data.online).toBe(true);
     expect((await call('GET', '/api/profiles/carol/rating-history?category=blitz', { token })).status).toBe(200);
+  });
+
+  it('reports live presence for real accounts from the game server', async () => {
+    const { AccountProfileBackend } = await import('../src/profiles');
+    const live = new Set<string>();
+    const accounts = new AccountProfileBackend({} as never, {} as never, null);
+    expect(accounts.isOnline('acc1')).toBe(false);
+    accounts.online = (id) => live.has(id);
+    live.add('acc1');
+    expect(accounts.isOnline('acc1')).toBe(true);
+    expect(accounts.isOnline('acc2')).toBe(false);
+    expect(accounts.liveGameOf('acc1')).toBeNull();
+    accounts.liveGame = (id) => (id === 'acc1' ? 'g1' : null);
+    expect(accounts.liveGameOf('acc1')).toBe('g1');
   });
 
   it('deletes the account after a password confirmation', async () => {

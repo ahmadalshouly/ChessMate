@@ -77,7 +77,7 @@ export default function PlayerCard() {
                 </Label>
               </Card>
 
-              {!self && <HeadToHeadCard userId={p.id} name={p.displayName || p.username} />}
+              {!self && <HeadToHeadCard userId={p.id} name={p.displayName || p.username} presence={p.presence ?? null} />}
 
               {!self && (
                 <Card>
