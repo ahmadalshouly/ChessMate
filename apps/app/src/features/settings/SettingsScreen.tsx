@@ -82,6 +82,14 @@ export function SettingsScreen() {
                 <Segmented value={volume} options={VOLUME.map((v) => ({ ...v, label: tr(v.label) }))} onChange={(v) => set({ sound: { volume: Number(v) } })} accessibilityLabel={tr('settings.sound.volume')} />
                 <ToggleRow title={tr('settings.sound.moves')} value={s.sound.moves} onChange={(v) => set({ sound: { moves: v } })} />
                 <ToggleRow title={tr('settings.sound.lowTime')} value={s.sound.lowTime} onChange={(v) => set({ sound: { lowTime: v } })} />
+                {Platform.OS !== 'web' && (
+                  <ToggleRow
+                    title={tr('settings.sound.silentMode')}
+                    detail={tr(Platform.OS === 'ios' ? 'settings.sound.silentModeDetailIos' : 'settings.sound.silentModeDetailAndroid')}
+                    value={s.sound.silentMode}
+                    onChange={(v) => set({ sound: { silentMode: v } })}
+                  />
+                )}
               </>
             )}
             {Platform.OS !== 'web' && (

@@ -23,6 +23,9 @@ export const settings: Messages<typeof en> = {
     titleNative: 'الصوت والاهتزاز',
     vibration: 'الاهتزاز',
     vibrationDetail: 'اهتزاز خفيف عند النقل والأخذ والكش ونهاية المباراة',
+    silentMode: 'تشغيل الأصوات في الوضع الصامت',
+    silentModeDetailIos: 'عند الإيقاف: زر الصامت يكتم أصوات اللعبة',
+    silentModeDetailAndroid: 'عند الإيقاف: الوضع الصامت والاهتزاز يكتمان أصوات اللعبة',
   },
   gameplay: {
     title: 'اللعب',

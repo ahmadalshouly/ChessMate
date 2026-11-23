@@ -1,35 +1,19 @@
 import { formatTimeControl, type Color } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useEffect, type ComponentProps } from 'react';
+import { type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { Text } from '@/ui/primitives';
 
-import { pickIndex, type EndResult } from '@/components/play/GameEndCelebration';
+import { pickIndex } from '@/components/play/GameEndCelebration';
+import { ResultHeader, Scoreline, STAMP_MS, reasonText, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
 import { Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
-import { translate, useT, type TKey } from '@/i18n';
+import { translate, useT } from '@/i18n';
 import type { GameView } from '@/lib/playClient';
 
-const REASONS = new Set([
-  'checkmate',
-  'resignation',
-  'timeout',
-  'timeout_vs_insufficient',
-  'stalemate',
-  'insufficient_material',
-  'threefold_repetition',
-  'fifty_move_rule',
-  'draw_agreement',
-  'abandoned',
-  'aborted',
-]);
-
-/** "by checkmate", "on time", … for a game-end reason code. */
-export function reasonText(reason: string): string {
-  return REASONS.has(reason) ? translate(`play.reason.${reason}` as TKey) : reason.replace(/_/g, ' ');
-}
+export { reasonText };
 
 export function resultHeadline(view: GameView): { title: string; detail: string } {
   const o = view.outcome;
@@ -98,7 +82,6 @@ export function GameOverCard({
   const reduced = useReducedMotion();
   const { title, detail } = resultHeadline(view);
   const result = endResult(view);
-  const checkmate = view.outcome!.reason === 'checkmate';
   const opp: Color = view.you === 'w' ? 'b' : 'w';
   const change = view.ratingChange?.[view.you];
   const delta = change ? Math.round(change.after.rating) - Math.round(change.before.rating) : null;
@@ -108,37 +91,22 @@ export function GameOverCard({
   const opponent = view.you === 'w' ? view.black : view.white;
   const canReview = !!onReview && view.outcome!.reason !== 'aborted';
 
-  // Enter after the checkmate stamp has had its moment.
-  const enter = useSharedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    // After the checkmate stamp or the victory burst has had its moment.
-    if (!reduced) enter.value = withDelay(checkmate || result === 'win' ? 1500 : 250, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
-  }, [reduced, checkmate, result, enter]);
-  const enterStyle = useAnimatedStyle(() => ({ opacity: enter.value, transform: [{ translateY: (1 - enter.value) * 18 }] }));
-  const icon = result === 'win' ? 'trophy' : result === 'loss' ? 'heart' : result === 'draw' ? 'git-compare-outline' : 'close-circle-outline';
+  // The result stamp has its moment first, then the card lifts in.
+  const enterStyle = useCardEntrance(result ? STAMP_MS : 250);
 
   return (
     <Animated.View style={[styles.solid, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }, enterStyle]}>
-      <View style={styles.head}>
-        <Medallion icon={icon} bounce={result === 'win' && !reduced} delay={checkmate || result === 'win' ? 1750 : 450} />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>
-            {title}
-          </Text>
-          <Label muted>
-            {detail} · {view.outcome!.result}
-          </Label>
-        </View>
-        {onClose && (
-          <Pressable accessibilityRole="button" accessibilityLabel={tr('game.over.close')} onPress={onClose} hitSlop={8} style={[styles.close, { backgroundColor: t.surfaceSunken }]}>
-            <MaterialCommunityIcons name="close" size={18} color={t.text} />
-          </Pressable>
-        )}
-      </View>
+      <ResultHeader
+        result={result}
+        reason={view.outcome!.reason}
+        eyebrow={`${view.rated ? tr('play.rated') : tr('play.casual')} · ${tc}`}
+        title={title}
+        detail={detail}
+        onClose={onClose}
+        crestDelay={reduced ? 0 : (result ? STAMP_MS : 250) + 300}
+      />
+      <Scoreline white={view.white.name} black={view.black.name} score={view.outcome!.result} you={view.you} />
       {result && <Text style={[styles.line, { color: t.text }]}>{endLine(result, view.gameId)}</Text>}
-      <Label muted size={13}>
-        {tr('play.over.vs', { tc, mode: view.rated ? tr('play.rated') : tr('play.casual'), name: opponent.name })}
-      </Label>
       {change && delta !== null ? (
         <View style={[styles.rating, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]}>
           <Text style={{ color: t.muted, fontSize: 13 }}>{tr('play.over.newRating')}</Text>
@@ -186,24 +154,6 @@ export function GameOverCard({
   );
 }
 
-/** Glass coin with the result icon; a winner's trophy pops and wiggles. */
-function Medallion({ icon, bounce, delay }: { icon: keyof typeof Ionicons.glyphMap; bounce: boolean; delay: number }) {
-  const t = useTheme();
-  const s = useSharedValue(bounce ? 0.4 : 1);
-  const r = useSharedValue(0);
-  useEffect(() => {
-    if (!bounce) return;
-    s.value = withDelay(delay, withSpring(1, { damping: 7, stiffness: 160 }));
-    r.value = withDelay(delay + 120, withSequence(withTiming(-14, { duration: 110 }), withTiming(12, { duration: 140 }), withTiming(-6, { duration: 120 }), withTiming(0, { duration: 120 })));
-  }, [bounce, delay, s, r]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: s.value }, { rotate: `${r.value}deg` }] }));
-  return (
-    <Animated.View style={[styles.medal, { borderColor: t.glassBorder, backgroundColor: t.surfaceStrong }, style]}>
-      <Ionicons name={icon} size={24} color={t.text} />
-    </Animated.View>
-  );
-}
-
 /** Equal-width button with an icon and label centred together. */
 function CardButton({ icon, label, onPress, primary, disabled }: { icon: ComponentProps<typeof MaterialCommunityIcons>['name']; label: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
   const t = useTheme();
@@ -227,12 +177,8 @@ function CardButton({ icon, label, onPress, primary, disabled }: { icon: Compone
 }
 
 const styles = StyleSheet.create({
-  solid: { width: '100%', maxWidth: 460, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  medal: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  line: { fontSize: 16, fontWeight: '600', lineHeight: 22 },
+  solid: { width: '100%', maxWidth: 460, borderRadius: 28, borderWidth: StyleSheet.hairlineWidth, padding: 18, gap: 12, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+  line: { fontSize: 15, fontWeight: '500', lineHeight: 21 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8 },
   ratingValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'], marginStart: 'auto' },
   delta: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },

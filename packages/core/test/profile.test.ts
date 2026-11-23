@@ -30,11 +30,17 @@ describe('settings', () => {
     expect(DEFAULT_SETTINGS.gameplay.premoves).toBe(true);
     expect(DEFAULT_SETTINGS.sound.haptics).toBe(true);
     const old = normalizeSettings({ sound: { enabled: false, volume: 0.3, moves: true, lowTime: false }, gameplay: { confirmMoves: 'always' } });
-    expect(old.sound).toEqual({ enabled: false, volume: 0.3, moves: true, lowTime: false, haptics: true });
+    expect(old.sound).toEqual({ enabled: false, volume: 0.3, moves: true, lowTime: false, haptics: true, silentMode: true });
     expect(old.gameplay.premoves).toBe(true);
     const off = applySettingsPatch(DEFAULT_SETTINGS, { gameplay: { premoves: false }, sound: { haptics: false } });
     expect('settings' in off && [off.settings.gameplay.premoves, off.settings.sound.haptics]).toEqual([false, false]);
     expect(applySettingsPatch(DEFAULT_SETTINGS, { gameplay: { premoves: 'yes' } })).toHaveProperty('error');
+  });
+  it('plays sounds on silent by default, and lets the player turn that off', () => {
+    expect(DEFAULT_SETTINGS.sound.silentMode).toBe(true);
+    const off = applySettingsPatch(DEFAULT_SETTINGS, { sound: { silentMode: false } });
+    expect('settings' in off && off.settings.sound.silentMode).toBe(false);
+    expect(applySettingsPatch(DEFAULT_SETTINGS, { sound: { silentMode: 'no' } })).toHaveProperty('error');
   });
 });
 
