@@ -297,7 +297,7 @@ export default function OnlinePlay() {
             ? [{ key: 'history', icon: 'history' as const, label: tr('game.more.reviewHistory'), onPress: () => router.push({ pathname: '/games/[id]', params: { id: `on_${view.gameId}` } }) }]
             : []),
           ...(view.tournamentId
-            ? [{ key: 'tournament', icon: 'trophy-outline' as const, label: tr('tournaments.back'), onPress: () => router.push({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) }]
+            ? [{ key: 'tournament', icon: 'trophy-outline' as const, label: tr('tournaments.back'), onPress: () => router.dismissTo({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) }]
             : []),
           { key: 'lobby', icon: 'home-outline' as const, label: tr('game.more.lobby'), onPress: toLobby },
         ]
@@ -450,7 +450,15 @@ export default function OnlinePlay() {
             reviewLabel={reviewEntry.label ?? undefined}
             onClose={() => setHideResult(true)}
             sponsor={sponsor}
-            onTournament={view.tournamentId ? () => router.push({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } }) : undefined}
+            onTournament={
+              view.tournamentId
+                ? () => {
+                    // Back to the tournament page already open below (or open it), without stacking another one.
+                    setHideResult(true);
+                    router.dismissTo({ pathname: '/tournaments/[id]', params: { id: view.tournamentId! } });
+                  }
+                : undefined
+            }
           />
         )}
         {over && endResult(view) && (

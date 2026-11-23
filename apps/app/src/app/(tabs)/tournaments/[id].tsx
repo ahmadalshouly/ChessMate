@@ -1,7 +1,7 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMoney, formatTimeControl, timeCategory, type TournamentChatMessage, type TournamentDetail } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -70,11 +70,14 @@ export default function TournamentScreen() {
     }, [load, running]),
   );
 
-  // The server paired you: open the game.
+  // The server paired you: open the game. Only from this page while it is on
+  // screen: when the game screen is already open, it switches to the new game
+  // itself, so finished games do not pile up as screens with result cards.
+  const focused = useIsFocused();
   const liveGame = play.game && !play.game.outcome && play.game.tournamentId === id ? play.game.gameId : null;
   useEffect(() => {
-    if (liveGame) router.push('/play/online');
-  }, [liveGame]);
+    if (liveGame && focused) router.navigate('/play/online');
+  }, [liveGame, focused]);
 
   const act = (fn: () => Promise<{ tournament: TournamentDetail }>) => async () => {
     setBusy(true);
@@ -169,7 +172,7 @@ export default function TournamentScreen() {
               {tour.joined ? (
                 <>
                   {tour.yourGameId ? (
-                    <Button title={tr('tournaments.toGame')} onPress={() => router.push('/play/online')} rightIcon={<Ionicons name="arrow-forward" size={16} color={c.onAccent} />} />
+                    <Button title={tr('tournaments.toGame')} onPress={() => router.navigate('/play/online')} rightIcon={<Ionicons name="arrow-forward" size={16} color={c.onAccent} />} />
                   ) : tour.status === 'running' ? (
                     <View style={{ gap: 4 }}>
                       <Text variant="label">{tr('tournaments.waitingPairing')}</Text>
