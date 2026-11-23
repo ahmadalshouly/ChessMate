@@ -36,3 +36,4 @@ export * from './habits';
 export * from './awards';
 export * from './broadcasts';
 export * from './media';
+export * from './material';

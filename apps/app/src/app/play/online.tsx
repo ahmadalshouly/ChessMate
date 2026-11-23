@@ -1,4 +1,4 @@
-import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
+import { formatTimeControl, materialBalance, opposite, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -230,6 +230,9 @@ export default function OnlinePlay() {
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
   const boardFen = nav.live ? (board.displayFen ?? view.fen) : (shownMove?.fenAfter ?? START);
   const boardLast = nav.live ? last : shownMove;
+  // Follows the shown position, so it updates while browsing earlier moves.
+  const material = materialBalance(boardFen);
+  const materialOf = (c: Color) => ({ ...material[c], color: opposite(c) });
   const oppOfferedRematch = view.rematchBy === opp;
   const secretQueen = view.variant === 'secretQueen';
   // Secret Queen games are not reviewed or archived: pawns that moved like queens confuse the engine and the replay.
@@ -386,8 +389,8 @@ export default function OnlinePlay() {
             ) : null}
           </>
         }
-        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} status={firstMoveStatus(top)} />}
-        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} status={firstMoveStatus(orientation)} />}
+        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} status={firstMoveStatus(top)} material={materialOf(top)} />}
+        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} status={firstMoveStatus(orientation)} material={materialOf(orientation)} />}
         renderBoard={(boardSize) => (
           <>
             <Board
