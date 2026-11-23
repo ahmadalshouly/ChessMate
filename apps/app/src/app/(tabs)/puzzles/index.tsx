@@ -8,7 +8,7 @@ import { Board } from '@/components/Board';
 import { formatNumber, translate, useT } from '@/i18n';
 import { puzzleGroupLabel, puzzleThemeLabel } from '@/i18n/chess';
 import { puzzleApi } from '@/lib/puzzleApi';
-import { Button, GlassView, Row, Screen, SectionHeader, Skeleton, Stack, Text, useAppTheme } from '@/ui';
+import { Button, GlassView, Row, Screen, SectionHeader, Skeleton, Stack, Text, rimShadow, useAppTheme } from '@/ui';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -272,7 +272,7 @@ const ThemeGroup = memo(function ThemeGroup({
             accessibilityRole="button"
             accessibilityLabel={`${puzzleThemeLabel(key)}, ${formatNumber(counts[key] ?? 0)}`}
             onPress={() => onPick(key)}
-            style={({ pressed }) => [styles.chip, { borderColor: t.colors.border, backgroundColor: pressed ? t.colors.surfacePressed : t.colors.surfaceSubtle }]}>
+            style={({ pressed }) => [styles.chip, { borderColor: t.colors.glassBorder, backgroundColor: pressed ? t.colors.surfacePressed : t.colors.surface, transform: [{ scale: pressed ? 0.95 : 1 }] }, rimShadow(t.colors)]}>
             <Text variant="label">{puzzleThemeLabel(key)}</Text>
             <Text variant="caption" tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
               {formatNumber(counts[key] ?? 0)}

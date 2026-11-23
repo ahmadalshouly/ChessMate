@@ -1,21 +1,25 @@
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+
+import type { ColorScheme } from '@/ui';
+import { shadows, colors } from '@/ui/theme/tokens';
 
 import { useTheme } from '@/constants/theme';
+import { LiquidLayers } from '@/ui/components/liquid';
 
 /**
- * Frosted-glass surface used by the app chrome (header, tab bar, sidebar).
- * Chrome sits over scrolling content, so it uses the stronger tint: content
- * passing underneath is blurred and dimmed rather than read through.
+ * Liquid Glass surface for the app chrome (tab bar, header capsules, sidebar, menus). Chrome
+ * floats above scrolling content: on iOS 26 it is Apple's native Liquid Glass, elsewhere a
+ * strongly blurred, saturated tint with a specular rim, so content passing underneath shows
+ * through as soft colour and shape rather than readable text.
  */
 export function Glass({
   children,
   style,
-  intensity = 50,
+  intensity = 60,
   radius = 0,
   sheen = true,
+  interactive,
 }: {
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -23,34 +27,23 @@ export function Glass({
   radius?: number;
   /** Soft light across the top edge. */
   sheen?: boolean;
+  /** Native glass reacts to touch (iOS 26). */
+  interactive?: boolean;
 }) {
   const t = useTheme();
-  const dark = t.scheme === 'dark';
   return (
-    <View style={[{ borderRadius: radius, borderColor: t.glassBorder, overflow: 'hidden' }, styles.shell, Platform.OS === 'web' && webBlur(intensity), style]}>
-      {Platform.OS === 'ios' && <BlurView intensity={intensity} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: Platform.OS === 'android' ? t.surfaceSolid : t.surfaceStrong }]} />
-      {sheen && (
-        <LinearGradient
-          pointerEvents="none"
-          colors={dark ? ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.65)', 'rgba(255,255,255,0)']}
-          style={[styles.sheen, { borderTopLeftRadius: radius, borderTopRightRadius: radius }]}
-        />
-      )}
-      <View pointerEvents="none" style={[styles.highlight, { backgroundColor: t.glassHighlight, left: radius * 0.6, right: radius * 0.6 }]} />
+    <View style={[{ borderRadius: radius, borderColor: t.glassBorder, overflow: 'hidden' }, styles.shell, style]}>
+      <LiquidLayers kind="chrome" radius={radius} intensity={intensity} fill={t.chrome} sheen={sheen} interactive={interactive} />
       {children}
     </View>
   );
 }
 
-/** Browsers blur what is behind the element natively (CSS backdrop-filter). */
-function webBlur(intensity: number): ViewStyle {
-  const px = Math.round(intensity / 2.5);
-  return { backdropFilter: `blur(${px}px) saturate(180%)`, WebkitBackdropFilter: `blur(${px}px) saturate(180%)` } as unknown as ViewStyle;
-}
-
 const styles = StyleSheet.create({
   shell: { borderWidth: StyleSheet.hairlineWidth },
-  sheen: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%' },
-  highlight: { position: 'absolute', top: 0, height: StyleSheet.hairlineWidth, opacity: 0.9 },
 });
+
+/** Soft lift for floating chrome. A box shadow, so it is not clipped by the glass's `overflow: hidden`. */
+export function floatShadow(scheme: ColorScheme): ViewStyle {
+  return shadows(colors[scheme]).float;
+}

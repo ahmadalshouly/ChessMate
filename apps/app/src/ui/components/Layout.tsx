@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { Platform, ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,6 +25,12 @@ export interface ScreenProps {
   scrollProps?: Omit<ScrollViewProps, 'contentContainerStyle'>;
 }
 
+/**
+ * True inside a frame that already draws the backdrop behind its header (the app shell). Screens
+ * there leave their own background off, so the page runs unbroken under the glass header.
+ */
+export const BackdropContext = createContext(false);
+
 /** Brand page background (monochrome gradient + soft glow) with optional scroll and column. */
 export function Screen({
   children,
@@ -47,10 +53,11 @@ export function Screen({
     paddingRight: p + (edges.includes('right') ? insets.right : 0),
   };
   const column = <View style={[{ width: '100%', maxWidth, gap: t.space[gap] }, !scroll && { flex: 1 }, contentStyle]}>{children}</View>;
+  const framed = useContext(BackdropContext);
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      <Backdrop />
+    <View style={{ flex: 1, backgroundColor: framed ? 'transparent' : t.colors.bg }}>
+      {!framed && <Backdrop />}
       {scroll ? (
         <ScrollView {...scrollProps} contentContainerStyle={[pad, { alignItems: 'center', flexGrow: 1 }]}>
           {column}

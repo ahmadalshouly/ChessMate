@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n';
 import type { TabConfig } from '@/navigation/tabs';
 import { fonts } from '@/ui';
 import { Text } from '@/ui/primitives';
+import { PressableScale, rimShadow } from '@/ui/components/liquid';
 
 /**
  * One destination in the tab bar (`variant="bar"`) or sidebar
@@ -14,7 +15,7 @@ import { Text } from '@/ui/primitives';
  */
 export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar' | 'side'; index?: number }) {
   const t = useTheme();
-  const { tr, rtl } = useI18n();
+  const { tr } = useI18n();
   const { trigger, triggerProps } = useTabTrigger({ name: tab.name });
   const focused = triggerProps.isFocused;
   // On web, give the item a real link so middle-click / open-in-new-tab work.
@@ -22,19 +23,20 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
 
   if (variant === 'bar') {
     return (
-      <Pressable
+      <PressableScale
         {...webProps}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
         accessibilityLabel={tr(tab.label)}
         onPress={triggerProps.onPress}
         onLongPress={triggerProps.onLongPress}
-        style={({ pressed }) => [styles.bar, { opacity: pressed ? 0.6 : 1 }]}>
+        scaleTo={0.88}
+        style={styles.bar}>
         <BarIcon focused={focused} icon={focused ? tab.iconActive : tab.icon} />
-        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.barLabel, { color: focused ? t.text : t.textTertiary }]}>
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.barLabel, { color: focused ? t.text : t.muted }]}>
           {tr(tab.label)}
         </Text>
-      </Pressable>
+      </PressableScale>
     );
   }
 
@@ -47,10 +49,9 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
       onLongPress={triggerProps.onLongPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.side,
-        { backgroundColor: focused ? t.surfacePressed : hovered ? t.surfaceSunken : 'transparent', opacity: pressed ? 0.75 : 1 },
+        { backgroundColor: focused ? t.glassSelected : hovered ? t.surfaceSunken : 'transparent', opacity: pressed ? 0.75 : 1 },
+        focused && rimShadow(t),
       ]}>
-      {/* Outer edge of the sidebar. Native already swaps left and right in RTL; web needs it spelled out. */}
-      {focused && <View style={[styles.sideMark, Platform.OS === 'web' && rtl ? { right: 0 } : { left: 0 }, { backgroundColor: t.accent }]} />}
       <Ionicons name={focused ? tab.iconActive : tab.icon} size={18} color={focused ? t.text : t.muted} />
       <Text style={[styles.sideLabel, { color: focused ? t.text : t.muted, fontFamily: focused ? fonts.sansSemiBold : fonts.sansMedium }]}>{tr(tab.title)}</Text>
       {index !== undefined && <Text style={[styles.sideIndex, { color: t.textTertiary }]}>{String(index + 1).padStart(2, '0')}</Text>}
@@ -58,17 +59,12 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
   );
 }
 
-/**
- * Tab icon with its selected pill. The pill is always drawn and only fades in:
- * Android drops the rounded corners when a background colour is switched on
- * after the view first renders, which showed a square highlight.
- */
+/** Tab icon. The selected lens behind it is drawn once by the tab bar and slides between tabs. */
 export function BarIcon({ focused, icon }: { focused: boolean; icon: TabConfig['icon'] }) {
   const t = useTheme();
   return (
     <View style={styles.barIcon}>
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pill, { backgroundColor: t.accent, opacity: focused ? 1 : 0 }]} />
-      <Ionicons name={icon} size={19} color={focused ? t.onAccent : t.muted} />
+      <Ionicons name={icon} size={21} color={focused ? t.text : t.muted} />
     </View>
   );
 }
@@ -76,12 +72,10 @@ export function BarIcon({ focused, icon }: { focused: boolean; icon: TabConfig['
 export const barLabelStyle = { fontFamily: fonts.label, fontSize: 9, letterSpacing: 0.4, textTransform: 'uppercase' } as const;
 
 const styles = StyleSheet.create({
-  pill: { borderRadius: 15, overflow: 'hidden' },
   bar: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6 },
-  barIcon: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  barIcon: { width: 46, height: 26, alignItems: 'center', justifyContent: 'center' },
   barLabel: barLabelStyle,
-  side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 42, borderRadius: 12 },
-  sideMark: { position: 'absolute', top: 12, bottom: 12, width: 2.5, borderRadius: 2 },
+  side: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, height: 42, borderRadius: 21 },
   sideLabel: { fontSize: 14.5, flex: 1, letterSpacing: -0.15 },
   sideIndex: { fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: 0.5 },
 });
