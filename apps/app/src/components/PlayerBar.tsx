@@ -1,11 +1,26 @@
-import type { PlayerInfo } from '@chessmate/core';
+import { opposite, type Color, type MaterialBalance, type PlayerInfo } from '@chessmate/core';
 import { useEffect, useState } from 'react';
 
 import { PlayerCard } from '@/components/game/PlayerCard';
 
 /** A player beside the board (spectator view): the game screen's player card. */
-export function PlayerBar({ player, ms, active, offline }: { player: PlayerInfo | null; ms: number | null; active: boolean; offline?: boolean }) {
-  return <PlayerCard player={player} ms={ms} active={active} offline={offline} />;
+export function PlayerBar({
+  player,
+  ms,
+  active,
+  offline,
+  side,
+  material,
+}: {
+  player: PlayerInfo | null;
+  ms: number | null;
+  active: boolean;
+  offline?: boolean;
+  /** This player's colour; with `material`, shows the pieces they have taken. */
+  side?: Color;
+  material?: MaterialBalance;
+}) {
+  return <PlayerCard player={player} ms={ms} active={active} offline={offline} material={side && material ? { ...material[side], color: opposite(side) } : undefined} />;
 }
 
 /** Re-renders every 100 ms while `running` so clocks tick smoothly. */

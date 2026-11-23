@@ -1,4 +1,4 @@
-import { formatTimeControl, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
+import { formatTimeControl, materialBalance, opposite, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -184,6 +184,9 @@ export default function OnlinePlay() {
   const shownMove = nav.shown > 0 ? history[nav.shown - 1] : undefined;
   const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START);
   const boardLast = nav.live ? last : shownMove;
+  // Follows the shown position, so it updates while browsing earlier moves.
+  const material = materialBalance(boardFen);
+  const materialOf = (c: Color) => ({ ...material[c], color: opposite(c) });
   const oppOfferedRematch = view.rematchBy === opp;
   const reviewable = over && view.outcome!.reason !== 'aborted' && history.length > 0;
 
@@ -268,8 +271,8 @@ export default function OnlinePlay() {
       <Stack.Screen options={{ title }} />
       <GameLayout
         notice={connectionNotice}
-        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} />}
-        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} />}
+        top={<PlayerCard player={players[top]} ms={ms(top)} active={view.clock.running === top} offline={top === opp && !view.opponentConnected} material={materialOf(top)} />}
+        bottom={<PlayerCard player={players[orientation]} ms={ms(orientation)} active={view.clock.running === orientation} offline={orientation === opp && !view.opponentConnected} material={materialOf(orientation)} />}
         renderBoard={(boardSize) => (
           <>
             <Board

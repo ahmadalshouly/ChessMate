@@ -1,4 +1,4 @@
-import { DEFAULT_AVATAR, formatClock, type PlayerInfo, type PublicProfile } from '@chessmate/core';
+import { DEFAULT_AVATAR, formatClock, type Color, type MaterialSide, type PlayerInfo, type PublicProfile } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -9,6 +9,7 @@ import { countryLabel } from '@/i18n/chess';
 import { countryFlag } from '@/lib/leaderboardApi';
 import { Button, GlassView, Modal, Text, useAppTheme } from '@/ui';
 
+import { CapturedPieces } from './CapturedPieces';
 import { hasProfile, usePlayerProfile } from './usePlayerProfile';
 
 export const PLAYER_CARD_HEIGHT = 56;
@@ -28,13 +29,15 @@ export interface PlayerCardProps {
   status?: string | null;
   /** Off for computer opponents, which have no profile. */
   pressable?: boolean;
+  /** Pieces this player has taken and their material lead, shown after the rating. */
+  material?: MaterialSide & { color: Color };
 }
 
 /**
  * A player above or below the board: avatar, name with country flag, rating
  * and clock. Tap it to see the player's profile without leaving the game.
  */
-export function PlayerCard({ player, ms, active, offline, avatar, subtitle, status, pressable = true }: PlayerCardProps) {
+export function PlayerCard({ player, ms, active, offline, avatar, subtitle, status, pressable = true, material }: PlayerCardProps) {
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
@@ -66,10 +69,13 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
                   </Text>
                   {flag ? <Text style={styles.flag}>{flag}</Text> : null}
                 </View>
-                <Text variant="caption" tone="muted" numberOfLines={1} style={styles.sub}>
-                  {subtitle ?? rating}
-                  {offline ? ` · ${tr('play.online.reconnecting').split('.')[0]}` : ''}
-                </Text>
+                <View style={styles.subLine}>
+                  <Text variant="caption" tone="muted" numberOfLines={1} style={styles.sub}>
+                    {subtitle ?? rating}
+                    {offline ? ` · ${tr('play.online.reconnecting').split('.')[0]}` : ''}
+                  </Text>
+                  {material && <CapturedPieces {...material} />}
+                </View>
               </View>
             </View>
             {status ? (
@@ -168,7 +174,8 @@ const styles = StyleSheet.create({
   nameLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { flexShrink: 1 },
   flag: { fontSize: 15, lineHeight: 20 },
-  sub: { fontVariant: ['tabular-nums'] },
+  subLine: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  sub: { fontVariant: ['tabular-nums'], flexShrink: 0 },
   pill: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   clock: { minWidth: 92, height: 44, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   clockText: { fontSize: 24, lineHeight: 28 },
