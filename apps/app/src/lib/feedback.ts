@@ -10,6 +10,18 @@ export function moveFeedback(san: string): void {
   haptic(sound === 'check' ? 'check' : sound === 'capture' ? 'capture' : 'move');
 }
 
+/** A move the rules do not allow: the piece snaps back with a soft thud and a buzz. */
+export function illegalMoveFeedback(): void {
+  playSound('illegal');
+  haptic('illegal');
+}
+
+/** A premove was queued: a light tick that says "waiting", not "played". */
+export function premoveFeedback(): void {
+  playSound('premove');
+  haptic('premove');
+}
+
 export function gameStartFeedback(): void {
   playSound('start');
 }

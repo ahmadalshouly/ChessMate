@@ -1,7 +1,7 @@
 import { Game, type Color, type Square } from '@chessmate/core';
 import { useMemo, useState } from 'react';
 
-import { haptic } from './haptics';
+import { illegalMoveFeedback } from './feedback';
 
 /**
  * Tap-to-move and drag-and-drop for boards played on this device: tap a piece
@@ -37,8 +37,10 @@ export function useBoardInteraction(fen: string, canMove: (color: Color) => bool
   const onPieceDrop = (from: Square, to: Square) => {
     setSelected(null);
     if (!movable(from)) return;
-    // An illegal drop snaps back; a short buzz says why nothing happened.
-    if (!tryMove(from, to)) haptic('illegal');
+    // An illegal drop snaps back; a thud and a short buzz say why nothing happened.
+    // A legal move the screen turns down (e.g. a wrong puzzle answer) is not illegal.
+    if (!game.legalMoves(from).some((m) => m.to === to)) return illegalMoveFeedback();
+    tryMove(from, to);
   };
 
   const clear = () => setSelected(null);

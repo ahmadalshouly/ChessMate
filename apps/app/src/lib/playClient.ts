@@ -26,9 +26,7 @@ import {
 import { useSyncExternalStore } from 'react';
 
 import { SERVER_URL } from './config';
-import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
-import { haptic } from './haptics';
-import { playSound } from './sounds';
+import { gameEndFeedback, gameStartFeedback, moveFeedback, premoveFeedback } from './feedback';
 import { translate } from '@/i18n';
 
 /**
@@ -442,10 +440,7 @@ class PlayClient {
   }
 
   setPremove(premove: GameView['premove']) {
-    if (premove) {
-      playSound('premove');
-      haptic('premove');
-    }
+    if (premove) premoveFeedback();
     this.patchGame({ premove });
   }
 

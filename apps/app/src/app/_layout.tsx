@@ -11,6 +11,7 @@ import { useAccountSession } from '@/features/account/session';
 import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
+import { preloadSounds } from '@/lib/sounds';
 import { UIProvider, useAppTheme } from '@/ui';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider } from '@/lib/notifications';
@@ -27,6 +28,8 @@ export default function RootLayout() {
   const { ready: i18nReady } = useI18n();
   useEffect(() => {
     void initI18n({ beforeReady: (lang) => (lang === 'ar' ? loadArabicFonts() : undefined) });
+    // Load every cue now, so the first move of a session is not lost while its file loads.
+    preloadSounds();
   }, []);
   if (!fontsReady || !i18nReady) return null;
   return (

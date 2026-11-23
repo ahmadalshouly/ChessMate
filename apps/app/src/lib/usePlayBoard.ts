@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useSettings } from '@/features/account/settingsStore';
 
-import { haptic } from './haptics';
+import { illegalMoveFeedback } from './feedback';
 import { playClient, type GameView } from './playClient';
 
 /**
@@ -61,7 +61,8 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
   const onPieceDrop = (from: Square, to: Square) => {
     setSelected(null);
     if (!live || !movable(from)) return;
-    if (!commit(from, to)) haptic('illegal');
+    if (!destsFrom(from).includes(to)) return illegalMoveFeedback();
+    commit(from, to);
   };
 
   const cancel = () => {
