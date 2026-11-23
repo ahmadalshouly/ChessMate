@@ -52,12 +52,25 @@ const SETTLED_MS = 10 * 60_000;
 /** Lichess asked us to slow down (HTTP 429): wait a full minute. */
 const LICHESS_PAUSE_MS = 60_000;
 const MAX_IMPORTED = 15;
+/** A source that answers "not found" is retried less and less often, up to this gap. */
+const NOT_FOUND_MAX_MS = 30 * 60_000;
+/** After this many "not found" answers in a row (once the round should have started), the round stops syncing. */
+const NOT_FOUND_GIVE_UP = 5;
+/** A round's source may legitimately be missing until a while after the round starts. */
+const NOT_FOUND_GRACE_MS = 60 * 60_000;
 const USER_AGENT = 'ChessMate broadcasts (+https://chessmate.app)';
 
 /** Lichess refused a request because another one was still running. */
 class BusyError extends Error {
   constructor() {
     super('Lichess is busy with another request');
+  }
+}
+
+/** The source answered 404 or 410: the link is wrong, or the round was deleted. */
+class NotFoundError extends Error {
+  constructor(status: number) {
+    super(`The source answered ${status}`);
   }
 }
 
@@ -87,6 +100,8 @@ export class BroadcastSync {
   private readonly verified = new Set<string>();
   /** When players' federations were last read from Lichess, by round id. */
   private readonly playersAt = new Map<string, number>();
+  /** The last error per round and how many times in a row it happened (one log line per new error). */
+  private readonly failures = new Map<string, { message: string; count: number; notFound: number }>();
   /** When the next request to Lichess may go out. */
   private lichessNextAt = 0;
 
@@ -122,6 +137,7 @@ export class BroadcastSync {
     this.noStream.delete(roundId);
     this.streamRetryAt.delete(roundId);
     this.streamFails.delete(roundId);
+    this.failures.delete(roundId);
   }
 
   async tick(): Promise<void> {
@@ -374,6 +390,7 @@ export class BroadcastSync {
         if (url.startsWith(this.origin)) this.lichessPausedUntil = this.now() + LICHESS_PAUSE_MS;
         throw new Error('The source asked us to slow down (429)');
       }
+      if (res.status === 404 || res.status === 410) throw new NotFoundError(res.status);
       if (!res.ok) throw new Error(`The source answered ${res.status}`);
       const body = await res.text();
       if (body.length > EVENT_LIMITS.pgnChars) throw new Error('The source file is too large');
@@ -399,6 +416,7 @@ export class BroadcastSync {
     if (!url) return;
     try {
       const pgn = await this.get(url);
+      this.failures.delete(r.id);
       const res = await this.opts.events.applyPgn(r, pgn, { replace: true });
       // Nothing readable: never call the round done on that, try again later.
       let finished = final && res.games > 0;
@@ -428,9 +446,26 @@ export class BroadcastSync {
         this.nextAt.set(r.id, now + BUSY_RETRY_MS);
         return;
       }
-      console.warn(`broadcast round ${r.id} sync failed:`, e instanceof Error ? e.message : e);
-      await this.opts.events.markSynced(r, { error: e instanceof Error ? e.message.slice(0, 200) : 'Sync failed' });
-      this.nextAt.set(r.id, now + ERROR_MS);
+      const message = e instanceof Error ? e.message : String(e);
+      const prev = this.failures.get(r.id);
+      const notFound = e instanceof NotFoundError ? (prev?.notFound ?? 0) + 1 : 0;
+      const failure = { message, count: prev?.message === message ? prev.count + 1 : 1, notFound };
+      this.failures.set(r.id, failure);
+      // The source was not found several times in a row, well after the round began: it is gone (a wrong link,
+      // or a round the organiser deleted). Stop polling it; editing the round or "Sync now" starts it again.
+      const started = !r.startsAt || now > r.startsAt.getTime() + NOT_FOUND_GRACE_MS;
+      if (notFound >= NOT_FOUND_GIVE_UP && started) {
+        console.warn(`broadcast round ${r.id} sync stopped: ${message} ${notFound} times in a row (${url})`);
+        await this.opts.events.markSynced(r, { error: `${message}: the round was not found, so syncing stopped. Check its link, then press Sync now.`.slice(0, 200), finished: true });
+        this.failures.delete(r.id);
+        this.streams.get(r.id)?.abort();
+        this.streams.delete(r.id);
+        return;
+      }
+      // One log line per new error, not one per retry.
+      if (failure.count === 1) console.warn(`broadcast round ${r.id} sync failed: ${message} (${url})`);
+      await this.opts.events.markSynced(r, { error: message.slice(0, 200) });
+      this.nextAt.set(r.id, now + (notFound ? Math.min(NOT_FOUND_MAX_MS, ERROR_MS * 2 ** (notFound - 1)) : ERROR_MS));
     }
   }
 

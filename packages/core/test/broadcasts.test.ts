@@ -112,6 +112,10 @@ describe('validation', () => {
     expect(cleanRoundInput({ number: 2, source: { kind: 'lichess', url: 'https://lichess.org/broadcast/tata-steel/round-2/AbCd1234' } })).toMatchObject({ value: { name: 'Round 2', source: { kind: 'lichess', lichessRoundId: 'AbCd1234' } } });
     expect(cleanRoundInput({ number: 1, source: { kind: 'pgnUrl', url: 'ftp://x' } })).toHaveProperty('error');
     expect(lichessRoundIdOf('https://example.com/broadcast/a/b/AbCd1234')).toBeNull();
+    // A link copied while a game was open ends with the game id, not the round id.
+    expect(lichessRoundIdOf('https://lichess.org/broadcast/tata-steel/round-2/AbCd1234/Gm5x9qRt')).toBe('AbCd1234');
+    expect(lichessRoundIdOf('https://lichess.org/broadcast/tata-steel/round-2/AbCd1234/Gm5x9qRt#12')).toBe('AbCd1234');
+    expect(lichessRoundIdOf('https://lichess.org/broadcast/tata-steel/TourId12')).toBeNull();
   });
   it('maps a Lichess tournament to an event', () => {
     const e = lichessTourToEvent({ id: 't1', name: 'Candidates 2026', dates: [1000, 9000], info: { format: '8-player double round robin', tc: '120+30', location: 'Toronto' } }, []);

@@ -570,7 +570,11 @@ export interface RoundInput {
   source: { kind: RoundSourceKind; url: string | null; lichessRoundId: string | null };
 }
 
-/** A Lichess broadcast round id from an id or a broadcast link (the last 8-character path part). */
+/**
+ * A Lichess broadcast round id from an id or a broadcast link:
+ * lichess.org/broadcast/{tour-slug}/{round-slug}/{roundId}, optionally followed by /{gameId}
+ * when the link was copied while a game was open (the game id is not the round id).
+ */
 export function lichessRoundIdOf(input: string): string | null {
   const s = input.trim();
   if (/^[A-Za-z0-9]{8}$/.test(s)) return s;
@@ -580,8 +584,8 @@ export function lichessRoundIdOf(input: string): string | null {
     const parts = u.pathname.split('/').filter(Boolean);
     const i = parts.indexOf('broadcast');
     if (i < 0) return null;
-    const last = parts[parts.length - 1]!;
-    return parts.length - i >= 4 && /^[A-Za-z0-9]{8}$/.test(last) ? last : null;
+    const id = parts[i + 3];
+    return parts.length - i >= 4 && parts.length - i <= 5 && id && /^[A-Za-z0-9]{8}$/.test(id) ? id : null;
   } catch {
     return null;
   }

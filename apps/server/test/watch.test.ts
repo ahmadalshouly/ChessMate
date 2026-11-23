@@ -282,6 +282,44 @@ describe('broadcast sync', () => {
   });
 
 
+  it('a source that keeps answering 404 is retried less often, logged once, then stopped', async () => {
+    let t = clock;
+    const events = new EventService({ db: h.db, now: () => t, roleOf });
+    await events.load();
+    let asked = 0;
+    const fetcher: Fetcher = async (url) => {
+      if (url === 'https://boards.example/gone.pgn') asked++;
+      return { status: 404, ok: false, text: async () => '' };
+    };
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (...a: unknown[]) => void warnings.push(a.join(' '));
+    try {
+      const sync = new BroadcastSync({ db: h.db, events, now: () => t, fetch: fetcher, lichessOrigin: 'https://lichess.test', lichessGapMs: 0 });
+      const e = await events.create(ids.wadmin!, { name: 'Gone Open', startsAt: clock - 3 * 3_600_000, endsAt: clock + 86_400_000 });
+      await events.addRound(ids.wadmin!, e.id, { number: 1, startsAt: clock - 2 * 3_600_000, source: { kind: 'pgnUrl', url: 'https://boards.example/gone.pgn' } });
+      // Two hours of ticks every 4 seconds.
+      for (let i = 0; i < 1800; i++) {
+        await sync.tick();
+        t += 4_000;
+      }
+      // 1, 2, 4 and 8 minutes apart, then stopped: 5 requests instead of 120.
+      expect(asked).toBe(5);
+      const mine = warnings.filter((w) => w.includes('gone.pgn'));
+      expect(mine).toHaveLength(2);
+      expect(mine[1]).toContain('sync stopped');
+      const d = await events.detail(ids.wadmin!, e.id);
+      expect(d.rounds[0]!.source?.syncError).toContain('Sync now');
+      // "Sync now" tries again.
+      await events.resumeSync(ids.wadmin!, d.rounds[0]!.id);
+      sync.wake(d.rounds[0]!.id);
+      await sync.tick();
+      expect(asked).toBe(6);
+    } finally {
+      console.warn = warn;
+    }
+  });
+
   it('polls a live PGN link and imports Lichess broadcasts', async () => {
     const events = new EventService({ db: h.db, now, roleOf });
     await events.load();
