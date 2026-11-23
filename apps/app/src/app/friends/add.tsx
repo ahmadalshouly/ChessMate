@@ -64,6 +64,11 @@ export default function AddByQr() {
               <Text variant="heading">{tr('qr.theirCode')}</Text>
             </View>
             <Text tone="muted">{tr('qr.theirCodeBody')}</Text>
+            <Button
+              title={tr('qr.scanButton')}
+              leftIcon={<Ionicons name="scan-outline" size={18} color={t.colors.onAccent} />}
+              onPress={() => router.push('/friends/scan')}
+            />
             <TextField
               label={tr('qr.linkLabel')}
               value={text}
@@ -74,7 +79,7 @@ export default function AddByQr() {
               onSubmitEditing={open}
               error={error ?? undefined}
             />
-            <Button title={tr('qr.open')} disabled={!text.trim()} onPress={open} />
+            <Button variant="secondary" title={tr('qr.open')} disabled={!text.trim()} onPress={open} />
           </GlassView>
         </View>
       </ScrollView>

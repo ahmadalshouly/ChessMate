@@ -222,6 +222,7 @@ export default function Social() {
             onPress={() => router.push('/messages')}
           />
           <ListRow left={<IconDisc name="search-outline" />} title={tr('friends.find')} subtitle={tr('social.hub.findBody')} chevron onPress={() => router.push('/friends/search')} />
+          <ListRow left={<IconDisc name="scan-outline" />} title={tr('qr.scanTitle')} subtitle={tr('qr.scanBody')} chevron onPress={() => router.push('/friends/scan')} />
           <ListRow left={<IconDisc name="qr-code-outline" />} title={tr('qr.addTitle')} subtitle={tr('qr.addBody')} chevron onPress={() => router.push('/friends/add')} />
           <ListRow
             left={<IconDisc name="mail-outline" />}
