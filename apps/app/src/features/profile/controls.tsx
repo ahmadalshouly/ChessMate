@@ -33,13 +33,27 @@ export function Row({ title, detail, children }: { title: string; detail?: strin
   );
 }
 
-export function ToggleRow({ title, detail, value, onChange }: { title: string; detail?: string; value: boolean; onChange: (v: boolean) => void }) {
+export function ToggleRow({
+  title,
+  detail,
+  value,
+  onChange,
+  disabled,
+}: {
+  title: string;
+  detail?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  /** Shown but not changeable (e.g. cookies the app cannot work without). */
+  disabled?: boolean;
+}) {
   const t = useTheme();
   return (
     <Row title={title} detail={detail}>
       <Switch
         accessibilityLabel={title}
         value={value}
+        disabled={disabled}
         onValueChange={onChange}
         trackColor={{ false: t.border, true: t.accent }}
         thumbColor={value ? t.onAccent : t.surfaceSolid}

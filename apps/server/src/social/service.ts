@@ -1,5 +1,7 @@
 import {
+  DEFAULT_SETTINGS,
   SOCIAL_LIMITS,
+  audienceAllows,
   type FeedItem,
   type FriendEntry,
   type FriendRequestEntry,
@@ -8,6 +10,7 @@ import {
   type Relationship,
   type SocialEvent,
   type SocialUser,
+  type UserSettings,
   type UserWithRelationship,
 } from '@chessmate/core';
 import {
@@ -46,6 +49,11 @@ export interface LiveSource {
 }
 
 export type Notify = (userIds: string[], event: SocialEvent) => void;
+
+/** A player's privacy settings (Settings → Privacy). */
+export type PrivacyOf = (userId: string) => UserSettings['privacy'];
+
+const OFFLINE: Presence = { status: 'offline' };
 
 export class SocialError extends Error {
   constructor(
@@ -87,7 +95,29 @@ export class SocialService {
   private live: LiveSource = { presence: () => ({ status: 'offline' }), liveGames: () => [] };
   private notify: Notify = () => {};
 
-  constructor(private readonly db: Database) {}
+  private readonly privacyOf: PrivacyOf;
+
+  constructor(
+    private readonly db: Database,
+    opts: { privacyOf?: PrivacyOf } = {},
+  ) {
+    this.privacyOf = opts.privacyOf ?? (() => DEFAULT_SETTINGS.privacy);
+  }
+
+  /** Live presence as others may see it: offline when the player hides their online status. */
+  presenceFor(userId: string, presence: Presence = this.live.presence(userId)): Presence {
+    return this.privacyOf(userId).showOnline ? presence : OFFLINE;
+  }
+
+  private async isFriend(a: string, b: string): Promise<boolean> {
+    return (await pairStatus(this.db, a, b)).some((r) => r.status === 'accepted');
+  }
+
+  private async hasMutualFriend(a: string, b: string): Promise<boolean> {
+    const [mine, theirs] = await Promise.all([friendsOf(this.db, a), friendsOf(this.db, b)]);
+    const set = new Set(mine.map((r) => r.id));
+    return theirs.some((r) => set.has(r.id));
+  }
 
   attach(live: LiveSource, notify: Notify) {
     this.live = live;
@@ -150,6 +180,8 @@ export class SocialService {
       if (u.id === viewer || out.length >= SOCIAL_LIMITS.searchResults) continue;
       const rel = await this.relationship(viewer, u.id);
       if (rel.blockedYou) continue;
+      // Players who opted out of search stay findable by their friends.
+      if (!rel.friend && !this.privacyOf(u.id).searchable) continue;
       out.push({ ...toSocialUser(u), relationship: this.publicRel(rel) });
     }
     return out;
@@ -165,7 +197,7 @@ export class SocialService {
     return {
       ...user,
       relationship: this.publicRel(rel),
-      presence: visible && !rel.blocked ? this.live.presence(id) : null,
+      presence: visible && !rel.blocked ? (self ? this.live.presence(id) : this.presenceFor(id)) : null,
       friends: await friendCount(this.db, id),
       followers: (await followersOf(this.db, id)).length,
     };
@@ -176,7 +208,7 @@ export class SocialService {
   async friends(viewer: string): Promise<FriendEntry[]> {
     const order = { playing: 0, online: 1, offline: 2 } as const;
     return (await this.hydrate(await friendsOf(this.db, viewer)))
-      .map(({ user, since }) => ({ user, since, presence: this.live.presence(user.id) }))
+      .map(({ user, since }) => ({ user, since, presence: this.presenceFor(user.id) }))
       .sort((a, b) => order[a.presence.status] - order[b.presence.status] || a.user.username.localeCompare(b.user.username));
   }
 
@@ -196,6 +228,11 @@ export class SocialService {
       return { status: 'accepted' };
     }
     if (rel.request === 'outgoing') return { status: 'sent' };
+    const audience = this.privacyOf(to).friendRequests;
+    if (audience === 'nobody') throw new SocialError(403, 'This player does not accept friend requests');
+    if (audience === 'friendsOfFriends' && !(await this.hasMutualFriend(viewer, to))) {
+      throw new SocialError(403, 'Only friends of friends can send this player a request');
+    }
     if ((await outgoingRequests(this.db, viewer)).length >= SOCIAL_LIMITS.maxOutgoingRequests) {
       throw new SocialError(429, 'Too many pending requests');
     }
@@ -232,6 +269,7 @@ export class SocialService {
   async follow(viewer: string, id: string) {
     const { rel } = await this.target(viewer, id);
     if (rel.blocked) throw new SocialError(409, 'Unblock this player first');
+    if (!rel.following && !this.privacyOf(id).allowFollows) throw new SocialError(403, 'This player does not accept followers');
     if (await insertFollow(this.db, viewer, id)) await addActivity(this.db, 'follow', viewer, id);
   }
 
@@ -240,7 +278,7 @@ export class SocialService {
   }
 
   async following(viewer: string) {
-    return (await this.hydrate(await followingOf(this.db, viewer))).map((x) => ({ ...x, presence: this.live.presence(x.user.id) }));
+    return (await this.hydrate(await followingOf(this.db, viewer))).map((x) => ({ ...x, presence: this.presenceFor(x.user.id) }));
   }
 
   async followers(viewer: string) {
@@ -286,15 +324,47 @@ export class SocialService {
       followingOf(this.db, viewer),
       blockSet(this.db, viewer),
     ]);
+    const friendIds = new Set(friends.map((r) => r.id));
     const ids = new Set([...friends, ...following].map((r) => r.id));
-    return this.live.liveGames(ids).filter((g) => !hidden.has(g.white.id) && !hidden.has(g.black.id));
+    return this.live.liveGames(ids).filter((g) => {
+      if (hidden.has(g.white.id) || hidden.has(g.black.id)) return false;
+      // Listed because of someone you know: only if they show that they are playing.
+      if (![g.white.id, g.black.id].some((id) => ids.has(id) && this.privacyOf(id).showOnline)) return false;
+      return [g.white.id, g.black.id].every((id) => audienceAllows(this.privacyOf(id).spectators, { friend: friendIds.has(id) }));
+    });
   }
 
-  /** Live games are public, except to someone in a block with either player. */
+  /**
+   * Who may watch a live game: nobody in a block with either player, and only
+   * the audience both players allow (Settings → Privacy → Who can watch my games).
+   */
   async canWatch(viewer: string, whiteId: string, blackId: string): Promise<boolean> {
-    if (!isAccountId(viewer)) return true;
+    const players = [whiteId, blackId];
+    if (!isAccountId(viewer)) return players.every((id) => !isAccountId(id) || this.privacyOf(id).spectators === 'everyone');
     const hidden = await blockSet(this.db, viewer);
-    return !hidden.has(whiteId) && !hidden.has(blackId);
+    if (hidden.has(whiteId) || hidden.has(blackId)) return false;
+    for (const id of players) {
+      if (!isAccountId(id) || id === viewer) continue;
+      const setting = this.privacyOf(id).spectators;
+      if (setting === 'everyone') continue;
+      if (!audienceAllows(setting, { friend: await this.isFriend(viewer, id) })) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Whether `from` may send `to` a direct challenge, or the reason not.
+   * Invite links are not checked here: the owner chooses who gets the link.
+   */
+  async canChallenge(from: string, to: string): Promise<string | null> {
+    if (!isAccountId(to) || from === to) return null;
+    const setting = this.privacyOf(to).challenges;
+    if (setting === 'nobody') return 'This player does not accept challenges';
+    if (!isAccountId(from)) return setting === 'everyone' ? null : 'Only friends can challenge this player';
+    const rel = await this.relationship(from, to);
+    if (rel.blocked || rel.blockedYou) return 'You cannot challenge this player';
+    if (!audienceAllows(setting, { friend: rel.friend })) return 'Only friends can challenge this player';
+    return null;
   }
 
   // ---- activity ----

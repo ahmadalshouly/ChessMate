@@ -64,6 +64,9 @@ const LEGACY_VALUES: Record<string, Record<string, string>> = {
 };
 export const VISIBILITY = ['everyone', 'friends', 'nobody'] as const;
 export type Visibility = (typeof VISIBILITY)[number];
+/** Who may send a friend request. "friendsOfFriends" needs at least one mutual friend. */
+export const FRIEND_REQUEST_AUDIENCE = ['everyone', 'friendsOfFriends', 'nobody'] as const;
+export type FriendRequestAudience = (typeof FRIEND_REQUEST_AUDIENCE)[number];
 
 export interface UserSettings {
   board: {
@@ -103,8 +106,16 @@ export interface UserSettings {
     showOnline: boolean;
     showRatingHistory: boolean;
     showGames: boolean;
+    /** Who may send you a direct challenge. Invite links you share yourself always work. */
     challenges: Visibility;
     messages: Visibility;
+    friendRequests: FriendRequestAudience;
+    /** Who may watch your live games. Your opponent always sees the game. */
+    spectators: Visibility;
+    /** Show up when other players search by username. Friends can always find you. */
+    searchable: boolean;
+    /** Let players follow you (their feed shows your games). */
+    allowFollows: boolean;
   };
 }
 
@@ -113,7 +124,17 @@ export const DEFAULT_SETTINGS: UserSettings = {
   sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true, silentMode: true },
   gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true, premoves: true },
   notifications: { gameStart: true, yourTurn: true, challenges: true, friendRequests: true, email: false },
-  privacy: { showOnline: true, showRatingHistory: true, showGames: true, challenges: 'everyone', messages: 'friends' },
+  privacy: {
+    showOnline: true,
+    showRatingHistory: true,
+    showGames: true,
+    challenges: 'everyone',
+    messages: 'friends',
+    friendRequests: 'everyone',
+    spectators: 'everyone',
+    searchable: true,
+    allowFollows: true,
+  },
 };
 
 export type SettingsPatch = { [K in keyof UserSettings]?: Partial<UserSettings[K]> };
@@ -124,6 +145,8 @@ const ENUMS: Record<string, readonly string[]> = {
   'gameplay.confirmMoves': ['never', 'correspondence', 'always'],
   'privacy.challenges': VISIBILITY,
   'privacy.messages': VISIBILITY,
+  'privacy.friendRequests': FRIEND_REQUEST_AUDIENCE,
+  'privacy.spectators': VISIBILITY,
 };
 
 /**
@@ -343,4 +366,12 @@ export function countryName(code: string | null | undefined): string | null {
 export function countryFlag(code: string | null | undefined): string {
   if (!code || !/^[A-Za-z]{2}$/.test(code)) return '';
   return String.fromCodePoint(...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+// ---------- privacy checks ----------
+
+/** Whether a "who can …" setting lets this person in. The owner always passes. */
+export function audienceAllows(setting: Visibility, viewer: { self?: boolean; friend: boolean }): boolean {
+  if (viewer.self) return true;
+  return setting === 'everyone' || (setting === 'friends' && viewer.friend);
 }

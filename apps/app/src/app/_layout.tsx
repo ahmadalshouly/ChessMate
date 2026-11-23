@@ -17,6 +17,7 @@ import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib
 import { UIProvider, useAppTheme } from '@/ui';
 import { AwardsListener } from '@/features/awards/AwardsListener';
 import { EngineHost } from '@/features/engine/EngineHost';
+import { CookieBanner } from '@/features/privacy/CookieBanner';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider, setNotificationsTokenProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
@@ -123,7 +124,7 @@ function SocialAuthBridge() {
 }
 
 /** Routes anyone may open without a session: the auth flow and emailed reset links. */
-const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'fair-play', 'about', 'support']);
+const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'cookies', 'fair-play', 'about', 'support']);
 
 function RootStack() {
   const { status } = useAuth();
@@ -164,6 +165,7 @@ function RootStack() {
         <Stack.Screen name="support" options={{ title: tr('pages.support.title') }} />
         <Stack.Screen name="donate" options={{ title: tr('pages.donate.title') }} />
         <Stack.Screen name="privacy" options={{ title: tr('pages.privacy.title') }} />
+        <Stack.Screen name="cookies" options={{ title: tr('pages.cookies.title') }} />
         <Stack.Screen name="fair-play" options={{ title: tr('pages.fairPlay.title') }} />
         <Stack.Screen name="play-limits" options={{ title: tr('limits.title') }} />
         <Stack.Screen name="awards" options={{ title: tr('awards.title') }} />
@@ -171,6 +173,7 @@ function RootStack() {
         {/* Staff console: its own layout (side rail on wide screens). */}
         <Stack.Screen name="admin" options={{ headerShown: false, title: tr('admin.title') }} />
       </Stack>
+      <CookieBanner />
       {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}
       {status === 'loading' || mustWelcome ? (
         <View style={StyleSheet.absoluteFill}>

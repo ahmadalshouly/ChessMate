@@ -22,5 +22,6 @@ export const more = {
   support: 'Hilfe',
   donate: 'Spenden',
   privacy: 'Datenschutz',
+  cookies: 'Cookies',
   fairPlay: 'Fair-Play-Regeln',
 };

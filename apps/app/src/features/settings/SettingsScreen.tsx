@@ -1,4 +1,4 @@
-import { type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
+import { type FriendRequestAudience, type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -13,6 +13,7 @@ import { useAccountSession } from '@/features/account/session';
 import { useAuth } from '@/lib/auth';
 import { useSettingsSync } from '@/features/account/settingsStore';
 import { BoardCustomizer } from '@/features/board/BoardCustomizer';
+import { CookiePreferences } from '@/features/privacy/CookiePreferences';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
 import { LANGS, LANGUAGE_NAMES, deviceLanguage, needsRestartFor, setLanguagePreference, useI18n, type LanguagePreference, type TKey } from '@/i18n';
 
@@ -24,6 +25,11 @@ const VOLUME: { value: string; label: TKey }[] = [
 const AUDIENCE: { value: Visibility; label: TKey }[] = [
   { value: 'everyone', label: 'settings.privacy.everyone' },
   { value: 'friends', label: 'settings.privacy.friends' },
+  { value: 'nobody', label: 'settings.privacy.nobody' },
+];
+const REQUEST_AUDIENCE: { value: FriendRequestAudience; label: TKey }[] = [
+  { value: 'everyone', label: 'settings.privacy.everyone' },
+  { value: 'friendsOfFriends', label: 'settings.privacy.friendsOfFriends' },
   { value: 'nobody', label: 'settings.privacy.nobody' },
 ];
 
@@ -137,13 +143,28 @@ export function SettingsScreen() {
           </Section>
 
           <Section title={tr('settings.privacy.title')}>
-            <ToggleRow title={tr('settings.privacy.online')} value={s.privacy.showOnline} onChange={(v) => set({ privacy: { showOnline: v } })} />
+            <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.visibilityTitle')}</Text>
+            <ToggleRow title={tr('settings.privacy.online')} detail={tr('settings.privacy.onlineDetail')} value={s.privacy.showOnline} onChange={(v) => set({ privacy: { showOnline: v } })} />
             <ToggleRow title={tr('settings.privacy.graph')} value={s.privacy.showRatingHistory} onChange={(v) => set({ privacy: { showRatingHistory: v } })} />
             <ToggleRow title={tr('settings.privacy.games')} value={s.privacy.showGames} onChange={(v) => set({ privacy: { showGames: v } })} />
+            <ToggleRow title={tr('settings.privacy.searchable')} detail={tr('settings.privacy.searchableDetail')} value={s.privacy.searchable} onChange={(v) => set({ privacy: { searchable: v } })} />
+            <ToggleRow title={tr('settings.privacy.follows')} detail={tr('settings.privacy.followsDetail')} value={s.privacy.allowFollows} onChange={(v) => set({ privacy: { allowFollows: v } })} />
+            <Divider />
+            <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.friendRequestWho')}</Text>
+            <Segmented value={s.privacy.friendRequests} options={REQUEST_AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(friendRequests) => set({ privacy: { friendRequests } })} />
             <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.challengeWho')}</Text>
             <Segmented value={s.privacy.challenges} options={AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(challenges) => set({ privacy: { challenges } })} />
             <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.messageWho')}</Text>
             <Segmented value={s.privacy.messages} options={AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(messages) => set({ privacy: { messages } })} />
+            <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.watchWho')}</Text>
+            <Segmented value={s.privacy.spectators} options={AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(spectators) => set({ privacy: { spectators } })} />
+            <Divider />
+            <Text style={[styles.label, { color: t.muted }]}>{tr('cookies.prefs.title')}</Text>
+            <CookiePreferences />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              <Button variant="secondary" title={tr('settings.privacy.cookiePolicy')} onPress={() => router.push('/cookies')} />
+              <Button variant="secondary" title={tr('settings.privacy.privacyPolicy')} onPress={() => router.push('/privacy')} />
+            </View>
           </Section>
 
           {session.signedIn && (
