@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import { GlassView } from './Glass';
+import { PressableScale, rimShadow } from './liquid';
 import { Text } from './Text';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -65,32 +67,37 @@ export function Button({
   );
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       disabled={inactive}
       onPress={onPress}
+      scaleTo={variant === 'ghost' ? 0.97 : 0.95}
       style={[fullWidth ? { alignSelf: 'stretch' } : { alignSelf: 'flex-start' }, style]}>
       {({ pressed }) => {
-        const pressStyle = { opacity: disabled ? 0.35 : pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.975 : 1 }] };
+        const pressStyle = { opacity: disabled ? 0.35 : 1 };
         if (variant === 'secondary') {
           return (
-            <GlassView radius="pill" elevation="none" style={[{ borderRadius: s.radius }, pressStyle]}>
+            <GlassView kind="control" radius="pill" elevation="sm" style={[{ borderRadius: s.radius }, pressStyle]}>
               {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfacePressed }]} />}
               {content}
             </GlassView>
           );
         }
+        const solid = variant === 'primary' || variant === 'danger';
         const bg = variant === 'primary' ? c.accent : variant === 'danger' ? c.danger : pressed ? c.surfacePressed : 'transparent';
         return (
-          <View style={[{ borderRadius: s.radius, backgroundColor: bg, overflow: 'hidden' }, variant === 'primary' && t.shadows.md, pressStyle]}>
-            {variant === 'primary' && c.scheme === 'light' && <View pointerEvents="none" style={styles.shine} />}
+          <View style={[{ borderRadius: s.radius, backgroundColor: bg, overflow: 'hidden' }, solid && t.shadows.md, pressStyle]}>
+            {/* Solid buttons are glass too: a lit top half and a specular rim over the fill. */}
+            {solid && <LinearGradient pointerEvents="none" colors={c.scheme === 'light' || variant === 'danger' ? ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0)']} style={styles.shine} />}
+            {solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: s.radius }, rimShadow(c, 'bright')]} />}
+            {pressed && solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scheme === 'light' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]} />}
             {content}
           </View>
         );
       }}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -109,30 +116,32 @@ export interface IconButtonProps {
 export function IconButton({ icon, accessibilityLabel, onPress, size = 40, variant = 'glass', disabled, style }: IconButtonProps) {
   const c = useAppTheme().colors;
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={disabled}
       onPress={onPress}
       hitSlop={Math.max(0, (44 - size) / 2)}
+      scaleTo={0.9}
       style={style}>
       {({ pressed }) => {
         const box = { width: size, height: size, borderRadius: size / 2, alignItems: 'center' as const, justifyContent: 'center' as const };
-        const fx = { opacity: disabled ? 0.4 : pressed ? 0.75 : 1 };
+        const fx = { opacity: disabled ? 0.4 : 1 };
         if (variant === 'glass') {
           return (
-            <GlassView radius="pill" elevation="none" style={[box, fx]}>
+            <GlassView kind="control" radius="pill" elevation="sm" style={[box, fx]}>
+              {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfacePressed }]} />}
               {icon}
             </GlassView>
           );
         }
         return <View style={[box, fx, { backgroundColor: variant === 'solid' ? c.accent : pressed ? c.surfacePressed : 'transparent' }]}>{icon}</View>;
       }}
-    </Pressable>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: '50%', backgroundColor: '#FFFFFF', opacity: 0.07 },
+  shine: { position: 'absolute', top: 0, left: 0, right: 0, height: '60%' },
 });

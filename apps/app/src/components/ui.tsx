@@ -2,11 +2,11 @@
  * Compatibility layer for screens written before the design system.
  * New code should import from '@/ui' instead (Screen, Card, Button, Text, ...).
  */
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { View, type ViewStyle } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Backdrop, Button as UIButton, Card as UICard, Text, useColors } from '@/ui';
+import { Backdrop, BackdropContext, Button as UIButton, Card as UICard, Text, useColors } from '@/ui';
 
 /**
  * Full-screen page background. Content ends above the bottom safe area (the iPhone
@@ -16,9 +16,10 @@ import { Backdrop, Button as UIButton, Card as UICard, Text, useColors } from '@
 export function Screen({ children }: { children: ReactNode }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const framed = useContext(BackdropContext);
   return (
-    <View style={{ flex: 1, backgroundColor: c.bg, paddingBottom: insets.bottom }}>
-      <Backdrop />
+    <View style={{ flex: 1, backgroundColor: framed ? 'transparent' : c.bg, paddingBottom: insets.bottom }}>
+      {!framed && <Backdrop />}
       <SafeAreaInsetsContext value={{ ...insets, bottom: 0 }}>{children}</SafeAreaInsetsContext>
     </View>
   );

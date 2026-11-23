@@ -1,11 +1,13 @@
-import { Platform, type TextStyle } from 'react-native';
+import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
 import { families } from './fonts';
 
 /**
  * ChessMate design tokens.
  *
- * Brand: monochrome (black and white), casual but professional, frosted glass.
+ * Brand: monochrome (black and white), casual but professional, liquid glass: translucent
+ * layers that blur and brighten what is behind them, specular rims instead of heavy
+ * borders, generous rounding, and chrome that floats above the content.
  * Colour is reserved for meaning (success, warning, danger, live) and for the board.
  * Never hard-code a colour, size or font in a screen: read it from `useAppTheme()`.
  */
@@ -36,6 +38,13 @@ export interface ColorTokens {
   glassBorder: string;
   /** Bright top edge that sells the glass effect. */
   glassHighlight: string;
+  /** Specular rim drawn inside glass edges: light catching the top, a softer bounce at the bottom. */
+  glassRimTop: string;
+  glassRimBottom: string;
+  /** Fill of floating chrome (tab bar, header capsules, sheets) when native Liquid Glass is not available. */
+  chrome: string;
+  /** The lens that marks the selected item inside glass (tab bar, segmented control). */
+  glassSelected: string;
 
   text: string;
   /** Secondary text. Alias kept for older screens. */
@@ -76,15 +85,19 @@ const light: ColorTokens = {
   bgGradient: ['#FAFAF8', '#ECECE9'],
   bgGlow: ['rgba(255, 255, 255, 0.9)', 'rgba(10, 10, 11, 0.035)'],
 
-  surface: 'rgba(255, 255, 255, 0.58)',
-  surfaceStrong: 'rgba(255, 255, 255, 0.82)',
-  surfaceSubtle: 'rgba(255, 255, 255, 0.34)',
+  surface: 'rgba(255, 255, 255, 0.52)',
+  surfaceStrong: 'rgba(255, 255, 255, 0.76)',
+  surfaceSubtle: 'rgba(255, 255, 255, 0.3)',
   surfaceSolid: '#FFFFFF',
   surfaceSunken: 'rgba(12, 12, 13, 0.045)',
   surfacePressed: 'rgba(12, 12, 13, 0.06)',
 
-  glassBorder: 'rgba(12, 12, 13, 0.08)',
+  glassBorder: 'rgba(12, 12, 13, 0.06)',
   glassHighlight: 'rgba(255, 255, 255, 0.95)',
+  glassRimTop: 'rgba(255, 255, 255, 0.95)',
+  glassRimBottom: 'rgba(255, 255, 255, 0.55)',
+  chrome: 'rgba(250, 250, 248, 0.62)',
+  glassSelected: 'rgba(12, 12, 13, 0.075)',
 
   text: '#0C0C0D',
   muted: '#62626A',
@@ -119,17 +132,21 @@ const dark: ColorTokens = {
   scheme: 'dark',
   bg: '#08080A',
   bgGradient: ['#111114', '#060607'],
-  bgGlow: ['rgba(255, 255, 255, 0.06)', 'rgba(255, 255, 255, 0.025)'],
+  bgGlow: ['rgba(255, 255, 255, 0.075)', 'rgba(255, 255, 255, 0.035)'],
 
-  surface: 'rgba(255, 255, 255, 0.045)',
-  surfaceStrong: 'rgba(22, 22, 25, 0.82)',
-  surfaceSubtle: 'rgba(255, 255, 255, 0.025)',
+  surface: 'rgba(38, 38, 43, 0.42)',
+  surfaceStrong: 'rgba(28, 28, 32, 0.78)',
+  surfaceSubtle: 'rgba(38, 38, 43, 0.24)',
   surfaceSolid: '#131316',
   surfaceSunken: 'rgba(0, 0, 0, 0.35)',
   surfacePressed: 'rgba(255, 255, 255, 0.07)',
 
-  glassBorder: 'rgba(255, 255, 255, 0.085)',
-  glassHighlight: 'rgba(255, 255, 255, 0.16)',
+  glassBorder: 'rgba(255, 255, 255, 0.07)',
+  glassHighlight: 'rgba(255, 255, 255, 0.22)',
+  glassRimTop: 'rgba(255, 255, 255, 0.2)',
+  glassRimBottom: 'rgba(255, 255, 255, 0.07)',
+  chrome: 'rgba(30, 30, 34, 0.58)',
+  glassSelected: 'rgba(255, 255, 255, 0.12)',
 
   text: '#F2F2F0',
   muted: '#9A9AA0',
@@ -181,18 +198,18 @@ export type Space = keyof typeof space;
 export const radii = {
   xs: 6,
   sm: 10,
-  md: 14,
-  lg: 22,
-  xl: 30,
+  md: 16,
+  lg: 26,
+  xl: 34,
   pill: 999,
 } as const;
 export type Radius = keyof typeof radii;
 
 /** BlurView intensity per glass strength. Android renders tint only (no native blur). */
 export const blur = {
-  subtle: 20,
-  regular: 40,
-  strong: 70,
+  subtle: 24,
+  regular: 50,
+  strong: 80,
 } as const;
 export type GlassStrength = keyof typeof blur;
 
@@ -202,6 +219,8 @@ export const motion = {
   slow: 360,
   /** Spring for presses and selection changes (Reanimated `withSpring`). */
   spring: { damping: 18, stiffness: 260, mass: 0.7 },
+  /** Glass under a finger: squish in fast, settle back with a little give. */
+  press: { damping: 14, stiffness: 420, mass: 0.6 },
 } as const;
 
 export const layout = {
@@ -275,8 +294,14 @@ export function shadows(c: ColorTokens) {
   return {
     none: {},
     sm: { shadowColor: c.shadow, shadowOpacity: 0.04 * k, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: android ? 0 : 1 },
-    md: { shadowColor: c.shadow, shadowOpacity: 0.06 * k, shadowRadius: 28, shadowOffset: { width: 0, height: 10 }, elevation: android ? 0 : 3 },
-    lg: { shadowColor: c.shadow, shadowOpacity: 0.1 * k, shadowRadius: 48, shadowOffset: { width: 0, height: 22 }, elevation: android ? 2 : 8 },
+    md: { shadowColor: c.shadow, shadowOpacity: 0.07 * k, shadowRadius: 30, shadowOffset: { width: 0, height: 12 }, elevation: android ? 0 : 3 },
+    lg: { shadowColor: c.shadow, shadowOpacity: 0.12 * k, shadowRadius: 50, shadowOffset: { width: 0, height: 24 }, elevation: android ? 2 : 8 },
+    /**
+     * Floating chrome (tab bar, sheets, header capsules): a wide, soft lift off the page. Drawn as
+     * a CSS-style box shadow, which stays outside the box: it survives `overflow: hidden` (needed
+     * to clip the glass) and never shows through a translucent fill as a grey slab on Android.
+     */
+    float: { boxShadow: c.scheme === 'dark' ? '0 14px 36px 0 rgba(0,0,0,0.5), 0 2px 8px 0 rgba(0,0,0,0.3)' : '0 14px 36px 0 rgba(26,26,28,0.12), 0 2px 8px 0 rgba(26,26,28,0.06)' } as ViewStyle,
   } as const;
 }
 export type Elevation = keyof ReturnType<typeof shadows>;
@@ -304,11 +329,13 @@ const androidGlass: Record<ColorScheme, Partial<ColorTokens>> = {
     surface: 'rgba(255, 255, 255, 0.94)',
     surfaceStrong: '#FFFFFF',
     surfaceSubtle: 'rgba(255, 255, 255, 0.86)',
+    chrome: 'rgba(252, 252, 250, 0.97)',
   },
   dark: {
     surface: 'rgba(24, 24, 27, 0.94)',
     surfaceStrong: '#18181B',
     surfaceSubtle: 'rgba(20, 20, 23, 0.9)',
+    chrome: 'rgba(26, 26, 30, 0.97)',
   },
 };
 

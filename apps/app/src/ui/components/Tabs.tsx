@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../theme/ThemeProvider';
+import { rimShadow } from './liquid';
 import { Text } from './Text';
 
 export interface TabItem<K extends string> {
@@ -48,7 +49,7 @@ export function Tabs<K extends string>({ items, value, onChange, variant = 'segm
       style={[
         styles.track,
         segmented
-          ? { backgroundColor: c.surfaceSunken, borderRadius: t.radii.md, padding: inset, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border }
+          ? { backgroundColor: c.surfaceSunken, borderRadius: t.radii.md, padding: inset }
           : { borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.border },
       ]}>
       {segW > 0 && (
@@ -56,7 +57,7 @@ export function Tabs<K extends string>({ items, value, onChange, variant = 'segm
           pointerEvents="none"
           style={[
             segmented
-              ? [{ top: inset, bottom: inset, borderRadius: t.radii.md - inset, backgroundColor: c.surfaceStrong, borderWidth: StyleSheet.hairlineWidth, borderColor: c.glassBorder }, t.shadows.sm]
+              ? [{ top: inset, bottom: inset, borderRadius: t.radii.md - inset, backgroundColor: c.scheme === 'dark' ? c.glassSelected : c.surfaceStrong }, rimShadow(c, 'bright'), t.shadows.sm]
               : { bottom: -StyleSheet.hairlineWidth, height: 2, borderRadius: 1, backgroundColor: c.accent },
             {
               position: 'absolute',
