@@ -146,11 +146,11 @@ export function PressableScale({
     <AnimatedPressable
       {...rest}
       onPressIn={(e) => {
-        s.value = withSpring(scaleTo, t.motion.press);
+        s.set(withSpring(scaleTo, t.motion.press));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        s.value = withSpring(1, t.motion.press);
+        s.set(withSpring(1, t.motion.press));
         onPressOut?.(e);
       }}
       style={typeof style === 'function' ? (state: PressableStateCallbackType) => [style(state), anim] : [style, anim]}

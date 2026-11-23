@@ -2,7 +2,7 @@ import type { TimeCategory } from '@chessmate/core';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
-import { fonts } from '@/ui';
+import { fonts, rimShadow } from '@/ui';
 
 import { CountryFlag } from '@/components/CountryFlag';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
@@ -129,7 +129,7 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
   const podium = entry.rank <= 3;
   return (
     <View
-      style={[styles.row, { borderColor: highlight ? t.text : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface }]}
+      style={[styles.row, { borderColor: highlight ? t.borderStrong : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface }, rimShadow(t, highlight ? 'bright' : 'soft')]}
       accessible
       accessibilityLabel={[tr('leaderboard.rowA11y', { rank: entry.rank, name: entry.displayName, rating: entry.rating }), countryLabel(entry.country)].filter(Boolean).join(', ')}>
       <View style={[styles.rank, podium && { backgroundColor: t.accent }]}>
@@ -167,11 +167,11 @@ const styles = StyleSheet.create({
   headerWrap: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center', gap: 12, marginBottom: 4 },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center' },
   caption: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },
+  input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },
   segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 14, padding: 3 },
   segmentItem: { flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: 'center' },
   segmentText: { fontSize: 14, fontWeight: '600' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12 },
   rank: { minWidth: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   rankText: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   who: { flex: 1, minWidth: 0 },

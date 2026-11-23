@@ -96,7 +96,7 @@ const light: ColorTokens = {
   glassHighlight: 'rgba(255, 255, 255, 0.95)',
   glassRimTop: 'rgba(255, 255, 255, 0.95)',
   glassRimBottom: 'rgba(255, 255, 255, 0.55)',
-  chrome: 'rgba(250, 250, 248, 0.62)',
+  chrome: 'rgba(250, 250, 248, 0.72)',
   glassSelected: 'rgba(12, 12, 13, 0.075)',
 
   text: '#0C0C0D',
@@ -145,7 +145,7 @@ const dark: ColorTokens = {
   glassHighlight: 'rgba(255, 255, 255, 0.22)',
   glassRimTop: 'rgba(255, 255, 255, 0.2)',
   glassRimBottom: 'rgba(255, 255, 255, 0.07)',
-  chrome: 'rgba(30, 30, 34, 0.58)',
+  chrome: 'rgba(30, 30, 34, 0.66)',
   glassSelected: 'rgba(255, 255, 255, 0.12)',
 
   text: '#F2F2F0',

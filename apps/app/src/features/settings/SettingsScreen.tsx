@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/ui/primitives';
+import { rimShadow } from '@/ui';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
@@ -227,7 +228,7 @@ function LanguageSection() {
               accessibilityLanguage={p === 'system' ? undefined : p}
               disabled={busy}
               onPress={() => pick(p)}
-              style={[styles.themeRow, { borderColor: on ? t.text : t.border }]}>
+              style={[styles.themeRow, { backgroundColor: on ? t.glassSelected : 'transparent' }, on && rimShadow(t, 'bright')]}>
               <View style={[styles.radio, { borderColor: on ? t.text : t.border }]}>{on && <View style={[styles.radioDot, { backgroundColor: t.text }]} />}</View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontWeight: on ? '700' : '400', fontSize: 15 }}>{name}</Text>
@@ -340,7 +341,7 @@ function DeleteAccount() {
 const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 8 },
+  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 10 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   label: { fontSize: 13, fontWeight: '600', marginTop: 4 },

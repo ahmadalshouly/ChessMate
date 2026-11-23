@@ -1,4 +1,4 @@
-import { usePathname } from 'expo-router';
+import { ThemeProvider, usePathname, useTheme as useNavTheme } from 'expo-router';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -32,8 +32,12 @@ export function AppShell() {
   const tabBarSpace = useTabBarSpace();
   const insets = useSafeAreaInsets();
   const tr = useT();
+  const nav = useNavTheme();
 
   return (
+    // Screens inside the shell sit on the shell's one backdrop: transparent screen containers, so the
+    // page runs unbroken under the glass header and tab bar.
+    <ThemeProvider value={{ ...nav, colors: { ...nav.colors, background: 'transparent' } }}>
     <BackdropContext value>
     <Tabs style={styles.fill}>
       {/* Registers the tab routes with the navigator; the visible UI is below. */}
@@ -70,6 +74,7 @@ export function AppShell() {
       </View>
     </Tabs>
     </BackdropContext>
+    </ThemeProvider>
   );
 }
 

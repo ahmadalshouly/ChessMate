@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } f
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import { GlassView } from './Glass';
-import { PressableScale, rimShadow } from './liquid';
+import { PressableScale } from './liquid';
 import { Text } from './Text';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -91,7 +91,7 @@ export function Button({
           <View style={[{ borderRadius: s.radius, backgroundColor: bg, overflow: 'hidden' }, solid && t.shadows.md, pressStyle]}>
             {/* Solid buttons are glass too: a lit top half and a specular rim over the fill. */}
             {solid && <LinearGradient pointerEvents="none" colors={c.scheme === 'light' || variant === 'danger' ? ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0)']} style={styles.shine} />}
-            {solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: s.radius }, rimShadow(c, 'bright')]} />}
+            {solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: s.radius }, solidRim(variant === 'primary' && c.scheme === 'dark')]} />}
             {pressed && solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scheme === 'light' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]} />}
             {content}
           </View>
@@ -145,3 +145,12 @@ const styles = StyleSheet.create({
   content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   shine: { position: 'absolute', top: 0, left: 0, right: 0, height: '60%' },
 });
+
+/** Specular rim for solid buttons: lit along the top edge, a faint shade along the bottom. */
+function solidRim(lightFill: boolean): ViewStyle {
+  return {
+    boxShadow: lightFill
+      ? 'inset 0 1px 0 0 rgba(255,255,255,1), inset 0 -1px 0 0 rgba(0,0,0,0.08)'
+      : 'inset 0 1px 0 0 rgba(255,255,255,0.28), inset 0 -1px 0 0 rgba(255,255,255,0.08)',
+  } as ViewStyle;
+}
