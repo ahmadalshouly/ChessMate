@@ -22,12 +22,13 @@ export function gradeLine(
   start: string,
   history: { fenAfter: string; uci: string }[],
   seen: Map<string, PositionAnalysis>,
-  openings: ({ ply: number } | null)[],
+  theory: boolean[],
 ): (MoveJudgement | undefined)[] {
   const out: (MoveJudgement | undefined)[] = [];
   let inBook = true;
   history.forEach((m, i) => {
-    inBook = inBook && !!openings[i + 1] && openings[i + 1]!.ply === i + 1;
+    // Theory ends at the first move off the book, or the first book move the engine calls a mistake.
+    inBook = inBook && !!theory[i] && (i === 0 || out[i - 1] === undefined || out[i - 1]!.classification === 'book');
     const fenBefore = i === 0 ? start : history[i - 1]!.fenAfter;
     const before = seen.get(positionKey(fenBefore));
     const after = seen.get(positionKey(m.fenAfter));

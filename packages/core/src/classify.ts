@@ -40,15 +40,66 @@ export function staticExchange(chess: Chess, square: Square): number {
   return Math.max(0, gained - reply);
 }
 
+/** Net material the opponent could win on each of the mover's pieces (not pawns or king), with the opponent to move. */
+function looseMaterial(chess: Chess, mover: Color): Map<Square, number> {
+  const out = new Map<Square, number>();
+  for (const sq of ALL_SQUARES) {
+    const p = chess.get(sq);
+    if (!p || p.color !== mover || p.type === 'k' || p.type === 'p') continue;
+    const won = staticExchange(chess, sq);
+    if (won > 0) out.set(sq, won);
+  }
+  return out;
+}
+
+/** What was already loose before the move: the same position with the opponent to move. */
+function looseBefore(fenBefore: string, mover: Color): Map<Square, number> {
+  const f = fenBefore.split(' ');
+  f[1] = mover === 'w' ? 'b' : 'w';
+  f[3] = '-';
+  try {
+    return looseMaterial(new Chess(f.join(' ')), mover);
+  } catch {
+    return new Map();
+  }
+}
+
 /**
- * Finds the material a move offers: the moved piece left where it can be
- * taken for profit, or another piece the move leaves (or keeps) en prise.
- * Returns the biggest offer of at least a minor piece's worth of net material,
- * or null when the move is not a sacrifice.
+ * Material the mover wins straight back after the opponent takes on `square`:
+ * the best capture elsewhere on the board (captures on `square` itself are
+ * already part of the exchange). A "sacrifice" that is recouped at once, such
+ * as leaving a knight en prise while attacking the queen, is just a trade.
+ */
+function immediateRecoup(chess: Chess, square: Square): number {
+  const captures = (chess.moves({ verbose: true }) as Move[]).filter((m) => m.to === square && m.captured && !m.isEnPassant());
+  if (captures.length === 0) return 0;
+  captures.sort((a, b) => VALUE[a.piece] - VALUE[b.piece]);
+  chess.move(captures[0]!);
+  let best = 0;
+  for (const m of chess.moves({ verbose: true }) as Move[]) {
+    if (!m.captured || m.to === square) continue;
+    const gained = VALUE[m.captured] + (m.promotion ? VALUE[m.promotion] - 1 : 0);
+    chess.move(m);
+    const back = staticExchange(chess, m.to);
+    chess.undo();
+    best = Math.max(best, gained - back);
+  }
+  chess.undo();
+  return best;
+}
+
+/**
+ * Finds the material a move really offers: a piece the move puts (or leaves)
+ * where the opponent can take it for profit. To count, the offer must be new
+ * (a piece that was already loose before the move is not a sacrifice), worth
+ * at least a minor piece net of what the move captured, and not won straight
+ * back by an obvious capture after the opponent takes. Returns the biggest
+ * such offer, or null when the move is not a sacrifice.
  */
 export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null {
   const chess = new Chess(fenBefore);
   const mover = chess.turn() as Color;
+  const before = looseBefore(fenBefore, mover);
   let played: Move;
   try {
     played = chess.move(parseUci(uci));
@@ -59,14 +110,14 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
   if (chess.isGameOver()) return null;
   const capturedValue = played.captured ? VALUE[played.captured] : 0;
   let best: Sacrifice | null = null;
-  for (const sq of ALL_SQUARES) {
-    const p = chess.get(sq);
-    if (!p || p.color !== mover || p.type === 'k' || p.type === 'p') continue;
-    const won = staticExchange(chess, sq);
-    if (won <= 0) continue;
+  for (const [sq, won] of looseMaterial(chess, mover)) {
+    const p = chess.get(sq)!;
     // What the mover just took pays back part of an offer on the destination square.
     const amount = sq === played.to ? won - capturedValue : won;
-    if (amount >= 2 && (!best || amount > best.amount || (amount === best.amount && VALUE[p.type] > VALUE[best.piece]))) {
+    const already = before.get(sq === played.to ? played.from : sq) ?? 0;
+    if (amount - already < 2) continue;
+    if (amount - immediateRecoup(chess, sq) < 2) continue;
+    if (!best || amount > best.amount || (amount === best.amount && VALUE[p.type] > VALUE[best.piece])) {
       best = { square: sq, piece: p.type, amount };
     }
   }

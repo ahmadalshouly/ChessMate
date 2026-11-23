@@ -2,7 +2,7 @@ import {
   Game,
   START_FEN,
   importPosition,
-  openingTimeline,
+  bookTimeline,
   parseUci,
   type PositionAnalysis,
 } from '@chessmate/core';
@@ -115,8 +115,8 @@ export default function Analysis() {
     setRecorded(latest);
     if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
   }
-  const openings = useMemo(() => openingTimeline(line, start), [line, start]);
-  const allGrades = useMemo(() => gradeLine(start, history, seen, openings), [start, history, seen, openings]);
+  const theory = useMemo(() => bookTimeline(line, start), [line, start]);
+  const allGrades = useMemo(() => gradeLine(start, history, seen, theory), [start, history, seen, theory]);
   const grades = settings.grades ? allGrades : [];
   const lastGrade = cursor > 0 ? grades[cursor - 1] : undefined;
 
