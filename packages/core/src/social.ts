@@ -1,3 +1,4 @@
+import type { MessageView } from './messages';
 /** Shared types for friends, follows, blocks, presence and the activity feed. */
 
 export interface SocialUser {
@@ -70,7 +71,9 @@ export type FeedItem =
 export type SocialEvent =
   | { kind: 'friendRequest'; from: SocialUser }
   | { kind: 'friendAccepted'; by: SocialUser }
-  | { kind: 'friendRemoved'; userId: string };
+  | { kind: 'friendRemoved'; userId: string }
+  /** A new direct message (or staff message) for the viewer, or one the viewer sent from another device. */
+  | { kind: 'message'; message: MessageView; from: SocialUser | null; unread: number };
 
 export const SOCIAL_LIMITS = {
   /** Pending outgoing friend requests a user may have at once. */

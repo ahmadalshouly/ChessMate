@@ -1,3 +1,7 @@
+import type { StaffRole } from '@chessmate/core';
+
+export type { StaffRole };
+
 /**
  * Storage boundary for accounts. The in-memory store is used in development
  * and tests; a database-backed store implements the same interface.
@@ -12,7 +16,13 @@ export interface UserRecord {
   createdAt: number;
   /** Bumped on password change/reset; refresh sessions created before it are invalid. */
   passwordChangedAt: number;
+  /** Staff role; missing means "user". */
+  role?: StaffRole;
+  /** Set when staff closed the account; it cannot sign in until reopened. */
+  closedAt?: number | null;
+  closedReason?: string | null;
 }
+
 
 export interface SessionRecord {
   id: string;

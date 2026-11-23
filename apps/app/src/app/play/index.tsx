@@ -3,14 +3,17 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BreakBanner } from '@/components/BreakBanner';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTicker } from '@/components/PlayerBar';
 import { Pill, Segmented, Stepper, Tile } from '@/components/play/Controls';
+import { GameSetupSheet, postOpenGame, setSeekOptions, startSeek, useSeekOptions, type RatingWindow } from '@/components/play/GameSetupSheet';
 import { Glass } from '@/components/shell/Glass';
+import { RestrictionBanner } from '@/components/shell/RestrictionBanner';
 import { isGuest, playClient, usePlay } from '@/lib/playClient';
 import { Avatar, Backdrop, Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
-import { dirIcon, formatNumber, useT, type TKey } from '@/i18n';
+import { dirIcon, useT, type TKey } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 
 const GROUPS: { name: TKey; icon: 'flash' | 'flame' | 'time' | 'hourglass'; controls: string[] }[] = [
@@ -24,7 +27,7 @@ const MINUTES = [0.5, 1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 30, 45, 60, 90, 120, 180
 const INCREMENTS = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60];
 const WIDE = 960;
 
-type Window = 0 | 100 | 200 | 400;
+type Window = RatingWindow;
 
 
 /**
@@ -42,11 +45,13 @@ export default function Lobby() {
   const guest = isGuest(s.me);
   const [tcKey, setTcKey] = useState('5+0');
   const [custom, setCustom] = useState({ min: 7, inc: 2 });
-  // Signed-in players default to rated so every game counts toward their Elo; casual stays one tap away.
-  const [ratedPref, setRated] = useState(true);
-  const rated = ratedPref && !guest;
-  const [window, setWindow] = useState<Window>(0);
-  const [color, setColor] = useState<ColorChoice>('random');
+  // Options are shared with the setup pop-up (and Home's quick play), so they stay in step.
+  const seekOptions = useSeekOptions();
+  const { window, color } = seekOptions;
+  const setRated = (v: boolean) => setSeekOptions({ rated: v });
+  const setWindow = (v: Window) => setSeekOptions({ window: v });
+  const setColor = (v: ColorChoice) => setSeekOptions({ color: v });
+  const [setupOpen, setSetupOpen] = useState(false);
 
   useEffect(() => playClient.lobbySub(), []);
 
@@ -62,24 +67,21 @@ export default function Lobby() {
   );
   const tcLabel = formatTimeControl(timeControl);
   const category = tr(`common.category.${timeCategory(timeControl)}`);
-  const range = window === 0 ? undefined : window;
   const seeking = s.seek !== null;
   const busy = seeking || s.openGame !== null;
   const online = s.connection === 'online';
-  const canStart = !busy && !liveGameId && online;
-
-  const poolCount = (key: string) => {
-    const tc = parseTimeControl(key);
-    return (s.lobby?.pools ?? [])
-      .filter((p) => p.timeControl.initialMs === tc.initialMs && p.timeControl.incrementMs === tc.incrementMs)
-      .reduce((n, p) => n + p.seeking, 0);
-  };
+  const canStart = !busy && !liveGameId && online && !s.restricted;
+  // Open games are standard chess only; Secret Queen pairs through matchmaking.
+  const canCreate = canStart;
+  const rated = seekOptions.rated && !guest;
 
   const step = (list: number[], cur: number, dir: 1 | -1) => list[Math.max(0, Math.min(list.length - 1, list.indexOf(cur) + dir))]!;
-  const play = () => playClient.seek({ timeControl, rated, range });
-  const create = () => playClient.createOpenGame(timeControl, rated, color, range);
+  // The lobby's own Play button is always normal chess; Secret Queen starts only from the setup pop-up.
+  const play = () => startSeek(timeControl, { ...seekOptions, variant: 'standard' }, guest);
+  const create = () => postOpenGame(timeControl, seekOptions, guest);
 
-  const status = online ? tr('play.lobby.online', { count: s.lobby?.online ?? 0, n: formatNumber(s.lobby?.online ?? 0) }) : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');
+  // Only a connection problem is worth a badge; player counts are not shown.
+  const status = online ? null : s.connection === 'connecting' ? tr('play.connecting') : tr('play.offline');
 
   const setup = (
     <View style={{ gap: t.space.xl }}>
@@ -97,10 +99,14 @@ export default function Lobby() {
               </View>
               <View style={styles.tiles}>
                 {g.controls.map((key) => {
-                  const n = poolCount(key);
                   return (
                     <View key={key} style={{ flex: 1 }}>
-                      <Tile title={key} caption={n > 0 ? tr('play.lobby.waiting', { count: n }) : undefined} live={n > 0} selected={tcKey === key} onPress={() => setTcKey(key)} />
+                      <Tile title={key} selected={tcKey === key}
+                        onPress={() => {
+                          setTcKey(key);
+                          if (canStart) setSetupOpen(true);
+                        }}
+                      />
                     </View>
                   );
                 })}
@@ -188,7 +194,7 @@ export default function Lobby() {
         </GlassView>
       </View>
 
-      {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} onPlay={play} onCreate={create} />}
+      {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} canCreate={canCreate} onPlay={play} onCreate={create} />}
     </View>
   );
 
@@ -228,6 +234,8 @@ export default function Lobby() {
       <Stack.Screen options={{ title: tr('nav.play') }} />
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: wide ? 48 : 140 + insets.bottom }]}>
         <View style={[styles.inner, { maxWidth: wide ? 1160 : 640 }]}>
+          <RestrictionBanner />
+          <BreakBanner />
           <View style={styles.hero}>
             <View style={{ flex: 1, gap: 6, minWidth: 240 }}>
               <Text variant="display">
@@ -236,8 +244,7 @@ export default function Lobby() {
               <Text tone="muted">{tr('play.lobby.intro')}</Text>
             </View>
             <View style={styles.stats}>
-              <Pill text={status} tone={online ? 'live' : 'muted'} />
-              {s.lobby ? <Pill text={tr('play.lobby.playing', { count: s.lobby.playing, n: formatNumber(s.lobby.playing) })} /> : null}
+              {status ? <Pill text={status} tone="muted" /> : null}
             </View>
           </View>
 
@@ -256,6 +263,7 @@ export default function Lobby() {
         </View>
       </ScrollView>
 
+      <GameSetupSheet timeControl={timeControl} visible={setupOpen} onClose={() => setSetupOpen(false)} />
       {!wide && (
         <View pointerEvents="box-none" style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <Glass radius={30} intensity={80} style={styles.dockBar}>
@@ -268,7 +276,7 @@ export default function Lobby() {
                   {category} · {rated ? tr('play.rated') : tr('play.casual')}
                 </Text>
               </View>
-              <Button title={tr('play.lobby.createShort')} variant="ghost" size="md" disabled={!canStart} onPress={create} />
+              <Button title={tr('play.lobby.createShort')} variant="ghost" size="md" disabled={!canCreate} onPress={create} />
               <Button title={tr('nav.play')} size="md" disabled={!canStart} onPress={play} rightIcon={<Ionicons name={dirIcon('arrow-forward')} size={16} color={c.onAccent} />} />
             </View>
           </Glass>
@@ -294,7 +302,23 @@ function OptionRow({ label, hint, children }: { label: string; hint: string; chi
 }
 
 /** Wide screens: summary of the chosen game and the two actions. */
-function ActionPanel({ tcLabel, category, rated, canStart, onPlay, onCreate }: { tcLabel: string; category: string; rated: boolean; canStart: boolean; onPlay: () => void; onCreate: () => void }) {
+function ActionPanel({
+  tcLabel,
+  category,
+  rated,
+  canStart,
+  canCreate,
+  onPlay,
+  onCreate,
+}: {
+  tcLabel: string;
+  category: string;
+  rated: boolean;
+  canStart: boolean;
+  canCreate: boolean;
+  onPlay: () => void;
+  onCreate: () => void;
+}) {
   const t = useAppTheme();
   const tr = useT();
   const c = t.colors;
@@ -311,7 +335,7 @@ function ActionPanel({ tcLabel, category, rated, canStart, onPlay, onCreate }: {
           </Text>
         </Text>
       </View>
-      <Button title={tr('play.lobby.post')} variant="secondary" disabled={!canStart} onPress={onCreate} />
+      <Button title={tr('play.lobby.post')} variant="secondary" disabled={!canCreate} onPress={onCreate} />
       <Button title={tr('play.lobby.playNow')} size="lg" disabled={!canStart} onPress={onPlay} rightIcon={<Ionicons name={dirIcon('arrow-forward')} size={18} color={c.onAccent} />} />
     </GlassView>
   );
@@ -321,10 +345,10 @@ function SeekingCard() {
   const t = useAppTheme();
   const tr = useT();
   const s = usePlay();
-  useTicker(true);
+  const now = useTicker(true);
   if (!s.seek) return null;
   const st = s.seekStatus;
-  const waited = st ? st.waitedMs + (Date.now() - st.at) : 0;
+  const waited = st ? st.waitedMs + (now - st.at) : 0;
   const secs = Math.floor(waited / 1000);
   return (
     <GlassView padding="lg" radius="xl" strength="strong" style={{ gap: t.space.md }}>

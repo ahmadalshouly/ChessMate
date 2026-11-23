@@ -18,6 +18,8 @@ export const auth: Messages<typeof en> = {
     weak_password: 'Wähle ein stärkeres Passwort: mindestens 8 Zeichen, am besten Buchstaben, Zahlen und Symbole gemischt.',
     invalid_token: 'Dieser Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an.',
     rate_limited: 'Zu viele Versuche. Warte eine Minute und versuch es erneut.',
+    account_closed: 'Dieses Konto wurde geschlossen. Wende dich an den Support, wenn du das für einen Fehler hältst.',
+    account_closed_fair_play: 'Dieses Konto wurde wegen eines Verstoßes gegen die Fair-Play-Richtlinie geschlossen.',
   },
   welcome: {
     rated: 'Gewertete Partien, jederzeit',

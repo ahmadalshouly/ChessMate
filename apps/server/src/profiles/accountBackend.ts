@@ -1,4 +1,4 @@
-import type { TimeCategory } from '@chessmate/core';
+import type { ChessTitle, RoleTag, TimeCategory } from '@chessmate/core';
 import type { IncomingMessage } from 'node:http';
 import { AuthError, type AuthService } from '../auth/service';
 import type { RatingService } from '../ratingService';
@@ -13,6 +13,17 @@ const CATEGORIES: TimeCategory[] = ['bullet', 'blitz', 'rapid', 'classical', 'co
  * the seeded demo players still go to the dev backend.
  */
 export class AccountProfileBackend implements ProfileDeps {
+  /** Set once the title service is up (database mode). */
+  titles: { titleOf(userId: string): ChessTitle | null; roleTagOf(userId: string): RoleTag | null } | null = null;
+
+  titleOf(userId: string): ChessTitle | null {
+    return this.titles?.titleOf(userId) ?? null;
+  }
+
+  roleTagOf(userId: string): RoleTag | null {
+    return this.titles?.roleTagOf(userId) ?? null;
+  }
+
   constructor(
     private readonly auth: AuthService,
     private readonly ratingsService: RatingService,

@@ -102,6 +102,28 @@ export const boardThemes: Record<BoardThemeId, BoardTheme> = {
   amethyst: make('amethyst', { name: 'Amethyst', note: 'Soft violet', light: '#ECE6F3', dark: '#7F6CA1', finish: 'glass' }),
   rose: make('rose', { name: 'Rose', note: 'Muted rose', light: '#F5E7E7', dark: '#B67D87', finish: 'natural' }),
   sand: make('sand', { name: 'Sand', note: 'Desert light', light: '#F3E9D4', dark: '#C8AC82', finish: 'natural' }),
+  coral: make('coral', { name: 'Coral', note: 'Warm sunset', light: '#F7E6DA', dark: '#D58A6C', finish: 'natural', lastMove: 'rgba(255, 220, 90, 0.42)' }),
+  olive: make('olive', { name: 'Olive', note: 'Muted green', light: '#EDECD6', dark: '#8A8D58', finish: 'natural', lastMove: 'rgba(255, 228, 70, 0.42)', selected: 'rgba(30, 30, 5, 0.24)' }),
+  sky: make('sky', { name: 'Sky', note: 'Light blue', light: '#EEF5FC', dark: '#8DB4D8', finish: 'glass', lastMove: 'rgba(255, 214, 10, 0.4)' }),
+  ruby: make('ruby', { name: 'Ruby', note: 'Deep red', light: '#F4E3E3', dark: '#A3465A', finish: 'glass', lastMove: 'rgba(255, 210, 90, 0.42)', selected: 'rgba(40, 0, 10, 0.26)' }),
+  mint: make('mint', { name: 'Mint', note: 'Fresh green', light: '#EAF6F0', dark: '#7EBFA0', finish: 'glass' }),
+  teal: make('teal', { name: 'Teal', note: 'Lagoon', light: '#DDEEEE', dark: '#3F8A8C', finish: 'glass', lastMove: 'rgba(255, 230, 110, 0.42)', selected: 'rgba(0, 30, 30, 0.26)' }),
+  sakura: make('sakura', { name: 'Sakura', note: 'Cherry blossom', light: '#FBF0F3', dark: '#DFA3B4', finish: 'natural' }),
+  coffee: make('coffee', { name: 'Coffee', note: 'Roasted brown', light: '#E8D6C2', dark: '#7A5840', finish: 'natural', lastMove: 'rgba(255, 214, 80, 0.4)', selected: 'rgba(40, 20, 0, 0.28)', hint: 'rgba(40, 20, 0, 0.32)', frame: 'rgba(255, 240, 220, 0.4)' }),
+  charcoal: make('charcoal', {
+    name: 'Charcoal',
+    note: 'Low light',
+    light: '#9EA1A8',
+    dark: '#3B3D43',
+    lastMove: 'rgba(255, 214, 10, 0.3)',
+    selected: 'rgba(255, 255, 255, 0.24)',
+    hint: 'rgba(5, 5, 8, 0.42)',
+    arrow: 'rgba(255, 255, 255, 0.72)',
+    frame: 'rgba(255, 255, 255, 0.14)',
+  }),
+  sandstone: make('sandstone', { name: 'Sandstone', note: 'Brown on sand', light: '#EBECD0', dark: '#B68860', finish: 'natural', lastMove: 'rgba(255, 214, 10, 0.4)', selected: 'rgba(40, 20, 0, 0.24)' }),
+  honey: make('honey', { name: 'Honey', note: 'Brown on yellow', light: '#F4EEAA', dark: '#AF7C59', finish: 'natural', lastMove: 'rgba(90, 170, 255, 0.34)', selected: 'rgba(40, 20, 0, 0.24)' }),
+  apricot: make('apricot', { name: 'Apricot', note: 'Soft peach', light: '#F4EEAA', dark: '#D29B75', finish: 'natural', lastMove: 'rgba(90, 170, 255, 0.34)', selected: 'rgba(40, 20, 0, 0.22)' }),
 };
 
 export const boardThemeList: BoardTheme[] = BOARD_THEMES.map((id) => boardThemes[id]);

@@ -1,14 +1,19 @@
-import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory } from '@chessmate/core';
+import { PRESET_TIME_CONTROLS, formatTimeControl, timeCategory, type TimeControl } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, type Href } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { LiveStats } from '@/components/LiveStats';
+import { BreakBanner } from '@/components/BreakBanner';
+import { DailyPuzzleCard } from '@/components/DailyPuzzleCard';
+import { LiveBoard } from '@/components/LiveBoard';
+import { OnlineFriends } from '@/components/OnlineFriends';
+import { GameSetupSheet } from '@/components/play/GameSetupSheet';
+import { BrandLine } from '@/components/shell/BrandLine';
 import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
-import { Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
+import { Button, GlassView, SectionHeader, Text, rimShadow, useAppTheme } from '@/ui';
 import { translate, useI18n, type TKey } from '@/i18n';
 
 type Glyph = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -54,6 +59,8 @@ export default function Home() {
   // The shell's sidebar takes ~250px at 960 and up.
   const content = width >= 960 ? width - 250 : width;
   const cols = content >= 900 ? 3 : content >= 560 ? 2 : 1;
+  // Tapping a time opens the game setup (mode, rating window, side) before searching.
+  const [setupTc, setSetupTc] = useState<TimeControl | null>(null);
 
   return (
     <Page maxWidth={1080}>
@@ -63,8 +70,8 @@ export default function Home() {
             {greeting()}
             {user.displayName ? `, ${user.displayName}` : ''}
           </Text>
-          <Text variant="display" style={width < 420 && { fontSize: 32, lineHeight: 38 }}>
-            {tr('home.heroTitle')}
+          <Text variant="display" style={width < 420 && { fontSize: 32, lineHeight: 40 }}>
+            {tr('brand.slogan')}
           </Text>
           <Text tone="muted" style={{ maxWidth: 520 }}>
             {tr('home.heroBody')}
@@ -76,7 +83,7 @@ export default function Home() {
         </View>
       </View>
 
-      <LiveStats />
+      <BreakBanner />
 
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={1} title={tr('home.quick.title')} action={<Text variant="caption" tone="tertiary">{tr('home.quick.hint')}</Text>} />
@@ -88,10 +95,11 @@ export default function Home() {
                 key={key}
                 accessibilityRole="button"
                 accessibilityLabel={tr('home.quick.a11y', { tc: key, category: tr(`common.category.${timeCategory(tc)}`) })}
-                onPress={() => router.push({ pathname: '/play/online', params: { tc: key } })}
+                onPress={() => setSetupTc(tc)}
                 style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                   styles.quickCell,
-                  { borderColor: hovered ? c.borderStrong : c.border, backgroundColor: hovered ? c.surfacePressed : c.surface, transform: [{ scale: pressed ? 0.97 : 1 }] },
+                  { borderColor: hovered ? c.borderStrong : c.glassBorder, backgroundColor: hovered || pressed ? c.surfacePressed : c.surface, transform: [{ scale: pressed ? 0.95 : 1 }] },
+                  rimShadow(c),
                 ]}>
                 <Text variant="figure" style={{ fontSize: 20, lineHeight: 24 }}>
                   {key}
@@ -103,11 +111,30 @@ export default function Home() {
             );
           })}
         </View>
+        <OnlineFriends width={Math.min(content, 1080) - 32} />
       </View>
 
-      <ModeSection index={2} title={tr('nav.play')} modes={PLAY} cols={cols} />
-      <ModeSection index={3} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
-      <ModeSection index={4} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+      <View style={{ gap: t.space.md }}>
+        <SectionHeader index={2} title={tr('home.liveBoard.title')} />
+        <LiveBoard width={Math.min(content, 1080) - 32} />
+      </View>
+
+      <View style={{ gap: t.space.md }}>
+        <SectionHeader index={3} title={tr('puzzles.daily')} />
+        <DailyPuzzleCard width={Math.min(content, 1080) - 32} />
+      </View>
+
+      <ModeSection index={4} title={tr('nav.play')} modes={PLAY} cols={cols} />
+      <ModeSection index={5} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
+      <ModeSection index={6} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+      <BrandLine />
+      <GameSetupSheet
+        timeControl={setupTc}
+        visible={setupTc !== null}
+        onClose={() => setSetupTc(null)}
+        onPlay={() => router.push('/play/online')}
+        onPost={() => router.push('/play')}
+      />
     </Page>
   );
 }
@@ -162,7 +189,7 @@ const styles = StyleSheet.create({
   hero: { paddingTop: 12, paddingBottom: 4, paddingHorizontal: 2 },
   heroActions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   quick: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quickCell: { flexGrow: 1, flexBasis: 76, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
+  quickCell: { flexGrow: 1, flexBasis: 76, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   tile: { gap: 22, minHeight: 148 },
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

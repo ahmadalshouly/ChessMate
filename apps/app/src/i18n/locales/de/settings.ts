@@ -23,6 +23,9 @@ export const settings: Messages<typeof en> = {
     titleNative: 'Ton und Vibration',
     vibration: 'Vibration',
     vibrationDetail: 'Ein leichtes Vibrieren bei Zügen, Schlagen, Schach und Partieende',
+    silentMode: 'Töne auch im Lautlos-Modus',
+    silentModeDetailIos: 'Aus: Der Stummschalter schaltet die Spieltöne stumm',
+    silentModeDetailAndroid: 'Aus: Lautlos und Vibration schalten die Spieltöne stumm',
   },
   gameplay: {
     title: 'Spiel',
@@ -32,7 +35,9 @@ export const settings: Messages<typeof en> = {
     always: 'Immer',
     confirmResign: 'Vor dem Aufgeben bestätigen',
     premoves: 'Vorauszüge',
-    premovesDetail: 'Plane deinen nächsten Zug, während dein Gegner nachdenkt. Tippe woanders hin oder klicke rechts, um abzubrechen.',
+    premovesDetail: 'Plane deine nächsten Züge, während dein Gegner überlegt (im Web mehrere hintereinander, am Handy einen). Tippe woanders hin oder klicke rechts, um abzubrechen.',
+    autoQueen: 'Immer zur Dame umwandeln',
+    autoQueenDetail: 'Aus: Bei jeder Umwandlung wählst du Dame, Turm, Läufer oder Springer.',
   },
   notifications: {
     title: 'Benachrichtigungen',

@@ -103,8 +103,8 @@ export function GameReview({ analysis, perspective, token }: { analysis: GameAna
           </View>
           <View style={{ alignItems: 'center' }}>
             <View style={{ width: Math.min(size, 520), height: Math.min(size, 520) }}>
-              <Board fen={shown.fen} orientation={me} size={Math.min(size, 520)} lastMove={{ from: shown.from, to: shown.to }} />
-              {!showBest && <BoardMoveBadge square={shown.to} cls={moment.classification} size={Math.min(size, 520)} orientation={me} />}
+              <Board fen={shown.fen} orientation={me} size={Math.min(size, 760)} lastMove={{ from: shown.from, to: shown.to }} />
+              {!showBest && <BoardMoveBadge square={shown.to} cls={moment.classification} size={Math.min(size, 760)} orientation={me} />}
             </View>
           </View>
           <View style={styles.toggle}>

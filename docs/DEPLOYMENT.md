@@ -93,7 +93,12 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `PORT` | `8787` | `fly.toml` | HTTP + WebSocket port |
 | `NODE_ENV` | unset | `fly.toml` / image (`production`) | `production` disables dev-only `dev:` login tokens |
 | `AUTH_SECRET` | dev: generated into `.data/auth-secret` | `fly secrets set` (secret), `.env` for Docker Compose | **Required in production**: the server refuses to start without it. At least 32 random characters, e.g. `openssl rand -hex 32` |
+| `RESEND_API_KEY`, `MAIL_FROM` | unset: emails are printed to the server console | `fly secrets set` (secret) | Sends password resets and moderation notices (warnings, chat mutes, fair-play bans, closures) through Resend. `MAIL_FROM` is the sender, e.g. `ChessMate <no-reply@your-domain.com>` on a domain verified in Resend. `APP_WEB_URL` sets the link in reset emails |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | unset: paid tournaments are off | `fly secrets set` (secret) | Entry fees for tournaments, paid with Stripe Checkout on the web. Add a Stripe webhook to `https://<server>/api/stripe/webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`; its signing secret is `STRIPE_WEBHOOK_SECRET`. `APP_WEB_URL` must be the web app address so Stripe can send players back |
 | `GOOGLE_CLIENT_IDS` | unset (Google sign-in off) | `fly.toml` or `fly secrets set` | Comma-separated Google OAuth client IDs (web, iOS, Android). See [sign-in-with-google-and-apple.md](sign-in-with-google-and-apple.md) |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | unset (Twitch not checked) | `fly secrets set` | Streamers on Twitch show as live automatically, with viewers. Free app at dev.twitch.tv |
+| `YOUTUBE_API_KEY` | unset (live yes, viewers no) | `fly secrets set` | YouTube live title, viewers and start time (YouTube Data API v3 key) |
+| `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | unset (Kick's site API, may refuse) | `fly secrets set` | Kick live status and viewers through Kick's public API |
 | `APPLE_CLIENT_IDS` | `com.chessmate.app` (+ `host.exp.Exponent` outside production) | `fly.toml` | Accepted Sign in with Apple audiences. Empty string turns Apple off |
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
 | `DATABASE_PATH` | `.data/pglite` (image: `/data/pglite`) | rarely needed | PGlite data directory when `DATABASE_URL` is unset |
@@ -102,6 +107,8 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `ENGINE_WORKERS` | `1` | `fly.toml` | Parallel Stockfish processes |
 | `ENGINE_THREADS` | engine default | `fly.toml` | Threads per Stockfish |
 | `ENGINE_HASH_MB` | engine default | `fly.toml` | Hash table size per Stockfish |
+| `ADMIN_USERNAMES` | unset | `fly.toml` or `fly secrets set` | Comma-separated usernames made admins at startup (or when they sign up). Staff roles are stored in the database, so this is only needed once. `pnpm admin:grant <username> [admin\|moderator\|user]` does the same from a shell |
+| `PUBLIC_URL` | derived from the request | `fly.toml` | Public server address used in links the server hands out (title proof files in the admin console) |
 
 Features that add their own server settings (for example an AI coach API key
 or push notification credentials) should add a row here and to `.env.example`.

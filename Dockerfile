@@ -41,6 +41,7 @@ COPY --from=build /out/dist ./dist
 COPY --from=build /repo/packages/db/drizzle ./drizzle/
 # Puzzle seed: the bundled server looks in ../data relative to dist/.
 COPY --from=build /repo/apps/server/data/puzzles-seed.csv /data/puzzles-seed.csv
+COPY --from=build /repo/apps/server/data/puzzles-lichess.csv.gz /data/puzzles-lichess.csv.gz
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]
 USER node

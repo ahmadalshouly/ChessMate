@@ -119,6 +119,9 @@ export class MemoryFairPlayStore implements FairPlayStore {
       .map((id) => this.games.get(id)!)
       .filter((g) => g && g.endedAt >= since);
   }
+  ratedGame(gameId: string): RatedGameEntry | undefined {
+    return this.games.get(gameId);
+  }
   markRefunded(gameId: string) {
     const g = this.games.get(gameId);
     if (g) g.refunded = true;

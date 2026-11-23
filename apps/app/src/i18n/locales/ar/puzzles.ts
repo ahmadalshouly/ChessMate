@@ -18,6 +18,11 @@ export const puzzles: Messages<typeof en> = {
   ratingLabel: 'لغز {rating}',
   showMove: 'أظهر النقلة',
   home: {
+    bestScore: 'الأفضل: {n}',
+    accuracy: '{pct}% محلولة',
+    subtitle: '{n} لغزاً من قاعدة بيانات Lichess المفتوحة، لكل المستويات.',
+    themes: 'تدرّب على موضوع',
+    themesBody: 'اضغط على موضوع لتبدأ ألغازه فوراً.',
     rating: 'تصنيف الألغاز',
     solved: 'المحلولة',
     bestStreak: 'أفضل سلسلة',

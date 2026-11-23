@@ -1,12 +1,13 @@
 import type { UserWithRelationship } from '@chessmate/core';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Pill, SearchField, UserRow } from '@/components/social';
-import { DevSignIn } from '@/components/SocialSignIn';
+import { SignInPrompt } from '@/components/SocialSignIn';
 import { Card, Label, Screen } from '@/components/ui';
-import { MAX_CONTENT_WIDTH } from '@/constants/theme';
+import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { useT } from '@/i18n';
@@ -14,6 +15,7 @@ import { useT } from '@/i18n';
 export default function SearchScreen() {
   const me = useSocialIdentity();
   const tr = useT();
+  const theme = useTheme();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<UserWithRelationship[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -44,10 +46,22 @@ export default function SearchScreen() {
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.inner}>
           {!me ? (
-            <DevSignIn />
+            <SignInPrompt />
           ) : (
             <>
-              <SearchField placeholder={tr('friends.searchPlaceholder')} value={q} onChangeText={setQ} autoFocus returnKeyType="search" />
+              <View style={styles.searchRow}>
+                <View style={styles.searchGrow}>
+                  <SearchField placeholder={tr('friends.searchPlaceholder')} value={q} onChangeText={setQ} autoFocus returnKeyType="search" />
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={tr('qr.scanButton')}
+                  onPress={() => router.push('/friends/scan')}
+                  style={({ pressed }) => [styles.scan, { backgroundColor: theme.surface, borderColor: theme.glassBorder, opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <Ionicons name="qr-code-outline" size={22} color={theme.text} />
+                </Pressable>
+              </View>
               {error && <Label muted>{error}</Label>}
               {results.length > 0 && (
                 <Card>
@@ -87,4 +101,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
+  searchRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  searchGrow: { flex: 1 },
+  scan: { width: 50, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

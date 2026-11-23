@@ -23,11 +23,11 @@ export default function WatchScreen() {
   const tr = useT();
   const [orientation, setOrientation] = useState<Color>('w');
   const size = useBoardSize(260);
-  useTicker(s.status === 'live' && !!s.clock?.running);
+  const now = useTicker(s.status === 'live' && !!s.clock?.running);
 
   const top: Color = orientation === 'w' ? 'b' : 'w';
   const players = { w: s.white, b: s.black };
-  const ms = (c: Color) => (s.clock ? clockRemaining(s.clock, c, s.clockOffset) : null);
+  const ms = (c: Color) => (s.clock ? clockRemaining(s.clock, c, s.clockOffset, now) : null);
   const last = s.history[s.history.length - 1];
   const material = useMemo(() => materialBalance(s.fen), [s.fen]);
 

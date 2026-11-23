@@ -5,7 +5,7 @@ import { useTheme } from '@/constants/theme';
 import { fonts } from '@/ui';
 import { Text } from '@/ui/primitives';
 
-import { Glass } from './Glass';
+import { Glass, floatShadow } from './Glass';
 import { HeaderActions } from './HeaderActions';
 import { Logo } from './Logo';
 
@@ -28,8 +28,10 @@ export function AppHeader({ title, withSidebar }: { title: string; withSidebar: 
     );
   }
 
+  // No bar: the page backdrop runs to the top edge, the title sits on it, and the actions
+  // float in one glass capsule, the way iOS groups toolbar buttons.
   return (
-    <Glass intensity={60} sheen={false} style={[styles.bar, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.bar, { paddingTop: insets.top + 6 }]}>
       <View style={styles.row}>
         <View style={styles.left}>
           <Logo size={28} wordmark={false} />
@@ -37,17 +39,20 @@ export function AppHeader({ title, withSidebar }: { title: string; withSidebar: 
             {title}
           </Text>
         </View>
-        <HeaderActions showSignIn={false} />
+        <Glass radius={23} interactive style={[styles.capsule, floatShadow(t.scheme)]}>
+          <HeaderActions showSignIn={false} />
+        </Glass>
       </View>
-    </Glass>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { borderTopWidth: 0, borderLeftWidth: 0, borderRightWidth: 0, paddingBottom: 10, paddingHorizontal: 16 },
+  bar: { paddingBottom: 8, paddingHorizontal: 16 },
+  capsule: { height: 46, paddingStart: 8, paddingEnd: 6, justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   left: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },
-  title: { fontFamily: fonts.display, fontSize: 19, lineHeight: 24, letterSpacing: -0.4, flexShrink: 1 },
+  title: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, letterSpacing: -0.6, flexShrink: 1 },
   wideRow: {
     flexDirection: 'row',
     alignItems: 'center',

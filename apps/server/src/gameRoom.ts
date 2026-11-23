@@ -1,5 +1,9 @@
 import {
+  FIRST_MOVE_TIMEOUT_MS,
   Game,
+  SecretQueenGame,
+  type GameVariant,
+  type Square,
   createClock,
   isFlagged,
   outcomeFor,
@@ -25,8 +29,8 @@ export interface RoomEvents {
   onDrawOffer(room: GameRoom, by: Color): void;
 }
 
-/** Time a player has to make the first move before the game is aborted. */
-export const FIRST_MOVE_TIMEOUT_MS = 30_000;
+/** Time a player has to make the first move before the game is aborted (shared with the app). */
+export { FIRST_MOVE_TIMEOUT_MS };
 
 /**
  * Authoritative state for a single game. All time arguments are injected so
@@ -34,11 +38,16 @@ export const FIRST_MOVE_TIMEOUT_MS = 30_000;
  * timer.
  */
 export class GameRoom {
-  readonly game: Game;
+  readonly game: Game | SecretQueenGame;
   clock: ClockState;
   outcome: GameOutcome | null = null;
   drawOfferBy: Color | null = null;
   readonly createdAt: number;
+  /** Set for games a tournament started; the tournament scores the result. */
+  tournamentId: string | null = null;
+  /** Tournament games where a player may go frenzy: half the clock, no increment, an extra point. */
+  frenzyAllowed = false;
+  readonly frenzy: Record<Color, boolean> = { w: false, b: false };
   /** Server-measured think time per ply (ms), for fair-play timing analysis. */
   readonly thinkMs: number[] = [];
   private lastMoveAt: number;
@@ -54,11 +63,39 @@ export class GameRoom {
     now: number,
     private readonly events: RoomEvents,
     readonly initialFen: string = START_FEN,
+    readonly variant: GameVariant = 'standard',
   ) {
-    this.game = new Game(initialFen);
+    this.game = variant === 'secretQueen' ? new SecretQueenGame(initialFen) : new Game(initialFen);
     this.clock = createClock(timeControl);
     this.createdAt = now;
     this.lastMoveAt = now;
+  }
+
+  /** The Secret Queen rules engine, or null for standard games. */
+  get secret(): SecretQueenGame | null {
+    return this.game instanceof SecretQueenGame ? this.game : null;
+  }
+
+  /** Secret Queen: a player picks (or changes) their secret pawn before their first move. */
+  pickSecret(playerId: string, square: Square): boolean {
+    const color = this.colorOf(playerId);
+    const g = this.secret;
+    if (!color || !g || this.outcome) return false;
+    return g.pick(color, square);
+  }
+
+  /** Frenzy: before their first move, a player halves their own clock and gives up the increment. */
+  goFrenzy(playerId: string): boolean {
+    const color = this.colorOf(playerId);
+    if (!color || !this.frenzyAllowed || this.outcome || this.frenzy[color]) return false;
+    if (this.game.ply > (color === 'w' ? 0 : 1)) return false;
+    this.frenzy[color] = true;
+    this.clock = {
+      ...this.clock,
+      remainingMs: { ...this.clock.remainingMs, [color]: Math.floor(this.timeControl.initialMs / 2) },
+      noIncrement: { ...this.clock.noIncrement, [color]: true },
+    };
+    return true;
   }
 
   colorOf(playerId: string): Color | null {
@@ -128,6 +165,13 @@ export class GameRoom {
 
   abort(playerId: string, now: number): boolean {
     if (!this.colorOf(playerId) || !this.abortable) return false;
+    this.finish(outcomeFor('aborted', null), now);
+    return true;
+  }
+
+  /** Staff ends the game with no result and no rating change (abuse, server trouble). */
+  terminate(now: number): boolean {
+    if (this.outcome) return false;
     this.finish(outcomeFor('aborted', null), now);
     return true;
   }
@@ -219,6 +263,17 @@ export class GameRoom {
       serverNow: now,
       drawOfferBy: this.drawOfferBy,
       outcome: this.outcome,
+      firstMoveDeadline: this.abortable ? (this.clock.startedAt ?? this.createdAt) + FIRST_MOVE_TIMEOUT_MS : null,
+      tournamentId: this.tournamentId,
+      ...(this.frenzyAllowed ? { frenzyAllowed: true, frenzy: { ...this.frenzy } } : {}),
+      ...(this.secret
+        ? {
+            variant: 'secretQueen' as const,
+            fen: this.secret.fen,
+            positions: this.secret.history().map((m) => ({ uci: m.uci, san: m.san, fen: m.fenAfter })),
+            reveals: this.secret.reveals(),
+          }
+        : {}),
     };
   }
 }

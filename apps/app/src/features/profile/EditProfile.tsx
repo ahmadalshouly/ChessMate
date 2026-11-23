@@ -1,4 +1,4 @@
-import { AVATARS, AVATAR_TONES, BIO_MAX, DISPLAY_NAME_MAX, type Avatar as AvatarValue, type MyProfile } from '@chessmate/core';
+import { AVATARS, AVATAR_TONES, BIO_MAX, DISPLAY_NAME_MAX, PLAYER_TAGS, type Avatar as AvatarValue, type MyProfile, type PlayerTag } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -9,6 +9,8 @@ import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { ApiError } from '@/features/account/api';
 import { useAccountSession } from '@/features/account/session';
 import { useT } from '@/i18n';
+
+import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 
 import { Avatar, TONES } from './Avatar';
 import { CountryPicker } from './CountryPicker';
@@ -23,6 +25,7 @@ export function EditProfile() {
   const [bio, setBio] = useState('');
   const [country, setCountry] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<AvatarValue>({ id: 'initials', tone: 'ink' });
+  const [playerTag, setPlayerTag] = useState<PlayerTag | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{ field?: string; message: string } | null>(null);
 
@@ -35,6 +38,7 @@ export function EditProfile() {
         setBio(p.bio ?? '');
         setCountry(p.country);
         setAvatar(p.avatar);
+        setPlayerTag(p.playerTag ?? null);
       })
       .catch((e: Error) => setError({ message: e.message }));
   }, [session]);
@@ -43,7 +47,7 @@ export function EditProfile() {
     setSaving(true);
     setError(null);
     try {
-      await session.apiFetch('/api/me/profile', { method: 'PATCH', body: { displayName, bio: bio || null, country, avatar } });
+      await session.apiFetch('/api/me/profile', { method: 'PATCH', body: { displayName, bio: bio || null, country, avatar, playerTag } });
       if (router.canGoBack()) router.back();
       else router.replace('/profile');
     } catch (e) {
@@ -122,6 +126,26 @@ export function EditProfile() {
             {error?.field === 'country' && <Text style={{ color: t.danger }}>{error.message}</Text>}
           </Card>
 
+          <Card>
+            <SectionTitle>{tr('profile.editScreen.tag')}</SectionTitle>
+            <Text style={{ color: t.muted, fontSize: 13 }}>{tr('profile.editScreen.tagHint')}</Text>
+            <View style={styles.tagGrid}>
+              {PLAYER_TAGS.map((tag) => {
+                const on = playerTag === tag;
+                return (
+                  <Pressable
+                    key={tag}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => setPlayerTag(on ? null : tag)}
+                    style={[styles.tagChoice, { borderColor: on ? t.text : 'transparent', opacity: !playerTag || on ? 1 : 0.6 }]}>
+                    <PlayerTagBadge tag={tag} size="md" />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+
           {error && !['displayName', 'bio', 'country'].includes(error.field ?? '') && <Label muted>{error.message}</Label>}
           <Button title={saving ? tr('common.saving') : tr('profile.editScreen.save')} onPress={save} disabled={saving} />
         </View>
@@ -134,6 +158,8 @@ const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
   avatarRow: { flexDirection: 'row', gap: 16, alignItems: 'center' },
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tagChoice: { borderWidth: 2, borderRadius: 16, padding: 2 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   choice: { borderWidth: 2, borderRadius: 24, padding: 2 },
   tone: { width: 32, height: 32, borderRadius: 16, borderWidth: 2 },
