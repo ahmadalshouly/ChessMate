@@ -78,7 +78,7 @@ Glass comes in three kinds (`<GlassView kind=…>`):
 
 | Kind | Use | iOS 26+ | Everywhere else |
 | --- | --- | --- | --- |
-| `panel` (default) | Content cards, lists | Hand-drawn glass | Hand-drawn glass |
+| `panel` (default) | Content cards, lists | Native Liquid Glass with a faint tint for text | Hand-drawn glass |
 | `chrome` | Floating navigation: tab bar, header capsule, sidebar, sheets, menus | Native Liquid Glass | Hand-drawn glass, `chrome` tint |
 | `control` | Glass buttons, icon buttons | Native Liquid Glass, reacts to touch | Hand-drawn glass, `chrome` tint |
 
@@ -86,7 +86,9 @@ Hand-drawn glass = backdrop blur with extra saturation, a thin tint, a top sheen
 
 Pressables that should feel like glass under the finger use `<PressableScale scaleTo={0.95}>` (Reanimated spring on the UI thread). `Button`, `IconButton`, `Chip`, `Card onPress` and the tab bar already do.
 
-Performance: content panels never use native Liquid Glass, and the board's squares and pieces are never glass. For long lists pass `flat` to skip the blur. *Reduce Transparency* turns every glass layer into a solid `surfaceSolid` fill.
+Performance: the board's squares and pieces are never glass. For long lists (dozens of glass rows) pass `flat`, which skips both the blur and native glass and keeps the tint. *Reduce Transparency* turns every glass layer into a solid `surfaceSolid` fill.
+
+On phones, content scrolls on behind the floating tab bar: the shell hands its screens the bar's height as the bottom safe-area inset, so `Screen`, `Page` and any scroll view that pads by `useSafeAreaInsets().bottom` still reaches its last row. A hand-built scroll view in a tab screen must do the same. `Modal` reads the device's own insets, so sheets don't float above the bar's space.
 
 Inside the app shell the shell draws the one page backdrop; `<Screen>` detects this (`BackdropContext`) and leaves its own background off, so the page runs unbroken under the header and tab bar.
 

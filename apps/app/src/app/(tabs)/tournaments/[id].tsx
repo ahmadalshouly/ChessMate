@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMoney, formatTimeControl, timeCategory, type TournamentDetail } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -25,6 +26,7 @@ import { webLink } from '@/lib/links';
  * your game opens on its own.
  */
 export default function TournamentScreen() {
+  const insets = useSafeAreaInsets();
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
@@ -122,7 +124,7 @@ export default function TournamentScreen() {
   const settings = settingsOf(tour);
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 40 + insets.bottom }]}>
       <Stack.Screen options={{ title: tour.name }} />
       <View style={[styles.inner, { gap: t.space.xl }]}>
         <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>

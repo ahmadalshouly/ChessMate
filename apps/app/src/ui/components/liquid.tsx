@@ -11,10 +11,10 @@ import type { ColorTokens } from '../theme/tokens';
 /**
  * Liquid Glass building blocks shared by every glass surface.
  *
- * - On iOS 26+ floating chrome (tab bar, header capsules, glass buttons, sheets) uses Apple's
- *   own Liquid Glass material through `expo-glass-effect`, so it refracts, reacts to touch and
- *   follows the system's accessibility settings exactly like native apps.
- * - Everywhere else (older iOS, Android, web, and content panels on iOS 26) it is drawn by hand:
+ * - On iOS 26+ every glass surface (cards, tab bar, header capsules, glass buttons, sheets) uses
+ *   Apple's own Liquid Glass material through `expo-glass-effect`, so it refracts, reacts to
+ *   touch and follows the system's accessibility settings exactly like native apps.
+ * - Everywhere else (older iOS, Android, web) it is drawn by hand:
  *   backdrop blur with extra saturation, a thin tint, a specular rim that catches light at the
  *   top edge and bounces softly off the bottom, and a sheen across the top.
  */
@@ -101,15 +101,17 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
     return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfaceSolid, borderRadius: radius }, rimShadow(c)]} />;
   }
 
-  // Native Liquid Glass for the floating layer only. Content panels stay hand-drawn: Apple keeps
-  // glass for navigation and controls, and dozens of native glass views in a scrolling list cost
-  // more GPU time than the blur they replace.
-  if (nativeLiquidGlass && kind !== 'panel' && !flat) {
+  // iOS 26: every glass surface is Apple's native Liquid Glass, content panels included, so cards
+  // refract and light up like the system's own. Long lists pass `flat` to stay on a plain tint,
+  // and the board never sits on glass.
+  if (nativeLiquidGlass && !flat) {
     return (
       <NativeGlass
         pointerEvents="none"
         glassEffectStyle="regular"
         isInteractive={interactive}
+        // Panels hold text: a whisper of tint keeps it legible over busy content behind.
+        tintColor={kind === 'panel' ? (dark ? 'rgba(20,20,24,0.25)' : 'rgba(255,255,255,0.2)') : undefined}
         colorScheme={dark ? 'dark' : 'light'}
         style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
       />
