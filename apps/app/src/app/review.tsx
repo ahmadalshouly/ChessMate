@@ -9,7 +9,7 @@ import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
 import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
-import { BEST_MOVE_ARROW, MOVE_CLASS, REVIEW_ORDER, formatEval } from '@/constants/analysis';
+import { BEST_MOVE_ARROW, MOVE_CLASS, REVIEW_ORDER, formatEval, moveClassTint } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
 import { dirIcon, useT } from '@/i18n';
 import { ActionBar } from '@/components/game/ActionBar';
@@ -283,6 +283,15 @@ export default function Review() {
                       : current
                         ? { from: current.uci.slice(0, 2) as Square, to: current.uci.slice(2, 4) as Square }
                         : null
+                }
+                lastMoveColor={
+                  branch
+                    ? branchMove && branchGrade
+                      ? moveClassTint(branchGrade.classification)
+                      : null
+                    : !previewMove && current
+                      ? moveClassTint(current.judgement.classification)
+                      : null
                 }
                 checkSquare={checkSquareOf(fen)}
                 selected={review ? interaction.selected : null}

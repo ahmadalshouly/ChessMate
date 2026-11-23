@@ -17,7 +17,7 @@ import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
 import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
 import { Button, Card, Label, Screen } from '@/components/ui';
-import { ARROW_COLORS, MOVE_CLASS, formatEval } from '@/constants/analysis';
+import { ARROW_COLORS, MOVE_CLASS, formatEval, moveClassTint } from '@/constants/analysis';
 import { useTheme } from '@/constants/theme';
 import { dirIcon, translate, useT } from '@/i18n';
 import { ActionBar } from '@/components/game/ActionBar';
@@ -163,6 +163,7 @@ export default function Analysis() {
             selected={interaction.selected}
             targets={interaction.targets}
             lastMove={last ? { from: last.from, to: last.to } : null}
+            lastMoveColor={engineOn && last && lastGrade ? moveClassTint(lastGrade.classification) : null}
             checkSquare={checkSquareOf(fen)}
             onSquarePress={interaction.onSquarePress}
             {...interaction.dragProps}

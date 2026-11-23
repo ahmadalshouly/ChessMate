@@ -189,7 +189,7 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 | **!!** Brilliant (teal, sparkles) | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
 | **!** Great (sapphire, target) | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
 | Best Move (gold, star), Excellent (copper, check), Good (green, rising check) | Close to the engine's choice. |
-| Book Move (brown, book), Forced (slate, arrow) | A known opening move; the only legal move. |
+| Theory (brown, book), Forced (slate, arrow) | A known opening move; the only legal move. |
 | **?!** Inaccuracy (yellow), **?** Mistake (orange, cross), **??** Blunder (red, lightning) | Increasing loss of winning chances. |
 | Missed Chance (steel blue, crossed arrows) | Your opponent just erred and the move let the chance slip. |
 

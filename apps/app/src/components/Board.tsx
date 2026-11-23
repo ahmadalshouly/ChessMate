@@ -27,6 +27,12 @@ export interface BoardProps {
   selected?: Square | null;
   targets?: Square[];
   lastMove?: { from: Square; to: Square } | null;
+  /**
+   * Tint for the last-move squares instead of the theme's colour, e.g. the
+   * move classification colour in a review. Shown even when the last-move
+   * highlight is switched off, since it carries the move's grade.
+   */
+  lastMoveColor?: string | null;
   /** Play move sounds when the position changes by one move. Default: on, except thumbnails (hideCoordinates) and boards under 160px. */
   sound?: boolean;
   checkSquare?: Square | null;
@@ -493,7 +499,7 @@ const SquareCell = memo(function SquareCell(p: CellProps) {
 });
 
 export const Board = memo(function Board(props: BoardProps) {
-  const { fen, orientation, size, selected, targets = [], lastMove, checkSquare, threatened = [], premove, onSquarePress } = props;
+  const { fen, orientation, size, selected, targets = [], lastMove, lastMoveColor, checkSquare, threatened = [], premove, onSquarePress } = props;
   const { boardTheme } = useBoardTheme();
   const colors = props.theme ?? boardTheme;
   const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
@@ -533,7 +539,10 @@ export const Board = memo(function Board(props: BoardProps) {
         const col = i % 8;
         let overlays = '';
         const tint = (c: string) => (overlays = overlays ? `${overlays}|${c}` : c);
-        if (look.highlightLastMove && lastMove && (lastMove.from === sq || lastMove.to === sq)) tint(colors.lastMove);
+        if (lastMove && (lastMove.from === sq || lastMove.to === sq)) {
+          if (lastMoveColor) tint(lastMoveColor);
+          else if (look.highlightLastMove) tint(colors.lastMove);
+        }
         if (threatSet.has(sq)) tint(colors.threat);
         if (premoveSquares.has(sq)) tint(PREMOVE_TINT);
         if (selected === sq) tint(colors.selected);

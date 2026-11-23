@@ -12,9 +12,9 @@ export const moveClass = {
     phrase: 'good',
   },
   book: {
-    phrase: 'a book move',
-    label: 'Book Move',
-    symbol: 'Book',
+    phrase: 'a theory move',
+    label: 'Theory',
+    symbol: 'Theory',
   },
   forced: {
     label: 'Forced',
