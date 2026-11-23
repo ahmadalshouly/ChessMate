@@ -1,41 +1,55 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, StyleSheet, View, type LayoutChangeEvent, useWindowDimensions } from 'react-native';
+import { Stack } from 'expo-router';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useT } from '@/i18n';
+import { Logo } from '@/components/shell/Logo';
+import { Text, useAppTheme } from '@/ui';
 
 import { ActionBar, type GameAction } from './ActionBar';
 import { PLAYER_CARD_HEIGHT } from './PlayerCard';
 
 const GAP = 6;
-const PAD = 12;
+const PAD = 8;
+/** Space beside the board: small, so the board is as wide as the screen allows. */
+const EDGE = 4;
 const BAR = 62;
-/** Space kept under the board for the move list, banners and panels on phones. */
-const DOCK_MIN = 132;
+export const STRIP_HEIGHT = 38;
+/** Popovers (chat, options, confirmations) are never taller than this. */
+const POPOVER_MAX = 420;
+/** From this width (desktop web, tablets in landscape) the players and controls move beside the board. */
+const WIDE = 900;
 const SIDE = 360;
-const WIDE_AT = 860;
 
 export interface GameLayoutProps {
+  /** Moves in one row, above the players and board. */
+  strip: ReactNode;
   /** Opponent card, above the board. */
   top: ReactNode;
   /** Your card, under the board. */
   bottom: ReactNode;
   /** The board at the computed size. Overlays (result card) go inside. */
   renderBoard: (size: number) => ReactNode;
-  /** Shown under the board: move list, offers, notices. */
-  dock: ReactNode;
-  /** Chat or options, shown over the dock (never over the board unless the keyboard is up). */
-  panel?: ReactNode;
+  /** Offers and notices floating over the top of the board. */
+  notices?: ReactNode;
+  /** What an action button opened: chat, options or a confirmation. Pops up above the bar. */
+  popover?: ReactNode;
+  onDismissPopover?: () => void;
   /** Connection or other notice above everything. */
   notice?: ReactNode;
   actions: GameAction[];
 }
 
 /**
- * The game screen: players and board in a fixed position that fills the
- * screen, the dock under it, and the action bar at the bottom. Nothing
- * scrolls the board away; chat and options open over the dock. On wide
- * screens the dock and actions move to a column beside the board.
+ * The game screen: a thin logo bar on top, then the moves row, the players
+ * and the board (as large as the screen allows) centred above the action
+ * bar. Whatever a button opens pops up above the bar and closes again, so the
+ * board never moves.
  */
-export function GameLayout({ top, bottom, renderBoard, dock, panel, notice, actions }: GameLayoutProps) {
+export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, onDismissPopover, notice, actions }: GameLayoutProps) {
+  const tr = useT();
+  const t = useAppTheme();
   const insets = useSafeAreaInsets();
   const [box, setBox] = useState<{ w: number; h: number; windowH: number } | null>(null);
   const [noticeH, setNoticeH] = useState(0);
@@ -48,92 +62,126 @@ export function GameLayout({ top, bottom, renderBoard, dock, panel, notice, acti
     setBox((b) => (b && b.w === w && b.windowH === windowH && h < b.h ? b : { w, h, windowH }));
   };
 
-  const wide = !!box && box.w >= WIDE_AT;
   const bottomSpace = Math.max(insets.bottom, 8);
+  const wide = !!box && box.w >= WIDE;
+  if (box && wide) {
+    // Board on the left, as tall as the window allows; players, moves and buttons in a column beside it.
+    const h = box.h - noticeH - PAD * 2 - bottomSpace;
+    let side = Math.floor(Math.max(200, Math.min(h, box.w - SIDE - GAP * 6, 1100)) / 8) * 8;
+    if (side < 200) side = 200;
+    return (
+      <View style={styles.root} onLayout={onLayout}>
+        <Stack.Screen options={{ headerTitle: ({ children }) => <GameTitle text={children} /> }} />
+        <View onLayout={(e) => setNoticeH(e.nativeEvent.layout.height)}>{notice}</View>
+        <View style={[styles.wideRow, { paddingBottom: bottomSpace }]}>
+          <View style={{ width: side, height: side }}>
+            {renderBoard(side)}
+            {notices ? (
+              <View style={styles.notices} pointerEvents="box-none">
+                {notices}
+              </View>
+            ) : null}
+          </View>
+          <View style={[styles.side, { height: side }]}>
+            {top}
+            <View style={{ height: STRIP_HEIGHT }}>{strip}</View>
+            <View style={styles.sideMiddle}>
+              {popover ? (
+                <View style={[styles.sidePopover, { maxHeight: Math.min(POPOVER_MAX, side - PLAYER_CARD_HEIGHT * 2 - BAR - STRIP_HEIGHT - GAP * 6), backgroundColor: t.colors.surfaceSolid }, t.shadows.lg]}>
+                  {popover}
+                </View>
+              ) : null}
+            </View>
+            <ActionBar actions={actions} />
+            {bottom}
+          </View>
+        </View>
+      </View>
+    );
+  }
   let size = 0;
   if (box) {
     const h = box.h - noticeH;
-    size = wide
-      ? Math.min(h - PLAYER_CARD_HEIGHT * 2 - GAP * 2 - PAD * 2, box.w - SIDE - PAD * 3)
-      : Math.min(box.w - PAD * 2, h - PLAYER_CARD_HEIGHT * 2 - GAP * 2 - PAD - DOCK_MIN - BAR - GAP * 2 - bottomSpace);
-    size = Math.max(200, Math.min(720, Math.floor(size / 8) * 8));
+    const fit = h - PAD - STRIP_HEIGHT - PLAYER_CARD_HEIGHT * 2 - GAP * 4 - BAR - bottomSpace;
+    size = Math.max(200, Math.min(box.w - EDGE * 2, fit, 760));
+    size = Math.floor(size / 8) * 8;
   }
-
-  const board = (
-    <View style={{ width: size, alignSelf: 'center' }}>
-      {top}
-      <View style={{ marginVertical: GAP, width: size, height: size }}>{renderBoard(size)}</View>
-      {bottom}
-    </View>
-  );
-
-  const dockArea = (
-    <View style={styles.dock}>
-      <View style={StyleSheet.absoluteFill}>{dock}</View>
-    </View>
-  );
+  const column = Math.max(size, Math.min(box?.w ?? 0, 520) - EDGE * 2);
 
   return (
     <View style={styles.root} onLayout={onLayout}>
+      <Stack.Screen options={{ headerTitle: ({ children }) => <GameTitle text={children} /> }} />
       {box && (
         <>
           <View onLayout={(e) => setNoticeH(e.nativeEvent.layout.height)}>{notice}</View>
-          {wide ? (
-            <View style={[styles.wide, { paddingBottom: bottomSpace }]}>
-              {board}
-              <View style={[styles.side, { height: size + PLAYER_CARD_HEIGHT * 2 + GAP * 2 }]}>
-                <View style={styles.dock}>
-                  <View style={StyleSheet.absoluteFill}>{dock}</View>
-                  {panel && <View style={StyleSheet.absoluteFill}>{panel}</View>}
-                </View>
-                <ActionBar actions={actions} />
+          <View style={[styles.column, { width: column, paddingBottom: bottomSpace }]}>
+            <View style={styles.spacer} />
+            <View style={{ height: STRIP_HEIGHT }}>{strip}</View>
+            <View style={{ width: size, alignSelf: 'center' }}>
+              {top}
+              <View style={{ marginVertical: GAP, width: size, height: size }}>
+                {renderBoard(size)}
+                {notices ? (
+                  <View style={styles.notices} pointerEvents="box-none">
+                    {notices}
+                  </View>
+                ) : null}
               </View>
+              {bottom}
             </View>
-          ) : (
-            <View style={[styles.narrow, { width: size, paddingBottom: bottomSpace }]}>
-              {board}
-              {dockArea}
-              <ActionBar actions={actions} />
-            </View>
-          )}
-          {!wide && panel && (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={StyleSheet.absoluteFill} pointerEvents="box-none">
-              <View style={{ flex: 1 }} pointerEvents="none" />
-              <View style={[styles.panel, { width: size, minHeight: DOCK_MIN + PLAYER_CARD_HEIGHT, height: panelHeight(box.h, noticeH, size, bottomSpace) }]}>
-                {panel}
-              </View>
-              <View style={{ height: keyboard ? GAP : BAR + GAP + bottomSpace }} pointerEvents="none" />
-            </KeyboardAvoidingView>
-          )}
+            <View style={styles.spacer} />
+            <ActionBar actions={actions} />
+          </View>
+          {popover ? (
+            <>
+              <Pressable accessibilityRole="button" accessibilityLabel={tr('game.close')} onPress={onDismissPopover} style={[styles.scrim, { bottom: BAR + GAP + bottomSpace }]} />
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                <View style={{ flex: 1 }} pointerEvents="none" />
+                <View style={[styles.popover, { width: column, maxHeight: Math.min(POPOVER_MAX, box.h * 0.7), backgroundColor: t.colors.surfaceSolid }, t.shadows.lg]}>{popover}</View>
+                <View style={{ height: keyboard ? GAP : BAR + GAP * 2 + bottomSpace }} pointerEvents="none" />
+              </KeyboardAvoidingView>
+            </>
+          ) : null}
         </>
       )}
     </View>
   );
 }
 
-/** Height of the dock on phones: from under your card to the action bar. */
-function panelHeight(h: number, noticeH: number, size: number, bottomSpace: number) {
-  const used = noticeH + PAD + PLAYER_CARD_HEIGHT * 2 + GAP * 2 + size + GAP + BAR + GAP + bottomSpace;
-  return Math.max(DOCK_MIN, h - used);
+/** The header title during a game: the logo, with the game ("5+0 · Rated") beside it. */
+function GameTitle({ text }: { text: string }) {
+  return (
+    <View style={styles.title}>
+      <Logo size={22} />
+      <View style={{ flex: 1 }} />
+      <Text variant="label" tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
+        {text}
+      </Text>
+    </View>
+  );
 }
 
 function useKeyboardVisible() {
   const [visible, setVisible] = useState(false);
-  const subs = useRef<{ remove(): void }[]>([]);
   useEffect(() => {
     const show = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hide = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    subs.current = [Keyboard.addListener(show, () => setVisible(true)), Keyboard.addListener(hide, () => setVisible(false))];
-    return () => subs.current.forEach((s) => s.remove());
+    const subs = [Keyboard.addListener(show, () => setVisible(true)), Keyboard.addListener(hide, () => setVisible(false))];
+    return () => subs.forEach((s) => s.remove());
   }, []);
   return visible;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden' },
-  narrow: { flex: 1, alignSelf: 'center', paddingTop: PAD, gap: GAP },
-  wide: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: PAD * 2, padding: PAD },
+  column: { flex: 1, alignSelf: 'center', paddingTop: PAD, gap: GAP },
+  spacer: { flex: 1, minHeight: 0 },
+  title: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  notices: { position: 'absolute', top: 8, left: 8, right: 8, gap: 6 },
+  scrim: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.18)' },
+  popover: { alignSelf: 'center', borderRadius: 30, overflow: 'hidden' },
+  wideRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: GAP * 4, paddingTop: PAD, paddingHorizontal: 16 },
   side: { width: SIDE, gap: GAP * 2 },
-  dock: { flex: 1, minHeight: 0, marginTop: GAP },
-  panel: { alignSelf: 'center' },
+  sideMiddle: { flex: 1, minHeight: 0, justifyContent: 'flex-end' },
+  sidePopover: { borderRadius: 26, overflow: 'hidden' },
 });

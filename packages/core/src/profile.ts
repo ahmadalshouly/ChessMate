@@ -1,3 +1,5 @@
+import { isPlayerTag, type PlayerTag, type RoleTag } from './roleTags';
+import type { ChessTitle } from './titles';
 import type { TimeCategory } from './timeControl';
 import type { GameEndReason, GameResult } from './types';
 
@@ -39,10 +41,22 @@ export const BOARD_THEMES = [
   'amethyst',
   'rose',
   'sand',
+  'coral',
+  'olive',
+  'sky',
+  'ruby',
+  'mint',
+  'teal',
+  'sakura',
+  'coffee',
+  'charcoal',
+  'sandstone',
+  'honey',
+  'apricot',
 ] as const;
 export type BoardTheme = (typeof BOARD_THEMES)[number];
 /** Piece sets. Artwork and credits live in apps/app/art/pieces. */
-export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes'] as const;
+export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes', 'eyes', 'cats', 'skulls', 'cburnett', 'firi', 'kaneo', 'moonlight'] as const;
 export type PieceSet = (typeof PIECE_SETS)[number];
 /** Ids from older versions, mapped to their closest current choice when settings are loaded. */
 const LEGACY_VALUES: Record<string, Record<string, string>> = {
@@ -67,6 +81,8 @@ export interface UserSettings {
     lowTime: boolean;
     /** Vibrate on moves, captures and game end (phones only). */
     haptics: boolean;
+    /** Play sounds while the phone is on silent (iPhone silent switch, Android silent or vibrate). */
+    silentMode: boolean;
   };
   gameplay: {
     /** Ask before sending a move in online games. */
@@ -94,7 +110,7 @@ export interface UserSettings {
 
 export const DEFAULT_SETTINGS: UserSettings = {
   board: { theme: 'graphite', pieces: 'classic', coordinates: true, highlightLastMove: true, showLegalMoves: true },
-  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true },
+  sound: { enabled: true, volume: 0.7, moves: true, lowTime: true, haptics: true, silentMode: true },
   gameplay: { confirmMoves: 'never', autoQueen: false, confirmResign: true, premoves: true },
   notifications: { gameStart: true, yourTurn: true, challenges: true, friendRequests: true, email: false },
   privacy: { showOnline: true, showRatingHistory: true, showGames: true, challenges: 'everyone', messages: 'friends' },
@@ -174,6 +190,7 @@ export interface ProfileEdit {
   bio?: string | null;
   country?: string | null;
   avatar?: Avatar;
+  playerTag?: PlayerTag | null;
 }
 
 export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { error: string; field: string } {
@@ -204,6 +221,10 @@ export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { e
     }
     edit.avatar = { id: a.id as AvatarId, tone: a.tone as AvatarTone };
   }
+  if (input.playerTag !== undefined) {
+    if (input.playerTag !== null && !isPlayerTag(input.playerTag)) return { error: 'Pick a tag from the list', field: 'playerTag' };
+    edit.playerTag = input.playerTag;
+  }
   return { edit };
 }
 
@@ -233,11 +254,19 @@ export interface RecentGame {
   ratingDelta: number | null;
   moves: number;
   endedAt: number;
+  /** Accuracy per side once the game has a saved review (shown instead of a Review button). */
+  accuracy?: { w: number; b: number } | null;
 }
 
 export interface PublicProfile {
   id: string;
   username: string;
+  /** Verified chess title (GM, IM, ...), granted by staff after an application. */
+  title?: ChessTitle | null;
+  /** Official tag (ChessMate staff, streamer, coach, ...), only set by admins. */
+  roleTag?: RoleTag | null;
+  /** Tag the player picked for themselves (Tactician, Night owl, ...). */
+  playerTag?: PlayerTag | null;
   displayName: string;
   avatar: Avatar;
   bio: string | null;

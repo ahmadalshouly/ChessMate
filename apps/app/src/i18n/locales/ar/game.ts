@@ -19,7 +19,6 @@ export const game: Messages<typeof en> = {
   moves: 'النقلات',
   noMoves: 'لا نقلات بعد.',
   backToLive: 'العودة إلى الوضع الحالي',
-  viewingMove: 'عرض {move}',
   live: 'مباشر',
   close: 'إغلاق',
   more: {
@@ -32,6 +31,27 @@ export const game: Messages<typeof en> = {
     changeOpponent: 'اختيار خصم آخر',
     save: 'حفظ في سجل المباريات',
     saved: 'تم الحفظ في سجل المباريات',
+    report: 'الإبلاغ عن {name}',
+    reported: 'تم الإبلاغ',
+  },
+  confirm: {
+    drawTitle: 'هل تعرض التعادل؟',
+    drawBody: 'يمكن لخصمك القبول أو الرفض.',
+    draw: 'اعرض التعادل',
+    abortTitle: 'هل تلغي هذه المباراة؟',
+    abortBody: 'لا يفوز أحد ولا يتغير التصنيف.',
+    abort: 'إلغاء المباراة',
+    rematchTitle: 'هل تطلب مباراة إعادة؟',
+    rematchBody: 'ستتم دعوة {name} للعب مجددًا مع تبديل الألوان.',
+    rematch: 'اطلب',
+    acceptRematchTitle: 'هل تقبل الإعادة؟',
+    acceptRematchBody: '{name} يريد اللعب مجددًا. تبدأ مباراة جديدة فورًا.',
+    acceptRematch: 'العب',
+    takebackTitle: 'هل تتراجع عن نقلتك؟',
+    takebackBody: 'يتم التراجع عن نقلتك الأخيرة ورد الكمبيوتر.',
+    takeback: 'تراجع',
+    undoTitle: 'هل تتراجع عن آخر نقلة؟',
+    undo: 'تراجع',
   },
   resign: {
     title: 'هل تريد الاستسلام؟',
@@ -55,5 +75,10 @@ export const game: Messages<typeof en> = {
   over: {
     close: 'إخفاء النتيجة',
     showResult: 'النتيجة',
+  },
+  intro: {
+    goodLuck: 'حظاً موفقاً',
+    match: '{white} ضد {black}',
+    a11y: 'يتصافح اللاعبان. تبدأ المباراة.',
   },
 };

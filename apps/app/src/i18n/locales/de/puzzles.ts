@@ -18,6 +18,11 @@ export const puzzles: Messages<typeof en> = {
   ratingLabel: 'Puzzle {rating}',
   showMove: 'Zug zeigen',
   home: {
+    bestScore: 'Bestwert: {n}',
+    accuracy: '{pct}% gelöst',
+    subtitle: '{n} Aufgaben aus der offenen Lichess-Datenbank, für jede Spielstärke.',
+    themes: 'Ein Thema trainieren',
+    themesBody: 'Tippe auf ein Thema, um sofort Aufgaben dazu zu lösen.',
     rating: 'Puzzle-Wertung',
     solved: 'Gelöst',
     bestStreak: 'Beste Serie',

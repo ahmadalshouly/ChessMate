@@ -4,7 +4,6 @@ import {
   encode,
   type ClientMessage,
   type ErrorCode,
-  type GameReview,
   type PositionAnalysis,
 } from '@chessmate/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,16 +15,15 @@ export interface EngineState {
   /** Latest analysis for the most recent request. */
   analysis: PositionAnalysis | null;
   analyzing: boolean;
-  review: GameReview | null;
-  reviewProgress: { done: number; total: number } | null;
   error: { code: ErrorCode; message: string } | null;
 }
 
-const initial: EngineState = { connected: false, analysis: null, analyzing: false, review: null, reviewProgress: null, error: null };
+const initial: EngineState = { connected: false, analysis: null, analyzing: false, error: null };
 
 /**
- * Talks to the server-side engine over the game socket. The engine never runs
- * on the device, and the server refuses requests while you have a live game.
+ * Talks to the server-side engine over the game socket, for the analysis
+ * board; the server refuses requests while you have a live game. Game reviews
+ * never use it: they run on the device (features/engine).
  */
 export function useEngine(token?: string) {
   const [state, setState] = useState<EngineState>(initial);
@@ -33,7 +31,6 @@ export function useEngine(token?: string) {
   const ready = useRef(false);
   const nextId = useRef(1);
   const analysisId = useRef(0);
-  const reviewId = useRef(0);
   /** Request to (re)send once the socket says welcome. */
   const pending = useRef<ClientMessage | null>(null);
   const [identity] = useState(() => token ?? `guest:Analyst${Math.floor(Math.random() * 9000 + 1000)}`);
@@ -67,15 +64,9 @@ export function useEngine(token?: string) {
           case 'analysis':
             if (m.id !== analysisId.current) return;
             return setState((s) => ({ ...s, analysis: m.analysis, analyzing: !m.done, error: null }));
-          case 'reviewProgress':
-            if (m.id !== reviewId.current) return;
-            return setState((s) => ({ ...s, reviewProgress: { done: m.done, total: m.total } }));
-          case 'reviewResult':
-            if (m.id !== reviewId.current) return;
-            return setState((s) => ({ ...s, review: m.review, reviewProgress: null, error: null }));
           case 'error':
-            if (m.id !== undefined && m.id !== analysisId.current && m.id !== reviewId.current) return;
-            return setState((s) => ({ ...s, analyzing: false, reviewProgress: null, error: { code: m.code, message: m.message } }));
+            if (m.id !== undefined && m.id !== analysisId.current) return;
+            return setState((s) => ({ ...s, analyzing: false, error: { code: m.code, message: m.message } }));
           default:
             return;
         }
@@ -96,11 +87,11 @@ export function useEngine(token?: string) {
   }, [identity]);
 
   const analyze = useCallback(
-    (fen: string, multipv = 1) => {
+    (fen: string, multipv = 1, limits: { depth?: number; movetimeMs?: number } = {}) => {
       const id = nextId.current++;
       analysisId.current = id;
       setState((s) => ({ ...s, analyzing: true, analysis: s.analysis?.fen === fen ? s.analysis : null }));
-      send({ t: 'analyze', id, fen, multipv });
+      send({ t: 'analyze', id, fen, multipv, ...limits });
     },
     [send],
   );
@@ -111,15 +102,5 @@ export function useEngine(token?: string) {
     setState((s) => ({ ...s, analyzing: false }));
   }, [send]);
 
-  const review = useCallback(
-    (req: { moves: string[]; initialFen?: string; gameId?: string }) => {
-      const id = nextId.current++;
-      reviewId.current = id;
-      setState((s) => ({ ...s, review: null, reviewProgress: { done: 0, total: req.moves.length + 1 }, error: null }));
-      send({ t: 'review', id, ...req });
-    },
-    [send],
-  );
-
-  return { state, analyze, stop, review };
+  return { state, analyze, stop };
 }

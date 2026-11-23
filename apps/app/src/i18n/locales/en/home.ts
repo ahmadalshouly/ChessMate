@@ -38,6 +38,27 @@ export const home = {
     body: 'Top players worldwide, in your country and among friends.',
   },
   heroTitle: 'Your move.',
+  onlineFriends: {
+    title: 'Friends online',
+    count: { one: '{count} online', other: '{count} online' },
+    none: 'No friends online right now',
+    all: 'All friends',
+  },
+  dailyPuzzle: {
+    whiteToMove: 'White to move. Find the best move.',
+    blackToMove: 'Black to move. Find the best move.',
+  },
+  liveBoard: {
+    title: 'Live games',
+    watch: 'Watch game',
+    finding: 'Finding a live game…',
+    empty: 'No games in progress right now. Start one and yours could be on this board.',
+    over: 'Game over. Switching to another live game…',
+    rated: 'Rated',
+    casual: 'Casual',
+    a11y: 'Live game: {white} against {black}',
+    page: 'Live game {n} of {total}',
+  },
   stats: {
     online: 'Players online',
     games: 'Games in progress',

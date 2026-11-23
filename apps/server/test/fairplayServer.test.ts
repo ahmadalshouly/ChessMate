@@ -1,7 +1,7 @@
 import { decodeServer, encode, type ClientMessage, type ServerMessage } from '@chessmate/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { CLOSE_FAIR_PLAY_BAN, ChessServer } from '../src/server';
+import { ChessServer } from '../src/server';
 
 const TOKEN = 'test-admin-token';
 let server: ChessServer;
@@ -86,18 +86,25 @@ describe('fair play on the game server', () => {
     expect((await admin('/queue')).status).toBe(200);
   });
 
-  it('report, review, ban over HTTP closes the account', async () => {
+  it('report, review, ban over HTTP takes the account out of online play', async () => {
     const c = await client('dev:fp-cheat:Cheater');
-    await c.next('welcome');
+    expect((await c.next('welcome')).restricted ?? null).toBeNull();
     expect((await admin('/players/fp-cheat/report', { method: 'POST', body: JSON.stringify({ note: 'suspicious' }) })).status).toBe(200);
     const queue = (await (await admin('/queue')).json()) as { cases: { playerId: string }[] };
     expect(queue.cases.map((x) => x.playerId)).toContain('fp-cheat');
     expect((await admin('/players/fp-cheat/ban', { method: 'POST', body: '{}' })).status).toBe(400);
     expect((await admin('/players/fp-cheat/ban', { method: 'POST', body: JSON.stringify({ reason: 'engine use' }) })).status).toBe(200);
-    expect(await c.closed).toBe(CLOSE_FAIR_PLAY_BAN);
+    // The player stays connected but is told the account is restricted, and cannot start games.
+    expect((await c.next('restricted')).reason).toBe('fair_play');
+    c.send({ t: 'seek', timeControl: { initialMs: 60_000, incrementMs: 0 }, rated: false });
+    expect((await c.next('error')).code).toBe('account_restricted');
+    c.close();
 
     const again = await client('dev:fp-cheat:Cheater');
-    expect(await again.closed).toBe(CLOSE_FAIR_PLAY_BAN);
+    expect((await again.next('welcome')).restricted).toBe('fair_play');
+    again.send({ t: 'ping', id: 1 });
+    await again.next('pong');
+    again.close();
 
     const file = (await (await admin('/players/fp-cheat')).json()) as { ban: { reason: string }; case: { status: string } };
     expect(file.ban.reason).toBe('engine use');

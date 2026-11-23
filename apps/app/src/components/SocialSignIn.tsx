@@ -1,34 +1,37 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { router, usePathname } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
-import { SearchField } from '@/components/social';
-import { Button, Card, Label } from '@/components/ui';
-import { devIdentity, setSocialIdentity } from '@/lib/social/session';
 import { useT } from '@/i18n';
+import { useAuth } from '@/lib/auth';
+import { Button, GlassView, Text, useAppTheme } from '@/ui';
 
 /**
- * Shown on social screens until sign-in is wired in. In development it lets
- * you pick a test username (the dev server creates the account on first use);
- * production builds only ask the user to sign in.
+ * Shown on friends, messages and tournament screens to players who are not
+ * signed in. Signed-in players never see it: those screens use their account.
+ * The username is the one chosen at sign-up.
  */
-export function DevSignIn() {
-  const [name, setName] = useState('');
+export function SignInPrompt() {
+  const t = useAppTheme();
   const tr = useT();
-  const valid = /^[A-Za-z0-9_-]{3,20}$/.test(name.trim());
+  const { status } = useAuth();
+  const here = usePathname();
+  if (status === 'loading') return null;
   return (
-    <Card>
-      <Label size={18} bold>
-        {tr('social.devSignIn.title')}
-      </Label>
-      {__DEV__ ? (
-        <View style={{ gap: 10 }}>
-          <Label muted>{tr('social.devSignIn.dev')}</Label>
-          <SearchField placeholder={tr('social.devSignIn.placeholder')} value={name} onChangeText={setName} maxLength={20} />
-          <Button title={tr('common.continue')} disabled={!valid} onPress={() => setSocialIdentity(devIdentity(name))} />
+    <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
+      <Text variant="heading">{tr('social.devSignIn.title')}</Text>
+      <Text tone="muted">{tr('social.devSignIn.prod')}</Text>
+      <View style={styles.row}>
+        <View style={{ flex: 1 }}>
+          <Button title={tr('auth.signIn')} fullWidth onPress={() => router.push({ pathname: '/sign-in', params: { next: here } })} />
         </View>
-      ) : (
-        <Label muted>{tr('social.devSignIn.prod')}</Label>
-      )}
-    </Card>
+        <View style={{ flex: 1 }}>
+          <Button variant="secondary" title={tr('auth.signUp.submit')} fullWidth onPress={() => router.push({ pathname: '/sign-up', params: { next: here } })} />
+        </View>
+      </View>
+    </GlassView>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 10 },
+});

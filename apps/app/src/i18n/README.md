@@ -52,5 +52,5 @@ Montserrat and Geist have no Arabic letters. In Arabic, `@/ui/primitives` and `<
 
 ## Not translated (on purpose)
 
-- `/admin` (moderation tool) and `/design` (component gallery) are internal and stay English.
+- `/admin` (the staff console) is translated like the rest of the app (`admin` namespace). `/design` (component gallery) is internal and stays English.
 - Push notifications sent while the app is closed are written by the server in English. The in-app inbox shows them translated.

@@ -12,7 +12,7 @@ import {
   type PuzzleState,
   type Square,
 } from '@chessmate/core';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useSettings } from '@/features/account/settingsStore';
 
@@ -45,11 +45,11 @@ const REPLY_DELAY_MS = 400;
  * otherwise the solver may retry, but the puzzle no longer counts as clean.
  *
  * With premoves on in settings, the solver can queue a move while the
- * opponent's move is still animating; it plays as soon as the board is theirs.
+ * opponent's move is still playing out; it plays as soon as the board is theirs.
  */
 export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: boolean; onFinish?: (f: PuzzleFinish) => void } = {}) {
   const [state, setState] = useState<PuzzleState | null>(null);
-  const [fen, setFen] = useState<string>(puzzle?.fen ?? new Game().fen);
+  const [fen, setFen] = useState<string>(() => puzzle?.fen ?? new Game().fen);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
   const [feedback, setFeedback] = useState<PuzzleFeedback>('loading');
   const [hint, setHint] = useState<PuzzleHint | null>(null);
@@ -202,7 +202,9 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, state, fen, premove]);
 
-  const solver: Color = state?.solver ?? (puzzle ? (new Game(puzzle.fen).turn === 'w' ? 'b' : 'w') : 'w');
+  // Worked out once per puzzle, not on every render.
+  const startSolver = useMemo<Color>(() => (puzzle ? (puzzle.fen.split(' ')[1] === 'w' ? 'b' : 'w') : 'w'), [puzzle]);
+  const solver: Color = state?.solver ?? startSolver;
 
   return {
     fen,

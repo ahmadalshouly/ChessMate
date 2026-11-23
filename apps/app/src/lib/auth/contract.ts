@@ -30,6 +30,8 @@ export interface AuthUser {
   hasPassword?: boolean;
   /** ISO timestamp. */
   createdAt: string;
+  /** "moderator" or "admin" opens the admin console. Missing on older servers. */
+  role?: 'user' | 'moderator' | 'admin';
 }
 
 export interface AuthTokens {
@@ -54,7 +56,8 @@ export type AuthErrorCode =
   | 'rate_limited'
   | 'network'
   | 'server'
-  | 'not_configured';
+  | 'not_configured'
+  | 'account_closed';
 
 export interface ApiErrorBody {
   error: { code: AuthErrorCode | string; message: string; field?: string };

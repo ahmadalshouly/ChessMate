@@ -1,21 +1,22 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { RUSH_DURATION_MS, RUSH_LIVES, type PuzzleDto, type PuzzleRunMode } from '@chessmate/core';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Text } from '@/ui/primitives';
 
 import { Segmented } from '@/components/play/Controls';
 import { PuzzleBoard } from '@/components/PuzzleBoard';
-import { Button, Card, Label, Screen } from '@/components/ui';
-import { useTheme } from '@/constants/theme';
+import { Screen } from '@/components/ui';
 import { puzzleApi } from '@/lib/puzzleApi';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useWideBoard } from '@/lib/useWideBoard';
+import { NO_SWIPE_BACK, useNoSwipeBack } from '@/lib/useNoSwipeBack';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
 import { translate, useT, type TKey } from '@/i18n';
+import { Button, GlassView, Row, Stack as Column, Text, useAppTheme } from '@/ui';
 
-const COPY: Record<PuzzleRunMode, { title: TKey; rules: TKey }> = {
-  streak: { title: 'puzzles.run.streakTitle', rules: 'puzzles.run.streakRules' },
-  rush: { title: 'puzzles.run.rushTitle', rules: 'puzzles.run.rushRules' },
+const COPY: Record<PuzzleRunMode, { title: TKey; rules: TKey; icon: 'flame' | 'flash' }> = {
+  streak: { title: 'puzzles.run.streakTitle', rules: 'puzzles.run.streakRules', icon: 'flame' },
+  rush: { title: 'puzzles.run.rushTitle', rules: 'puzzles.run.rushRules', icon: 'flash' },
 };
 /** Rush lengths the player can pick. Personal bests only count at the standard length. */
 const RUSH_MINUTES = [1, 3, 5, 10] as const;
@@ -27,27 +28,33 @@ type Phase = 'ready' | 'playing' | 'over';
 export default function PuzzleRun() {
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode: PuzzleRunMode = params.mode === 'rush' ? 'rush' : 'streak';
-  const t = useTheme();
+  const t = useAppTheme();
   const tr = useT();
-  const size = useBoardSize(360);
+  // Big board on wide screens (panel beside it); phones keep room below for hints and results.
+  const { wide, size } = useWideBoard({ panel: 380, reserve: 116, phoneReserve: 360, sidebar: true });
   const [phase, setPhase] = useState<Phase>('ready');
   const [queue, setQueue] = useState<PuzzleDto[]>([]);
   const [index, setIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [misses, setMisses] = useState(0);
   const [deadline, setDeadline] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [timeUp, setTimeUp] = useState(false);
   const [best, setBest] = useState<{ best: number; newBest?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetching = useRef(false);
   const ended = useRef(false);
   const [exhausted, setExhausted] = useState(false);
   const advance = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Read by the clock and the finish handler without making them change on every point.
+  const scoreRef = useRef(0);
+  const missesRef = useRef(0);
   const maxMisses = mode === 'rush' ? RUSH_LIVES : 1;
   const [rushMinutes, setRushMinutes] = useState<number>(STANDARD_RUSH_MINUTES);
   /** Length of the rush being played, fixed when it starts. */
   const [playedMinutes, setPlayedMinutes] = useState(STANDARD_RUSH_MINUTES);
   const countsForBest = mode !== 'rush' || playedMinutes === STANDARD_RUSH_MINUTES;
+  // Leave with the back button only: dragging a piece must never swipe the run away.
+  useNoSwipeBack();
 
   const fetchMore = useCallback(
     async (offset: number) => {
@@ -56,7 +63,8 @@ export default function PuzzleRun() {
       try {
         const r = await puzzleApi.run(mode, offset);
         setQueue((q) => {
-          const fresh = r.puzzles.filter((p) => !q.some((x) => x.id === p.id));
+          const have = new Set(q.map((x) => x.id));
+          const fresh = r.puzzles.filter((p) => !have.has(p.id));
           if (fresh.length === 0) setExhausted(true);
           return [...q, ...fresh];
         });
@@ -75,8 +83,11 @@ export default function PuzzleRun() {
     setIndex(0);
     setScore(0);
     setMisses(0);
+    scoreRef.current = 0;
+    missesRef.current = 0;
     setBest(null);
     setExhausted(false);
+    setTimeUp(false);
     ended.current = false;
     setPlayedMinutes(rushMinutes);
     await fetchMore(0);
@@ -99,15 +110,10 @@ export default function PuzzleRun() {
     [mode, countsForBest],
   );
 
-  // Rush clock.
-  useEffect(() => {
-    if (phase !== 'playing' || deadline === null) return;
-    const id = setInterval(() => {
-      setNow(Date.now());
-      if (Date.now() >= deadline) end(score);
-    }, 250);
-    return () => clearInterval(id);
-  }, [phase, deadline, score, end]);
+  const onTimeUp = useCallback(() => {
+    setTimeUp(true);
+    end(scoreRef.current);
+  }, [end]);
 
   // Keep a few puzzles queued ahead.
   useEffect(() => {
@@ -116,15 +122,17 @@ export default function PuzzleRun() {
 
   // Ran out of puzzles (small database): finish with the score so far.
   useEffect(() => {
-    if (phase === 'playing' && exhausted && index >= queue.length) end(score);
-  }, [phase, exhausted, index, queue.length, score, end]);
+    if (phase === 'playing' && exhausted && index >= queue.length) end(scoreRef.current);
+  }, [phase, exhausted, index, queue.length, end]);
 
   useEffect(() => () => void (advance.current && clearTimeout(advance.current)), []);
 
   const onFinish = useCallback(
     (f: PuzzleFinish) => {
-      const nextScore = score + (f.solved ? 1 : 0);
-      const nextMisses = misses + (f.solved ? 0 : 1);
+      const nextScore = scoreRef.current + (f.solved ? 1 : 0);
+      const nextMisses = missesRef.current + (f.solved ? 0 : 1);
+      scoreRef.current = nextScore;
+      missesRef.current = nextMisses;
       setScore(nextScore);
       setMisses(nextMisses);
       if (nextMisses >= maxMisses) {
@@ -134,85 +142,140 @@ export default function PuzzleRun() {
       }
       advance.current = setTimeout(() => setIndex((i) => i + 1), f.solved ? 350 : 900);
     },
-    [score, misses, maxMisses, end],
+    [maxMisses, end],
   );
 
   const puzzle = phase === 'playing' ? (queue[index] ?? null) : null;
   const view = usePuzzle(puzzle, { failOnMistake: true, onFinish });
-  const left = deadline ? Math.max(0, deadline - now) : 0;
-  const clock = `${Math.floor(left / 60_000)}:${String(Math.floor((left % 60_000) / 1000)).padStart(2, '0')}`;
+  const c = t.colors;
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: tr(COPY[mode].title) }} />
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={{ width: size, gap: 12 }}>
-          {phase === 'ready' && (
-            <Card>
-              <Label size={22} bold>
-                {tr(COPY[mode].title)}
-              </Label>
-              <Label muted>{tr(COPY[mode].rules, { count: rushMinutes, minutes: rushMinutes, lives: RUSH_LIVES })}</Label>
-              {mode === 'rush' && (
-                <>
-                  <Label bold>{tr('puzzles.run.length')}</Label>
-                  <Segmented
-                    options={RUSH_MINUTES.map((m) => ({ value: m, label: tr('puzzles.run.minutes', { n: m }) }))}
-                    value={rushMinutes}
-                    onChange={setRushMinutes}
-                  />
-                  {rushMinutes !== STANDARD_RUSH_MINUTES && <Label muted size={13}>{tr('puzzles.run.unrankedLength', { minutes: STANDARD_RUSH_MINUTES })}</Label>}
-                </>
-              )}
-              {error && <Label muted>{error}</Label>}
-              <Button title={tr('puzzles.run.start')} onPress={start} />
-            </Card>
-          )}
-
-          {phase === 'playing' && (
+      <Stack.Screen options={{ title: tr(COPY[mode].title), ...NO_SWIPE_BACK }} />
+      {phase === 'playing' ? (
+        <PuzzleBoard
+          view={view}
+          puzzle={puzzle}
+          size={size}
+          wide={wide}
+          showHints={false}
+          above={
             <>
-              <View style={styles.hud}>
-                <Text style={[styles.score, { color: t.text }]}>{score}</Text>
-                <View style={styles.lives}>
+              <GlassView padding="md" radius="lg" style={styles.hud}>
+                <Row gap="sm" style={{ flex: 1 }}>
+                  <Ionicons name={COPY[mode].icon} size={18} color={c.text} />
+                  <Text variant="figure">{score}</Text>
+                </Row>
+                <Row gap="xs" accessibilityLabel={`${maxMisses - misses}/${maxMisses}`}>
                   {Array.from({ length: maxMisses }, (_, i) => (
-                    <View key={i} style={[styles.life, { borderColor: t.text, backgroundColor: i < maxMisses - misses ? t.text : 'transparent' }]} />
+                    <View key={i} style={[styles.life, { borderColor: c.text, backgroundColor: i < maxMisses - misses ? c.text : 'transparent' }]} />
                   ))}
-                </View>
-                {deadline !== null && <Text style={[styles.clock, { color: left < 20_000 ? t.danger : t.text }]}>{clock}</Text>}
-              </View>
-              {error && <Label muted>{error}</Label>}
-              <PuzzleBoard view={view} puzzle={puzzle} size={size} showHints={false} />
+                </Row>
+                {deadline !== null && <RushClock deadline={deadline} running={phase === 'playing'} onTimeUp={onTimeUp} />}
+              </GlassView>
+              {error && (
+                <Text variant="caption" tone="muted">
+                  {error}
+                </Text>
+              )}
             </>
-          )}
+          }
+        />
+      ) : (
+        <ScrollView contentContainerStyle={styles.page}>
+          <View style={{ width: Math.min(size, 560) }}>
+            {phase === 'ready' && (
+              <GlassView padding="xl" radius="xl" style={{ gap: t.space.lg }}>
+                <View style={[styles.icon, { backgroundColor: c.surfaceSunken, borderColor: c.glassBorder }]}>
+                  <Ionicons name={COPY[mode].icon} size={26} color={c.text} />
+                </View>
+                <Column gap="xs">
+                  <Text variant="title">{tr(COPY[mode].title)}</Text>
+                  <Text tone="muted">{tr(COPY[mode].rules, { count: rushMinutes, minutes: rushMinutes, lives: RUSH_LIVES })}</Text>
+                </Column>
+                {mode === 'rush' && (
+                  <Column gap="xs">
+                    <Text variant="caption" tone="muted">
+                      {tr('puzzles.run.length')}
+                    </Text>
+                    <Segmented
+                      options={RUSH_MINUTES.map((m) => ({ value: m, label: tr('puzzles.run.minutes', { n: m }) }))}
+                      value={rushMinutes}
+                      onChange={setRushMinutes}
+                    />
+                    {rushMinutes !== STANDARD_RUSH_MINUTES && (
+                      <Text variant="caption" tone="muted">
+                        {tr('puzzles.run.unrankedLength', { minutes: STANDARD_RUSH_MINUTES })}
+                      </Text>
+                    )}
+                  </Column>
+                )}
+                {error && (
+                  <Text variant="caption" tone="danger">
+                    {error}
+                  </Text>
+                )}
+                <Button title={tr('puzzles.run.start')} size="lg" fullWidth leftIcon={<Ionicons name="play" size={16} color={c.onAccent} />} onPress={start} />
+              </GlassView>
+            )}
 
-          {phase === 'over' && (
-            <Card>
-              <Label muted>{mode === 'rush' ? (left === 0 ? tr('puzzles.run.timeUp') : tr('puzzles.run.outOfLives')) : tr('puzzles.run.streakOver')}</Label>
-              <Text style={[styles.final, { color: t.text }]}>{score}</Text>
-              <Label muted>
-                {!countsForBest
-                  ? tr('puzzles.run.unrankedLength', { minutes: STANDARD_RUSH_MINUTES })
-                  : best
-                    ? best.newBest
-                      ? tr('puzzles.run.newBest')
-                      : tr('puzzles.run.best', { n: best.best })
-                    : tr('common.saving')}
-              </Label>
-              <Button title={tr('puzzles.run.again')} onPress={start} />
-            </Card>
-          )}
-        </View>
-      </ScrollView>
+            {phase === 'over' && (
+              <GlassView padding="xl" radius="xl" style={{ gap: t.space.lg, alignItems: 'center' }}>
+                <Text variant="overline" tone="muted">
+                  {mode === 'rush' ? (timeUp ? tr('puzzles.run.timeUp') : tr('puzzles.run.outOfLives')) : tr('puzzles.run.streakOver')}
+                </Text>
+                <Text variant="figure" style={styles.final}>
+                  {score}
+                </Text>
+                <Text tone={countsForBest && best?.newBest ? 'success' : 'muted'}>
+                  {!countsForBest
+                    ? tr('puzzles.run.unrankedLength', { minutes: STANDARD_RUSH_MINUTES })
+                    : best
+                      ? best.newBest
+                        ? tr('puzzles.run.newBest')
+                        : tr('puzzles.run.best', { n: best.best })
+                      : tr('common.saving')}
+                </Text>
+                <Button title={tr('puzzles.run.again')} size="lg" fullWidth leftIcon={<Ionicons name="refresh" size={16} color={c.onAccent} />} onPress={start} />
+              </GlassView>
+            )}
+          </View>
+        </ScrollView>
+      )}
     </Screen>
   );
 }
 
+/**
+ * The rush clock owns its own ticking state, so the 4-per-second updates re-render
+ * only this label, not the board and the whole screen.
+ */
+const RushClock = memo(function RushClock({ deadline, running, onTimeUp }: { deadline: number; running: boolean; onTimeUp: () => void }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => {
+      const n = Date.now();
+      setNow(n);
+      if (n >= deadline) onTimeUp();
+    }, 250);
+    return () => clearInterval(id);
+  }, [deadline, running, onTimeUp]);
+  const left = Math.max(0, deadline - now);
+  const secs = Math.ceil(left / 1000);
+  const label = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  return (
+    <Text variant="clock" tone={left < 20_000 ? 'danger' : 'default'} style={styles.clock}>
+      {label}
+    </Text>
+  );
+});
+
 const styles = StyleSheet.create({
-  page: { padding: 12, alignItems: 'center' },
-  hud: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  score: { fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  lives: { flexDirection: 'row', gap: 6 },
+  page: { padding: 16, alignItems: 'center' },
+  hud: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   life: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.5 },
-  clock: { marginStart: 'auto', fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  final: { fontSize: 56, fontWeight: '800' },
+  clock: { minWidth: 64, textAlign: 'right' },
+  icon: { width: 56, height: 56, borderRadius: 28, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  final: { fontSize: 72, lineHeight: 80 },
 });

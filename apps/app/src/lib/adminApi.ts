@@ -1,51 +1,129 @@
-import type { ChatLine, ReportReason } from '@chessmate/core';
+import type {
+  AccountCloseReason,
+  AdminAuditEntry,
+  AdminDashboard,
+  AdminFairPlayCase,
+  AdminFairPlayFile,
+  AdminGameDetail,
+  AdminGameSummary,
+  AdminMe,
+  AdminPlayerDetail,
+  AdminPlayerSummary,
+  AdminReport,
+  AdminTitleApplication,
+  ChessTitle,
+  TitleDocumentLink,
+  RoleTag,
+  TitleRevokeReason,
+  RatingCategory,
+  ReportAction,
+  PayoutRequestView,
+  SponsorApplicationView,
+  StaffRole,
+  TournamentDetail,
+  TournamentInput,
+  TournamentSummary,
+} from '@chessmate/core';
 
-import { SERVER_URL } from './config';
+import { useMemo } from 'react';
 
-/** HTTP base of the game server, derived from its WebSocket URL (ws://host:8787/ws -> http://host:8787). */
-export const API_BASE = SERVER_URL.replace(/^ws(s?):/, 'http$1:').replace(/\/ws\/?$/, '');
+import { useAuth } from '@/lib/auth';
 
-export type ModAction = 'dismiss' | 'warn' | 'chat_ban' | 'unban';
-
-export interface AdminReport {
-  id: string;
-  reporterId: string;
-  reporterName: string;
-  targetId: string;
-  targetName: string;
-  gameId: string | null;
-  reason: ReportReason;
-  note: string;
-  chat: ChatLine[];
-  moves: string[];
-  createdAt: number;
-  status: 'open' | 'dismissed' | 'actioned';
-  resolution?: { action: ModAction; note: string; by: string; at: number };
-  targetReportCount?: number;
-  targetChatBan?: { until: number } | null;
+/** Admin live view of a tournament (see TournamentService.adminDetail on the server). */
+export interface AdminTournamentView extends TournamentDetail {
+  roster: {
+    userId: string;
+    username: string;
+    rating: number;
+    score: number;
+    games: number;
+    withdrawn: boolean;
+    disqualified: boolean;
+    paid: boolean;
+    rulesAcceptedAt: number | null;
+    joinedAt: number;
+    playing: boolean;
+  }[];
+  payments: { userId: string; amountCents: number; currency: string; status: string; createdAt: number }[];
+  revenueCents: number;
 }
 
-export interface AdminChatBan {
-  playerId: string;
-  name: string;
-  until: number;
-  reason: string;
-}
+export type PlayerFilter = 'all' | 'active' | 'closed' | 'muted' | 'staff';
 
-async function call<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}/admin${path}`, {
-    ...init,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-  });
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
-  return body;
-}
-
-export const adminApi = {
-  reports: (token: string, status: 'open' | 'all') => call<{ reports: AdminReport[] }>(token, `/reports?status=${status}`).then((r) => r.reports),
-  resolve: (token: string, id: string, action: ModAction, durationHours?: number, note?: string) =>
-    call<{ report: AdminReport }>(token, `/reports/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify({ action, durationHours, note }) }),
-  bans: (token: string) => call<{ bans: AdminChatBan[] }>(token, '/chat-bans').then((r) => r.bans),
-  unban: (token: string, playerId: string) => call<{ ok: true }>(token, `/chat-bans/${encodeURIComponent(playerId)}`, { method: 'DELETE' }),
+const qs = (params: Record<string, string | number | undefined | null>) => {
+  const p = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`);
+  return p.length ? `?${p.join('&')}` : '';
 };
+const id = (s: string) => encodeURIComponent(s);
+
+/**
+ * Staff API (/api/admin) with the signed-in account's token. The server
+ * checks the role's permissions on every call; the app only hides what the
+ * role cannot do.
+ */
+export function useAdminApi() {
+  const { apiFetch } = useAuth();
+  return useMemo(() => {
+    const get = <T,>(path: string) => apiFetch<T>(`/api/admin${path}`);
+    const post = <T,>(path: string, body: Record<string, unknown> = {}) => apiFetch<T>(`/api/admin${path}`, { method: 'POST', body: JSON.stringify(body) });
+    return {
+      me: () => get<AdminMe>('/me'),
+      dashboard: () => get<AdminDashboard>('/dashboard'),
+      players: (q: string, filter: PlayerFilter, offset = 0) =>
+        get<{ players: AdminPlayerSummary[]; total: number }>(
+          `/players${qs({ q, offset, status: filter === 'active' || filter === 'closed' || filter === 'muted' ? filter : undefined, role: filter === 'staff' ? 'staff' : undefined })}`,
+        ),
+      player: (playerId: string) => get<{ player: AdminPlayerDetail }>(`/players/${id(playerId)}`).then((r) => r.player),
+      warn: (playerId: string, category: string, message: string) => post(`/players/${id(playerId)}/warn`, { category, message }),
+      mute: (playerId: string, hours: number, reason: string) => post<{ until: number }>(`/players/${id(playerId)}/mute`, { hours, reason }),
+      unmute: (playerId: string, reason: string) => post(`/players/${id(playerId)}/unmute`, { reason }),
+      note: (playerId: string, note: string) => post(`/players/${id(playerId)}/note`, { note }),
+      rename: (playerId: string, username: string, reason: string) => post(`/players/${id(playerId)}/rename`, { username, reason }),
+      signOut: (playerId: string, reason: string) => post(`/players/${id(playerId)}/signout`, { reason }),
+      setRole: (playerId: string, role: StaffRole, reason: string) => post(`/players/${id(playerId)}/role`, { role, reason }),
+      adjustRating: (playerId: string, category: RatingCategory, delta: number, reason: string) =>
+        post<{ before: number; after: number }>(`/players/${id(playerId)}/rating`, { category, delta, reason }),
+      close: (playerId: string, reason: AccountCloseReason, note: string) =>
+        post<{ refunds: { playerId: string; points: number }[] }>(`/players/${id(playerId)}/close`, { reason, note }),
+      reopen: (playerId: string, note: string) => post(`/players/${id(playerId)}/reopen`, { note }),
+      reports: (status: string) => get<{ reports: AdminReport[] }>(`/reports${qs({ status })}`).then((r) => r.reports),
+      resolveReport: (reportId: string, action: ReportAction, opts: { note?: string; hours?: number; message?: string } = {}) =>
+        post(`/reports/${id(reportId)}`, { action, ...opts }),
+      fairPlay: (status: string) => get<{ cases: AdminFairPlayCase[] }>(`/fairplay${qs({ status })}`).then((r) => r.cases),
+      fairPlayFile: (playerId: string) => get<AdminFairPlayFile>(`/fairplay/${id(playerId)}`),
+      openCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/open`, { note }),
+      dismissCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/dismiss`, { note }),
+      banFairPlay: (playerId: string, note: string) => post<{ refunds: { playerId: string; points: number }[] }>(`/fairplay/${id(playerId)}/ban`, { note }),
+      games: (player?: string, before?: number) => get<{ games: AdminGameSummary[] }>(`/games${qs({ player, before })}`).then((r) => r.games),
+      game: (gameId: string) => get<{ game: AdminGameDetail }>(`/games/${id(gameId)}`).then((r) => r.game),
+      abortGame: (gameId: string, reason: string) => post(`/games/${id(gameId)}/abort`, { reason }),
+      audit: (q: { target?: string; actor?: string; action?: string; before?: number } = {}) =>
+        get<{ entries: AdminAuditEntry[] }>(`/audit${qs(q)}`).then((r) => r.entries),
+      titles: (status: string) => get<{ applications: AdminTitleApplication[] }>(`/titles${qs({ status })}`).then((r) => r.applications),
+      titleApplication: (appId: string) => get<{ application: AdminTitleApplication }>(`/titles/${id(appId)}`).then((r) => r.application),
+      approveTitle: (appId: string, note: string) => post(`/titles/${id(appId)}/approve`, { note }),
+      rejectTitle: (appId: string, note: string) => post(`/titles/${id(appId)}/reject`, { note }),
+      documentLink: (docId: string) => get<TitleDocumentLink>(`/documents/${id(docId)}`),
+      setTitle: (playerId: string, title: ChessTitle, note: string) => post(`/players/${id(playerId)}/title`, { title, note }),
+      removeTitle: (playerId: string, reason: TitleRevokeReason, note: string) => post(`/players/${id(playerId)}/title`, { title: null, reason, note }),
+      setRoleTag: (playerId: string, tag: RoleTag | null, note: string) => post(`/players/${id(playerId)}/tag`, { tag, note }),
+      messagePlayer: (playerId: string, body: string) => post(`/players/${id(playerId)}/message`, { body }),
+      broadcast: (body: string) => post<{ sent: number }>('/broadcast', { body }),
+      tournaments: () => get<{ tournaments: TournamentSummary[] }>('/tournaments').then((r) => r.tournaments),
+      createTournament: (t: TournamentInput) => post<{ tournament: TournamentDetail }>('/tournaments', { ...t }).then((r) => r.tournament),
+      updateTournament: (tid: string, t: Partial<TournamentInput>) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}`, { ...t }).then((r) => r.tournament),
+      cancelTournament: (tid: string, reason: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/cancel`, { reason }).then((r) => r.tournament),
+      startTournament: (tid: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/start`).then((r) => r.tournament),
+      tournamentMonitor: (tid: string) => get<{ tournament: AdminTournamentView }>(`/tournaments/${id(tid)}`).then((r) => r.tournament),
+      removeTournamentPlayer: (tid: string, userId: string, reason: string) => post(`/tournaments/${id(tid)}/remove`, { userId, reason }),
+      sponsors: () => get<{ applications: SponsorApplicationView[] }>('/sponsors').then((r) => r.applications),
+      reviewSponsor: (aid: string, status: string, note: string) => post(`/sponsors/${id(aid)}`, { status, note }),
+      payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),
+      reviewPayout: (pid: string, status: string, note: string) => post(`/payouts/${id(pid)}`, { status, note }),
+    };
+  }, [apiFetch]);
+}
+
+export type AdminApi = ReturnType<typeof useAdminApi>;

@@ -9,7 +9,7 @@ export type TabConfig = {
   /** Route name inside `src/app/(tabs)/`. */
   name: string;
   /** URL the tab opens. */
-  href: '/' | '/watch' | '/learn' | '/social' | '/profile';
+  href: '/' | '/watch' | '/tournaments' | '/learn' | '/social' | '/profile';
   /** Short label for the tab bar and sidebar (translation key). */
   label: TKey;
   /** Header title when this tab is open (translation key). */
@@ -25,7 +25,8 @@ export type TabConfig = {
  */
 export const TABS: readonly TabConfig[] = [
   { name: '(home)', href: '/', label: 'nav.play', title: 'nav.play', icon: 'game-controller-outline', iconActive: 'game-controller' },
-  { name: 'watch', href: '/watch', label: 'nav.watch', title: 'nav.watch', icon: 'eye-outline', iconActive: 'eye' },
+  { name: 'watch', href: '/watch', label: 'nav.watch', title: 'nav.watch', icon: 'tv-outline', iconActive: 'tv' },
+  { name: 'tournaments', href: '/tournaments', label: 'nav.tournaments', title: 'nav.tournaments', icon: 'trophy-outline', iconActive: 'trophy' },
   { name: 'learn', href: '/learn', label: 'nav.learn', title: 'nav.learnTitle', icon: 'school-outline', iconActive: 'school' },
   { name: 'social', href: '/social', label: 'nav.social', title: 'nav.social', icon: 'people-outline', iconActive: 'people' },
   { name: 'profile', href: '/profile', label: 'nav.profile', title: 'nav.profile', icon: 'person-circle-outline', iconActive: 'person-circle' },

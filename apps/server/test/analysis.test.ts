@@ -85,22 +85,13 @@ describe('engine analysis over the game socket', () => {
     a.close();
   });
 
-  it('reviews a game move by move', async () => {
+  it('no longer grades game reviews on the server', async () => {
     const a = await client('guest:Reviewer');
-    a.send({ t: 'review', id: 3, moves: ['e2e4', 'e7e5', 'g1f3'] });
-    const progress = (await a.next((m) => m.t === 'reviewProgress')) as Extract<ServerMessage, { t: 'reviewProgress' }>;
-    expect(progress.total).toBe(4);
-    const r = (await a.next((m) => m.t === 'reviewResult')) as Extract<ServerMessage, { t: 'reviewResult' }>;
-    expect(r.review.moves.map((m) => m.san)).toEqual(['e4', 'e5', 'Nf3']);
-    expect(r.review.moves[0]!.judgement.classification).toBe('book');
-    a.close();
-  });
-
-  it('rejects illegal move lists', async () => {
-    const a = await client('guest:Reviewer');
-    a.send({ t: 'review', id: 4, moves: ['e2e5'] });
+    const before = engine.searches.length;
+    a.send({ t: 'review', id: 3, moves: ['e2e4', 'e7e5', 'g1f3'] } as unknown as ClientMessage);
     const e = (await a.next((m) => m.t === 'error')) as Extract<ServerMessage, { t: 'error' }>;
-    expect(e).toMatchObject({ code: 'bad_request', id: 4 });
+    expect(e.code).toBe('bad_request');
+    expect(engine.searches.length).toBe(before);
     a.close();
   });
 
@@ -119,19 +110,19 @@ describe('engine analysis over the game socket', () => {
 
     a.send({ t: 'analyze', id: 5, fen: '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1' });
     expect(await a.next((m) => m.t === 'error')).toMatchObject({ code: 'engine_locked', id: 5 });
-    a.send({ t: 'review', id: 6, moves: [], gameId: start.game.gameId });
-    expect(await a.next((m) => m.t === 'error')).toMatchObject({ code: 'engine_locked', id: 6 });
 
     // Someone else asking about the exact live position is refused too.
     spy.send({ t: 'analyze', id: 7, fen: 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1' });
     expect(await spy.next((m) => m.t === 'error')).toMatchObject({ code: 'engine_locked', id: 7 });
 
-    // After the game ends, the review is available.
+    // After the game ends, analysis is available again, and the server does not grade the game.
+    const before = engine.searches.length;
     a.send({ t: 'resign', gameId: start.game.gameId });
     await a.next((m) => m.t === 'gameOver');
-    a.send({ t: 'review', id: 8, moves: [], gameId: start.game.gameId });
-    const r = (await a.next((m) => m.t === 'reviewResult')) as Extract<ServerMessage, { t: 'reviewResult' }>;
-    expect(r.review.moves.map((m) => m.uci)).toEqual(['e2e4']);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(engine.searches.length).toBe(before);
+    a.send({ t: 'analyze', id: 8, fen: '8/8/8/4k3/8/8/4P3/4K3 w - - 0 1' });
+    expect(await a.next((m) => m.t === 'analysis' && m.done)).toMatchObject({ id: 8 });
     for (const c of [a, b, spy]) c.close();
   });
 });

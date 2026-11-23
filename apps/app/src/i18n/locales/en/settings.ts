@@ -20,6 +20,9 @@ export const settings = {
     titleNative: 'Sound and vibration',
     vibration: 'Vibration',
     vibrationDetail: 'A light buzz on moves, captures, checks and game end',
+    silentMode: 'Play sounds on silent',
+    silentModeDetailIos: 'Off: the silent switch mutes game sounds',
+    silentModeDetailAndroid: 'Off: silent and vibrate modes mute game sounds',
   },
   gameplay: {
     title: 'Gameplay',
@@ -29,7 +32,9 @@ export const settings = {
     always: 'Always',
     confirmResign: 'Confirm before resigning',
     premoves: 'Premoves',
-    premovesDetail: 'Queue your next move while your opponent is thinking. Tap elsewhere or right-click to cancel.',
+    premovesDetail: 'Queue your next moves while your opponent is thinking (several in a row on the web, one on phones). Tap elsewhere or right-click to cancel.',
+    autoQueen: 'Always promote to a queen',
+    autoQueenDetail: 'Off: choose a queen, rook, bishop or knight each time a pawn promotes.',
   },
   notifications: {
     title: 'Notifications',

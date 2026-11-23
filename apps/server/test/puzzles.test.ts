@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PuzzleApi } from '../src/puzzles/api';
 import { importPuzzleLines, openPuzzleCsv } from '../src/puzzles/importer';
-import { SEED_CSV } from '../src/puzzles/setup';
+import { BUNDLED_COUNT, BUNDLED_CSV, SEED_CSV } from '../src/puzzles/setup';
 import { SqlitePuzzleStore } from '../src/puzzles/store';
 import { ChessServer } from '../src/server';
 
@@ -112,4 +112,16 @@ describe('puzzle API', () => {
     const health = await fetch(base.replace('/api/puzzles', '/health'));
     expect(health.status).toBe(200);
   });
+});
+
+describe('bundled puzzles', () => {
+  it('every bundled Lichess puzzle is legal and readable', async () => {
+    const store = new SqlitePuzzleStore(':memory:');
+    const r = await importPuzzleLines(store, await openPuzzleCsv(BUNDLED_CSV), { validate: true });
+    expect(r.imported).toBe(BUNDLED_COUNT);
+    expect(r.skipped).toBe(0);
+    expect(store.count()).toBe(BUNDLED_COUNT);
+    // Plenty at every level.
+    for (const rating of [700, 1000, 1500, 2000, 2400]) expect(store.pick({ rating, window: 150 })).not.toBeNull();
+  }, 120_000);
 });

@@ -15,6 +15,8 @@ export const auth = {
     weak_password: 'Pick a stronger password: at least 8 characters, ideally mixing letters, numbers and symbols.',
     invalid_token: 'This link has expired or was already used. Request a new one.',
     rate_limited: 'Too many attempts. Wait a minute and try again.',
+    account_closed: 'This account has been closed. Contact support if you think this is a mistake.',
+    account_closed_fair_play: 'This account was closed for violating the fair play policy.',
   },
   welcome: {
     rated: 'Rated games, any time',
