@@ -4,12 +4,13 @@ import {
   resolveChallengeColor,
   decodeClient,
   encode,
+  formatTimeControl,
   positionKey,
-  START_FEN,
   timeCategory,
   type Challenge,
   type ChallengeEndReason,
   type ClientMessage,
+  type GameVariant,
   type Color,
   type ColorChoice,
   type ErrorCode,
@@ -18,6 +19,7 @@ import {
   type LiveGameEntry,
   type Presence,
   type Rating,
+  type RatingCategory,
   type ServerMessage,
   canSeekRated,
   sanitizeRatingRange,
@@ -26,7 +28,9 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './challenges';
-import { handleAdmin } from './admin';
+import { handleAdmin } from './admin/tokenApi';
+import { CLOSE_ACCOUNT_CLOSED, adminRoutes, type AdminBridge, type AdminService } from './admin';
+import { titleRoutes } from './titles';
 import { CoachService } from './coach/coachService';
 import { createCoachHttpHandler } from './coach/http';
 import type { AnalysisService } from './engine/analysisService';
@@ -34,12 +38,27 @@ import { GameRoom, type MoveError } from './gameRoom';
 import type { HttpRoute } from './auth/http';
 import type { AuthService } from './auth/service';
 import { GuestSessions } from './guestSessions';
-import { Matchmaker, type MatchOptions } from './matchmaker';
+import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
+import { messageRoutes } from './messages/http';
+import { tournamentRoutes } from './tournaments/http';
+import { communityRoutes } from './community/http';
+import { awardsRoutes } from './awards/http';
+import type { EventService } from './watch/events';
+import { watchRoutes } from './watch/http';
+import type { StreamerService } from './watch/streamers';
+import type { BroadcastAnalyzer } from './watch/analysis';
+import type { BroadcastSync } from './watch/sync';
+import { AwardsService, gameFacts } from './awards/service';
+import { habitsRoutes } from './habits/http';
+import { PlayHabitsService } from './habits/service';
+import type { CommunityService } from './community/service';
+import type { MessageService } from './messages/service';
+import type { TournamentService } from './tournaments/service';
 import { OpenGames } from './openGames';
 import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
 import { MemoryPlayerStore, authenticate, devViewerId, isGuest, playerInfo, type Player, type PlayerStore } from './players';
-import { handlePublicApi, type PublicApiDeps, type ServerStats } from './publicApi';
+import { handlePublicApi, type FeaturedGame, type PublicApiDeps, type ServerStats } from './publicApi';
 import { RatingService } from './ratingService';
 import { Moderation } from './moderation';
 import {
@@ -98,6 +117,23 @@ export interface ServerOptions {
   social?: SocialService;
   /** Bearer token to account id for the social API. Defaults to dev tokens outside production. */
   resolveUser?: ResolveUser;
+  /** Staff console (/api/admin): roles, account closure, audit log. Needs `auth` and the database. */
+  admin?: AdminService;
+  /** Direct messages (database mode). */
+  messages?: MessageService;
+  /** Arena tournaments (database mode). */
+  tournaments?: TournamentService;
+  /** News and forum (database mode). */
+  community?: CommunityService;
+  /** Watch: streamers and broadcast events. */
+  streamers?: StreamerService;
+  events?: EventService;
+  broadcastSync?: BroadcastSync;
+  /** Live engine analysis of broadcast games. */
+  broadcastAnalyzer?: BroadcastAnalyzer;
+  /** Play limits and streaks. In memory when not given. */
+  habits?: PlayHabitsService;
+  awards?: AwardsService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -113,6 +149,11 @@ interface Connection {
 
 /** Close code sent to an account closed for fair-play violations. */
 export const CLOSE_FAIR_PLAY_BAN = 4010;
+
+/** Messages a fair-play restricted player may not send: anything that starts or joins a game, or talks to opponents. */
+const RESTRICTED_ACTIONS: ReadonlySet<ClientMessage['t']> = new Set(['seek', 'createOpenGame', 'joinOpenGame', 'rematch', 'challengeCreate', 'challengeAccept', 'chat']);
+/** Every way to start a game: refused while the player's own play limit has them on a break. */
+const PLAY_ACTIONS: ReadonlySet<ClientMessage['t']> = new Set(['seek', 'createOpenGame', 'joinOpenGame', 'rematch', 'challengeCreate', 'challengeAccept']);
 /** Close code for clients that keep ignoring rate limits. */
 export const CLOSE_RATE_LIMITED = 4008;
 
@@ -158,6 +199,9 @@ export class ChessServer {
   private readonly limits: RateLimitConfig;
   private readonly ipLimiter: IpLimiter;
   readonly notifications: NotificationService;
+  /** Play limits and streaks. */
+  readonly habits: PlayHabitsService;
+  readonly awards: AwardsService;
 
   constructor(private readonly opts: ServerOptions) {
     this.store = opts.store ?? new MemoryPlayerStore();
@@ -169,6 +213,8 @@ export class ChessServer {
     const api: PublicApiDeps = {
       leaderboards: opts.leaderboards ?? new Leaderboards(new MemoryLeaderboardSource(() => store.all?.() ?? [])),
       stats: () => this.stats(),
+      featured: () => this.featuredGame(),
+      featuredList: (limit) => this.featuredGames(limit),
       viewerFor: opts.viewerFor ?? devViewerId,
     };
     this.moderation = opts.moderation ?? new Moderation(undefined, this.now);
@@ -179,8 +225,12 @@ export class ChessServer {
       ...fp,
       analyzer: fp.analyzer === undefined ? analyzerFromEnv() : fp.analyzer,
       now: fp.now ?? this.now,
+      refund: fp.refund ?? ((r) => void this.adjustRating(r.playerId, r.category, r.points, `refund:${r.gameId}`)),
     });
-    this.fairPlay.onBan = (id) => this.kickBanned(id);
+    this.fairPlay.onBan = (id) => {
+      opts.admin?.onFairPlayBan(id);
+      this.restrictPlayer(id);
+    };
     const admin = createAdminHandler(this.fairPlay, fp.adminToken ?? process.env.FAIRPLAY_ADMIN_TOKEN);
     const coachHttp = createCoachHttpHandler({
       service: opts.coach ?? new CoachService(),
@@ -205,12 +255,110 @@ export class ChessServer {
     const httpAuth: HttpAuth = opts.httpAuth ?? ((t) => accountAuth?.(t) ?? devHttpAuth(t));
     this.social = opts.social;
     const routes = [...(opts.http ?? [])];
+    if (opts.admin && opts.auth) {
+      opts.admin.attach(this.adminBridge(fp.analyzer === undefined ? !!process.env.STOCKFISH_PATH : !!fp.analyzer));
+      routes.push(adminRoutes(opts.admin, opts.auth));
+      routes.push(titleRoutes(opts.admin.titles, opts.auth));
+    }
+    if (opts.streamers && opts.events) {
+      const notify = (userId: string, title: string, body: string, url: string | null) => void this.notifications.notify(userId, { kind: 'system', title, body, url });
+      const titles = opts.admin?.titles;
+      opts.streamers.attach({
+        notify,
+        // The streamer badge, unless the player already wears another official tag.
+        setStreamerTag: async (userId, on) => {
+          if (!titles) return;
+          const tag = titles.roleTagOf(userId);
+          if (on && !tag) await titles.setRoleTag(userId, 'streamer');
+          if (!on && tag === 'streamer') await titles.setRoleTag(userId, null);
+        },
+      });
+      opts.events.attach({ notify, gamesChanged: (ids) => opts.broadcastAnalyzer?.gamesChanged(ids) });
+      routes.push(
+        watchRoutes({
+          streamers: opts.streamers,
+          events: opts.events,
+          sync: opts.broadcastSync,
+          resolveUser: opts.resolveUser ?? devResolveUser,
+          roleOf: (id) => opts.admin?.roleOf(id) ?? 'user',
+        }),
+      );
+    }
+    this.awards = opts.awards ?? new AwardsService();
+    this.awards.attach({
+      earned: (userId, earned, gameId) => {
+        for (const ws of this.sockets.get(userId) ?? []) this.send(ws, { t: 'awards', gameId, earned });
+        void this.notifications.notify(userId, {
+          kind: 'system',
+          title: earned.length === 1 ? 'Award unlocked' : `${earned.length} awards unlocked`,
+          body: 'See your new award in Awards.',
+          url: '/awards',
+        });
+      },
+    });
+    routes.push(awardsRoutes(this.awards, opts.resolveUser ?? devResolveUser));
+    this.habits = opts.habits ?? new PlayHabitsService();
+    routes.push(habitsRoutes(this.habits, opts.resolveUser ?? devResolveUser, (id, until) => this.startBreak(id, until)));
+    if (opts.community) {
+      routes.push(communityRoutes(opts.community, opts.resolveUser ?? devResolveUser));
+      opts.community.attach({
+        // Closed accounts and chat mutes can read but not post.
+        blockedReason: (id) =>
+          this.restrictionOf(id) ? 'Your account is restricted, so you cannot post' : this.moderation.activeBan(id) ? 'You are muted for now, so you cannot post' : null,
+        notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'message', title, body, url }),
+      });
+    }
+    if (opts.tournaments) {
+      routes.push(tournamentRoutes(opts.tournaments, opts.resolveUser ?? devResolveUser));
+      opts.tournaments.attach({
+        isOnline: (id) => (this.sockets.get(id)?.size ?? 0) > 0 && !this.restrictionOf(id) && !this.habits.lockOf(id),
+        liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
+        rating: (id, tc) => {
+          const r = this.ratings.forTimeControl(id, tc, this.now());
+          return { rating: r.rating, games: r.games };
+        },
+        startGame: (whiteId, blackId, tc, rated, tournamentId, frenzy) => {
+          const w = this.store.get(whiteId);
+          const b = this.store.get(blackId);
+          if (!w || !b || this.activeRoomOf(whiteId) || this.activeRoomOf(blackId)) return null;
+          return this.createGame(w, b, tc, rated, this.now(), { tournamentId, frenzy }).id;
+        },
+        notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'tournament', title, body, url }),
+      });
+    }
+    if (opts.messages) {
+      routes.push(messageRoutes(opts.messages, opts.resolveUser ?? devResolveUser));
+      opts.messages.attach((ids, event) => {
+        for (const id of ids) for (const ws of this.sockets.get(id) ?? []) this.send(ws, { t: 'social', event });
+      }, this.notifications);
+    }
     if (this.social) {
       routes.push(socialRoutes(this.social, opts.resolveUser ?? devResolveUser));
       this.social.attach(
         { presence: (id) => this.presenceOf(id), liveGames: (ids) => this.liveGamesOf(ids) },
         (ids, event) => {
           for (const id of ids) for (const ws of this.sockets.get(id) ?? []) this.send(ws, { t: 'social', event });
+          // Friend requests and acceptances also reach the inbox, push and the in-app banner.
+          if (event.kind === 'friendRequest') {
+            for (const id of ids)
+              this.notifications.notify(id, {
+                kind: 'friend_request',
+                title: `${event.from.displayName || event.from.username} sent you a friend request`,
+                body: 'Tap to accept or decline',
+                url: `/friends/user/${event.from.id}`,
+                data: { from: event.from.id },
+                collapseKey: `friend:${event.from.id}`,
+              });
+          } else if (event.kind === 'friendAccepted') {
+            for (const id of ids)
+              this.notifications.notify(id, {
+                kind: 'friend_accepted',
+                title: `${event.by.displayName || event.by.username} accepted your friend request`,
+                body: 'You are now friends',
+                url: `/friends/user/${event.by.id}`,
+                data: { from: event.by.id },
+              });
+          }
         },
       );
     }
@@ -265,6 +413,7 @@ export class ChessServer {
 
   async close(): Promise<void> {
     clearInterval(this.matchTimer);
+    this.opts.tournaments?.stop();
     await this.fairPlay.close();
     this.opts.analysis?.close();
     for (const t of [...this.timers.values(), ...this.graceTimers.values()]) clearTimeout(t);
@@ -314,7 +463,8 @@ export class ChessServer {
             ? this.store.get(resumed)
             : undefined;
       if (!player) return ws.close(4003, 'unauthorized');
-      if (this.fairPlay.isBanned(player.id)) return ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
+      // Fair-play bans keep the player connected (watching, analysis, notifications) but out of online play.
+      if (this.opts.admin?.isClosed(player.id) && this.opts.admin.closedReasonOf(player.id) !== 'fair_play') return ws.close(CLOSE_ACCOUNT_CLOSED, 'account closed');
       conn.player = player;
       const set = this.sockets.get(player.id) ?? new Set();
       const wasOnline = set.size > 0;
@@ -329,6 +479,8 @@ export class ChessServer {
         v: PROTOCOL_VERSION,
         player: playerInfo(player, this.ratings.get(player.id, 'blitz', this.now())),
         resumeToken: isGuest(player) ? this.guests.issue(player.id) : undefined,
+        restricted: this.restrictionOf(player.id),
+        playLock: this.habits.lockOf(player.id),
       });
       this.resume(ws, player.id, !wasOnline);
       const now = this.now();
@@ -340,6 +492,13 @@ export class ChessServer {
     const player = conn.player;
     if (!player) return this.send(ws, err('unauthorized', 'Say hello first'));
     const now = this.now();
+    if (RESTRICTED_ACTIONS.has(msg.t) && this.restrictionOf(player.id)) {
+      return this.send(ws, err('account_restricted', 'Your account is closed for a fair play violation, so online play is turned off'));
+    }
+    if (PLAY_ACTIONS.has(msg.t) && this.habits.lockOf(player.id)) {
+      this.send(ws, { t: 'playLock', until: this.habits.lockOf(player.id) });
+      return this.send(ws, err('play_locked', 'Break time: your play limit is on until your break ends'));
+    }
 
     switch (msg.t) {
       case 'ping':
@@ -354,10 +513,12 @@ export class ChessServer {
           rating: r.rating,
           rd: r.rd,
           timeControl: tc,
-          rated: !!msg.rated && canSeekRated(isGuest(player)),
+          rated: !!msg.rated && canSeekRated(isGuest(player)) && msg.variant !== 'secretQueen',
           createdAt: now,
           ratingRange: sanitizeRatingRange(msg.ratingRange, r.rating) ?? undefined,
           range: validWindow(msg.range),
+          color: msg.color === 'w' || msg.color === 'b' ? msg.color : undefined,
+          variant: msg.variant === 'secretQueen' ? 'secretQueen' : undefined,
         });
         this.markLobbyDirty();
         this.toPlayer(player.id, { t: 'seeking', timeControl: tc });
@@ -419,6 +580,7 @@ export class ChessServer {
         const color = room.colorOf(player.id);
         if (color) {
           this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+          if (room.secret) this.send(ws, { t: 'secret', gameId: room.id, square: room.secret.secretOf(color), canPick: room.secret.canPick(color) });
           return this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
         }
         return this.send(ws, { t: 'gameState', game: room.snapshot(now) });
@@ -428,11 +590,30 @@ export class ChessServer {
         if (!room) return this.send(ws, err('not_found', 'No such game'));
         const res = room.move(player.id, msg.uci, msg.ply, now);
         if (typeof res === 'string') {
+          const revealed = room.secret?.takeRejectedReveal();
+          if (revealed) {
+            // Secret Queen: the move was illegal only because of the hidden queen. Everyone sees it now.
+            this.send(ws, err('illegal_move', 'That move is illegal: the secret queen was revealed'));
+            this.broadcast(room, { t: 'gameState', game: room.snapshot(now) });
+            this.sendSecrets(room);
+            return;
+          }
           // Re-sync the client so its board matches the server.
           this.send(ws, err(res as MoveError, moveErrorText(res)));
           this.send(ws, { t: 'gameState', game: room.snapshot(now) });
         }
         return;
+      }
+      case 'secretPick': {
+        const room = this.rooms.get(msg.gameId);
+        const color = room?.colorOf(player.id);
+        if (!room || !color) return this.send(ws, err('not_found', 'No such game'));
+        if (!room.pickSecret(player.id, msg.square)) {
+          // Already chosen (the choice is final) or not a pawn: tell the app what really stands.
+          this.send(ws, { t: 'secret', gameId: room.id, square: room.secret?.secretOf(color) ?? null, canPick: !!room.secret?.canPick(color) });
+          return this.send(ws, err('bad_request', 'Pick one of your pawns before your first move'));
+        }
+        return this.send(ws, { t: 'secret', gameId: room.id, square: room.secret!.secretOf(color), canPick: room.secret!.canPick(color) });
       }
       case 'watch': {
         const room = this.rooms.get(String(msg.gameId));
@@ -458,6 +639,12 @@ export class ChessServer {
         return void this.withRoom(ws, msg.gameId, (r) => r.resign(player.id, now));
       case 'abort':
         return void this.withRoom(ws, msg.gameId, (r) => r.abort(player.id, now));
+      case 'frenzy':
+        return void this.withRoom(ws, msg.gameId, (r) => {
+          const ok = r.goFrenzy(player.id);
+          if (ok) this.broadcast(r, { t: 'gameState', game: r.snapshot(now) });
+          return ok;
+        });
       case 'offerDraw':
         return void this.withRoom(ws, msg.gameId, (r) => r.offerDraw(player.id));
       case 'acceptDraw':
@@ -497,7 +684,6 @@ export class ChessServer {
       }
       case 'analyze':
       case 'analyzeStop':
-      case 'review':
         return this.onAnalysisMessage(player, ws, msg);
       default:
         return this.send(ws, err('bad_request', 'Unknown message'));
@@ -511,7 +697,7 @@ export class ChessServer {
    * position that is currently on the board in a live game (so a second
    * account cannot be used to look up moves).
    */
-  private onAnalysisMessage(player: Player, ws: WebSocket, msg: Extract<ClientMessage, { t: 'analyze' | 'analyzeStop' | 'review' }>) {
+  private onAnalysisMessage(player: Player, ws: WebSocket, msg: Extract<ClientMessage, { t: 'analyze' | 'analyzeStop' }>) {
     const analysis = this.opts.analysis;
     if (msg.t === 'analyzeStop') return analysis?.stop(player.id, msg.id);
     const id = Number(msg.id);
@@ -520,28 +706,13 @@ export class ChessServer {
     if (this.activeRoomOf(player.id)) return locked();
     const send = (m: ServerMessage) => this.send(ws, m);
 
-    if (msg.t === 'analyze') {
-      if (typeof msg.fen !== 'string' || msg.fen.length > 120) return this.send(ws, { ...err('bad_request', 'Invalid position'), id });
-      if (this.isLivePosition(msg.fen)) return locked();
-      void analysis.analyze(player.id, { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined }, send);
-      return;
-    }
-
-    let moves: string[];
-    let initialFen: string;
-    if (msg.gameId) {
-      const room = this.rooms.get(String(msg.gameId));
-      if (room && !room.outcome) return locked();
-      moves = room ? room.game.uciHistory() : msg.moves;
-      initialFen = room ? room.initialFen : (msg.initialFen ?? START_FEN);
-    } else {
-      moves = msg.moves;
-      initialFen = msg.initialFen ?? START_FEN;
-    }
-    if (!Array.isArray(moves) || !moves.every((m) => typeof m === 'string') || typeof initialFen !== 'string') {
-      return this.send(ws, { ...err('bad_request', 'Invalid move list'), id });
-    }
-    void analysis.review(player.id, { id, moves, initialFen }, send);
+    if (typeof msg.fen !== 'string' || msg.fen.length > 120) return this.send(ws, { ...err('bad_request', 'Invalid position'), id });
+    if (this.isLivePosition(msg.fen)) return locked();
+    void analysis.analyze(
+      player.id,
+      { id, fen: msg.fen, multipv: Number(msg.multipv) || 1, depth: Number(msg.depth) || undefined, movetimeMs: Number(msg.movetimeMs) || undefined },
+      send,
+    );
   }
 
   private isLivePosition(fen: string): boolean {
@@ -591,11 +762,64 @@ export class ChessServer {
     );
   }
 
+  /** Moves a rating without counting a game (refunds, staff corrections), in memory and in the database. */
+  adjustRating(userId: string, category: RatingCategory, delta: number, sourceId: string) {
+    const res = this.ratings.adjust(userId, category, delta, sourceId, this.now());
+    this.opts.persistence?.ratingAdjusted?.(userId, category, res.after);
+    return res;
+  }
+
+  /** What the staff console reads and controls on the live server. */
+  private adminBridge(analysisEnabled: boolean): AdminBridge {
+    return {
+      moderation: this.moderation,
+      fairPlay: this.fairPlay,
+      ratings: this.ratings,
+      notifications: this.notifications,
+      analysisEnabled,
+      live: () => {
+        const s = this.stats();
+        return { playersOnline: s.playersOnline, gamesInProgress: s.gamesInProgress, playersSeeking: s.playersSeeking };
+      },
+      isOnline: (id) => this.sockets.has(id),
+      liveGameOf: (id) => this.activeRoomOf(id)?.id ?? null,
+      restrict: (id) => this.restrictPlayer(id),
+      disconnect: (id, code, reason) => {
+        this.matchmaker.remove(id);
+        if (this.openGames.removeBy(id)) this.markLobbyDirty();
+        this.activeRoomOf(id)?.resign(id, this.now());
+        for (const ws of this.sockets.get(id) ?? []) ws.close(code, reason);
+      },
+      adjustRating: (id, category, delta, sourceId) => this.adjustRating(id, category, delta, sourceId),
+      room: (id) => this.rooms.get(id),
+      spectators: (id) => this.spectators.get(id)?.size ?? 0,
+      terminate: (id) => this.rooms.get(id)?.terminate(this.now()) ?? false,
+    };
+  }
+
   /** Disconnects a banned account and forfeits its live game. */
-  private kickBanned(playerId: string) {
+  /** Why this player may not play online right now (fair-play ban), or null. */
+  restrictionOf(playerId: string): 'fair_play' | null {
+    return this.fairPlay.isBanned(playerId) || this.opts.admin?.closedReasonOf(playerId) === 'fair_play' ? 'fair_play' : null;
+  }
+
+  /**
+   * Takes a fair-play banned player out of online play: the search, open game
+   * and live game end, and their open apps switch to the restricted view. They
+   * stay connected so they can still watch, analyse and read notifications.
+   */
+  private restrictPlayer(playerId: string) {
     this.matchmaker.remove(playerId);
+    if (this.openGames.removeBy(playerId)) this.markLobbyDirty();
     this.activeRoomOf(playerId)?.resign(playerId, this.now());
-    for (const ws of this.sockets.get(playerId) ?? []) ws.close(CLOSE_FAIR_PLAY_BAN, 'account closed for fair play violation');
+    this.toPlayer(playerId, { t: 'restricted', reason: this.restrictionOf(playerId) });
+  }
+
+  /** The player's play limit started a break: out of the search and open games, and their apps lock play. */
+  private startBreak(playerId: string, until: number) {
+    this.matchmaker.remove(playerId);
+    if (this.openGames.removeBy(playerId)) this.markLobbyDirty();
+    this.toPlayer(playerId, { t: 'playLock', until });
   }
 
   private cancelGrace(playerId: string) {
@@ -612,6 +836,7 @@ export class ChessServer {
     if (room) {
       const color = room.colorOf(playerId)!;
       this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
+      if (room.secret) this.send(ws, { t: 'secret', gameId: room.id, square: room.secret.secretOf(color), canPick: room.secret.canPick(color) });
       this.send(ws, { t: 'chatHistory', gameId: room.id, lines: this.moderation.chatLog(room.id) });
       const oppId = color === 'w' ? room.black.id : room.white.id;
       if (!this.sockets.has(oppId)) {
@@ -639,7 +864,7 @@ export class ChessServer {
       const white = this.store.get(room.black.id);
       const black = this.store.get(room.white.id);
       if (!white || !black) return this.send(ws, err('not_found', 'Player not found'));
-      this.createGame(white, black, room.timeControl, room.rated, now);
+      this.createGame(white, black, room.timeControl, room.rated, now, { variant: room.variant });
       return;
     }
     this.rematchOffers.set(room.id, color);
@@ -690,6 +915,41 @@ export class ChessServer {
 
   // ---- challenges and invite links ----
 
+  private createChallenge(
+    player: Player,
+    ws: WebSocket,
+    to: Player | null,
+    msg: Extract<ClientMessage, { t: 'challengeCreate' }>,
+    now: number,
+  ) {
+    const tc = msg.timeControl;
+    const created = this.challenges.create(
+      {
+        from: playerInfo(player, this.ratings.forTimeControl(player.id, tc, this.now())),
+        to: to && playerInfo(to, this.ratings.forTimeControl(to.id, tc, this.now())),
+        timeControl: tc,
+        // Guests never play rated; an open invite is re-checked when someone accepts.
+        rated: !!msg.rated && !isGuest(player) && (!to || !isGuest(to)),
+        color: msg.color,
+      },
+      now,
+    );
+    if (typeof created === 'string') return this.send(ws, challengeErr(created));
+    this.sendToPlayer(player.id, { t: 'challenge', challenge: created });
+    if (to) {
+      this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
+      // Inbox, push when away, and the in-app banner wherever they are in the app.
+      this.notifications.notify(to.id, {
+        kind: 'challenge',
+        title: `${created.from.name} challenges you`,
+        body: `${formatTimeControl(tc)} ${created.rated ? 'rated' : 'casual'} · tap to accept or decline`,
+        url: `/play/online?challenge=${created.id}`,
+        data: { challengeId: created.id, from: player.id },
+        collapseKey: `challenge:${player.id}`,
+      });
+    }
+  }
+
   private onChallengeMessage(
     player: Player,
     ws: WebSocket,
@@ -697,8 +957,7 @@ export class ChessServer {
     now: number,
   ) {
     if (msg.t === 'challengeCreate') {
-      const tc = msg.timeControl;
-      if (!validTimeControl(tc)) return this.send(ws, err('bad_request', 'Invalid time control'));
+      if (!validTimeControl(msg.timeControl)) return this.send(ws, err('bad_request', 'Invalid time control'));
       if (!['w', 'b', 'random'].includes(msg.color)) return this.send(ws, err('bad_request', 'Invalid colour'));
       if (this.activeRoomOf(player.id)) return this.send(ws, err('busy', 'Finish your current game first'));
       let to: Player | null = null;
@@ -706,21 +965,21 @@ export class ChessServer {
         to = typeof msg.to === 'string' ? (this.store.get(msg.to) ?? null) : null;
         if (!to) return this.send(ws, err('not_found', 'No such player'));
       }
-      const created = this.challenges.create(
-        {
-          from: playerInfo(player, this.ratings.forTimeControl(player.id, tc, this.now())),
-          to: to && playerInfo(to, this.ratings.forTimeControl(to.id, tc, this.now())),
-          timeControl: tc,
-          // Guests never play rated; an open invite is re-checked when someone accepts.
-          rated: !!msg.rated && !isGuest(player) && (!to || !isGuest(to)),
-          color: msg.color,
-        },
-        now,
-      );
-      if (typeof created === 'string') return this.send(ws, challengeErr(created));
-      this.sendToPlayer(player.id, { t: 'challenge', challenge: created });
-      if (to) this.sendToPlayer(to.id, { t: 'challenge', challenge: created });
-      return;
+      if (to && this.social) {
+        // "Who can challenge me" (Settings → Privacy) and blocks, checked before anything is created.
+        const target = to;
+        return void this.social
+          .canChallenge(player.id, target.id)
+          .then((refusal) => {
+            if (refusal) return this.send(ws, err('forbidden', refusal));
+            this.createChallenge(player, ws, target, msg, now);
+          })
+          .catch((e) => {
+            console.error('challenge privacy check failed', e);
+            this.send(ws, err('bad_request', 'Something went wrong'));
+          });
+      }
+      return this.createChallenge(player, ws, to, msg, now);
     }
 
     if (!isChallengeId(msg.id)) return this.send(ws, err('bad_request', 'Invalid challenge id'));
@@ -778,16 +1037,17 @@ export class ChessServer {
 
   private runMatching(now: number) {
     for (const c of this.challenges.sweep(now)) this.notifyChallengeGone(c, 'expired');
-    for (const { a, b } of this.matchmaker.tick(now)) {
+    for (const pairing of this.matchmaker.tick(now)) {
+      const { a, b } = pairing;
       const pa = this.store.get(a.playerId);
       const pb = this.store.get(b.playerId);
       if (!pa || !pb) continue;
-      const [white, black] = Math.random() < 0.5 ? [pa, pb] : [pb, pa];
-      this.createGame(white, black, a.timeControl, a.rated && b.rated, now);
+      const [white, black] = whiteOf(pairing) === a ? [pa, pb] : [pb, pa];
+      this.createGame(white, black, a.timeControl, a.rated && b.rated, now, { variant: a.variant });
     }
   }
 
-  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number): GameRoom {
+  createGame(white: Player, black: Player, tc: GameRoom['timeControl'], rated: boolean, now: number, extra: { tournamentId?: string; variant?: GameVariant; frenzy?: boolean } = {}): GameRoom {
     const id = randomUUID().slice(0, 8);
     for (const p of [white, black]) {
       this.matchmaker.remove(p.id);
@@ -799,21 +1059,56 @@ export class ChessServer {
       playerInfo(white, this.ratings.forTimeControl(white.id, tc, now)),
       playerInfo(black, this.ratings.forTimeControl(black.id, tc, now)),
       tc,
-      rated,
+      extra.variant === 'secretQueen' ? false : rated,
       now,
       {
       onMove: (r, m) => {
         const t = this.now();
-        this.opts.persistence?.moveMade(r, m);
-        this.broadcast(r, { t: 'moved', gameId: r.id, uci: m.uci, san: m.san, ply: r.game.ply, clock: r.clock, serverNow: t });
+        // Secret Queen moves cannot be replayed with standard rules: those games are not stored.
+        if (!r.secret) this.opts.persistence?.moveMade(r, m);
+        this.broadcast(r, {
+          t: 'moved',
+          gameId: r.id,
+          uci: m.uci,
+          san: m.san,
+          ply: r.game.ply,
+          clock: r.clock,
+          serverNow: t,
+          ...(r.secret ? { fen: r.secret.fen, reveals: r.secret.lastReveals() } : {}),
+        });
+        if (r.secret) this.sendSecrets(r);
         this.schedule(r);
         this.notifyTurnIfAway(r, m.san);
       },
       onDrawOffer: (r, by) => this.broadcast(r, { t: 'drawOffered', gameId: r.id, by }),
       onEnd: (r, outcome) => {
         const { change: ratingChange, unrated } = this.applyRatings(r);
-        this.opts.persistence?.gameEnded(r, outcome, ratingChange);
+        if (r.tournamentId) this.opts.tournaments?.gameEnded(r.tournamentId, r.id, outcome, { ...r.frenzy });
+        // Streaks and play limits count every finished game of an account.
         if (outcome.reason !== 'aborted') {
+          for (const p of [r.white, r.black]) {
+            if (!isAccountId(p.id)) continue;
+            void this.habits
+              .gameFinished(p.id)
+              .then(({ view, lockedNow }) => {
+                if (lockedNow && view.lockedUntil) this.startBreak(p.id, view.lockedUntil);
+              })
+              .catch((e) => console.warn(`habits update failed for ${p.id}:`, e));
+          }
+        }
+        // Awards: standard games of accounts (Secret Queen positions do not follow normal rules).
+        if (outcome.reason !== 'aborted' && !r.secret) {
+          for (const [p, c, opp] of [
+            [r.white, 'w', r.black],
+            [r.black, 'b', r.white],
+          ] as const) {
+            if (!isAccountId(p.id)) continue;
+            const facts = gameFacts(r, outcome, c, ratingChange?.[c].after.rating ?? null, isAccountId(opp.id) ? opp.id : null);
+            void this.awards.gameFinished(p.id, facts).catch((e) => console.warn(`awards update failed for ${p.id}:`, e));
+          }
+        }
+        if (!r.secret) this.opts.persistence?.gameEnded(r, outcome, ratingChange);
+        if (outcome.reason !== 'aborted' && !r.secret) {
           this.fairPlay.gameFinished({
             gameId: r.id,
             initialFen: r.initialFen,
@@ -830,7 +1125,7 @@ export class ChessServer {
             },
           });
         }
-        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated });
+        this.broadcast(r, { t: 'gameOver', gameId: r.id, outcome, ratingChange, unrated, ...(r.secret ? { secrets: r.secret.allSecrets() } : {}) });
         clearTimeout(this.timers.get(r.id));
         this.timers.delete(r.id);
         for (const id of [r.white.id, r.black.id]) this.cancelGrace(id);
@@ -844,7 +1139,9 @@ export class ChessServer {
           this.moderation.forgetGame(r.id);
         }, 5 * 60_000).unref();
       },
-    });
+    }, undefined, extra.variant ?? 'standard');
+    room.tournamentId = extra.tournamentId ?? null;
+    room.frenzyAllowed = !!extra.tournamentId && !!extra.frenzy;
     this.rooms.set(id, room);
     this.opts.persistence?.gameStarted(room);
     // No engine help once a live game starts.
@@ -856,13 +1153,36 @@ export class ChessServer {
     ] as const) {
       for (const ws of this.sockets.get(p.id) ?? []) this.send(ws, { t: 'gameStart', game: room.snapshot(now), you: color });
     }
+    if (room.secret) this.sendSecrets(room);
     this.schedule(room);
     this.pushPresence(white.id);
     this.pushPresence(black.id);
     return room;
   }
 
+  /** Secret Queen: tells each player (only them) where their own secret pawn is. */
+  private sendSecrets(room: GameRoom) {
+    const g = room.secret;
+    if (!g) return;
+    for (const [p, color] of [
+      [room.white, 'w'],
+      [room.black, 'b'],
+    ] as const) {
+      this.toPlayer(p.id, { t: 'secret', gameId: room.id, square: g.secretOf(color), canPick: !room.outcome && g.canPick(color) });
+    }
+  }
+
   // ---- social: presence, spectators, activity ----
+
+  /** True while the player has at least one live socket open (any screen of the app). */
+  isOnline(userId: string): boolean {
+    return (this.sockets.get(userId)?.size ?? 0) > 0;
+  }
+
+  /** Id of the unfinished game this player is in, if any. */
+  liveGameOf(userId: string): string | null {
+    return this.activeRoomOf(userId)?.id ?? null;
+  }
 
   private presenceOf(userId: string): Presence {
     if (!this.sockets.has(userId)) return { status: 'offline' };
@@ -883,7 +1203,8 @@ export class ChessServer {
   /** Tells friends and followers that this user's presence changed. */
   private pushPresence(userId: string) {
     if (!this.social || !isAccountId(userId)) return;
-    const presence = this.presenceOf(userId);
+    // Players who hide their online status always look offline to others.
+    const presence = this.social.presenceFor(userId, this.presenceOf(userId));
     this.social
       .audience(userId)
       .then((ids) => {
@@ -976,6 +1297,61 @@ export class ChessServer {
     let gamesInProgress = 0;
     for (const r of this.rooms.values()) if (!r.outcome) gamesInProgress++;
     return { playersOnline: this.sockets.size, gamesInProgress, playersSeeking: this.matchmaker.size, serverNow: this.now() };
+  }
+
+  private featuredId: string | null = null;
+  private featuredSet: string[] = [];
+
+  private featuredOf(room: GameRoom): FeaturedGame {
+    return {
+      gameId: room.id,
+      white: room.white,
+      black: room.black,
+      timeControl: room.timeControl,
+      rated: room.rated,
+      ply: room.game.ply,
+      // Secret Queen: the public position, never the hidden one.
+      fen: room.secret ? room.secret.fen : room.game.fen,
+    };
+  }
+
+  /** Games in progress, games already under way first. */
+  private livePool(exclude: Set<string> = new Set()): GameRoom[] {
+    const live = [...this.rooms.values()].filter((r) => !r.outcome && !exclude.has(r.id));
+    const started = live.filter((r) => r.game.ply > 0);
+    return started.length ? started : live;
+  }
+
+  /**
+   * The Play tab's live board: a random game in progress. The pick sticks while that
+   * game lasts, so everyone opening the Play tab watches the same board, then moves on.
+   */
+  featuredGame(): FeaturedGame | null {
+    let room = this.featuredId ? this.rooms.get(this.featuredId) : undefined;
+    if (!room || room.outcome) {
+      const pool = this.livePool();
+      room = pool[Math.floor(Math.random() * pool.length)];
+      this.featuredId = room?.id ?? null;
+    }
+    return room ? this.featuredOf(room) : null;
+  }
+
+  /**
+   * Up to `limit` live games for the Play tab's swipeable boards. Like the single
+   * featured game, picks stick while they last; finished ones are replaced.
+   */
+  featuredGames(limit = 4): FeaturedGame[] {
+    const n = Math.max(1, Math.min(8, Math.floor(limit) || 4));
+    const kept = this.featuredSet.map((id) => this.rooms.get(id)).filter((r): r is GameRoom => !!r && !r.outcome);
+    const taken = new Set(kept.map((r) => r.id));
+    const pool = this.livePool(taken);
+    while (kept.length < n && pool.length) {
+      const room = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]!;
+      kept.push(room);
+      taken.add(room.id);
+    }
+    this.featuredSet = kept.slice(0, n).map((r) => r.id);
+    return kept.slice(0, n).map((r) => this.featuredOf(r));
   }
 
   getRoom(id: string) {

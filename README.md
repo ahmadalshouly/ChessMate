@@ -41,15 +41,24 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
 | `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
 | `puzzle.ts` | Puzzle CSV parsing, solving and hints, server-side grading, puzzle rating, streak/rush ladders, theme labels |
+| `secretQueen.ts` | Secret Queen variant: hidden queen-pawns, reveals, truth-based legality ([docs/secret-queen.md](docs/secret-queen.md)) |
+| `tournaments.ts` | Arena tournaments: points, streaks, staff input validation |
+| `messages.ts` | Direct message types and validation |
+| `qr.ts` | Dependency-free QR encoder for profile codes |
 
 ### Design decisions
 
 - **One Expo app for all three platforms** (Expo Router, React Native Web). Shared UI, shared logic.
 - **Server is authoritative.** Clients send moves with the ply they expect; the server validates, runs the clocks and broadcasts. Clients play moves optimistically and resync on rejection.
-- **Engine and coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
+- **Live analysis and the coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
+- **Game reviews run only on the player's device** (`apps/app/src/features/engine`): Stockfish compiled to WebAssembly, in Web Workers on the web and in a hidden WebView on iOS/Android, one engine per spare core. The server never grades a review. Moves appear graded from the first one while the rest are searched, finished reviews are kept on the device, and a game is graded as soon as it ends so Review usually opens finished. Review is for signed-in accounts; guests see **Sign in to review**. Like the server, the app refuses engine help while you have a live game.
+- **Saved reviews.** The first review of an online game is saved on the server (`POST /api/games/:id/review` with the device's per-position engine results; only the two players may save it, and the server rebuilds the grades and accuracy itself from those results). From then on anyone signed in who opens that game, for example from a profile, gets the saved review instead of a fresh one, and reviewed games show their accuracy where the Review button was.
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
-- **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) runs as a separate server process, never bundled into the app.
+- **Licensing.** Only permissively licensed dependencies ship in the app (chess.js is BSD-2). Lichess databases (CC0) can be used for openings and puzzles; Lichess code (AGPL/GPL) must not be copied. Stockfish (GPL) is never linked into our code: on the server it runs as a separate process, and in the app as a separate, unmodified engine file (Stockfish.js, `apps/app/public/engine`, with its license) that only exchanges UCI text with the app. Refresh it with `node apps/app/scripts/vendor-engine.mjs` after upgrading the `stockfish` dev dependency.
 - **Original look.** Monochrome, frosted-glass brand built around the ChessMate logo (queen and crowned knight); no assets taken from other chess sites.
+- **Tournaments.** Staff create arena tournaments in `/admin/tournaments` (schedule, length, player limit, prize pool and prizes per place). Players join from the Tournaments tab; while it runs the server pairs free players with similar scores. Win 2, draw 1, double after two wins in a row.
+- **Messages.** Direct messages between players (who may message you follows Settings → Privacy), plus a read-only "ChessMate team" thread for staff messages and announcements (`/admin/messages`). Game chat is separate.
+- **Profiles.** Add friend, Message and a QR code on every profile; players pick their own tag (separate from staff role tags). A profile QR code holds `/u/<username>`, so any phone camera opens it.
 - **Boards and pieces.** Players pick from 16 board themes and 8 piece sets in Settings > Board, saved to their account (or the device for guests) and used on every board. Piece artwork comes from openly licensed sets by their original authors (Apache 2.0, MIT, CC BY, CC BY-SA, CC0; never non-commercial or GPL art), plus ChessMate's own Glass set. Sources, credits and how to add a set: [apps/app/art/pieces/README.md](apps/app/art/pieces/README.md).
 
 ## Languages
@@ -73,7 +82,15 @@ pnpm dev:server          # terminal 1: game server on port 8787
 pnpm dev:app             # terminal 2: Expo dev server (scan the QR code, or press w for web)
 ```
 
-The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`. Language support (`expo-localization` and the bundled Arabic font) works in Expo Go, so it needs no new build.
+The app opens on a welcome screen: create an account, sign in, or tap **Continue as guest**. Accounts are saved in the local database, so they survive restarts. If Expo shows an old screen or the old fonts after pulling, stop it and run `pnpm dev:app --clear`. Language support (`expo-localization` and the bundled Arabic font) works in Expo Go, so it needs no new build. The on-device game review uses `react-native-webview`, `expo-asset` and `expo-file-system`, which are all in Expo Go too: after `pnpm install`, start with `pnpm dev:app --clear` once so Metro picks up the engine files.
+
+**Liquid Glass look:** the app's bars, header buttons, glass buttons and sheets use Apple's native Liquid Glass on iOS 26 and later (`expo-glass-effect`, included in Expo Go, so no new build is needed). After pulling, run `pnpm install` and start once with `pnpm dev:app --clear`. On older iOS, Android and the web the same surfaces are drawn as blurred glass with a lit edge. Turning on *Reduce Transparency* (iOS Settings, Accessibility, Display & Text Size) switches glass to solid panels.
+
+**Handshake at game start:** when an online, computer or pass-and-play game begins, a real-looking handshake (Ahmad's artwork, `apps/app/assets/images/handshake.webp`) appears over the board, grips and pumps three times. It lasts about 2.8 seconds, touches pass through it so you can make your first move straight away (a move fades it out at once), and it is skipped when *Reduce Motion* is on. It is a plain image animated with Reanimated, both in Expo Go, so `git pull` and `pnpm dev:app` are enough; no new build is needed. A reconnect to a game already under way does not replay it.
+
+**Sounds on a phone:** game sounds use `expo-audio`, which is in Expo Go, so no new build is needed. After pulling, restart with `pnpm dev:app --clear`. A muted phone stays quiet: the iPhone silent switch, or Android's silent or vibrate mode, mutes game sounds unless **Settings → Sound → Play sounds on silent** is on. If you hear nothing, check the mute switch and the phone's media volume (not the ringer volume). On Android in Expo Go each sound file is copied to the phone before it plays, and a file that fails to load is reloaded; in development a failed load is logged in the Expo terminal as `[sounds] … failed to load`.
+
+**Judging smoothness on a phone:** `pnpm dev:app` runs the app in development mode, where JavaScript is several times slower than in a real build (extra checks, no minifying). Board dragging and piece slides run on the UI thread, so they stay smooth either way, but selecting a piece, legal-move dots and screen changes feel slower than they will in the store app. To see real speed in Expo Go, start Expo with `pnpm dev:app --no-dev --minify` (reload the app after switching).
 
 To try rated games and the end-of-game animations: create two accounts (one in a normal browser window, one in a private window, or on two phones), open **Play** in both, keep *Rated* selected and press Play in each. Ratings are stored in `.data/pglite`, so they carry over when you restart `pnpm dev:server`.
 
@@ -155,10 +172,14 @@ Then open the app and tap **Try a sample review** on the home screen. Details: [
 
 ## Engine analysis
 
-The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games. The app gets:
+The game server runs Stockfish as separate processes (UCI over stdin/stdout) and streams results over the same WebSocket as games, for the analysis board and broadcasts. Game reviews run on the player's device instead (see above). The app gets:
 
 - **Analysis board** (home → Analysis board): move freely for both sides, step through the line, import a FEN or PGN, evaluation bar, top 1 or 3 engine lines with arrows. Tap a line to play its first move. Every move you play or step through gets a badge on the moved piece once the engine has seen the position before and after it (depth 12+).
-- **Game review** (after an online game → Review game, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
+- **Game review** (signed in; after a game → Review game, from game history or a profile, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
+
+Reviews are graded on the device as soon as a game ends, so Review usually opens finished. An online game's first review is saved in the database (`game_reviews` table, one per game), so opening it again, from any account, just fetches it, and its accuracy replaces the Review button on the result screen, in game history and on profile rows. Games against the computer and pass-and-play keep their reviews on the device.
+
+To try it: sign in with two accounts (one in a private window), play an online game between them, then tap **Review game** on one side. When grading finishes the button reads *Accuracy ○ 84.2 · ● 71.5*; open the other account's profile from the first one and its recent game shows the accuracy and opens the same review without grading again.
 
 Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visuals in `apps/app/src/components/MoveBadge.tsx`):
 
@@ -183,7 +204,7 @@ Which Stockfish runs:
 1. `STOCKFISH_PATH` set: that native binary (fastest; used by the Docker image).
 2. Otherwise the `stockfish` npm package's WebAssembly build, run by a child Node process. This is installed by `pnpm install`, so nothing extra is needed for local development on Windows, macOS or Linux.
 
-Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`, `REVIEW_DEPTH` (default 18) and `REVIEW_MOVETIME_MS` (default 800, per position). Reviews look at two engine lines per position (to spot only moves) and spread positions across all `ENGINE_WORKERS`, so more workers make reviews faster. The analysis board searches to depth 22 by default. For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
+Optional settings: `ENGINE_WORKERS` (engine processes, default 1), `ENGINE_THREADS`, `ENGINE_HASH_MB`. The analysis board searches to depth 22 by default. For a stronger local engine, download Stockfish from stockfishchess.org and point `STOCKFISH_PATH` at it:
 
 ```powershell
 $env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"
@@ -204,7 +225,7 @@ Open **Play** (`/play`, or "Open the lobby" on the home screen):
 - **Custom games.** Post a game to the lobby with your side (white, black or random). Everyone in the lobby sees it under *Open games* and can join.
 - **Rated vs casual.** Signed-in players start on *Rated* (the Mode switch in the lobby turns it to *Casual*); quick pairing from the home screen is rated too. Every finished rated game of two or more moves updates both players' Elo (Glicko-2) right away, and the new rating survives server restarts (it is reloaded from the database on start). Guests always play casual.
 - **Premoves.** While your opponent is thinking, tap a piece and a square to queue a move (tinted blue). It plays instantly if it is legal after their reply; tap anywhere else to cancel.
-- **Sounds** for moves, captures, checks, game start, and a win or loss at the end (original synthesised set in `apps/app/assets/sounds`, regenerate with `node apps/app/scripts/synth-sounds.mjs`).
+- **Sounds** for moves, captures, checks, game start, and a win or loss at the end (original set in `apps/app/assets/sounds`: wooden pieces on a wooden board modelled by `node apps/app/scripts/synth-wood.mjs`; win and lose by `synth-sounds.mjs`).
 - **Reconnect and resume.** One connection serves the whole app and reconnects on its own. Guests get a resume token, so a dropped connection or a page reload puts you back in your game. If your opponent drops, you see a countdown: they forfeit after 60 seconds (or the game is aborted if fewer than two moves were played).
 - **Game over** plays a short animation, then shows the result card: a *Checkmate* stamp when the game ends in mate, monochrome confetti and a fanfare for the winner, and a calm dim with an encouraging line and a **Learn from this game** button for the loser. The card shows your new rating with the +/- change, or says why the game was unrated (casual, guest, too short). Then Rematch (colours swap), New game, and Lobby. Animations follow the system "reduce motion" setting.
 
@@ -264,19 +285,46 @@ A deployed server works the same way: `EXPO_PUBLIC_SERVER_URL=wss://your-host/ws
 
 Chat appears under the board once a game starts: quick messages, free text (profanity is masked by the server), Mute and Report for the opponent, and a Chat on/off switch.
 
-The moderation queue lives at `/admin` in the app (on web: http://localhost:8081/admin). It is protected by a token you choose when starting the server:
+Reports, mutes and every other staff tool live in the admin console (next section). To try chat and reports alone, open two browser windows on Play online, start a game, and chat or report between them.
 
-```powershell
-# Windows PowerShell
-$env:ADMIN_TOKEN = "pick-a-long-secret"; pnpm dev:server
-```
+### Admin console
 
-```bash
-# macOS / Linux
-ADMIN_TOKEN=pick-a-long-secret pnpm dev:server
-```
+Staff accounts manage ChessMate at `/admin` in the app (on web: http://localhost:8081/admin). Signed-in staff also get an **Admin console** link in the sidebar and in Settings. There are two staff roles:
 
-Then open `/admin`, enter the same token, and review reports (with the game's chat and moves), dismiss, warn, or mute a player's chat for 24 hours or 7 days. Without `ADMIN_TOKEN` the admin API is off. To try it alone, open two browser windows on Play online, start a game, and chat or report between them.
+- **Moderator**: dashboard, player search and records, warnings, chat mutes, renames, staff notes, the reports queue, fair-play reviews (open and dismiss cases), title applications, game lookup and the audit log.
+- **Admin**: everything a moderator can do, plus emails, closing and reopening accounts, closing for fair play (which refunds the cheater's opponents and removes their title), rating adjustments, setting or removing titles and role tags, aborting live games, signing a player out everywhere, and giving or taking away staff roles.
+
+Every staff action is written to the audit log with who did it and why.
+
+**Make your own account an admin.** Pick one of these:
+
+1. Put your username in `.env` at the repository root (create it from `.env.example`) and restart the server:
+
+   ```
+   ADMIN_USERNAMES=ahmad
+   ```
+
+   Several names are comma-separated. The account becomes an admin when the server starts, or the moment it signs up if it does not exist yet.
+
+2. Or run the grant command once. With the built-in database (`.data/pglite`), stop `pnpm dev:server` first, because only one process can open that database:
+
+   ```bash
+   pnpm admin:grant ahmad          # admin
+   pnpm admin:grant leo moderator  # moderator
+   pnpm admin:grant leo user       # back to a normal account
+   ```
+
+Then sign in to the app with that account and open `/admin`. If you were already signed in, sign out and back in once so the app picks up the new role.
+
+**Verified titles.** Players apply for a FIDE title (GM, IM, FM, CM, WGM, WIM, WFM, WCM) in **Settings → Verified title**, with up to three proof files (PDF, PNG, JPEG or WebP, 3 MB each). Staff review them under **Titles** in the console: open the files, check the FIDE profile, then approve or reject with a reason the player reads. Approved titles show next to the player's name on their profile and in the console. Admins can also set or remove a title from a player's record (for example after a fair-play violation), and closing an account for fair play removes its title automatically. Proof files are stored in the database and open only through short-lived links from the console.
+
+**Role tags.** Admins can give a player one official tag from their record in the console (**Set tag**): ChessMate staff, Moderator, Streamer, Coach, Arbiter, Content creator or Ambassador. The tag shows as a small black-and-white seal next to the player's name on the game screen (with the title, profile picture and flag) and on their profile, and the player gets a notification. Moderators cannot set tags, players cannot pick these themselves, and closing an account for fair play removes the tag automatically. To try it: make your account an admin (below), open **Admin → Players**, pick an account, press **Set tag**, then start a game against that account and look at its player card.
+
+**Reporting from a game.** In an online game, the **More** button (now the first button under the board) has **Report <name>** at the bottom of its menu. It opens the same report sheet as the chat's flag button, and the report includes the game's moves and chat for moderators.
+
+Account closures, warnings, mutes, reports, titles, role tags and fair-play cases are all kept in the database, so they survive a server restart.
+
+The older token-only APIs still work for scripts: `ADMIN_TOKEN` for the reports API under `/admin/` and `FAIRPLAY_ADMIN_TOKEN` for `/admin/fairplay/*` (see [docs/fair-play.md](docs/fair-play.md)).
 ### Accounts and sign-in
 
 `pnpm dev:server` also serves the accounts API (`/api/auth/*`) on the same port, and the app finds it automatically the same way it finds the game server. To point the app at a different API host, set `EXPO_PUBLIC_API_URL` (for example `http://192.168.1.20:8787`), alongside `EXPO_PUBLIC_SERVER_URL` when using a tunnel.
@@ -307,13 +355,30 @@ The bell in the header opens the inbox; **Settings** there picks which alerts ar
 - **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
 - Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
 
+### Testing on many devices at once
+
+The development server (`pnpm web`, Metro) reloads on every change, but on Windows it
+runs out of open files ("EMFILE: too many open files") when several devices are
+connected. To try the app on many phones and computers on the same network:
+
+1. Start the game server: `pnpm dev:server`.
+2. Build and serve the web app: `pnpm web:lan`. It prints the address to open on the
+   other devices, for example `http://192.168.1.20:8080`. Nothing is watched, so any
+   number of devices can use it.
+3. After changing code, run `pnpm web:lan` again (or `pnpm web:serve` to serve the last
+   build without rebuilding).
+
+Leave `EXPO_PUBLIC_SERVER_URL` unset for this: the app then finds the game server on the
+same address. Allow Node.js through Windows Firewall on private networks if the other
+devices can't connect. Google sign-in only works on `http://localhost`.
+
 ### Moving pieces, premoves, sounds and vibration
 
 Run `pnpm install` after pulling: this adds `expo-haptics` (bundled in Expo Go, so no build is needed).
 
 - **Drag and drop** works on every board next to tap-to-move: press a piece and drag it to a square. A quick tap still selects, and dropping on an illegal square snaps the piece back. On a phone, try it in Expo Go; on the web, with the mouse or a touch screen.
 - **Premoves**: in an online game, tap or drag one of your pieces while your opponent is thinking. The squares turn blue and the move plays the moment they move. Tap elsewhere, right-click (web) or press **Cancel premove** to drop it. Turn premoves off under **Settings → Gameplay**.
-- **Sounds**: move, capture, check, castle, promotion, game start and end, and a low-time warning (online games, once per game). All sounds are synthesised in-house; `node apps/app/scripts/synth-sounds.mjs` regenerates the castle, promote and low-time cues. **Settings → Sound** has the master switch, volume and per-type toggles. Phones in silent mode stay quiet.
+- **Sounds**: move, capture, check, castle, promotion, game start and end, and a low-time warning (online games, once per game). All sounds are made in-house: `node apps/app/scripts/synth-wood.mjs` models wooden pieces on a wooden board (several takes per move sound), `synth-sounds.mjs` makes the win and lose cues. Every board sounds its moves, including analysis, puzzles, reviews, replays and broadcasts; thumbnails stay quiet. **Settings → Sound** has the master switch, volume and per-type toggles. On phones, the iPhone silent switch (or Android in silent or vibrate mode) mutes game sounds by default; turn on **Play sounds on silent** to hear them anyway. An illegal move (a piece dropped or tapped onto a square it cannot go to) plays a soft thud. Sounds mix over your music instead of stopping it. Win and loss cues play against the computer and online; other local games play the neutral end chime.
 - **Vibration** (phones only): a light tap on your moves, a firmer one on captures and checks, and a buzz on an illegal drop, low time and game end. Toggle it under **Settings → Sound and vibration**.
 
 ### Trying friends and spectating
@@ -336,7 +401,7 @@ Cloud builds count against the Expo account's build quota, so they only run when
 
 ### Puzzles
 
-A fresh checkout has 14 original starter puzzles, loaded automatically into `apps/server/data/puzzles.db` the first time the server starts. For the real collection, import the Lichess puzzle database (CC0, about 5 million puzzles):
+The server ships with about 20,700 well-tested puzzles from the Lichess puzzle database (CC0; popularity 80+, 300+ plays, ratings about 600 to 2700) in `apps/server/data/puzzles-lichess.csv.gz`, plus 14 original starter puzzles. They are loaded into `apps/server/data/puzzles.db` the first time the server starts (about a minute, once). Puzzles come in random order and players don't see the same puzzle again soon (the last 500 for signed-in players, the last 300 on the device for guests). For the full collection, import the whole Lichess puzzle database (millions of puzzles):
 
 ```bash
 pnpm puzzles:import                                  # downloads lichess_db_puzzle.csv.zst (~250 MB) and imports it
@@ -346,7 +411,7 @@ pnpm puzzles:import --limit 100000                   # quicker partial import fo
 
 By default it keeps well-tested puzzles (popularity 50+, 100+ plays, rating deviation 100 or less); change with `--min-popularity`, `--min-plays`, `--max-rd`. Re-running is safe (puzzles are updated by id). Restart `pnpm dev:server` afterwards. Set `PUZZLE_DB` to store the database elsewhere.
 
-In the app, open **Puzzles** on the home screen: daily puzzle, rated training with a theme filter and hints, streak (one mistake ends it) and rush (3 minutes, 3 lives).
+In the app, open **Puzzles** on the home screen: your rating and records, rated training, streak (one mistake ends it), rush (3 minutes, 3 lives), the daily puzzle, and themes (one tap starts training on a theme). Puzzle screens are left with the back button only, so dragging a piece near the edge never swipes the puzzle away.
 
 ### Web
 

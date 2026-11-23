@@ -63,4 +63,52 @@ export const boardThemes = {
     name: 'Sand',
     note: 'Desert light',
   },
+  coral: {
+    name: 'Coral',
+    note: 'Warm sunset',
+  },
+  olive: {
+    name: 'Olive',
+    note: 'Muted green',
+  },
+  sky: {
+    name: 'Sky',
+    note: 'Light blue',
+  },
+  ruby: {
+    name: 'Ruby',
+    note: 'Deep red',
+  },
+  mint: {
+    name: 'Mint',
+    note: 'Fresh green',
+  },
+  teal: {
+    name: 'Teal',
+    note: 'Lagoon',
+  },
+  sakura: {
+    name: 'Sakura',
+    note: 'Cherry blossom',
+  },
+  coffee: {
+    name: 'Coffee',
+    note: 'Roasted brown',
+  },
+  charcoal: {
+    name: 'Charcoal',
+    note: 'Low light',
+  },
+  sandstone: {
+    name: 'Sandstone',
+    note: 'Brown on sand',
+  },
+  honey: {
+    name: 'Honey',
+    note: 'Brown on yellow',
+  },
+  apricot: {
+    name: 'Apricot',
+    note: 'Soft peach',
+  },
 };

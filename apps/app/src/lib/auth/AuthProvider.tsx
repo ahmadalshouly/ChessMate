@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.user);
         return res.tokens.accessToken;
       } catch (e) {
-        if (e instanceof ApiError && (e.status === 401 || e.code === 'invalid_token')) {
+        if (e instanceof ApiError && (e.status === 401 || e.code === 'invalid_token' || e.code === 'account_closed')) {
           await becomeSignedOut();
           return null;
         }

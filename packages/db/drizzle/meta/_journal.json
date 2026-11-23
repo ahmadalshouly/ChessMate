@@ -15,6 +15,118 @@
       "when": 1794866447648,
       "tag": "0001_social",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794985920645,
+      "tag": "0002_game_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794986854834,
+      "tag": "0003_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794989448032,
+      "tag": "0004_titles_fairplay",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795021399206,
+      "tag": "0005_role_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795600000000,
+      "tag": "0006_messages_tournaments",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795700000000,
+      "tag": "0007_tournament_rules_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795800000000,
+      "tag": "0008_community",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795900000000,
+      "tag": "0009_play_habits",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1796000000000,
+      "tag": "0010_tournament_formats",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1796100000000,
+      "tag": "0011_awards",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1796200000000,
+      "tag": "0012_watch",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1796300000000,
+      "tag": "0013_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1796400000000,
+      "tag": "0014_broadcast_analysis",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1796500000000,
+      "tag": "0015_streamer_live",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1796600000000,
+      "tag": "0016_broadcast_ending",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1796700000000,
+      "tag": "0017_profiles",
+      "breakpoints": true
     }
   ]
 }

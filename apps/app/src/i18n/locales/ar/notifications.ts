@@ -17,6 +17,10 @@ export const notifications: Messages<typeof en> = {
     reviewReady: 'مراجعة المدرب لمباراتك ضد {name} جاهزة',
     reviewAccuracy: 'مباراتك ضد {name}: دقة {accuracy}%. اكتشف أين تغيّرت',
     test: 'الإشعارات تعمل على هذا الجهاز.',
+    fairPlay: 'وجدت مراجعة اللعب النظيف مساعدة خارجية في مبارياتك. يمكنك تسجيل الدخول ورؤية مبارياتك والألغاز، لكن اللعب عبر الإنترنت متوقف. استعاد خصومك نقاط التصنيف التي خسروها.',
+    reopened: 'حسابك مفتوح مجددًا. عاد اللعب عبر الإنترنت.',
+    mutedHours: { other: 'الدردشة متوقفة لحسابك لمدة {count} ساعة. السبب: {reason}' },
+    mutedDays: { other: 'الدردشة متوقفة لحسابك لمدة {count} يوم. السبب: {reason}' },
   },
   title: {
     challenge: 'تحدٍّ جديد',
@@ -25,6 +29,10 @@ export const notifications: Messages<typeof en> = {
     yourTurn: 'دورك',
     reviewReady: 'مراجعة المباراة جاهزة',
     test: 'إشعار تجريبي',
+    warning: 'تحذير من مشرفي ChessMate',
+    muted: 'إيقاف الدردشة',
+    fairPlay: 'إغلاق الحساب بسبب اللعب النظيف',
+    reopened: 'إعادة فتح الحساب',
   },
   time: {
     m: { other: '{count} د' },
@@ -61,6 +69,14 @@ export const notifications: Messages<typeof en> = {
     review_ready: {
       label: 'مراجعة المباراة جاهزة',
       description: 'أنهى المدرب مراجعة مباراتك',
+    },
+    message: {
+      label: 'الرسائل',
+      description: 'أرسل إليك أحدهم رسالة',
+    },
+    tournament: {
+      label: 'البطولات',
+      description: 'بدأت بطولة انضممت إليها',
     },
     system: {
       label: 'الحساب والأمان',

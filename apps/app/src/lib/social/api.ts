@@ -10,7 +10,7 @@ import type {
 } from '@chessmate/core';
 
 import { SERVER_URL } from '@/lib/config';
-import { getSocialIdentity } from './session';
+import { freshSocialToken, getSocialIdentity } from './session';
 import { translate } from '@/i18n';
 
 /** HTTP base of the game server, derived from its WebSocket URL. */
@@ -26,13 +26,22 @@ export class ApiError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(method, `/api/social/${path}`, body);
+}
+
+/**
+ * Calls the game server's HTTP API as the signed-in player (the same identity
+ * as friends). `optionalAuth` sends the request without a token when signed out.
+ */
+export async function apiRequest<T>(method: string, path: string, body?: unknown, opts: { optionalAuth?: boolean } = {}): Promise<T> {
   const id = getSocialIdentity();
-  if (!id) throw new ApiError(401, translate('friends.signInRequired'));
+  if (!id && !opts.optionalAuth) throw new ApiError(401, translate('friends.signInRequired'));
+  const token = id ? await freshSocialToken() : null;
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/api/social/${path}`, {
+    res = await fetch(`${API_URL}${path}`, {
       method,
-      headers: { authorization: `Bearer ${id.token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(body ? { 'content-type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {

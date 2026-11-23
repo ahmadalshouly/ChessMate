@@ -1,4 +1,4 @@
-import type { TimeCategory } from '@chessmate/core';
+import type { PlayerInfo, TimeCategory, TimeControl } from '@chessmate/core';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { LeaderboardError, type LeaderboardScope, type Leaderboards } from './leaderboard';
 
@@ -10,9 +10,25 @@ export interface ServerStats {
   serverNow: number;
 }
 
+/** A live game the Play tab shows as its featured board. Watch it over the socket with `watch`. */
+export interface FeaturedGame {
+  gameId: string;
+  white: PlayerInfo;
+  black: PlayerInfo;
+  timeControl: TimeControl;
+  rated: boolean;
+  ply: number;
+  /** Current position (public FEN), for a still preview before the board goes live. */
+  fen: string;
+}
+
 export interface PublicApiDeps {
   leaderboards: Leaderboards;
   stats: () => ServerStats;
+  /** A random game in progress, or null when nobody is playing. */
+  featured?: () => FeaturedGame | null;
+  /** Up to `limit` games in progress for the swipeable live boards. */
+  featuredList?: (limit: number) => FeaturedGame[];
   /** Resolves a bearer token to a user id, or null for anonymous viewers. */
   viewerFor: (token: string | null) => string | null;
 }
@@ -20,12 +36,14 @@ export interface PublicApiDeps {
 /**
  * Read-only JSON endpoints:
  *   GET /api/stats
+ *   GET /api/live/featured   -> { game: FeaturedGame | null }
+ *   GET /api/live/games?limit=4 -> { games: FeaturedGame[] }
  *   GET /api/leaderboard?category=blitz&scope=global|country|friends&country=US&limit=50&offset=0
  * Returns true when the request was handled.
  */
 export function handlePublicApi(req: IncomingMessage, res: ServerResponse, deps: PublicApiDeps): boolean {
   const url = new URL(req.url ?? '/', 'http://localhost');
-  if (!url.pathname.startsWith('/api/stats') && !url.pathname.startsWith('/api/leaderboard')) return false;
+  if (!url.pathname.startsWith('/api/stats') && !url.pathname.startsWith('/api/leaderboard') && url.pathname !== '/api/live/featured' && url.pathname !== '/api/live/games') return false;
 
   // Bearer tokens, no cookies, so any origin may read these.
   res.setHeader('access-control-allow-origin', '*');
@@ -43,6 +61,18 @@ export function handlePublicApi(req: IncomingMessage, res: ServerResponse, deps:
   if (url.pathname === '/api/stats') {
     res.setHeader('cache-control', 'public, max-age=5');
     json(res, 200, deps.stats());
+    return true;
+  }
+
+  if (url.pathname === '/api/live/featured') {
+    res.setHeader('cache-control', 'no-store');
+    json(res, 200, { game: deps.featured?.() ?? null });
+    return true;
+  }
+
+  if (url.pathname === '/api/live/games') {
+    res.setHeader('cache-control', 'no-store');
+    json(res, 200, { games: deps.featuredList?.(Number(url.searchParams.get('limit') ?? 4)) ?? [] });
     return true;
   }
 

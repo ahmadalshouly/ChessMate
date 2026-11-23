@@ -4,24 +4,24 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { StreakBadge } from '@/components/StreakBadge';
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { useCurrentUser } from '@/lib/currentUser';
 
 import { Avatar } from './Avatar';
-import { RatingChip } from './RatingChip';
+import { MessagesButton } from './MessagesButton';
 
 /** Sign-in screen; provided by the accounts work. */
 export const SIGN_IN_HREF = '/sign-in' as Href;
 
-/** Right side of the header: rating, sign-in (guests) and the avatar. */
+/** Right side of the header: sign-in (guests), notifications and the avatar. */
 export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
   const t = useTheme();
   const user = useCurrentUser();
   const tr = useT();
   return (
     <View style={styles.row}>
-      {user.rating != null && <RatingChip rating={user.rating} provisional={user.provisional} />}
       {showSignIn && user.status === 'guest' && (
         <Pressable
           accessibilityRole="button"
@@ -31,6 +31,8 @@ export function HeaderActions({ showSignIn = true }: { showSignIn?: boolean }) {
           <Text style={[styles.signInText, { color: t.text }]}>{tr('auth.signIn')}</Text>
         </Pressable>
       )}
+      <StreakBadge />
+      <MessagesButton />
       <NotificationBell />
       <Pressable accessibilityRole="button" accessibilityLabel={tr('nav.openProfile')} onPress={() => router.navigate('/profile')} hitSlop={6}>
         <Avatar name={user.displayName} url={user.avatarUrl} size={34} />

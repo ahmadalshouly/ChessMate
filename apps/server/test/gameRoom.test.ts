@@ -1,7 +1,7 @@
 import { parseTimeControl } from '@chessmate/core';
 import { describe, expect, it, vi } from 'vitest';
 import { FIRST_MOVE_TIMEOUT_MS, GameRoom } from '../src/gameRoom';
-import { Matchmaker } from '../src/matchmaker';
+import { Matchmaker, whiteOf } from '../src/matchmaker';
 
 const W = { id: 'w', name: 'White', rating: 1500, provisional: true };
 const B = { id: 'b', name: 'Black', rating: 1500, provisional: true };
@@ -45,6 +45,15 @@ describe('GameRoom', () => {
     expect(r.outcome?.reason).toBe('aborted');
   });
 
+  it('tells clients when each first move is due', () => {
+    const { r } = room();
+    expect(r.snapshot(0).firstMoveDeadline).toBe(FIRST_MOVE_TIMEOUT_MS);
+    r.move('w', 'e2e4', 0, 5000);
+    expect(r.snapshot(5000).firstMoveDeadline).toBe(5000 + FIRST_MOVE_TIMEOUT_MS);
+    r.move('b', 'e7e5', 1, 9000);
+    expect(r.snapshot(9000).firstMoveDeadline).toBeNull();
+  });
+
   it('handles draw offers and resignations', () => {
     const { r } = room();
     r.move('w', 'e2e4', 0, 1);
@@ -73,10 +82,64 @@ describe('Matchmaker', () => {
     expect(m.size).toBe(0);
   });
 
+  it('never pairs Secret Queen seeks with standard ones', () => {
+    const m = new Matchmaker();
+    m.add({ playerId: 'std', rating: 1500, timeControl: tc, rated: false, createdAt: 0 });
+    m.add({ playerId: 'sq', rating: 1500, timeControl: tc, rated: false, createdAt: 0, variant: 'secretQueen' });
+    expect(m.tick(60_000)).toHaveLength(0);
+    m.add({ playerId: 'sq2', rating: 1500, timeControl: tc, rated: false, createdAt: 0, variant: 'secretQueen' });
+    const [p] = m.tick(60_000);
+    expect([p!.a.playerId, p!.b.playerId].sort()).toEqual(['sq', 'sq2']);
+  });
+
+  it('plays standard chess in standard rooms', () => {
+    const { r } = room();
+    expect(r.variant).toBe('standard');
+    expect(r.secret).toBeNull();
+    // A pawn cannot move like a queen in a normal game.
+    expect(r.move('w', 'd2d4', 0, 1)).not.toBe('illegal_move');
+    expect(r.move('b', 'e7e5', 1, 2)).not.toBe('illegal_move');
+    expect(r.move('w', 'c2h7', 2, 3)).toBe('illegal_move');
+    expect(r.snapshot(3).variant).toBeUndefined();
+  });
+
+  it('keeps colour preferences', () => {
+    const m = new Matchmaker();
+    m.add({ playerId: 'a', rating: 1500, timeControl: tc, rated: true, createdAt: 0, color: 'w' });
+    m.add({ playerId: 'b', rating: 1500, timeControl: tc, rated: true, createdAt: 0, color: 'w' });
+    expect(m.tick(0)).toHaveLength(0);
+    m.add({ playerId: 'c', rating: 1500, timeControl: tc, rated: true, createdAt: 0 });
+    const [p] = m.tick(0);
+    expect(p).toBeDefined();
+    expect(whiteOf(p!).color).toBe('w');
+    // b asked for black, so a plays white whatever the coin says.
+    expect(whiteOf({ a: { ...p!.a, color: undefined }, b: { ...p!.b, color: 'b' } }, () => false).playerId).toBe(p!.a.playerId);
+  });
+
   it('does not pair different time controls', () => {
     const m = new Matchmaker();
     m.add({ playerId: 'a', rating: 1500, timeControl: tc, rated: true, createdAt: 0 });
     m.add({ playerId: 'b', rating: 1500, timeControl: parseTimeControl('3+2'), rated: true, createdAt: 0 });
     expect(m.tick(60_000)).toHaveLength(0);
+  });
+});
+
+describe('frenzy', () => {
+  it('halves the clock and drops the increment, only before your first move', () => {
+    const { r } = room('3+2');
+    expect(r.goFrenzy(W.id)).toBe(false); // not a frenzy tournament
+    r.frenzyAllowed = true;
+    expect(r.goFrenzy(W.id)).toBe(true);
+    expect(r.goFrenzy(W.id)).toBe(false); // once
+    expect(r.clock.remainingMs.w).toBe(90_000);
+    expect(r.snapshot(0).frenzy).toEqual({ w: true, b: false });
+    r.move(W.id, 'e2e4', 0, 1000);
+    expect(r.goFrenzy(B.id)).toBe(true); // black has not moved yet
+    r.move(B.id, 'e7e5', 1, 2000);
+    r.move(W.id, 'g1f3', 2, 3000);
+    // Both went frenzy: no increment for either side.
+    expect(r.clock.remainingMs.w).toBe(89_000);
+    r.move(B.id, 'b8c6', 3, 4000);
+    expect(r.clock.remainingMs.b).toBe(89_000);
   });
 });

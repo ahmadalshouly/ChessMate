@@ -16,6 +16,8 @@ const STATUS: Record<AuthError['code'], number> = {
   not_found: 404,
   rate_limited: 429,
   not_configured: 503,
+  account_closed: 403,
+  forbidden: 403,
 };
 
 const MAX_BODY = 16 * 1024;
@@ -48,14 +50,14 @@ export function sendError(res: ServerResponse, e: AuthError) {
   sendJson(res, STATUS[e.code], { error: { code: e.code, message: e.message, ...(e.field ? { field: e.field } : {}) } });
 }
 
-export async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+export async function readJson(req: IncomingMessage, maxBytes = MAX_BODY): Promise<Record<string, unknown>> {
   const type = req.headers['content-type'] ?? '';
   if (!/^application\/json\b/i.test(type)) throw new AuthError('invalid_input', 'Expected a JSON body');
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY) throw new AuthError('invalid_input', 'Request body too large');
+    if (size > maxBytes) throw new AuthError('invalid_input', 'Request body too large');
     chunks.push(chunk as Buffer);
   }
   try {
@@ -85,6 +87,15 @@ export function applyCors(req: IncomingMessage, res: ServerResponse, allowed?: s
     return true;
   }
   return false;
+}
+
+/** Scheme and host the client used, for links the server hands out. PUBLIC_URL wins when set. */
+export function publicBaseUrl(req: IncomingMessage): string {
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/+$/, '');
+  // Only the scheme is taken from the proxy header; a wrong value only breaks the link for the staff member who asked.
+  const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0]?.trim();
+  const encrypted = (req.socket as { encrypted?: boolean }).encrypted;
+  return `${proto === 'https' || proto === 'http' ? proto : encrypted ? 'https' : 'http'}://${req.headers.host ?? 'localhost'}`;
 }
 
 function clientIp(req: IncomingMessage): string {
