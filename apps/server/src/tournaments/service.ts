@@ -24,8 +24,12 @@ import {
   type TournamentViewer,
   type TournamentSettings,
   type TournamentResult,
+  type TournamentChatMessage,
+  type TournamentGameView,
+  CHAT_RATE,
   PAYOUT_STATUSES,
   SPONSOR_STATUSES,
+  prepareChat,
 } from '@chessmate/core';
 import {
   getUser,
@@ -33,12 +37,17 @@ import {
   insertPayoutRequest,
   insertSponsorApplication,
   insertTournament,
+  insertTournamentMessage,
   listPayoutRequests,
   listSponsorApplications,
   listTournaments,
   paymentBySession,
   paymentsOf,
+  saveTournamentGame,
   saveTournamentPlayer,
+  setTournamentMessageHidden,
+  tournamentGamesOf,
+  tournamentMessagesOf,
   setPaymentStatus,
   tournamentPlayersOf,
   updatePayoutRequest,
@@ -48,6 +57,8 @@ import {
   type PayoutRequest,
   type SponsorApplication,
   type Tournament,
+  type TournamentGame,
+  type TournamentMessage,
 } from '@chessmate/db';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -73,6 +84,8 @@ export interface TournamentBridge {
   startGame(whiteId: string, blackId: string, tc: TimeControl, rated: boolean, tournamentId: string, frenzy?: boolean): string | null;
   /** In-app and push notice to a player. */
   notify(userId: string, title: string, body: string, url: string): void;
+  /** Why this account may not post in chat right now (restricted, muted), or null. */
+  chatBlockedReason?(userId: string): string | null;
 }
 
 interface Player {
@@ -110,7 +123,16 @@ interface Entry {
   games: Map<string, { white: string; black: string }>;
   /** Swiss: when the last game of the current round ended. */
   roundDoneAt: number;
+  /** Every game the tournament started, oldest first. */
+  results: TournamentGame[];
+  /** Chat, oldest first (the latest CHAT_KEEP messages). */
+  chat: TournamentMessage[];
 }
+
+/** Chat messages kept in memory per tournament (and loaded on start). */
+const CHAT_KEEP = 500;
+/** Chat messages sent to players at once. */
+const CHAT_PAGE = 200;
 
 /** A player waits this long after a game before the next pairing, to see the result. */
 const REST_MS = 4_000;
@@ -137,6 +159,10 @@ export interface AdminTournamentView extends TournamentDetail {
   roster: AdminTournamentPlayer[];
   payments: { userId: string; amountCents: number; currency: string; status: string; createdAt: number }[];
   revenueCents: number;
+  /** Every game, including aborted ones and games still running, newest first. */
+  allGames: TournamentGameView[];
+  /** The whole chat, hidden messages included. */
+  chat: TournamentChatMessage[];
 }
 
 /**
@@ -152,6 +178,7 @@ export class TournamentService {
   private readonly now: () => number;
   private readonly entries = new Map<string, Entry>();
   private readonly payouts = new Map<string, PayoutRequest>();
+  private readonly chatTimes = new Map<string, number[]>();
   private bridge: TournamentBridge | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private stripe: StripeClient | null;
@@ -193,7 +220,9 @@ export class TournamentService {
           joinedAt: ms(p.joinedAt),
         });
       }
-      this.entries.set(row.id, { row, players, games: new Map(), roundDoneAt: 0 });
+      const results = await tournamentGamesOf(this.db, row.id);
+      const chat = await tournamentMessagesOf(this.db, row.id, CHAT_KEEP);
+      this.entries.set(row.id, { row, players, games: new Map(), roundDoneAt: 0, results, chat });
     }
     for (const r of await listPayoutRequests(this.db, 1000)) this.payouts.set(`${r.tournamentId}:${r.userId}`, r);
   }
@@ -292,6 +321,15 @@ export class TournamentService {
   }
 
   private finish(e: Entry) {
+    // Games cut off by the timer end without counting.
+    for (const gameId of e.games.keys()) {
+      const rec = e.results.find((r) => r.gameId === gameId);
+      if (rec && rec.result === '*') {
+        rec.endReason = 'tournament_over';
+        rec.endedAt = new Date(this.now());
+        this.persistGame(rec);
+      }
+    }
     e.games.clear();
     this.setStatus(e, 'finished');
     this.announceWinners(e);
@@ -329,6 +367,7 @@ export class TournamentService {
       const gameId = b.startGame(whiteId, blackId, { initialMs: e.row.initialMs, incrementMs: e.row.incrementMs }, e.row.rated, e.row.id, s.frenzy);
       if (!gameId) continue;
       e.games.set(gameId, { white: whiteId, black: blackId });
+      this.recordStart(e, gameId, whiteId, blackId, round);
       const white = e.players.get(whiteId)!;
       const black = e.players.get(blackId)!;
       white.opponents.push(blackId);
@@ -386,6 +425,7 @@ export class TournamentService {
       if (!gameId) continue;
       used.add(a.userId).add(pick.userId);
       e.games.set(gameId, { white: white.userId, black: black.userId });
+      this.recordStart(e, gameId, white.userId, black.userId, null);
       white.lastOpponent = black.userId;
       black.lastOpponent = white.userId;
       white.lastColor = 'w';
@@ -405,6 +445,9 @@ export class TournamentService {
     if (!g) return;
     const now = this.now();
     const s = this.settings(e);
+    const rec = e.results.find((r) => r.gameId === gameId);
+    const counts = e.row.status === 'running' && outcome.reason !== 'aborted';
+    const points = { w: 0, b: 0 };
     for (const [id, color] of [
       [g.white, 'w'],
       [g.black, 'b'],
@@ -414,8 +457,10 @@ export class TournamentService {
       p.freeSince = now;
       if (e.row.status !== 'running' || outcome.reason === 'aborted' || p.disqualified) continue;
       const result: TournamentResult = outcome.winner === null ? 'draw' : outcome.winner === color ? 'win' : 'loss';
+      const before = p.score;
       if (s.format === 'swiss') p.score += swissPoints(result);
       else p.score = Math.max(0, p.score + arenaPoints(result, { wins: p.streak, draws: p.drawRun, losses: p.lossRun }, s, frenzy[color]));
+      points[color] = p.score - before;
       const run = nextRun({ wins: p.streak, draws: p.drawRun, losses: p.lossRun }, result);
       p.streak = run.wins;
       p.drawRun = run.draws;
@@ -426,7 +471,129 @@ export class TournamentService {
       else p.losses += 1;
       this.persistPlayer(tournamentId, p);
     }
+    if (rec) {
+      rec.result = outcome.result as TournamentGame['result'];
+      rec.endReason = outcome.reason;
+      rec.counted = counts && !!outcome.result && outcome.result !== '*';
+      rec.whitePoints = points.w;
+      rec.blackPoints = points.b;
+      rec.endedAt = new Date(now);
+      this.persistGame(rec);
+    }
     if (e.games.size === 0) e.roundDoneAt = now;
+  }
+
+  private recordStart(e: Entry, gameId: string, whiteId: string, blackId: string, round: number | null) {
+    const rec: TournamentGame = {
+      tournamentId: e.row.id,
+      gameId,
+      round,
+      whiteId,
+      blackId,
+      whiteName: e.players.get(whiteId)?.username ?? whiteId,
+      blackName: e.players.get(blackId)?.username ?? blackId,
+      result: '*',
+      endReason: null,
+      counted: false,
+      whitePoints: 0,
+      blackPoints: 0,
+      startedAt: new Date(this.now()),
+      endedAt: null,
+    };
+    e.results.push(rec);
+    this.persistGame(rec);
+  }
+
+  private persistGame(rec: TournamentGame) {
+    void saveTournamentGame(this.db, rec).catch((err) => console.error('could not save tournament game', err));
+  }
+
+  private gameView(e: Entry, r: TournamentGame): TournamentGameView {
+    return {
+      gameId: r.gameId,
+      round: r.round,
+      white: { userId: r.whiteId, username: r.whiteName, points: this.shown(e, r.whitePoints) },
+      black: { userId: r.blackId, username: r.blackName, points: this.shown(e, r.blackPoints) },
+      result: (['1-0', '0-1', '1/2-1/2'].includes(r.result) ? r.result : '*') as TournamentGameView['result'],
+      endReason: r.endReason,
+      counted: r.counted,
+      startedAt: ms(r.startedAt),
+      endedAt: r.endedAt ? ms(r.endedAt) : null,
+    };
+  }
+
+  // ---------------------------------------------------------------- chat
+
+  private chatView(m: TournamentMessage, staffView: boolean): TournamentChatMessage {
+    return {
+      id: m.id,
+      userId: m.userId,
+      username: m.username,
+      text: m.body,
+      staff: m.staff,
+      at: ms(m.createdAt),
+      ...(staffView && m.hiddenAt ? { hidden: true, hiddenBy: m.hiddenBy } : {}),
+    };
+  }
+
+  /** The chat as players see it: the latest messages, hidden ones left out. */
+  chat(id: string): TournamentChatMessage[] {
+    const e = this.get(id);
+    return e.chat
+      .filter((m) => !m.hiddenAt)
+      .slice(-CHAT_PAGE)
+      .map((m) => this.chatView(m, false));
+  }
+
+  /**
+   * Posts to the tournament chat. Anyone with an account may talk, except
+   * players staff removed and accounts that are restricted or muted. Staff
+   * posts (from the admin view) are marked as such.
+   */
+  async postChat(userId: string, id: string, input: { text?: unknown }, opts: { staff?: boolean; username?: string } = {}): Promise<TournamentChatMessage> {
+    const e = this.get(id);
+    if (!opts.staff) {
+      if (e.row.status === 'cancelled') throw new TournamentError(409, 'This tournament was cancelled');
+      if (e.players.get(userId)?.disqualified) throw new TournamentError(403, 'You were removed from this tournament');
+      const blocked = this.bridge?.chatBlockedReason?.(userId);
+      if (blocked) throw new TournamentError(403, blocked);
+    }
+    const prepared = prepareChat(input.text);
+    if (!prepared) throw new TournamentError(400, 'Write a message first');
+    const now = this.now();
+    const times = (this.chatTimes.get(userId) ?? []).filter((t) => now - t < CHAT_RATE.windowMs);
+    if (!opts.staff && times.length >= CHAT_RATE.max) throw new TournamentError(409, 'Slow down: too many messages');
+    times.push(now);
+    this.chatTimes.set(userId, times);
+    let username = opts.username ?? e.players.get(userId)?.username;
+    if (!username) {
+      const u = await getUser(this.db, userId);
+      if (!u || u.closedAt) throw new TournamentError(403, 'Sign in with an open account to chat');
+      username = u.displayName || u.username;
+    }
+    const row = await insertTournamentMessage(this.db, {
+      tournamentId: id,
+      userId,
+      username,
+      body: prepared.text,
+      staff: !!opts.staff,
+      filtered: prepared.filtered,
+      createdAt: new Date(now),
+    });
+    e.chat.push(row);
+    if (e.chat.length > CHAT_KEEP) e.chat.splice(0, e.chat.length - CHAT_KEEP);
+    return this.chatView(row, !!opts.staff);
+  }
+
+  /** Staff hide (or show again) a chat message. */
+  async hideChat(id: string, messageId: string, hidden: boolean, by: string): Promise<TournamentChatMessage> {
+    const e = this.get(id);
+    const m = e.chat.find((x) => x.id === messageId);
+    if (!m) throw new TournamentError(404, 'No such message');
+    m.hiddenAt = hidden ? new Date(this.now()) : null;
+    m.hiddenBy = hidden ? by : null;
+    await setTournamentMessageHidden(this.db, messageId, m.hiddenAt, m.hiddenBy);
+    return this.chatView(m, true);
   }
 
   // ---------------------------------------------------------------- players
@@ -704,7 +871,11 @@ export class TournamentService {
         disqualified: !!p?.disqualified,
       };
     }
-    return { ...this.summary(e, viewer), standings: this.standings(e), liveGames, yourGameId, you };
+    const games = e.results
+      .filter((r) => r.result !== '*' && r.counted)
+      .reverse()
+      .map((r) => this.gameView(e, r));
+    return { ...this.summary(e, viewer), standings: this.standings(e), games, liveGames, yourGameId, you };
   }
 
   // ---------------------------------------------------------------- staff
@@ -735,6 +906,8 @@ export class TournamentService {
         })),
       payments,
       revenueCents: payments.filter((p) => p.status === 'paid').reduce((sum, p) => sum + p.amountCents, 0),
+      allGames: [...e.results].reverse().map((r) => this.gameView(e, r)),
+      chat: e.chat.map((m) => this.chatView(m, true)),
     };
   }
 
@@ -761,7 +934,7 @@ export class TournamentService {
       status: 'scheduled',
       createdBy,
     });
-    this.entries.set(row.id, { row, players: new Map(), games: new Map(), roundDoneAt: 0 });
+    this.entries.set(row.id, { row, players: new Map(), games: new Map(), roundDoneAt: 0, results: [], chat: [] });
     return this.detail(null, row.id);
   }
 

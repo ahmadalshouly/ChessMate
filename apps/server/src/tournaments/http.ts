@@ -33,6 +33,8 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
  *   GET  /api/tournaments                 list (running, upcoming, then past)
  *   GET  /api/tournaments/:id             details, standings and the viewer's state
  *   GET  /api/tournaments/:id/logo        sponsor logo image
+ *   GET  /api/tournaments/:id/chat        { messages } the latest chat messages
+ *   POST /api/tournaments/:id/chat        { text } → { message } (accounts)
  *   POST /api/tournaments/:id/join        { acceptRules: true } free tournaments (or rejoin)
  *   POST /api/tournaments/:id/checkout    { acceptRules: true, returnUrl } → { url } Stripe Checkout for the entry fee
  *   POST /api/tournaments/:id/withdraw
@@ -101,11 +103,14 @@ export function tournamentRoutes(tournaments: TournamentService, resolveUser: Re
         res.end(logo.bytes);
         return true;
       }
+      if (req.method === 'GET' && id && action === 'chat') return json(200, { messages: tournaments.chat(id) });
       if (req.method === 'GET' && id && !action) return json(200, { tournament: tournaments.detail(account, id), paymentsEnabled: tournaments.paymentsEnabled });
       if (req.method === 'POST' && id && action) {
-        if (!viewer) return json(401, { error: 'Sign in to join tournaments' });
-        if (!account) return json(403, { error: 'Create an account to join tournaments' });
+        if (!viewer) return json(401, { error: action === 'chat' ? 'Sign in to chat' : 'Sign in to join tournaments' });
+        if (!account) return json(403, { error: action === 'chat' ? 'Create an account to chat' : 'Create an account to join tournaments' });
         switch (action) {
+          case 'chat':
+            return json(200, { message: await tournaments.postChat(account, id, await readJson(req)) });
           case 'join':
             return json(200, { tournament: await tournaments.join(account, id, await readJson(req)) });
           case 'checkout':

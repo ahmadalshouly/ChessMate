@@ -336,6 +336,9 @@ export class ChessServer {
           return this.createGame(w, b, tc, rated, this.now(), { tournamentId, frenzy }).id;
         },
         notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'tournament', title, body, url }),
+        // Closed accounts and chat mutes can read the tournament chat but not post.
+        chatBlockedReason: (id) =>
+          this.restrictionOf(id) ? 'Your account is restricted, so you cannot post' : this.moderation.activeBan(id) ? 'You are muted for now, so you cannot post' : null,
       });
     }
     if (opts.messages) {

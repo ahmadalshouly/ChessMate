@@ -20,7 +20,9 @@ import type {
   PayoutRequestView,
   SponsorApplicationView,
   StaffRole,
+  TournamentChatMessage,
   TournamentDetail,
+  TournamentGameView,
   TournamentInput,
   TournamentSummary,
 } from '@chessmate/core';
@@ -46,6 +48,10 @@ export interface AdminTournamentView extends TournamentDetail {
   }[];
   payments: { userId: string; amountCents: number; currency: string; status: string; createdAt: number }[];
   revenueCents: number;
+  /** Every game, including aborted ones and games still running, newest first. */
+  allGames: TournamentGameView[];
+  /** The whole chat, hidden messages included. */
+  chat: TournamentChatMessage[];
 }
 
 export type PlayerFilter = 'all' | 'active' | 'closed' | 'muted' | 'staff';
@@ -118,6 +124,9 @@ export function useAdminApi() {
       startTournament: (tid: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/start`).then((r) => r.tournament),
       tournamentMonitor: (tid: string) => get<{ tournament: AdminTournamentView }>(`/tournaments/${id(tid)}`).then((r) => r.tournament),
       removeTournamentPlayer: (tid: string, userId: string, reason: string) => post(`/tournaments/${id(tid)}/remove`, { userId, reason }),
+      postTournamentChat: (tid: string, text: string) => post<{ message: TournamentChatMessage }>(`/tournaments/${id(tid)}/chat`, { text }).then((r) => r.message),
+      hideTournamentChat: (tid: string, messageId: string, hidden: boolean) =>
+        post<{ message: TournamentChatMessage }>(`/tournaments/${id(tid)}/hidechat`, { messageId, hidden }).then((r) => r.message),
       sponsors: () => get<{ applications: SponsorApplicationView[] }>('/sponsors').then((r) => r.applications),
       reviewSponsor: (aid: string, status: string, note: string) => post(`/sponsors/${id(aid)}`, { status, note }),
       payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),

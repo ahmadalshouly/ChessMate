@@ -140,4 +140,63 @@ describe('tournament rules', () => {
     expect(d.standings.every((s) => typeof s.buchholz === 'number')).toBe(true);
     svc.stop();
   });
+
+  it('records each game result, and staff see aborted games too', async () => {
+    const svc = new TournamentService({ db: h.db, now });
+    const { games, end } = harness(svc);
+    const [a, b] = users as [string, string];
+    const id = await newTournament(svc, {}, [a, b]);
+    const [g1] = [...games.keys()];
+    end(id, g1!, a);
+    clock += 5_000;
+    svc.tick();
+    const [g2, live] = [...games.entries()][0]!;
+    games.delete(g2);
+    svc.gameEnded(id, g2, { winner: null, reason: 'aborted', result: '*' } as GameOutcome);
+    void live;
+
+    const d = svc.detail(null, id);
+    expect(d.games).toHaveLength(1);
+    const winnerSide = d.games[0]!.white.userId === a ? 'white' : 'black';
+    expect(d.games[0]).toMatchObject({ gameId: g1, counted: true, endReason: 'resignation' });
+    expect(d.games[0]![winnerSide].points).toBe(2);
+    expect(d.games[0]!.result).toBe(winnerSide === 'white' ? '1-0' : '0-1');
+
+    const admin = await svc.adminDetail(id);
+    expect(admin.allGames.map((g) => g.gameId)).toEqual([g2, g1]);
+    expect(admin.allGames[0]).toMatchObject({ counted: false, endReason: 'aborted' });
+
+    // Results survive a restart.
+    const again = new TournamentService({ db: h.db, now });
+    await again.load();
+    expect(again.detail(null, id).games.map((g) => g.gameId)).toEqual([g1]);
+    svc.stop();
+  });
+
+  it('chat: players talk, staff hide messages and still see them', async () => {
+    const svc = new TournamentService({ db: h.db, now });
+    harness(svc);
+    const [a, b, c] = users as [string, string, string];
+    const id = await newTournament(svc, {}, [a, b]);
+    const hi = await svc.postChat(a, id, { text: 'good luck all' });
+    // Spectators with an account can talk too.
+    await svc.postChat(c, id, { text: 'watching from the side' });
+    await expect(svc.postChat(b, id, { text: '   ' })).rejects.toThrow(/Write a message/);
+    const staff = await svc.postChat('staff1', id, { text: 'Round 2 starts soon' }, { staff: true, username: 'Arbiter' });
+    expect(staff).toMatchObject({ staff: true, username: 'Arbiter' });
+
+    await svc.hideChat(id, hi.id, true, 'Arbiter');
+    expect(svc.chat(id).map((m) => m.text)).toEqual(['watching from the side', 'Round 2 starts soon']);
+    const admin = await svc.adminDetail(id);
+    expect(admin.chat.find((m) => m.id === hi.id)).toMatchObject({ hidden: true, hiddenBy: 'Arbiter' });
+
+    // Removed players cannot post.
+    svc.disqualify(id, b);
+    await expect(svc.postChat(b, id, { text: 'unfair!' })).rejects.toThrow(/removed/);
+
+    const again = new TournamentService({ db: h.db, now });
+    await again.load();
+    expect(again.chat(id)).toHaveLength(2);
+    svc.stop();
+  });
 });

@@ -155,4 +155,22 @@ export const tournaments: Messages<typeof en> = {
   joinedWait: 'Du bist dabei. Die Paarungen beginnen mit dem Turnier.',
   signInToJoin: 'Zum Beitreten anmelden',
   back: 'Zurück zum Turnier',
+  results: {
+    title: 'Ergebnisse',
+    round: 'Runde {n}',
+    points: 'Punkte {white} / {black}',
+    notCounted: 'Nicht gewertet',
+    tournamentOver: 'Bei Turnierende abgebrochen',
+    all: { one: 'Alle {count} zeigen', other: 'Alle {count} zeigen' },
+    less: 'Weniger zeigen',
+  },
+  chat: {
+    title: 'Chat',
+    placeholder: 'Schreib allen im Turnier etwas',
+    empty: 'Noch keine Nachrichten. Sag Hallo!',
+    signIn: 'Zum Chatten anmelden',
+    staff: 'Team',
+    hidden: 'Ausgeblendet',
+    hiddenBy: 'Ausgeblendet von {name}',
+  },
 };
