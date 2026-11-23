@@ -26,18 +26,30 @@ describe('Stockfish process', () => {
   }, 60_000);
 });
 
-/** A real review finds the Masterpiece in a smothered mate. */
+/** A review built from real engine results (as the app's device engine produces them) finds the Masterpiece in a smothered mate. */
 describe('Stockfish review badges', () => {
   it('gives !!! to Qg8+ before Nf7#', async () => {
-    const { AnalysisService, EnginePool } = await import('../src/engine');
-    const pool = new EnginePool(() => UciEngine.start(resolveEngineCommand()), 1);
-    const service = new AnalysisService(pool, { reviewDepth: 12, reviewMoveTimeMs: 1500 });
+    const { Game, buildReview, positionEvalFrom, terminalScore, terminalState } = await import('@chessmate/core');
+    const engine = await UciEngine.start(resolveEngineCommand());
     try {
-      const out: unknown[] = [];
-      const review = await service.review('t', { id: 1, initialFen: '5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1', moves: ['d5g8', 'f8g8', 'h6f7'] }, (m) => out.push(m));
-      expect(review?.moves.map((m) => m.judgement.classification)).toEqual(['masterpiece', 'forced', 'great']);
+      const initialFen = '5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1';
+      const moves = ['d5g8', 'f8g8', 'h6f7'];
+      const g = new Game(initialFen);
+      const fens = [g.fen, ...moves.map((m) => (g.move(m), g.fen))];
+      const evals = [];
+      for (const fen of fens) {
+        const term = terminalState(fen);
+        if (term) {
+          evals.push({ score: terminalScore(fen, term), pv: [], depth: 0 });
+          continue;
+        }
+        const res = await engine.search(fen, { multipv: 2, depth: 12, movetimeMs: 1500 });
+        evals.push(positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null));
+      }
+      const review = buildReview(initialFen, moves, evals);
+      expect(review.moves.map((m) => m.judgement.classification)).toEqual(['masterpiece', 'forced', 'great']);
     } finally {
-      service.close();
+      engine.close();
     }
   }, 60_000);
 });

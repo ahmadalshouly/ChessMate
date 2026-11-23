@@ -91,6 +91,33 @@ export const PIECE_SET_INFO: Record<PieceSet, PieceSetInfo> = {
     licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
     source: 'https://github.com/flugsio/chess_shapes',
   },
+  eyes: {
+    id: 'eyes',
+    name: 'Eyes',
+    note: 'Wide-eyed, playful',
+    credit: 'Eyes by Maurizio Monge',
+    license: 'MIT',
+    licenseUrl: 'https://github.com/maurimo/chess-art/blob/main/LICENSE',
+    source: 'https://github.com/maurimo/chess-art',
+  },
+  cats: {
+    id: 'cats',
+    name: 'Cats',
+    note: 'Purr-fectly silly',
+    credit: 'Prmi by Maurizio Monge',
+    license: 'MIT',
+    licenseUrl: 'https://github.com/maurimo/chess-art/blob/main/LICENSE',
+    source: 'https://github.com/maurimo/chess-art',
+  },
+  skulls: {
+    id: 'skulls',
+    name: 'Skulls',
+    note: 'Spooky',
+    credit: 'Skulls by Maurizio Monge',
+    license: 'MIT',
+    licenseUrl: 'https://github.com/maurimo/chess-art/blob/main/LICENSE',
+    source: 'https://github.com/maurimo/chess-art',
+  },
 };
 
 export const pieceSetList: PieceSetInfo[] = PIECE_SETS.map((id) => PIECE_SET_INFO[id]);

@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
 
 import { haptic } from './haptics';
-import { moveSound, playSound } from './sounds';
+import { moveSound, playMoveSound, playSound } from './sounds';
 
-/** Sound plus vibration for a move that was just played, from its SAN. */
-export function moveFeedback(san: string): void {
+/**
+ * Sound plus vibration for a move that was just played, from its SAN. `fenAfter` lets
+ * the board, which also sounds moves, skip the same move: each move plays once.
+ */
+export function moveFeedback(san: string, fenAfter?: string): void {
   const sound = moveSound(san);
-  playSound(sound);
+  playMoveSound(sound, fenAfter);
   haptic(sound === 'check' ? 'check' : sound === 'capture' ? 'capture' : 'move');
 }
 
@@ -14,12 +17,6 @@ export function moveFeedback(san: string): void {
 export function illegalMoveFeedback(): void {
   playSound('illegal');
   haptic('illegal');
-}
-
-/** A premove was queued: a light tick that says "waiting", not "played". */
-export function premoveFeedback(): void {
-  playSound('premove');
-  haptic('premove');
 }
 
 export function gameStartFeedback(): void {
@@ -37,7 +34,11 @@ export function gameEndFeedback(result?: 'win' | 'loss' | 'draw'): void {
  * pass-and-play, over the board). Only a history that grows by one move makes
  * a sound, so takebacks, resets and loading a position stay quiet.
  */
-export function useMoveFeedback(history: readonly { san: string }[], over: boolean, opts: { startCue?: boolean } = {}) {
+export function useMoveFeedback(
+  history: readonly { san: string; fenAfter?: string }[],
+  over: boolean,
+  opts: { startCue?: boolean; /** The player's result, for a game played against someone (the computer): picks the win or loss cue. */ result?: 'win' | 'loss' | 'draw' } = {},
+) {
   const prevLen = useRef(history.length);
   const prevOver = useRef(over);
   const startCue = opts.startCue ?? false;
@@ -48,13 +49,14 @@ export function useMoveFeedback(history: readonly { san: string }[], over: boole
 
   useEffect(() => {
     const last = history[history.length - 1];
-    if (history.length === prevLen.current + 1 && last) moveFeedback(last.san);
+    if (history.length === prevLen.current + 1 && last) moveFeedback(last.san, last.fenAfter);
     prevLen.current = history.length;
   }, [history]);
 
   useEffect(() => {
-    if (over && !prevOver.current) gameEndFeedback();
+    if (over && !prevOver.current) gameEndFeedback(opts.result);
     prevOver.current = over;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [over]);
 }
 

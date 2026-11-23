@@ -3,23 +3,24 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-aud
 import { getSettings } from '@/features/account/settingsStore';
 
 /**
- * Original ChessMate sound set. Every file is synthesised in-house (see
- * scripts/synth-sounds.mjs for castle, promote, low time, win, lose, premove and
- * illegal), so there is nothing to license. Credits: assets/sounds/CREDITS.md.
+ * ChessMate's own sound set: wooden pieces on a wooden board, modelled physically by
+ * scripts/synth-wood.mjs (win, lose and illegal by scripts/synth-sounds.mjs), so there
+ * is nothing to license (see assets/sounds/CREDITS.md). Moves, captures, castling and check come in several takes that
+ * are rotated, so repeated moves sound like real play.
  */
 const SOURCES = {
-  move: require('../../assets/sounds/move.wav'),
-  capture: require('../../assets/sounds/capture.wav'),
-  check: require('../../assets/sounds/check.wav'),
-  castle: require('../../assets/sounds/castle.wav'),
-  promote: require('../../assets/sounds/promote.wav'),
-  start: require('../../assets/sounds/start.wav'),
-  end: require('../../assets/sounds/end.wav'),
-  premove: require('../../assets/sounds/premove.wav'),
-  illegal: require('../../assets/sounds/illegal.wav'),
-  lowTime: require('../../assets/sounds/lowtime.wav'),
-  win: require('../../assets/sounds/win.wav'),
-  lose: require('../../assets/sounds/lose.wav'),
+  move: [require('../../assets/sounds/move1.wav'), require('../../assets/sounds/move2.wav'), require('../../assets/sounds/move3.wav'), require('../../assets/sounds/move4.wav')],
+  capture: [require('../../assets/sounds/capture1.wav'), require('../../assets/sounds/capture2.wav'), require('../../assets/sounds/capture3.wav')],
+  check: [require('../../assets/sounds/check1.wav'), require('../../assets/sounds/check2.wav')],
+  castle: [require('../../assets/sounds/castle1.wav'), require('../../assets/sounds/castle2.wav')],
+  promote: [require('../../assets/sounds/promote.wav')],
+  start: [require('../../assets/sounds/start.wav')],
+  end: [require('../../assets/sounds/end.wav')],
+  premove: [require('../../assets/sounds/premove.wav')],
+  illegal: [require('../../assets/sounds/illegal.wav')],
+  lowTime: [require('../../assets/sounds/lowtime.wav')],
+  win: [require('../../assets/sounds/win.wav')],
+  lose: [require('../../assets/sounds/lose.wav')],
 } as const;
 
 export type SoundName = keyof typeof SOURCES;
@@ -28,111 +29,73 @@ export type SoundName = keyof typeof SOURCES;
 const MOVE_SOUNDS = new Set<SoundName>(['move', 'capture', 'check', 'castle', 'promote', 'premove', 'illegal']);
 
 /**
- * Players per sound. Two moves can land within a few milliseconds (the
- * opponent's move and your premove answering it), so each cue gets a second
- * player instead of restarting, and cutting off, the one still sounding.
+ * Players per sound: every take of it, at least two, used in turn. A sound that is
+ * still ringing is never cut off or skipped when the next move comes quickly.
  */
-const VOICES = 2;
-/** A cue asked for while its file is still loading plays if it loads within this window. */
-const LATE_START_MS = 800;
+let pools: Partial<Record<SoundName, AudioPlayer[]>> = {};
+const turn: Partial<Record<SoundName, number>> = {};
+/** The silent-mode choice the audio session was last set up with (null: not yet). */
+let sessionSilentMode: boolean | null = null;
+/** The volume each player was last given, so it is only sent to the native side when it changes. */
+const playerVolume = new WeakMap<AudioPlayer, number>();
 
-interface Voice {
-  player: AudioPlayer;
-  loaded: boolean;
-  /** Rewound to 0 and ready to start instantly. */
-  atStart: boolean;
-  /** When it last started, to free a voice whose finish event never came. */
-  startedAt: number;
-  /** When a play was asked for before the file loaded. */
-  pendingSince: number | null;
-  /** Bumped on every start, so a rewind that lands after a newer start is ignored. */
-  gen: number;
-}
-
-let voices: Partial<Record<SoundName, Voice[]>> = {};
-let configured = false;
-
-function configure() {
-  if (configured) return;
-  configured = true;
-  // Game sounds are short cues: never interrupt the user's music.
-  void setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => {});
-}
-
-function createVoice(name: SoundName): Voice {
-  const player = createAudioPlayer(SOURCES[name]);
-  const v: Voice = { player, loaded: player.isLoaded, atStart: true, startedAt: 0, pendingSince: null, gen: 0 };
-  player.addListener('playbackStatusUpdate', (s) => {
-    if (s.isLoaded && !v.loaded) {
-      v.loaded = true;
-      const asked = v.pendingSince;
-      v.pendingSince = null;
-      if (asked !== null && Date.now() - asked < LATE_START_MS) start(v);
-    }
-    // Rewind as soon as a cue ends, so the next play starts without waiting on a seek.
-    if (s.didJustFinish) rewind(v);
-  });
-  return v;
-}
-
-function rewind(v: Voice) {
-  const gen = v.gen;
-  v.startedAt = 0;
-  v.player
-    .seekTo(0)
-    .then(() => {
-      if (v.gen === gen) v.atStart = true;
-    })
-    .catch(() => {});
-}
-
-function start(v: Voice) {
-  const gen = ++v.gen;
-  v.startedAt = Date.now();
-  if (v.atStart) {
-    v.atStart = false;
-    v.player.play();
-    return;
-  }
-  // Not rewound yet (still sounding, or the finish event was missed). Calling
-  // play() before the seek lands can do nothing on a finished native player, so
-  // wait for the seek first. This race was what dropped some move sounds.
-  v.player.pause();
-  void v.player
-    .seekTo(0)
-    .then(() => {
-      if (v.gen === gen) v.player.play();
-    })
-    .catch(() => {});
-}
-
-function voicesFor(name: SoundName): Voice[] | null {
-  try {
-    configure();
-    voices[name] ??= Array.from({ length: VOICES }, () => createVoice(name));
-    return voices[name]!;
-  } catch {
-    return null;
-  }
+/**
+ * Sets up the phone's audio session. Game sounds are short cues mixed over the user's
+ * music, never stopping it. With "Play on silent" off, iOS's silent switch (and
+ * Android's silent and vibrate modes) mute them; on, they play like a game's sounds.
+ */
+function configureSession(playsInSilentMode: boolean) {
+  if (sessionSilentMode === playsInSilentMode) return;
+  sessionSilentMode = playsInSilentMode;
+  void setAudioModeAsync({ playsInSilentMode, interruptionMode: 'mixWithOthers' }).catch(() => {});
 }
 
 /**
- * Creates every player up front so the first move, capture or premove of a
- * session is not lost while its file loads. Safe to call more than once.
+ * Puts a player back at the start once its sound has finished, so its next play()
+ * starts at once. A finished player sits at its end: play() there is silent on iOS
+ * (the seek back is asynchronous and lands after play), which is how every sound
+ * went quiet after its first few plays. Pausing first stops Android from replaying
+ * on the seek.
  */
-export function preloadSounds() {
-  for (const name of Object.keys(SOURCES) as SoundName[]) voicesFor(name);
+function rearm(p: AudioPlayer) {
+  try {
+    p.pause();
+    void p.seekTo(0).catch(() => {});
+  } catch {
+    // Released player.
+  }
 }
 
-/** Picks the voice that can sound soonest: idle and rewound, then idle, then the oldest. */
-function pickVoice(list: Voice[], now: number): Voice {
-  const idle = (v: Voice) => v.startedAt === 0 || now - v.startedAt > 1500;
-  return (
-    list.find((v) => v.loaded && v.atStart && idle(v)) ??
-    list.find((v) => v.loaded && idle(v)) ??
-    list.find((v) => v.loaded) ??
-    list.reduce((a, b) => (a.startedAt <= b.startedAt ? a : b))
-  );
+function pool(name: SoundName): AudioPlayer[] {
+  configureSession(getSettings().sound.silentMode);
+  let list = pools[name];
+  if (!list) {
+    const takes: readonly number[] = SOURCES[name];
+    const count = Math.max(2, takes.length);
+    list = [];
+    for (let i = 0; i < count; i++) {
+      try {
+        const p = createAudioPlayer(takes[i % takes.length]!);
+        p.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) rearm(p);
+        });
+        list.push(p);
+      } catch {
+        // No audio on this device.
+      }
+    }
+    pools[name] = list;
+  }
+  return list;
+}
+
+/**
+ * Loads every sound up front. A player created at the moment of the first move is
+ * still loading and stays silent, which is how the first move, capture or check of a
+ * session could go unheard.
+ */
+export function preloadSounds() {
+  for (const name of Object.keys(SOURCES) as SoundName[]) pool(name);
 }
 
 /** Whether a sound may play under the user's sound settings. */
@@ -143,22 +106,51 @@ export function soundAllowed(name: SoundName, sound = getSettings().sound): bool
   return true;
 }
 
+/** The last move that made a sound, so a move reported twice (game logic and board) plays once. */
+let lastMove = { key: '', at: 0 };
+
+/** Position part of a FEN (pieces and side to move): what identifies a move's result. */
+export function positionKey(fen: string): string {
+  return fen.split(' ').slice(0, 2).join(' ');
+}
+
+/**
+ * Plays a move's sound once per resulting position: the board and the game logic may
+ * both report the same move, only the first does.
+ */
+export function playMoveSound(name: SoundName, fenAfter?: string): void {
+  if (fenAfter) {
+    const key = positionKey(fenAfter);
+    const now = Date.now();
+    if (key === lastMove.key && now - lastMove.at < 1500) return;
+    lastMove = { key, at: now };
+  }
+  playSound(name);
+}
+
 export function playSound(name: SoundName): void {
   const { sound } = getSettings();
   if (!soundAllowed(name, sound)) return;
-  const list = voicesFor(name);
-  if (!list) return;
+  const list = pool(name);
+  if (!list.length) return;
+  const i = (turn[name] ?? 0) % list.length;
+  turn[name] = i + 1;
+  const p = list[i]!;
   try {
-    const now = Date.now();
-    const v = pickVoice(list, now);
-    v.player.volume = sound.volume;
-    if (!v.loaded && !v.player.isLoaded) {
-      // Still loading: play the moment it is ready rather than dropping the cue.
-      v.pendingSince = now;
-      return;
+    if (playerVolume.get(p) !== sound.volume) {
+      p.volume = sound.volume;
+      playerVolume.set(p, sound.volume);
     }
-    v.loaded = true;
-    start(v);
+    if (p.currentTime > 0.01) {
+      // Still ringing (very fast moves) or not yet rewound: rewind first, then play,
+      // so play() never lands at the end of the sound.
+      p.pause();
+      p.seekTo(0)
+        .then(() => p.play())
+        .catch(() => {});
+    } else {
+      p.play();
+    }
   } catch {
     // Audio is a nicety; a device without audio output must not break play.
   }
@@ -175,6 +167,6 @@ export function moveSound(san: string): SoundName {
 
 /** Releases native players (e.g. on sign-out). */
 export function unloadSounds() {
-  for (const list of Object.values(voices)) for (const v of list ?? []) v.player.remove();
-  voices = {};
+  for (const list of Object.values(pools)) for (const p of list ?? []) p.remove();
+  pools = {};
 }

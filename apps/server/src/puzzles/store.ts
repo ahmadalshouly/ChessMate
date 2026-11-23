@@ -185,12 +185,15 @@ export class SqlitePuzzleStore implements PuzzleStore {
           ];
       const n = (this.sql.prepare(countSql).get(...args) as { n: number }).n;
       if (n === 0) continue;
-      // Read a small page from a random offset and take the first unseen.
+      // A small page from a random offset, then a random unseen puzzle in it (never
+      // simply the first: the same order would come back). A few tries before widening.
       const page = 24;
-      const offset = Math.floor(random() * Math.max(1, n - page + 1));
-      const rows = this.sql.prepare(rowSql).all(...args, page, offset) as Row[];
-      const hit = rows.find((r) => !exclude.has(r.id as string));
-      if (hit) return toPuzzle(hit);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const offset = Math.floor(random() * Math.max(1, n - page + 1));
+        const rows = (this.sql.prepare(rowSql).all(...args, page, offset) as Row[]).filter((r) => !exclude.has(r.id as string));
+        if (rows.length) return toPuzzle(rows[Math.floor(random() * rows.length)]!);
+        if (n <= page) break;
+      }
     }
     return undefined;
   }

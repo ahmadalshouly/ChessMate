@@ -1,4 +1,4 @@
-import type { Avatar, GameEndReason, GameResult, TimeCategory, UserSettings } from '@chessmate/core';
+import type { Avatar, ChessTitle, GameEndReason, PlayerTag, RoleTag, GameResult, TimeCategory, UserSettings } from '@chessmate/core';
 import type { IncomingMessage } from 'node:http';
 
 /** A signed-in account, as the auth service knows it. */
@@ -39,6 +39,8 @@ export interface FinishedGame {
   reason: GameEndReason;
   moves: string[];
   endedAt: number;
+  /** Accuracy per side once the game has a saved review. */
+  accuracy?: { w: number; b: number } | null;
 }
 
 export type AccountResult = { ok: true } | { ok: false; status: number; field?: string; message: string };
@@ -58,6 +60,10 @@ export interface ProfileDeps {
   games(userId: string, limit: number): Promise<FinishedGame[]> | FinishedGame[];
   changePassword(userId: string, current: string, next: string): Promise<AccountResult>;
   deleteAccount(userId: string, password: string): Promise<AccountResult>;
+  /** Verified chess title, when titles are on (database mode). */
+  titleOf?(userId: string): ChessTitle | null;
+  /** Official role tag set by admins, when titles are on (database mode). */
+  roleTagOf?(userId: string): RoleTag | null;
   isOnline?(userId: string): boolean;
 }
 
@@ -68,6 +74,8 @@ export interface ProfileRecord {
   bio: string | null;
   country: string | null;
   avatar: Avatar;
+  /** Tag the player picked for themselves. */
+  playerTag?: PlayerTag | null;
   settings: UserSettings;
   updatedAt: number;
 }

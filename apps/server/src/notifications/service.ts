@@ -42,7 +42,7 @@ export class NotificationService {
   /** Returns the stored notification, or null when the user turned this kind off everywhere. */
   notify(userId: string, input: NotifyInput): AppNotification | null {
     const prefs = this.store.prefs(userId);
-    const channel = prefs.kinds[input.kind];
+    const channel = prefs.kinds[input.kind] ?? { inApp: true, push: true };
     const now = this.now();
     const n: AppNotification = {
       id: randomUUID(),

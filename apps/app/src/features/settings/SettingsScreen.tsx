@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/ui/primitives';
+import { rimShadow } from '@/ui';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
@@ -30,6 +31,8 @@ export function SettingsScreen() {
   const t = useTheme();
   const { tr } = useI18n();
   const session = useAccountSession();
+  const { user: account } = useAuth();
+  const staffRole = account?.role === 'moderator' || account?.role === 'admin' ? account.role : null;
   const { settings: s, update } = useSettingsSync(session);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -79,6 +82,14 @@ export function SettingsScreen() {
                 <Segmented value={volume} options={VOLUME.map((v) => ({ ...v, label: tr(v.label) }))} onChange={(v) => set({ sound: { volume: Number(v) } })} accessibilityLabel={tr('settings.sound.volume')} />
                 <ToggleRow title={tr('settings.sound.moves')} value={s.sound.moves} onChange={(v) => set({ sound: { moves: v } })} />
                 <ToggleRow title={tr('settings.sound.lowTime')} value={s.sound.lowTime} onChange={(v) => set({ sound: { lowTime: v } })} />
+                {Platform.OS !== 'web' && (
+                  <ToggleRow
+                    title={tr('settings.sound.silentMode')}
+                    detail={tr(Platform.OS === 'ios' ? 'settings.sound.silentModeDetailIos' : 'settings.sound.silentModeDetailAndroid')}
+                    value={s.sound.silentMode}
+                    onChange={(v) => set({ sound: { silentMode: v } })}
+                  />
+                )}
               </>
             )}
             {Platform.OS !== 'web' && (
@@ -101,6 +112,12 @@ export function SettingsScreen() {
                 { value: 'always', label: tr('settings.gameplay.always') },
               ]}
               onChange={(confirmMoves) => set({ gameplay: { confirmMoves } })}
+            />
+            <ToggleRow
+              title={tr('settings.gameplay.autoQueen')}
+              detail={tr('settings.gameplay.autoQueenDetail')}
+              value={s.gameplay.autoQueen}
+              onChange={(v) => set({ gameplay: { autoQueen: v } })}
             />
             <ToggleRow
               title={tr('settings.gameplay.premoves')}
@@ -128,6 +145,29 @@ export function SettingsScreen() {
             <Text style={[styles.label, { color: t.muted }]}>{tr('settings.privacy.messageWho')}</Text>
             <Segmented value={s.privacy.messages} options={AUDIENCE.map((a) => ({ ...a, label: tr(a.label) }))} onChange={(messages) => set({ privacy: { messages } })} />
           </Section>
+
+          {session.signedIn && (
+            <Section title={tr('chessTitle.screen')}>
+              <Row title={tr('chessTitle.apply')} detail={tr('chessTitle.settingsDetail')}>
+                <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/title')} />
+              </Row>
+            </Section>
+          )}
+
+          {session.signedIn && (
+            <Section title={tr('watch.streamer.title')}>
+              <Row title={tr('watch.streamer.settingsRow')} detail={tr('watch.streamer.settingsDetail')}>
+                <Button variant="secondary" title={tr('chessTitle.open')} onPress={() => router.push('/settings/streamer')} />
+              </Row>
+            </Section>
+          )}
+
+          {staffRole && (
+            <Section title={tr('admin.staffSection')}>
+              <Text style={[styles.label, { color: t.muted }]}>{tr('admin.staffDetail', { role: tr(`admin.roles.${staffRole}`) })}</Text>
+              <Button variant="secondary" title={tr('admin.open')} onPress={() => router.push('/admin')} />
+            </Section>
+          )}
 
           {session.signedIn && (
             <>
@@ -196,7 +236,7 @@ function LanguageSection() {
               accessibilityLanguage={p === 'system' ? undefined : p}
               disabled={busy}
               onPress={() => pick(p)}
-              style={[styles.themeRow, { borderColor: on ? t.text : t.border }]}>
+              style={[styles.themeRow, { backgroundColor: on ? t.glassSelected : 'transparent' }, on && rimShadow(t, 'bright')]}>
               <View style={[styles.radio, { borderColor: on ? t.text : t.border }]}>{on && <View style={[styles.radioDot, { backgroundColor: t.text }]} />}</View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontWeight: on ? '700' : '400', fontSize: 15 }}>{name}</Text>
@@ -309,7 +349,7 @@ function DeleteAccount() {
 const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 8 },
+  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 10 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   label: { fontSize: 13, fontWeight: '600', marginTop: 4 },

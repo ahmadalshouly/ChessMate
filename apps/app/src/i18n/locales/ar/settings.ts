@@ -23,6 +23,9 @@ export const settings: Messages<typeof en> = {
     titleNative: 'الصوت والاهتزاز',
     vibration: 'الاهتزاز',
     vibrationDetail: 'اهتزاز خفيف عند النقل والأخذ والكش ونهاية المباراة',
+    silentMode: 'تشغيل الأصوات في الوضع الصامت',
+    silentModeDetailIos: 'عند الإيقاف: زر الصامت يكتم أصوات اللعبة',
+    silentModeDetailAndroid: 'عند الإيقاف: الوضع الصامت والاهتزاز يكتمان أصوات اللعبة',
   },
   gameplay: {
     title: 'اللعب',
@@ -32,7 +35,9 @@ export const settings: Messages<typeof en> = {
     always: 'دائمًا',
     confirmResign: 'التأكيد قبل الاستسلام',
     premoves: 'النقلات المسبقة',
-    premovesDetail: 'جهّز نقلتك التالية بينما يفكر خصمك. اضغط في مكان آخر أو انقر بالزر الأيمن للإلغاء.',
+    premovesDetail: 'جهّز نقلاتك التالية بينما يفكر خصمك (عدة نقلات متتالية على الويب، ونقلة واحدة على الهاتف). اضغط في مكان آخر أو انقر بالزر الأيمن للإلغاء.',
+    autoQueen: 'الترقية إلى وزير دائمًا',
+    autoQueenDetail: 'عند الإيقاف: اختر وزيرًا أو قلعة أو فيلًا أو حصانًا عند كل ترقية.',
   },
   notifications: {
     title: 'الإشعارات',

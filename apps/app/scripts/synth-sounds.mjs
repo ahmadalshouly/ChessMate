@@ -1,4 +1,4 @@
-// Synthesises ChessMate's castle, promote, low-time, win, lose, premove and illegal-move cues as 16-bit mono WAVs.
+// Synthesises ChessMate's win, lose and illegal-move cues as 16-bit mono WAVs (board sounds: synth-wood.mjs).
 // Every sample is generated here, so the sounds are original and need no licence.
 // Usage: node apps/app/scripts/synth-sounds.mjs
 import { Buffer } from 'node:buffer';
@@ -13,20 +13,6 @@ const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'sound
 let seed = 7;
 const noise = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x3fffffff) - 1;
 
-/** A short wooden knock: filtered noise burst plus a damped low body tone. */
-function knock(buf, at, gain = 1, pitch = 1) {
-  const start = Math.round(at * RATE);
-  const len = Math.round(0.09 * RATE);
-  let lp = 0;
-  for (let i = 0; i < len && start + i < buf.length; i++) {
-    const t = i / RATE;
-    lp += 0.35 * (noise() - lp);
-    const click = lp * Math.exp(-t * 90);
-    const body = Math.sin(2 * Math.PI * 190 * pitch * t) * Math.exp(-t * 38) + 0.5 * Math.sin(2 * Math.PI * 410 * pitch * t) * Math.exp(-t * 60);
-    buf[start + i] += gain * (0.55 * click + 0.6 * body);
-  }
-}
-
 /** A soft bell-like tone with a few inharmonic partials. */
 function bell(buf, at, freq, dur, gain = 1) {
   const start = Math.round(at * RATE);
@@ -40,15 +26,15 @@ function bell(buf, at, freq, dur, gain = 1) {
   }
 }
 
-function write(name, seconds, draw, level = 0.7) {
+function write(name, seconds, draw) {
   const buf = new Float32Array(Math.round(seconds * RATE));
   draw(buf);
   const peak = buf.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
   const data = Buffer.alloc(buf.length * 2);
-  // Normalise (about -3 dBFS by default) and fade the tail to avoid clicks.
+  // Normalise to about -3 dBFS and fade the tail to avoid clicks.
   for (let i = 0; i < buf.length; i++) {
     const fade = Math.min(1, (buf.length - i) / (0.01 * RATE));
-    data.writeInt16LE(Math.round((buf[i] / peak) * level * fade * 32767), i * 2);
+    data.writeInt16LE(Math.round((buf[i] / peak) * 0.7 * fade * 32767), i * 2);
   }
   const header = Buffer.alloc(44);
   header.write('RIFF', 0);
@@ -66,23 +52,6 @@ function write(name, seconds, draw, level = 0.7) {
   header.writeUInt32LE(data.length, 40);
   writeFileSync(join(out, `${name}.wav`), Buffer.concat([header, data]));
 }
-
-// King and rook landing: two knocks, the second slightly higher.
-write('castle', 0.24, (b) => {
-  knock(b, 0, 1, 1);
-  knock(b, 0.085, 0.9, 1.18);
-});
-// Promotion: a knock and a rising two-note chime.
-write('promote', 0.5, (b) => {
-  knock(b, 0, 0.8);
-  bell(b, 0.03, 784, 0.35, 0.5);
-  bell(b, 0.12, 1175, 0.38, 0.55);
-});
-// Low time: two short, soft ticks that stand out without startling.
-write('lowtime', 0.42, (b) => {
-  bell(b, 0, 1320, 0.12, 0.8);
-  bell(b, 0.2, 1320, 0.12, 0.8);
-});
 
 /** Applause-like crowd: many tiny filtered claps scattered over time with a swell and fade. */
 function cheer(buf, at, dur, gain = 1) {
@@ -120,14 +89,6 @@ write('lose', 1.1, (b) => {
   bell(b, 0.28, 220, 0.9, 0.25);
 });
 
-// Premove queued: two quick, light, high ticks. Clearly not a piece landing, so the
-// player hears that the move is waiting rather than played.
-write('premove', 0.14, (b) => {
-  bell(b, 0, 1760, 0.05, 0.9);
-  knock(b, 0, 0.35, 2.4);
-  bell(b, 0.06, 2093, 0.06, 0.8);
-}, 0.5);
-
 /** A muffled low thud whose pitch sags, like a piece bumping the board edge. */
 function thud(buf, at, freq, dur, gain = 1) {
   const start = Math.round(at * RATE);
@@ -148,5 +109,5 @@ function thud(buf, at, freq, dur, gain = 1) {
 write('illegal', 0.3, (b) => {
   thud(b, 0, 196, 0.12, 1);
   thud(b, 0.1, 147, 0.17, 0.9);
-}, 0.6);
-console.log('wrote castle, promote, lowtime, win, lose, premove and illegal .wav files to', out);
+});
+console.log('wrote win.wav, lose.wav, illegal.wav to', out);

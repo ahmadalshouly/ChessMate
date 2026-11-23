@@ -28,6 +28,8 @@ export function validateClientMessage(m: ClientMessage): string | null {
     case 'seek': {
       if (!isObj(msg.timeControl) || typeof msg.rated !== 'boolean') return 'Invalid seek';
       if (msg.range !== undefined && !isInt(msg.range, 0, 4000)) return 'Invalid rating window';
+      if (msg.color !== undefined && msg.color !== 'w' && msg.color !== 'b' && msg.color !== 'random') return 'Invalid colour';
+      if (msg.variant !== undefined && msg.variant !== 'standard' && msg.variant !== 'secretQueen') return 'Invalid variant';
       const r = msg.ratingRange;
       if (r === undefined) return null;
       return Array.isArray(r) && r.length === 2 && isInt(r[0], 0, 4000) && isInt(r[1], 0, 4000) && r[0] <= r[1]
@@ -74,16 +76,19 @@ export function validateClientMessage(m: ClientMessage): string | null {
       return msg.quick === undefined || typeof msg.quick === 'string' ? null : 'Invalid quick message';
     case 'analyze':
       if (!isInt(msg.id, 0, Number.MAX_SAFE_INTEGER)) return 'Invalid request id';
+      if (msg.depth !== undefined && !isInt(msg.depth, 1, 99)) return 'Invalid depth';
+      if (msg.movetimeMs !== undefined && !isInt(msg.movetimeMs, 1, 600_000)) return 'Invalid think time';
       return typeof msg.fen === 'string' && msg.fen.length <= 128 ? null : 'Invalid position';
     case 'analyzeStop':
       return isInt(msg.id, 0, Number.MAX_SAFE_INTEGER) ? null : 'Invalid request id';
-    case 'review':
-      if (!isInt(msg.id, 0, Number.MAX_SAFE_INTEGER)) return 'Invalid request id';
-      return Array.isArray(msg.moves) && msg.moves.length <= MAX_PLY && msg.moves.every(isValidUci) ? null : 'Invalid moves';
     case 'report':
       if (typeof msg.playerId !== 'string' || msg.playerId.length > 128) return 'Invalid player id';
       if (msg.gameId !== undefined && !isGameId(msg.gameId)) return 'Invalid game id';
       return msg.note === undefined || (typeof msg.note === 'string' && msg.note.length <= 2000) ? null : 'Invalid report note';
+    case 'frenzy':
+      return isGameId(msg.gameId) ? null : 'Invalid game id';
+    case 'secretPick':
+      return isGameId(msg.gameId) && typeof msg.square === 'string' && /^[a-h][1-8]$/.test(msg.square) ? null : 'Invalid pick';
     default:
       return 'Unknown message';
   }

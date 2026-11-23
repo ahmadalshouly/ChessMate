@@ -66,10 +66,10 @@ export default function OverTheBoard() {
   const tr = useT();
 
   const running = !!clock?.running && !outcome;
-  useTicker(running);
+  const now = useTicker(running);
 
   // Flag check: runs on every tick while a clock is running.
-  const flagged = clock && !outcome ? isFlagged(clock, Date.now()) : null;
+  const flagged = clock && !outcome ? isFlagged(clock, now) : null;
   useEffect(() => {
     if (!flagged || !clock) return;
     setClock(stopClock(clock, Date.now()));
@@ -128,7 +128,7 @@ export default function OverTheBoard() {
   const top = other(orientation);
   const bottom = orientation;
   const last = view.history[view.history.length - 1];
-  const ms = (c: Color) => (clock ? remaining(clock, c, Date.now()) : null);
+  const ms = (c: Color) => (clock ? remaining(clock, c, now) : null);
 
   const bar = (c: Color, rotated: boolean) => (
     <View style={[styles.bar, rotated && styles.rotated]}>

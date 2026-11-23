@@ -59,6 +59,8 @@ export interface GameEnd {
   plyCount: number;
   ratingsAfter?: Partial<Record<Color, number>>;
   ratingsBefore?: Partial<Record<Color, number>>;
+  /** Opening from the book, when recognised. */
+  opening?: { eco: string; name: string } | null;
   endedAt?: Date;
 }
 
@@ -77,6 +79,7 @@ export async function finishGame(db: Database, id: string, e: GameEnd): Promise<
       ...(e.ratingsBefore?.b !== undefined ? { blackRatingBefore: e.ratingsBefore.b } : {}),
       whiteRatingAfter: e.ratingsAfter?.w,
       blackRatingAfter: e.ratingsAfter?.b,
+      ...(e.opening ? { eco: e.opening.eco, openingName: e.opening.name } : {}),
       endedAt: e.endedAt ?? new Date(),
     })
     .where(eq(games.id, id));
@@ -104,6 +107,45 @@ export async function listUserGames(
     .where(and(...conds))
     .orderBy(desc(games.startedAt))
     .limit(Math.min(opts.limit ?? 20, 100));
+}
+
+export interface HeadToHead {
+  games: number;
+  /** From `userId`'s side. */
+  wins: number;
+  draws: number;
+  losses: number;
+  lastPlayedAt: number | null;
+  /** Newest finished games between the two, at most 5. */
+  recent: { id: string; color: Color; result: '1-0' | '0-1' | '1/2-1/2'; endedAt: number | null }[];
+}
+
+/** Finished games between two users, counted from `userId`'s side. */
+export async function headToHead(db: Database, userId: string, otherId: string): Promise<HeadToHead> {
+  const rows = await db
+    .select({ id: games.id, whiteUserId: games.whiteUserId, result: games.result, endedAt: games.endedAt, startedAt: games.startedAt })
+    .from(games)
+    .where(
+      and(
+        eq(games.status, 'finished'),
+        or(and(eq(games.whiteUserId, userId), eq(games.blackUserId, otherId)), and(eq(games.whiteUserId, otherId), eq(games.blackUserId, userId))),
+      ),
+    )
+    .orderBy(desc(games.startedAt))
+    .limit(1000);
+  const out: HeadToHead = { games: 0, wins: 0, draws: 0, losses: 0, lastPlayedAt: null, recent: [] };
+  for (const r of rows) {
+    if (r.result === '*') continue;
+    const color: Color = r.whiteUserId === userId ? 'w' : 'b';
+    out.games++;
+    if (r.result === '1/2-1/2') out.draws++;
+    else if ((r.result === '1-0') === (color === 'w')) out.wins++;
+    else out.losses++;
+    const at = (r.endedAt ?? r.startedAt)?.getTime() ?? null;
+    out.lastPlayedAt ??= at;
+    if (out.recent.length < 5) out.recent.push({ id: r.id, color, result: r.result, endedAt: at });
+  }
+  return out;
 }
 
 /**

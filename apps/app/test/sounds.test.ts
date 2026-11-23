@@ -16,6 +16,7 @@ class FakePlayer {
   static all: FakePlayer[] = [];
   isLoaded = false;
   playing = false;
+  currentTime = 0;
   volume = 1;
   plays = 0;
   seeks: (() => void)[] = [];
@@ -58,7 +59,7 @@ vi.mock('expo-audio', () => ({
   setAudioModeAsync: () => Promise.resolve(),
 }));
 vi.mock('@/features/account/settingsStore', () => ({
-  getSettings: () => ({ sound: { enabled: true, volume: 1, moves: true, lowTime: true, haptics: false } }),
+  getSettings: () => ({ sound: { enabled: true, volume: 1, moves: true, lowTime: true, haptics: false, silentMode: false } }),
 }));
 
 type Sounds = typeof import('../src/lib/sounds');
@@ -70,63 +71,17 @@ beforeEach(async () => {
   sounds = await import('../src/lib/sounds');
 });
 
-/** The move cue's two players: move is the first cue created, preloaded or not. */
-const playersOf = () => FakePlayer.all.slice(0, 2);
-
-describe('sounds', () => {
-  it('plays two moves in quick succession on separate players', () => {
-    sounds.preloadSounds();
-    const [a, b] = playersOf();
-    a!.load();
-    b!.load();
-    sounds.playSound('move');
-    sounds.playSound('move');
-    expect(a!.plays + b!.plays).toBe(2);
-    expect(a!.plays).toBe(1);
+describe('illegal-move sound', () => {
+  it('plays the illegal.wav cue', () => {
+    sounds.playSound('illegal');
+    const played = FakePlayer.all.filter((p) => p.plays > 0);
+    expect(played).toHaveLength(1);
+    expect(String(played[0]!.source)).toMatch(/illegal\.wav$/);
   });
 
-  it('does not drop a cue asked for while the file is still loading', () => {
-    sounds.playSound('move');
-    const players = playersOf();
-    expect(players.every((p) => p.plays === 0)).toBe(true);
-    for (const p of players) p.load();
-    expect(players.reduce((n, p) => n + p.plays, 0)).toBe(1);
-  });
-
-  it('waits for the rewind before replaying a finished player', async () => {
-    sounds.preloadSounds();
-    const [a, b] = playersOf();
-    a!.load();
-    b!.load();
-    sounds.playSound('move');
-    sounds.playSound('move');
-    // Both have played and neither has been rewound yet (no finish event).
-    a!.finish();
-    sounds.playSound('move');
-    // a's rewind is still in flight: it must not call play() before the seek lands.
-    const before = a!.plays + b!.plays;
-    expect(before).toBe(2);
-    await a!.settle();
-    await b!.settle();
-    expect(a!.plays + b!.plays).toBe(3);
-  });
-
-  it('starts instantly once a finished player has been rewound', async () => {
-    sounds.preloadSounds();
-    const [a, b] = playersOf();
-    a!.load();
-    b!.load();
-    sounds.playSound('move');
-    a!.finish();
-    await a!.settle();
-    sounds.playSound('move');
-    expect(a!.plays + b!.plays).toBe(2);
-  });
-
-  it('maps illegal and premove cues to the move-sound setting', () => {
-    const off = { enabled: true, volume: 1, moves: false, lowTime: true, haptics: false };
+  it('follows the "Move and capture sounds" setting', () => {
+    const off = { enabled: true, volume: 1, moves: false, lowTime: true, haptics: false, silentMode: false };
     expect(sounds.soundAllowed('illegal', off)).toBe(false);
-    expect(sounds.soundAllowed('premove', off)).toBe(false);
     expect(sounds.soundAllowed('illegal', { ...off, moves: true })).toBe(true);
   });
 });

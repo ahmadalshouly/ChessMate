@@ -97,7 +97,7 @@ export class PuzzleApi {
     const get = req.method === 'GET';
     const post = req.method === 'POST';
 
-    if (get && parts[0] === 'themes') return { counts: store.themeCounts() };
+    if (get && parts[0] === 'themes') return { counts: store.themeCounts(), total: store.count() };
 
     if (get && parts[0] === 'daily') {
       const day = dayKey(this.now());
@@ -111,7 +111,8 @@ export class PuzzleApi {
       if (theme && !/^\w{1,40}$/.test(theme)) throw new HttpError(400, 'Bad theme');
       const target = user ? store.rating(user.id).rating : 1500;
       const exclude = user ? store.recentPuzzleIds(user.id, 500) : new Set<string>();
-      for (const id of (url.searchParams.get('skip') ?? '').split(',').filter(Boolean).slice(0, 50)) exclude.add(id);
+      // Recently seen on this device (guests too), so puzzles don't come back soon.
+      for (const id of (url.searchParams.get('skip') ?? '').split(',').filter(Boolean).slice(0, 300)) exclude.add(id);
       const p = store.pick({ rating: target, theme, exclude, random: this.opts.random });
       if (!p) throw new HttpError(404, theme ? 'No puzzles for that theme yet' : 'No puzzles imported yet');
       return { puzzle: toDto(p) };

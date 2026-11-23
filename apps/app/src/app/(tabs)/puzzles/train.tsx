@@ -1,15 +1,18 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { PuzzleDto } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 import { PuzzleBoard } from '@/components/PuzzleBoard';
-import { Button, Card, Label, Screen } from '@/components/ui';
+import { Screen } from '@/components/ui';
 import { puzzleApi } from '@/lib/puzzleApi';
-import { useBoardSize } from '@/lib/useBoardSize';
+import { useWideBoard } from '@/lib/useWideBoard';
+import { NO_SWIPE_BACK, useNoSwipeBack } from '@/lib/useNoSwipeBack';
 import { usePuzzle, type PuzzleFinish } from '@/lib/usePuzzle';
 import { translate, useT } from '@/i18n';
 import { puzzleThemeLabel } from '@/i18n/chess';
+import { Button, GlassView, Row, Stack as Column, Text, useAppTheme } from '@/ui';
 
 /**
  * Puzzle trainer: rated puzzles near your puzzle rating, optionally filtered
@@ -17,6 +20,8 @@ import { puzzleThemeLabel } from '@/i18n/chess';
  */
 export default function PuzzleTrainer() {
   const tr = useT();
+  const t = useAppTheme();
+  const c = t.colors;
   const params = useLocalSearchParams<{ theme?: string; id?: string; daily?: string }>();
   const theme = params.theme || undefined;
   const daily = params.daily === '1';
@@ -24,7 +29,10 @@ export default function PuzzleTrainer() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ solved: boolean; delta?: number; rating?: number } | null>(null);
   const seen = useRef<string[]>([]);
-  const size = useBoardSize(330);
+  // Leave with the back button only: dragging a piece must never swipe the puzzle away.
+  useNoSwipeBack();
+  // Big board on wide screens (panel beside it); phones keep room below for hints and results.
+  const { wide, size } = useWideBoard({ panel: 380, reserve: 116, phoneReserve: 330, sidebar: true });
 
   const load = useCallback(async () => {
     setError(null);
@@ -58,34 +66,52 @@ export default function PuzzleTrainer() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title }} />
-      <ScrollView contentContainerStyle={styles.page}>
-        {error ? (
-          <Card style={{ width: size }}>
-            <Label bold>{tr('puzzles.train.couldNotLoad')}</Label>
-            <Label muted>{error}</Label>
-            <Button title={tr('common.tryAgain')} onPress={load} />
-          </Card>
-        ) : (
-          <View style={{ width: size, gap: 12 }}>
-            <PuzzleBoard view={view} puzzle={puzzle} size={size} />
-            {result && (
-              <Card>
-                <Label size={18} bold>
-                  {result.solved ? tr('puzzles.train.nice') : tr('puzzles.train.keepAtIt')}
-                </Label>
-                {result.delta !== undefined && (
-                  <Label muted>
-                    {tr('puzzles.train.ratingChange', { rating: result.rating ?? '', delta: `${result.delta >= 0 ? '+' : ''}${result.delta}` })}
-                  </Label>
-                )}
-                <Button title={tr('puzzles.train.next')} onPress={load} />
-                {daily && <Button variant="secondary" title={tr('puzzles.train.back')} onPress={() => router.back()} />}
-              </Card>
-            )}
-          </View>
-        )}
-      </ScrollView>
+      <Stack.Screen options={{ title, ...NO_SWIPE_BACK }} />
+      {error ? (
+        <ScrollView contentContainerStyle={styles.page}>
+          <GlassView padding="xl" radius="xl" style={{ width: Math.min(size, 560), gap: t.space.md }}>
+            <Ionicons name="cloud-offline-outline" size={26} color={c.text} />
+            <Column gap="xs">
+              <Text variant="heading">{tr('puzzles.train.couldNotLoad')}</Text>
+              <Text tone="muted">{error}</Text>
+            </Column>
+            <Button title={tr('common.tryAgain')} fullWidth onPress={load} />
+          </GlassView>
+        </ScrollView>
+      ) : (
+        <PuzzleBoard
+          view={view}
+          puzzle={puzzle}
+          size={size}
+          wide={wide}
+          below={
+            result && (
+              <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
+                <Row gap="md">
+                  <Column gap="xxs" style={{ flex: 1 }}>
+                    <Text variant="heading">{result.solved ? tr('puzzles.train.nice') : tr('puzzles.train.keepAtIt')}</Text>
+                    {result.rating !== undefined && (
+                      <Text variant="caption" tone="muted">
+                        {tr('puzzles.home.rating')}
+                      </Text>
+                    )}
+                  </Column>
+                  {result.delta !== undefined && (
+                    <Column gap="none" style={{ alignItems: 'flex-end' }}>
+                      <Text variant="figure">{result.rating}</Text>
+                      <Text variant="numeric" tone={result.delta > 0 ? 'success' : result.delta < 0 ? 'danger' : 'muted'}>
+                        {`${result.delta >= 0 ? '+' : ''}${result.delta}`}
+                      </Text>
+                    </Column>
+                  )}
+                </Row>
+                <Button title={tr('puzzles.train.next')} size="lg" fullWidth leftIcon={<Ionicons name="arrow-forward" size={16} color={c.onAccent} />} onPress={load} />
+                {daily && <Button variant="secondary" fullWidth title={tr('puzzles.train.back')} onPress={() => router.back()} />}
+              </GlassView>
+            )
+          }
+        />
+      )}
     </Screen>
   );
 }

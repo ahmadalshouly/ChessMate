@@ -14,6 +14,10 @@ export interface FormError {
 
 export function toFormError(e: unknown): FormError {
   if (e instanceof ApiError) {
+    // Closed by staff: the server puts the closure reason in `field`.
+    if (e.code === 'account_closed') {
+      return { message: translate(e.field === 'fair_play' ? 'auth.errors.account_closed_fair_play' : 'auth.errors.account_closed') };
+    }
     // The server explains weak passwords precisely (too common, matches username), so prefer its
     // English text in English; other languages get the translated general advice.
     const useServer = e.code === 'weak_password' && e.message && i18nStore.get().lang === 'en';

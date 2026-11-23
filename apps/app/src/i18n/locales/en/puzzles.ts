@@ -15,6 +15,11 @@ export const puzzles = {
   ratingLabel: 'Puzzle {rating}',
   showMove: 'Show move',
   home: {
+    bestScore: 'Best: {n}',
+    accuracy: '{pct}% solved',
+    subtitle: '{n} puzzles from the Lichess open database, at every level.',
+    themes: 'Train a theme',
+    themesBody: 'Tap a theme to start puzzles on it right away.',
     rating: 'Puzzle rating',
     solved: 'Solved',
     bestStreak: 'Best streak',

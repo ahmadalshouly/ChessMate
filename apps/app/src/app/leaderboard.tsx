@@ -2,13 +2,14 @@ import type { TimeCategory } from '@chessmate/core';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
+import { fonts, rimShadow } from '@/ui';
 
+import { CountryFlag } from '@/components/CountryFlag';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import {
   LEADERBOARD_CATEGORIES,
-  countryFlag,
   useLeaderboard,
   type LeaderboardEntry,
   type LeaderboardScope,
@@ -64,11 +65,14 @@ export default function LeaderboardScreen() {
         </Card>
       )}
       {page && (
-        <Text style={[styles.caption, { color: t.muted }]}>
-          {page.country
-            ? tr('leaderboard.rankedIn', { count: page.total, n: formatNumber(page.total), country: `${countryFlag(page.country)} ${countryLabel(page.country) ?? page.country}` })
-            : tr('leaderboard.ranked', { count: page.total, n: formatNumber(page.total) })}
-        </Text>
+        <View style={styles.flagLine}>
+          {page.country ? <CountryFlag code={page.country} size={10} decorative /> : null}
+          <Text style={[styles.caption, styles.shrink, { color: t.muted }]}>
+            {page.country
+              ? tr('leaderboard.rankedIn', { count: page.total, n: formatNumber(page.total), country: countryLabel(page.country) ?? page.country })
+              : tr('leaderboard.ranked', { count: page.total, n: formatNumber(page.total) })}
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -125,17 +129,19 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
   const podium = entry.rank <= 3;
   return (
     <View
-      style={[styles.row, { borderColor: highlight ? t.text : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface }]}
+      style={[styles.row, { borderColor: highlight ? t.borderStrong : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface }, rimShadow(t, highlight ? 'bright' : 'soft')]}
       accessible
-      accessibilityLabel={tr('leaderboard.rowA11y', { rank: entry.rank, name: entry.displayName, rating: entry.rating })}>
+      accessibilityLabel={[tr('leaderboard.rowA11y', { rank: entry.rank, name: entry.displayName, rating: entry.rating }), countryLabel(entry.country)].filter(Boolean).join(', ')}>
       <View style={[styles.rank, podium && { backgroundColor: t.accent }]}>
         <Text style={[styles.rankText, { color: podium ? t.onAccent : t.muted }]}>{entry.rank}</Text>
       </View>
       <View style={styles.who}>
-        <Text style={[styles.name, { color: t.text }]} numberOfLines={1}>
-          {entry.country ? `${countryFlag(entry.country)} ` : ''}
-          {entry.displayName}
-        </Text>
+        <View style={styles.flagLine}>
+          <CountryFlag code={entry.country} decorative />
+          <Text style={[styles.name, styles.shrink, { color: t.text }]} numberOfLines={1}>
+            {entry.displayName}
+          </Text>
+        </View>
         <Text style={[styles.sub, { color: t.muted }]} numberOfLines={1}>
           @{entry.username}
           {entry.games > 0 ? ` · ${tr('leaderboard.games', { count: entry.games })} · ${entry.wins}${tr('profile.w')} ${entry.draws}${tr('profile.d')} ${entry.losses}${tr('profile.l')}` : ''}
@@ -160,16 +166,18 @@ const styles = StyleSheet.create({
   list: { padding: 16, gap: 8, alignItems: 'stretch' },
   headerWrap: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center', gap: 12, marginBottom: 4 },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center' },
-  caption: { fontSize: 12, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },
+  caption: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
+  input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16 },
   segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 14, padding: 3 },
   segmentItem: { flex: 1, paddingVertical: 8, borderRadius: 11, alignItems: 'center' },
   segmentText: { fontSize: 14, fontWeight: '600' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 18, paddingVertical: 10, paddingHorizontal: 12 },
   rank: { minWidth: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   rankText: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
   who: { flex: 1, minWidth: 0 },
   name: { fontSize: 16, fontWeight: '600' },
+  flagLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  shrink: { flexShrink: 1 },
   sub: { fontSize: 12 },
   score: { alignItems: 'flex-end' },
   rating: { fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
