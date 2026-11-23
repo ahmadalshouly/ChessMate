@@ -176,6 +176,8 @@ class PlayClient {
   private lobbySubs = 0;
   /** Tournaments whose chat is followed live, with how many screens follow each. */
   private tournamentSubs = new Map<string, number>();
+  /** Watch events whose chat is followed live, with how many screens follow each. */
+  private eventSubs = new Map<string, number>();
   private started = false;
   private token: string;
   /** Token set by the accounts layer; wins over guest tokens. */
@@ -298,6 +300,7 @@ class PlayClient {
   private restore() {
     if (this.lobbySubs > 0) this.send({ t: 'lobbySub' });
     for (const tournamentId of this.tournamentSubs.keys()) this.send({ t: 'tournamentSub', tournamentId });
+    for (const eventId of this.eventSubs.keys()) this.send({ t: 'eventSub', eventId });
     const g = this.state.game;
     if (g && !g.outcome) return; // the server resumes the game itself
     if (this.state.seek) this.send({ t: 'seek', ...this.state.seek });
@@ -548,6 +551,20 @@ class PlayClient {
       if (left > 0) return void this.tournamentSubs.set(tournamentId, left);
       this.tournamentSubs.delete(tournamentId);
       this.send({ t: 'tournamentUnsub', tournamentId });
+    };
+  }
+
+  /** Follows a Watch event's chat live (`eventChat` messages); returns the stop function. */
+  followEvent(eventId: string): () => void {
+    this.start();
+    const n = (this.eventSubs.get(eventId) ?? 0) + 1;
+    this.eventSubs.set(eventId, n);
+    if (n === 1) this.send({ t: 'eventSub', eventId });
+    return () => {
+      const left = (this.eventSubs.get(eventId) ?? 1) - 1;
+      if (left > 0) return void this.eventSubs.set(eventId, left);
+      this.eventSubs.delete(eventId);
+      this.send({ t: 'eventUnsub', eventId });
     };
   }
 

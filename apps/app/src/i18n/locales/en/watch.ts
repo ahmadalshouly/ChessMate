@@ -90,6 +90,11 @@ export const watch = {
     players: 'Players',
     news: 'News',
     about: 'About',
+    chat: 'Chat',
+  },
+  chat: {
+    placeholder: 'Say something to everyone watching',
+    autoDelete: 'The event and its chat are deleted 24 hours after it finishes.',
   },
   fields: {
     format: 'Format',

@@ -1,5 +1,5 @@
 import type { StaffRole } from '@chessmate/core';
-import { createUser, openDb, type DbHandle } from '@chessmate/db';
+import { createUser, openDb, schema, type DbHandle } from '@chessmate/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ChessServer } from '../src/server';
@@ -479,4 +479,79 @@ describe('watch API through the full server', () => {
     expect((await fetch(`${base}/api/watch/streamers/apply`, { method: 'POST', body: '{}' })).status).toBe(401);
     expect((await fetch(`${base}/api/watch/nothing-here`)).status).toBe(404);
   });
+});
+
+describe('event chat and cleanup', () => {
+  it('chat is live, organisers hide messages, and events are deleted a day after they finish', async () => {
+    // A database of its own: the cleanup looks at every event.
+    const db = openDb({ path: 'memory://' });
+    await db.migrate();
+    try {
+      let t = Date.UTC(2026, 10, 21, 10, 0);
+      const admin = (await createUser(db.db, { username: 'chatadmin' })).id;
+      const fan = (await createUser(db.db, { username: 'fan' })).id;
+      const muted = (await createUser(db.db, { username: 'muted' })).id;
+      const svc = new EventService({ db: db.db, now: () => t, roleOf: (id) => (id === admin ? 'admin' : 'user') });
+      await svc.load();
+      const live: { kind: string; eventId: string }[] = [];
+      const deleted: string[] = [];
+      svc.attach({
+        notify: () => {},
+        chatEvent: (eventId, ev) => void live.push({ kind: ev.kind, eventId }),
+        chatBlockedReason: (id) => (id === muted ? 'You are muted for now, so you cannot post' : null),
+        eventDeleted: (id) => void deleted.push(id),
+      });
+      const e = await svc.create(admin, { name: 'Weekend Open', startsAt: t, endsAt: t + 86_400_000 });
+      const round = (await svc.addRound(admin, e.id, { number: 1 })).rounds[0]!.id;
+      await svc.pastePgn(admin, round, { pgn: ROUND_PGN });
+      await svc.setFlags(admin, e.id, { published: true });
+
+      // Anyone signed in can talk; muted accounts cannot; the message goes out live.
+      const m = await svc.postChat(fan, e.id, { text: '  Great game on board 1! ' });
+      t += 1_000;
+      expect(m).toMatchObject({ username: 'fan', text: 'Great game on board 1!', staff: false });
+      expect(await err(svc.postChat(muted, e.id, { text: 'hi' }))).toBe(403);
+      expect(await err(svc.postChat(fan, e.id, { text: '   ' }))).toBe(400);
+      expect((await svc.postChat(admin, e.id, { text: 'Welcome!' })).staff).toBe(true);
+      expect(live).toEqual([
+        { kind: 'posted', eventId: e.id },
+        { kind: 'posted', eventId: e.id },
+      ]);
+      expect((await svc.chat(null, e.id)).map((x) => x.text)).toEqual(['Great game on board 1!', 'Welcome!']);
+
+      // Only organisers hide; players stop seeing it, organisers see it marked.
+      expect(await err(svc.hideChat(fan, m.id, true))).toBe(403);
+      expect(await svc.hideChat(admin, m.id, true)).toMatchObject({ hidden: true, hiddenBy: 'chatadmin' });
+      expect((await svc.chat(fan, e.id)).map((x) => x.text)).toEqual(['Welcome!']);
+      expect((await svc.chat(admin, e.id)).find((x) => x.id === m.id)?.hidden).toBe(true);
+
+      // Still being played: never deleted, however late it gets.
+      t += 3 * 86_400_000;
+      expect(await svc.sweepFinished()).toBe(0);
+      expect((await svc.detail(null, e.id)).status).toBe('live');
+
+      // The last game ends: the day is counted from when the sweep first sees it finished.
+      const board2 = (await svc.detail(admin, e.id)).rounds[0]!.games.find((g) => g.board === 2)!;
+      await svc.setResult(admin, board2.id, '0-1');
+      expect(await svc.sweepFinished()).toBe(0);
+      t += 23 * 3_600_000;
+      expect(await svc.sweepFinished()).toBe(0);
+      expect((await svc.chat(null, e.id)).length).toBe(1);
+      t += 2 * 3_600_000;
+      expect(await svc.sweepFinished()).toBe(1);
+      expect(deleted).toEqual([e.id]);
+      expect(await err(svc.detail(admin, e.id))).toBe(404);
+      expect(await err(svc.chat(admin, e.id))).toBe(404);
+      expect(await err(svc.game(null, board2.id))).toBe(404);
+      expect((await db.db.select().from(schema.broadcastMessages)).length).toBe(0);
+      expect((await db.db.select().from(schema.broadcastGames)).length).toBe(0);
+
+      // A Lichess tournament that is already over is not imported again.
+      const finalSync = await svc.importLichessTour({ id: 'oldtour', name: 'Old Tour', dates: [t - 3 * 86_400_000, t - 2 * 86_400_000] }, [{ id: 'r1', name: 'Round 1', finished: true }]);
+      expect(finalSync).toEqual([]);
+      expect(await svc.eventOfLichessTour('oldtour')).toBeNull();
+    } finally {
+      await db.close();
+    }
+  }, 60_000);
 });

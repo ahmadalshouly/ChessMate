@@ -141,6 +141,13 @@
       "when": 1796900000000,
       "tag": "0019_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795473259680,
+      "tag": "0020_broadcast_chat_cleanup",
+      "breakpoints": true
     }
   ]
 }

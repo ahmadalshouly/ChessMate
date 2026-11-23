@@ -68,7 +68,14 @@ export interface ChipProps {
   disabled?: boolean;
 }
 
-/** Selectable pill (time controls, filters). Selected = solid, otherwise glass outline. */
+/**
+ * Selectable pill (time controls, filters, rounds). Selected = solid accent fill, otherwise glass outline.
+ *
+ * The colors live on an inner View rather than in a `style` callback on the pressable: on iOS and
+ * Android the animated pressable does not re-apply a callback style when `selected` changes, so the
+ * fill stayed as it was while the label flipped to `onAccent` (dark text on dark glass in dark mode,
+ * white on white in light mode) and the selected chip could not be told apart.
+ */
 export function Chip({ label, selected, onPress, icon, disabled }: ChipProps) {
   const t = useAppTheme();
   const c = t.colors;
@@ -79,19 +86,23 @@ export function Chip({ label, selected, onPress, icon, disabled }: ChipProps) {
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.94}
-      style={({ pressed }) => [
-        styles.chip,
-        {
-          backgroundColor: selected ? c.accent : pressed ? c.surfacePressed : c.surface,
-          borderColor: selected ? c.accent : c.glassBorder,
-          opacity: disabled ? 0.4 : 1,
-        },
-        rimShadow(c, selected ? 'bright' : 'soft'),
-      ]}>
-      {icon}
-      <Text variant="label" color={selected ? c.onAccent : c.text}>
-        {label}
-      </Text>
+      style={{ opacity: disabled ? 0.4 : 1 }}>
+      {({ pressed }) => (
+        <View
+          style={[
+            styles.chip,
+            {
+              backgroundColor: selected ? c.accent : pressed ? c.surfacePressed : c.surface,
+              borderColor: selected ? c.accent : c.glassBorder,
+            },
+            rimShadow(c, selected ? 'bright' : 'soft'),
+          ]}>
+          {icon}
+          <Text variant="label" color={selected ? c.onAccent : c.text} style={selected ? { fontWeight: '700' } : undefined}>
+            {label}
+          </Text>
+        </View>
+      )}
     </PressableScale>
   );
 }

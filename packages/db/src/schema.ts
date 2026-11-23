@@ -1056,8 +1056,32 @@ export const broadcastEvents = pgTable(
     createdBy: text('created_by'),
     createdAt: createdAt(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
+    /** When the event was first seen finished; the event and its chat are deleted a day later. */
+    finishedAt: ts('finished_at'),
   },
   (t) => [index('broadcast_events_starts_idx').on(t.startsAt), uniqueIndex('broadcast_events_external_idx').on(t.source, t.externalId)],
+);
+
+/** Live chat on a broadcast event's page. Deleted with the event. */
+export const broadcastMessages = pgTable(
+  'broadcast_messages',
+  {
+    id: id(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => broadcastEvents.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    username: text('username').notNull(),
+    body: text('body').notNull(),
+    /** Posted by ChessMate staff or one of the event's organisers. */
+    staff: boolean('staff').notNull().default(false),
+    /** The profanity filter changed the text. */
+    filtered: boolean('filtered').notNull().default(false),
+    createdAt: createdAt(),
+    hiddenAt: ts('hidden_at'),
+    hiddenBy: text('hidden_by'),
+  },
+  (t) => [index('broadcast_messages_event_idx').on(t.eventId, t.createdAt)],
 );
 
 /** Organisers allowed to manage one event. */
@@ -1226,6 +1250,7 @@ export type BroadcastPlayerRow = typeof broadcastPlayers.$inferSelect;
 export type BroadcastRoundRow = typeof broadcastRounds.$inferSelect;
 export type BroadcastGameRow = typeof broadcastGames.$inferSelect;
 export type BroadcastNewsRow = typeof broadcastNews.$inferSelect;
+export type BroadcastMessageRow = typeof broadcastMessages.$inferSelect;
 export type BroadcastApplicationRow = typeof broadcastApplications.$inferSelect;
 export type StreamerRow = typeof streamers.$inferSelect;
 export type StreamerApplicationRow = typeof streamerApplications.$inferSelect;

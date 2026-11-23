@@ -5,6 +5,7 @@ import {
   broadcastApplications,
   broadcastEvents,
   broadcastGames,
+  broadcastMessages,
   broadcastNews,
   broadcastOrganizers,
   broadcastPlayers,
@@ -16,6 +17,7 @@ import {
   type BroadcastEvalEntry,
   type BroadcastEventRow,
   type BroadcastGameRow,
+  type BroadcastMessageRow,
   type BroadcastNewsRow,
   type BroadcastPlayerRow,
   type BroadcastRoundRow,
@@ -212,6 +214,7 @@ const eventCols = {
   createdBy: broadcastEvents.createdBy,
   createdAt: broadcastEvents.createdAt,
   updatedAt: broadcastEvents.updatedAt,
+  finishedAt: broadcastEvents.finishedAt,
 };
 export type EventListRow = Omit<BroadcastEventRow, 'logo' | 'cover'> & { hasLogo: boolean; hasCover: boolean; logoUrl: string | null };
 
@@ -227,6 +230,16 @@ export async function listEvents(db: Database, opts: { endedAfter?: Date } = {})
     .where(opts.endedAfter ? gte(broadcastEvents.endsAt, opts.endedAfter) : undefined)
     .orderBy(desc(broadcastEvents.startsAt))
     .limit(500);
+}
+
+/** Events whose last scheduled day has begun (candidates for the day-after-finish cleanup). */
+export async function listEventsEndedBy(db: Database, at: Date): Promise<EventListRow[]> {
+  return db.select(eventCols).from(broadcastEvents).where(lt(broadcastEvents.endsAt, at)).orderBy(asc(broadcastEvents.endsAt));
+}
+
+/** Marks when an event was first seen finished (null: it is not finished after all). Leaves updatedAt alone. */
+export async function setEventFinishedAt(db: Database, id: string, at: Date | null): Promise<void> {
+  await db.update(broadcastEvents).set({ finishedAt: at }).where(eq(broadcastEvents.id, id));
 }
 
 export async function findEventByExternal(db: Database, source: string, externalId: string): Promise<EventListRow | undefined> {
@@ -508,6 +521,28 @@ export async function getEventNews(db: Database, id: string): Promise<BroadcastN
 
 export async function deleteEventNews(db: Database, id: string): Promise<void> {
   await db.delete(broadcastNews).where(eq(broadcastNews.id, id));
+}
+
+// Live chat
+
+/** The latest chat messages of an event, oldest first (hidden ones included). */
+export async function listEventMessages(db: Database, eventId: string, limit = 300): Promise<BroadcastMessageRow[]> {
+  const rows = await db.select().from(broadcastMessages).where(eq(broadcastMessages.eventId, eventId)).orderBy(desc(broadcastMessages.createdAt)).limit(limit);
+  return rows.reverse();
+}
+
+export async function insertEventMessage(db: Database, m: typeof broadcastMessages.$inferInsert): Promise<BroadcastMessageRow> {
+  const [row] = await db.insert(broadcastMessages).values(m).returning();
+  return row!;
+}
+
+export async function getEventMessage(db: Database, id: string): Promise<BroadcastMessageRow | undefined> {
+  const [row] = await db.select().from(broadcastMessages).where(eq(broadcastMessages.id, id));
+  return row;
+}
+
+export async function setEventMessageHidden(db: Database, id: string, hiddenAt: Date | null, hiddenBy: string | null): Promise<void> {
+  await db.update(broadcastMessages).set({ hiddenAt, hiddenBy }).where(eq(broadcastMessages.id, id));
 }
 
 // Applications to broadcast

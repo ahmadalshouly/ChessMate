@@ -90,6 +90,11 @@ export const watch: Messages<typeof en> = {
     players: 'اللاعبون',
     news: 'الأخبار',
     about: 'عن البطولة',
+    chat: 'الدردشة',
+  },
+  chat: {
+    placeholder: 'اكتب شيئًا لكل من يشاهد',
+    autoDelete: 'تُحذف البطولة ودردشتها بعد 24 ساعة من انتهائها.',
   },
   fields: {
     format: 'النظام',

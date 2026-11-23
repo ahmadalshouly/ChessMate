@@ -93,6 +93,11 @@ export const watch: Messages<typeof en> = {
     players: 'Spieler',
     news: 'News',
     about: 'Infos',
+    chat: 'Chat',
+  },
+  chat: {
+    placeholder: 'Schreib allen, die zuschauen',
+    autoDelete: 'Das Turnier und sein Chat werden 24 Stunden nach dem Ende gelöscht.',
   },
   fields: {
     format: 'Modus',

@@ -140,6 +140,10 @@ async function start() {
   const broadcastAnalyzer = new BroadcastAnalyzer({ db: db.db, engine: analysis, onUpdate: (eventId) => events.invalidate(eventId) });
   broadcastAnalyzer.start();
   setInterval(() => void streamers.sweep().catch((e) => console.warn('streamer sweep failed', e)), 10 * 60_000).unref();
+  // Finished events (with their chat) are deleted a day after they finish.
+  const sweepEvents = () => void events.sweepFinished().catch((e) => console.warn('event cleanup failed', e));
+  setTimeout(sweepEvents, 60_000).unref();
+  setInterval(sweepEvents, 10 * 60_000).unref();
   // Live detection: streamers show as live (with viewers) when they stream, no button needed.
   const liveChecker = new LiveChecker(liveCheckConfigFromEnv(process.env));
   const livePlatforms = liveChecker.platforms();

@@ -68,6 +68,9 @@ export function validateClientMessage(m: ClientMessage): string | null {
     case 'tournamentSub':
     case 'tournamentUnsub':
       return isGameId(msg.tournamentId) ? null : 'Invalid tournament id';
+    case 'eventSub':
+    case 'eventUnsub':
+      return isGameId(msg.eventId) ? null : 'Invalid event id';
     case 'challengeGet':
     case 'challengeAccept':
     case 'challengeDecline':
