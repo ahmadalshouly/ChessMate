@@ -436,7 +436,7 @@ export default function OnlinePlay() {
           />
         )}
         {over && endResult(view) && (
-          <GameEndCelebration key={view.gameId} result={endResult(view)!} checkmate={view.outcome!.reason === 'checkmate'} seed={view.gameId} width={winW} height={winH} />
+          <GameEndCelebration key={view.gameId} result={endResult(view)!} reason={view.outcome!.reason} score={view.outcome!.result} seed={view.gameId} width={winW} height={winH} />
         )}
       </ResultPopup>
     </Screen>

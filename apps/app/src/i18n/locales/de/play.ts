@@ -88,6 +88,12 @@ export const play: Messages<typeof en> = {
   confirmMoveQ: '{san} spielen?',
   over: {
     victory: 'Sieg!',
+    /** The one word on the full-screen result stamp. */
+    stamp: {
+      win: 'Sieg',
+      loss: 'Niederlage',
+      draw: 'Remis',
+    },
     checkmate: 'Schachmatt',
     newRating: 'Neue Wertung',
     review: 'Aus dieser Partie lernen',

@@ -23,6 +23,9 @@ export const settings: Messages<typeof en> = {
     titleNative: 'Ton und Vibration',
     vibration: 'Vibration',
     vibrationDetail: 'Ein leichtes Vibrieren bei Zügen, Schlagen, Schach und Partieende',
+    silentMode: 'Töne auch im Lautlos-Modus',
+    silentModeDetailIos: 'Aus: Der Stummschalter schaltet die Spieltöne stumm',
+    silentModeDetailAndroid: 'Aus: Lautlos und Vibration schalten die Spieltöne stumm',
   },
   gameplay: {
     title: 'Spiel',

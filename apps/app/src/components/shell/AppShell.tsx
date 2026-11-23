@@ -57,11 +57,12 @@ export function AppShell() {
             {wide ? (
               <TabSlot style={styles.fill} />
             ) : (
-              // Screens end where the floating tab bar begins, so every screen (scrolling or not)
-              // can reach its last row. The bar's space already includes the bottom safe area,
-              // so screens inside see a bottom inset of 0 and don't pad for it twice.
-              <View style={[styles.fill, { paddingBottom: tabBarSpace }]}>
-                <SafeAreaInsetsContext value={{ ...insets, bottom: 0 }}>
+              // Screens run to the bottom edge so content scrolls on behind the floating glass tab
+              // bar. The bar's height (with the bottom safe area) is handed to them as their
+              // bottom inset, so scroll views pad for it and every screen can still reach its
+              // last row; screens that don't scroll pad for it the same way.
+              <View style={styles.fill}>
+                <SafeAreaInsetsContext value={{ ...insets, bottom: tabBarSpace }}>
                   <TabSlot style={styles.fill} />
                 </SafeAreaInsetsContext>
                 {/* The header has no bar, so content scrolling up fades out under it instead of being cut off. */}

@@ -17,7 +17,7 @@ export interface GlassViewProps extends ViewProps {
   /** Turn blur off (for long lists or nested glass) and use the tint only. */
   flat?: boolean;
   /**
-   * - panel (default): content cards. Hand-drawn glass on every platform.
+   * - panel (default): content cards. Native Liquid Glass on iOS 26 with a faint tint for text.
    * - chrome: floating navigation (bars, sheets). Native Liquid Glass on iOS 26.
    * - control: buttons and small capsules. Native Liquid Glass on iOS 26, reacts to touch.
    */

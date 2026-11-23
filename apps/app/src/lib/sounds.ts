@@ -33,14 +33,40 @@ const MOVE_SOUNDS = new Set<SoundName>(['move', 'capture', 'check', 'castle', 'p
  */
 let pools: Partial<Record<SoundName, AudioPlayer[]>> = {};
 const turn: Partial<Record<SoundName, number>> = {};
-let configured = false;
+/** The silent-mode choice the audio session was last set up with (null: not yet). */
+let sessionSilentMode: boolean | null = null;
+/** The volume each player was last given, so it is only sent to the native side when it changes. */
+const playerVolume = new WeakMap<AudioPlayer, number>();
+
+/**
+ * Sets up the phone's audio session. Game sounds are short cues mixed over the user's
+ * music, never stopping it. With "Play on silent" off, iOS's silent switch (and
+ * Android's silent and vibrate modes) mute them; on, they play like a game's sounds.
+ */
+function configureSession(playsInSilentMode: boolean) {
+  if (sessionSilentMode === playsInSilentMode) return;
+  sessionSilentMode = playsInSilentMode;
+  void setAudioModeAsync({ playsInSilentMode, interruptionMode: 'mixWithOthers' }).catch(() => {});
+}
+
+/**
+ * Puts a player back at the start once its sound has finished, so its next play()
+ * starts at once. A finished player sits at its end: play() there is silent on iOS
+ * (the seek back is asynchronous and lands after play), which is how every sound
+ * went quiet after its first few plays. Pausing first stops Android from replaying
+ * on the seek.
+ */
+function rearm(p: AudioPlayer) {
+  try {
+    p.pause();
+    void p.seekTo(0).catch(() => {});
+  } catch {
+    // Released player.
+  }
+}
 
 function pool(name: SoundName): AudioPlayer[] {
-  if (!configured) {
-    configured = true;
-    // Game sounds are short cues: never interrupt the user's music.
-    void setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => {});
-  }
+  configureSession(getSettings().sound.silentMode);
   let list = pools[name];
   if (!list) {
     const takes: readonly number[] = SOURCES[name];
@@ -48,7 +74,11 @@ function pool(name: SoundName): AudioPlayer[] {
     list = [];
     for (let i = 0; i < count; i++) {
       try {
-        list.push(createAudioPlayer(takes[i % takes.length]!));
+        const p = createAudioPlayer(takes[i % takes.length]!);
+        p.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) rearm(p);
+        });
+        list.push(p);
       } catch {
         // No audio on this device.
       }
@@ -106,9 +136,20 @@ export function playSound(name: SoundName): void {
   turn[name] = i + 1;
   const p = list[i]!;
   try {
-    p.volume = sound.volume;
-    void p.seekTo(0).catch(() => {});
-    p.play();
+    if (playerVolume.get(p) !== sound.volume) {
+      p.volume = sound.volume;
+      playerVolume.set(p, sound.volume);
+    }
+    if (p.currentTime > 0.01) {
+      // Still ringing (very fast moves) or not yet rewound: rewind first, then play,
+      // so play() never lands at the end of the sound.
+      p.pause();
+      p.seekTo(0)
+        .then(() => p.play())
+        .catch(() => {});
+    } else {
+      p.play();
+    }
   } catch {
     // Audio is a nicety; a device without audio output must not break play.
   }

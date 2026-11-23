@@ -83,7 +83,7 @@ const light: ColorTokens = {
   scheme: 'light',
   bg: '#F3F3F1',
   bgGradient: ['#FAFAF8', '#ECECE9'],
-  bgGlow: ['rgba(255, 255, 255, 0.9)', 'rgba(10, 10, 11, 0.035)'],
+  bgGlow: ['rgba(255, 255, 255, 0.9)', 'rgba(10, 10, 11, 0.06)'],
 
   surface: 'rgba(255, 255, 255, 0.52)',
   surfaceStrong: 'rgba(255, 255, 255, 0.76)',

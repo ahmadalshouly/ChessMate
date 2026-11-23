@@ -1,7 +1,7 @@
 import { BlurView } from 'expo-blur';
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal as RNModal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import { GlassView } from './Glass';
@@ -34,7 +34,10 @@ export interface ModalProps {
 export function Modal({ visible, onClose, title, description, children, actions, presentation = 'dialog', dismissable = true }: ModalProps) {
   const t = useAppTheme();
   const c = t.colors;
-  const insets = useSafeAreaInsets();
+  // The device's own insets: a sheet opened inside the app shell must not see the tab bar's
+  // space (which the shell hands its screens as a bottom inset).
+  const screenInsets = useSafeAreaInsets();
+  const insets = initialWindowMetrics?.insets ?? screenInsets;
   const sheet = presentation === 'sheet';
 
   return (

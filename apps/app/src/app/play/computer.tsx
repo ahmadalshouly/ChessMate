@@ -1,7 +1,8 @@
 import { BOTS, Game, START_FEN, chooseBotMove, type BotProfile, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
 import { Stack, router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useGameLock } from '@/lib/useGameLock';
 import { ResultPopup } from '@/components/play/ResultPopup';
 import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
@@ -18,13 +19,15 @@ import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useCurrentUser } from '@/lib/currentUser';
 import { dirIcon, translate, useT, type TKey } from '@/i18n';
 import { colorLabel } from '@/i18n/chess';
-import { GameIcon, type GameAction } from '@/components/game/ActionBar';
+import { type GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { ConfirmPanel, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
+import { GameEndCelebration } from '@/components/play/GameEndCelebration';
+import { ResultHeader, Scoreline, STAMP_MS, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
 import { GameStartHandshake, HANDSHAKE_MS, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
@@ -186,9 +189,9 @@ interface GameView {
 const nextFrame = (fn: () => void, delay = 0) => setTimeout(fn, delay);
 
 function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () => void; onRematch: (s: Setup) => void }) {
-  const t = useTheme();
   const tr = useT();
   const user = useCurrentUser();
+  const win = useWindowDimensions();
   const { bot, color: me } = setup;
   const game = useRef(new Game());
   const [view, setView] = useState<GameView>(() => ({ fen: game.current.fen, history: [] }));
@@ -253,7 +256,10 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     return ok;
   };
   const interaction = useBoardInteraction(view.fen, (c) => c === me && myTurn, play);
-  useMoveFeedback(view.history, !!outcome, { startCue: true });
+  useMoveFeedback(view.history, !!outcome, {
+    startCue: true,
+    result: outcome ? (outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss') : undefined,
+  });
   // Grade the game as soon as it ends (on the device where it can), so Review opens with every badge ready.
   useEffect(() => {
     if (!outcome) return;
@@ -392,27 +398,16 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
         actions={actions}
       />
       <ResultPopup visible={!!verdict && !hideResult} onClose={() => setHideResult(true)}>
-        {verdict ? (
-                <View style={[styles.result, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }]}>
-            <View style={styles.row}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Label size={24} bold>
-                  {verdict.title}
-                </Label>
-                <Label muted>
-                  {verdict.detail} · {tr('computer.unrated')}
-                  {takebacks ? ` · ${tr('computer.takebacks', { count: takebacks })}` : ''}
-                </Label>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={tr('game.over.close')}
-                onPress={() => setHideResult(true)}
-                hitSlop={8}
-                style={[styles.close, { backgroundColor: t.surfaceSunken }]}>
-                <GameIcon name="close" size={18} color={t.text} />
-              </Pressable>
-            </View>
+        {verdict && outcome ? (
+          <ComputerResultCard
+            outcome={outcome}
+            me={me}
+            title={verdict.title}
+            detail={`${reasonText(outcome.reason)} · ${tr('computer.unrated')}${takebacks ? ` · ${tr('computer.takebacks', { count: takebacks })}` : ''}`}
+            eyebrow={tr('computer.levelRating', { level: bot.level, rating: bot.rating })}
+            white={me === 'w' ? user.displayName || tr('computer.you') : bot.name}
+            black={me === 'b' ? user.displayName || tr('computer.you') : bot.name}
+            onClose={() => setHideResult(true)}>
             {plyCount > 0 && (
               <View style={styles.resultButtons}>
                 <NoticeButton icon="chart-box-outline" label={tr('play.over.reviewGame')} onPress={openReview} primary wide />
@@ -422,10 +417,55 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
               <NoticeButton icon="refresh" label={tr('play.over.rematch')} onPress={rematch} primary={plyCount === 0} />
               <NoticeButton icon="account-switch-outline" label={tr('game.action.newGame')} onPress={onExit} />
             </View>
-          </View>
+          </ComputerResultCard>
+        ) : null}
+        {verdict && outcome ? (
+          <GameEndCelebration
+            key={`${bot.id}-${plyCount}-${outcome.reason}`}
+            result={outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss'}
+            reason={outcome.reason}
+            score={outcome.result}
+            seed={`${bot.id}-${plyCount}-${outcome.reason}`}
+            width={win.width}
+            height={win.height}
+          />
         ) : null}
       </ResultPopup>
     </>
+  );
+}
+
+/** The vs-computer result: same crest, scoreline and entrance as an online game. */
+function ComputerResultCard({
+  outcome,
+  me,
+  title,
+  detail,
+  eyebrow,
+  white,
+  black,
+  onClose,
+  children,
+}: {
+  outcome: GameOutcome;
+  me: Color;
+  title: string;
+  detail: string;
+  eyebrow: string;
+  white: string;
+  black: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const t = useTheme();
+  const result: EndResult = outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss';
+  const enter = useCardEntrance(STAMP_MS);
+  return (
+    <Animated.View style={[styles.result, { backgroundColor: t.surfaceSolid, borderColor: t.glassBorder }, enter]}>
+      <ResultHeader result={result} reason={outcome.reason} eyebrow={eyebrow} title={title} detail={detail} onClose={onClose} crestDelay={STAMP_MS + 300} />
+      <Scoreline white={white} black={black} score={outcome.result} you={me} />
+      {children}
+    </Animated.View>
   );
 }
 
