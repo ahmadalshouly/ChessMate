@@ -121,6 +121,9 @@ export const boardThemes: Record<BoardThemeId, BoardTheme> = {
     arrow: 'rgba(255, 255, 255, 0.72)',
     frame: 'rgba(255, 255, 255, 0.14)',
   }),
+  sandstone: make('sandstone', { name: 'Sandstone', note: 'Brown on sand', light: '#EBECD0', dark: '#B68860', finish: 'natural', lastMove: 'rgba(255, 214, 10, 0.4)', selected: 'rgba(40, 20, 0, 0.24)' }),
+  honey: make('honey', { name: 'Honey', note: 'Brown on yellow', light: '#F4EEAA', dark: '#AF7C59', finish: 'natural', lastMove: 'rgba(90, 170, 255, 0.34)', selected: 'rgba(40, 20, 0, 0.24)' }),
+  apricot: make('apricot', { name: 'Apricot', note: 'Soft peach', light: '#F4EEAA', dark: '#D29B75', finish: 'natural', lastMove: 'rgba(90, 170, 255, 0.34)', selected: 'rgba(40, 20, 0, 0.22)' }),
 };
 
 export const boardThemeList: BoardTheme[] = BOARD_THEMES.map((id) => boardThemes[id]);

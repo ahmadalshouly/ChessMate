@@ -20,6 +20,8 @@ after adding or changing a set (needs Playwright with Chromium).
 | `skulls` | Skulls | Skulls ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](skulls/LICENSE) |
 | `eyes` | Eyes | Eyes ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](eyes/LICENSE) |
 | `prmi` | Cats | Prmi ("fancy" set) | [Maurizio Monge](https://github.com/maurimo/chess-art/tree/main/fancy) | [MIT](prmi/LICENSE) |
+| `kaneo` | Kaneo | Kaneo piece set | [Kadagaden](https://github.com/Kadagaden/chess-pieces) | [CC BY 4.0](kaneo/LICENSE.txt) |
+| `moonlight` | Moonlight | Kaneo Midnight piece set | [Kadagaden](https://github.com/Kadagaden/chess-pieces) | [CC BY 4.0](moonlight/LICENSE.txt) |
 
 Changes from the originals: SVGs are rasterised to 192px PNGs; the chess-art "fancy" files are
 renamed from `wk.svg` to `wK.svg`; the `glass` set recolours
@@ -48,7 +50,10 @@ Sets in lila's `COPYING.md` that don't meet the rule above, so they are not bund
 - Freeware, personal-use only, no-derivatives or unknown: alpha, chess7, companion, leipzig,
   reillycraig, riohacha, shahi-ivory-brown, governor, kosal.
 - Listed as CC BY 4.0 but under lila's "non-free" heading, so unclear: papercut, totoy.
+- From Kadagaden/chess-pieces (CC BY 4.0): 1 Kbyte Gambit (a remake of Pinot W. Ichwandardi's pixel
+  art, whose own licence isn't stated) and Maestro BW (derived from lila's CC BY-NC-SA Maestro).
 - chess-art's `freak` set is MIT but shows drug use, so it was left out on content grounds.
 
 Board themes are flat colour pairs defined in code (`src/ui/theme/boardThemes.ts`), so they carry
-no third-party artwork or licence.
+no third-party artwork or licence. Sandstone, Honey and Apricot use the square colours of
+Kadagaden's 8x8 boards in [chess-pieces](https://github.com/Kadagaden/chess-pieces) (CC BY 4.0).

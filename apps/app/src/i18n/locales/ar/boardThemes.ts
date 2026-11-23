@@ -102,4 +102,16 @@ export const boardThemes: Messages<typeof en> = {
     name: 'فحم',
     note: 'إضاءة خافتة',
   },
+  sandstone: {
+    name: 'حجر رملي',
+    note: 'بني على رملي',
+  },
+  honey: {
+    name: 'عسل',
+    note: 'بني على أصفر',
+  },
+  apricot: {
+    name: 'مشمش',
+    note: 'خوخي ناعم',
+  },
 };

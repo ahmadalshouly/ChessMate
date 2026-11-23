@@ -51,4 +51,12 @@ export const pieceSets = {
     name: 'Cats',
     note: 'Feline, for fun',
   },
+  kaneo: {
+    name: 'Kaneo',
+    note: 'Smooth, modern',
+  },
+  moonlight: {
+    name: 'Moonlight',
+    note: 'Navy and moon yellow',
+  },
 };

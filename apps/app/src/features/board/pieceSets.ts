@@ -136,6 +136,24 @@ export const PIECE_SET_INFO: Record<PieceSet, PieceSetInfo> = {
     licenseUrl: 'https://github.com/maurimo/chess-art/blob/main/LICENSE',
     source: 'https://github.com/maurimo/chess-art',
   },
+  kaneo: {
+    id: 'kaneo',
+    name: 'Kaneo',
+    note: 'Smooth, modern',
+    credit: 'Kaneo by Kadagaden',
+    license: 'CC BY 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    source: 'https://github.com/Kadagaden/chess-pieces',
+  },
+  moonlight: {
+    id: 'moonlight',
+    name: 'Moonlight',
+    note: 'Navy and moon yellow',
+    credit: 'Kaneo Midnight by Kadagaden',
+    license: 'CC BY 4.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    source: 'https://github.com/Kadagaden/chess-pieces',
+  },
 };
 
 export const pieceSetList: PieceSetInfo[] = PIECE_SETS.map((id) => PIECE_SET_INFO[id]);

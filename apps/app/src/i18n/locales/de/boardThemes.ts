@@ -102,4 +102,16 @@ export const boardThemes: Messages<typeof en> = {
     name: 'Anthrazit',
     note: 'Gedämpftes Licht',
   },
+  sandstone: {
+    name: 'Sandstein',
+    note: 'Braun auf Sand',
+  },
+  honey: {
+    name: 'Honig',
+    note: 'Braun auf Gelb',
+  },
+  apricot: {
+    name: 'Aprikose',
+    note: 'Sanfter Pfirsich',
+  },
 };

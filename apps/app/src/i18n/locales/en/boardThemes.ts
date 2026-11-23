@@ -99,4 +99,16 @@ export const boardThemes = {
     name: 'Charcoal',
     note: 'Low light',
   },
+  sandstone: {
+    name: 'Sandstone',
+    note: 'Brown on sand',
+  },
+  honey: {
+    name: 'Honey',
+    note: 'Brown on yellow',
+  },
+  apricot: {
+    name: 'Apricot',
+    note: 'Soft peach',
+  },
 };

@@ -48,10 +48,13 @@ export const BOARD_THEMES = [
   'sakura',
   'coffee',
   'charcoal',
+  'sandstone',
+  'honey',
+  'apricot',
 ] as const;
 export type BoardTheme = (typeof BOARD_THEMES)[number];
 /** Piece sets. Artwork and credits live in apps/app/art/pieces. */
-export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes', 'cburnett', 'firi', 'skulls', 'eyes', 'prmi'] as const;
+export const PIECE_SETS = ['classic', 'glass', 'spatial', 'celtic', 'fantasy', 'bold', 'caramel', 'shapes', 'cburnett', 'firi', 'skulls', 'eyes', 'prmi', 'kaneo', 'moonlight'] as const;
 export type PieceSet = (typeof PIECE_SETS)[number];
 /** Ids from older versions, mapped to their closest current choice when settings are loaded. */
 const LEGACY_VALUES: Record<string, Record<string, string>> = {

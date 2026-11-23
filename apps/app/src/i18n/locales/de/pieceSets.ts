@@ -54,4 +54,12 @@ export const pieceSets: Messages<typeof en> = {
     name: 'Katzen',
     note: 'Katzig, zum Spaß',
   },
+  kaneo: {
+    name: 'Kaneo',
+    note: 'Glatt und modern',
+  },
+  moonlight: {
+    name: 'Mondlicht',
+    note: 'Marineblau und Mondgelb',
+  },
 };

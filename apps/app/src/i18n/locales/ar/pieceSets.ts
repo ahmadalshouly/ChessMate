@@ -54,4 +54,12 @@ export const pieceSets: Messages<typeof en> = {
     name: 'قطط',
     note: 'قططي وللمرح',
   },
+  kaneo: {
+    name: 'كانيو',
+    note: 'ناعم وعصري',
+  },
+  moonlight: {
+    name: 'ضوء القمر',
+    note: 'كحلي وأصفر قمري',
+  },
 };
