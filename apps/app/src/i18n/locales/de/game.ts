@@ -76,4 +76,9 @@ export const game: Messages<typeof en> = {
     close: 'Ergebnis ausblenden',
     showResult: 'Ergebnis',
   },
+  intro: {
+    goodLuck: 'Viel Glück',
+    match: '{white} gegen {black}',
+    a11y: 'Die Spieler geben sich die Hand. Die Partie beginnt.',
+  },
 };

@@ -74,4 +74,9 @@ export const game = {
     close: 'Hide result',
     showResult: 'Result',
   },
+  intro: {
+    goodLuck: 'Good luck',
+    match: '{white} vs {black}',
+    a11y: 'Players shake hands. The game begins.',
+  },
 };

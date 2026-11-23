@@ -10,6 +10,7 @@ import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem 
 import { PlayerCard } from '@/components/game/PlayerCard';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
+import { GameStartHandshake, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Screen } from '@/components/ui';
 import { useMoveFeedback } from '@/lib/feedback';
 import { prepareReview } from '@/lib/useEngine';
@@ -53,6 +54,7 @@ export default function LocalPlay() {
   // Practice games are saved to the archive when they end, or on request.
   const session = useRef({ id: `pr_${Date.now().toString(36)}`, startedAt: Date.now() });
   const [savedId, setSavedId] = useState<string | null>(null);
+  const intro = useGameStartHandshake(session.current.id, history.length);
   const save = () => {
     void saveGame(practiceGame(session.current.id, history, outcome, session.current.startedAt));
     setSavedId(session.current.id);
@@ -109,17 +111,20 @@ export default function LocalPlay() {
         top={card(top)}
         bottom={card(orientation)}
         renderBoard={(size) => (
-          <Board
-            fen={boardFen}
-            orientation={orientation}
-            size={size}
-            selected={nav.live ? interaction.selected : null}
-            targets={nav.live ? interaction.targets : []}
-            lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
-            checkSquare={checkSquareOf(boardFen)}
-            onSquarePress={nav.live ? interaction.onSquarePress : undefined}
-            {...(nav.live ? interaction.dragProps : {})}
-          />
+          <>
+            <Board
+              fen={boardFen}
+              orientation={orientation}
+              size={size}
+              selected={nav.live ? interaction.selected : null}
+              targets={nav.live ? interaction.targets : []}
+              lastMove={lastShown ? { from: lastShown.from, to: lastShown.to } : null}
+              checkSquare={checkSquareOf(boardFen)}
+              onSquarePress={nav.live ? interaction.onSquarePress : undefined}
+              {...(nav.live ? interaction.dragProps : {})}
+            />
+            {intro.active && <GameStartHandshake size={size} cut={intro.cut} onDone={intro.done} />}
+          </>
         )}
         strip={<MoveStrip sans={history.map((m) => m.san)} shown={nav.shown} onSelect={nav.goTo} onLive={nav.toLive} />}
         notices={
