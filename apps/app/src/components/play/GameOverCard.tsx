@@ -115,7 +115,7 @@ export function GameOverCard({
       <Scoreline white={view.white.name} black={view.black.name} score={view.outcome!.result} you={view.you} />
       {sponsor ? (
         <View style={[styles.sponsor, { borderColor: t.glassBorder, backgroundColor: t.surfaceSunken }]}>
-          <SponsorBadge sponsor={sponsor} size="md" />
+          <SponsorBadge sponsor={sponsor} size="md" align="center" />
         </View>
       ) : null}
       {result && <Text style={[styles.line, { color: t.text }]}>{endLine(result, view.gameId)}</Text>}

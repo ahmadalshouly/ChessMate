@@ -145,8 +145,8 @@ export function GameStartHandshake({
               </Text>
             ) : null}
             {sponsor ? (
-              <View style={styles.sponsor}>
-                <SponsorBadge sponsor={sponsor} size="md" />
+              <View style={[styles.sponsor, { width: Math.min(276, Math.max(120, size - 96)) }]}>
+                <SponsorBadge sponsor={sponsor} size="md" align="center" />
               </View>
             ) : null}
           </View>

@@ -153,6 +153,7 @@ export const tournaments = {
   signInToJoin: 'Sign in to join',
   back: 'Back to the tournament',
   results: {
+    empty: 'No finished games yet.',
     title: 'Results',
     round: 'Round {n}',
     points: 'Points {white} / {black}',

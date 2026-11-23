@@ -1,5 +1,5 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatMoney, formatTimeControl, timeCategory, type TournamentChatMessage, type TournamentDetail } from '@chessmate/core';
+import { formatMoney, formatTimeControl, timeCategory, type TournamentDetail } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
@@ -11,7 +11,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { usePlay } from '@/lib/playClient';
 import { useSocialIdentity } from '@/lib/social/session';
 import { tournamentsApi } from '@/lib/tournamentsApi';
-import { Badge, Button, GlassView, ListGroup, ListRow, SectionHeader, Text, useAppTheme } from '@/ui';
+import { Badge, Button, GlassView, ListGroup, ListRow, SectionHeader, Tabs, Text, useAppTheme } from '@/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 
 import { formatLabel, formatScore, scoringRules, settingsOf, tournamentClock } from '@/features/tournaments/format';
@@ -20,6 +20,7 @@ import { PayoutSheet } from '@/features/tournaments/PayoutSheet';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { TournamentChat } from '@/features/tournaments/TournamentChat';
 import { TournamentResults } from '@/features/tournaments/TournamentResults';
+import { useTournamentChat } from '@/features/tournaments/useTournamentChat';
 import { webLink } from '@/lib/links';
 
 /**
@@ -41,8 +42,17 @@ export default function TournamentScreen() {
   const [joining, setJoining] = useState(false);
   const [payout, setPayout] = useState(false);
   const [paymentsEnabled, setPaymentsEnabled] = useState(false);
-  const [chat, setChat] = useState<TournamentChatMessage[]>([]);
   const [allResults, setAllResults] = useState(false);
+  const [tab, setTab] = useState<'standings' | 'results' | 'chat'>('standings');
+  // The chat is live; the tab shows how many messages came in since it was last open.
+  const chat = useTournamentChat(id);
+  const [chatSeen, setChatSeen] = useState(0);
+  const changeTab = (next: typeof tab) => {
+    // Opening or leaving the chat marks what is there as read.
+    if (tab === 'chat' || next === 'chat') setChatSeen(chat.messages.length);
+    setTab(next);
+  };
+  const unread = tab === 'chat' ? 0 : Math.max(0, chat.messages.length - chatSeen);
   const now = useTicker(tour?.status === 'running' || tour?.status === 'scheduled');
 
   const load = useCallback(() => {
@@ -54,10 +64,6 @@ export default function TournamentScreen() {
         setError(null);
       },
       (e: Error) => setError(e.message),
-    );
-    tournamentsApi.chat(id).then(
-      (r) => setChat(r.messages),
-      () => {},
     );
   }, [id]);
   // Standings move fast only while it runs; before and after, a slow refresh is plenty.
@@ -268,73 +274,74 @@ export default function TournamentScreen() {
         )}
 
         <View style={{ gap: t.space.md }}>
-          <SectionHeader title={tr('tournaments.standings')} />
-          {tour.standings.length === 0 ? (
-            <GlassView padding="lg" radius="xl">
-              <Text tone="muted">{tr('tournaments.noPlayers')}</Text>
-            </GlassView>
-          ) : (
-            <ListGroup>
-              {tour.standings.map((s) => (
-                <ListRow
-                  key={s.userId}
-                  left={
-                    <Text variant="numeric" tone={s.rank <= 3 ? 'default' : 'muted'} style={{ width: 28, textAlign: 'center' }}>
-                      {s.rank}
-                    </Text>
-                  }
-                  title={`${s.username}${s.userId === me?.userId ? ` (${tr('messages.you')})` : ''}`}
-                  subtitle={`${s.rating} · ${tr('tournaments.record', { w: s.wins, d: s.draws, l: s.losses })}${s.buchholz !== undefined ? ` · ${tr('tournaments.buchholz', { n: formatScore(s.buchholz) })}` : ''}${s.byes ? ` · ${tr('tournaments.byes', { count: s.byes })}` : ''}${s.playing ? ` · ${tr('tournaments.playingNow')}` : ''}${s.withdrawn ? ` · ${tr('tournaments.paused')}` : ''}`}
-                  right={
-                    <View style={styles.row}>
-                      {s.onFire && <Ionicons name="flame" size={16} color={c.warning} accessibilityLabel={tr('tournaments.onFire')} />}
-                      <Text variant="figure" style={{ fontSize: 20, lineHeight: 24 }}>
-                        {formatScore(s.score)}
+          <Tabs
+            variant="underline"
+            items={[
+              { key: 'standings', label: tr('tournaments.standings'), count: tour.standings.length || undefined },
+              { key: 'results', label: tr('tournaments.results.title'), count: tour.games.length || undefined },
+              ...(tour.status !== 'cancelled' ? [{ key: 'chat' as const, label: tr('tournaments.chat.title'), count: unread || undefined }] : []),
+            ]}
+            value={tab}
+            onChange={changeTab}
+          />
+          {tab === 'standings' && (
+            <>
+            {tour.standings.length === 0 ? (
+              <GlassView padding="lg" radius="xl">
+                <Text tone="muted">{tr('tournaments.noPlayers')}</Text>
+              </GlassView>
+            ) : (
+              <ListGroup>
+                {tour.standings.map((s) => (
+                  <ListRow
+                    key={s.userId}
+                    left={
+                      <Text variant="numeric" tone={s.rank <= 3 ? 'default' : 'muted'} style={{ width: 28, textAlign: 'center' }}>
+                        {s.rank}
                       </Text>
-                    </View>
-                  }
-                />
-              ))}
-            </ListGroup>
-          )}
-        </View>
-
-        {tour.games.length > 0 && (
-          <View style={{ gap: t.space.md }}>
-            <SectionHeader
-              title={tr('tournaments.results.title')}
-              action={
-                tour.games.length > 10 ? (
-                  <Button size="sm" variant="ghost" title={allResults ? tr('tournaments.results.less') : tr('tournaments.results.all', { count: tour.games.length })} onPress={() => setAllResults(!allResults)} />
-                ) : undefined
-              }
-            />
-            <TournamentResults games={tour.games} meId={me?.userId} limit={allResults ? undefined : 10} />
-          </View>
-        )}
-
-        {tour.status !== 'cancelled' && (
-          <View style={{ gap: t.space.md }}>
-            <SectionHeader title={tr('tournaments.chat.title')} />
-            <TournamentChat
-              messages={chat}
-              meId={me?.userId}
-              onSend={
-                me && !tour.you?.disqualified
-                  ? async (text) => {
-                      const { message } = await tournamentsApi.postChat(tour.id, text);
-                      setChat((prev) => [...prev, message]);
                     }
-                  : undefined
-              }
+                    title={`${s.username}${s.userId === me?.userId ? ` (${tr('messages.you')})` : ''}`}
+                    subtitle={`${s.rating} · ${tr('tournaments.record', { w: s.wins, d: s.draws, l: s.losses })}${s.buchholz !== undefined ? ` · ${tr('tournaments.buchholz', { n: formatScore(s.buchholz) })}` : ''}${s.byes ? ` · ${tr('tournaments.byes', { count: s.byes })}` : ''}${s.playing ? ` · ${tr('tournaments.playingNow')}` : ''}${s.withdrawn ? ` · ${tr('tournaments.paused')}` : ''}`}
+                    right={
+                      <View style={styles.row}>
+                        {s.onFire && <Ionicons name="flame" size={16} color={c.warning} accessibilityLabel={tr('tournaments.onFire')} />}
+                        <Text variant="figure" style={{ fontSize: 20, lineHeight: 24 }}>
+                          {formatScore(s.score)}
+                        </Text>
+                      </View>
+                    }
+                  />
+                ))}
+              </ListGroup>
+            )}
+            </>
+          )}
+          {tab === 'results' &&
+            (tour.games.length === 0 ? (
+              <GlassView padding="lg" radius="xl">
+                <Text tone="muted">{tr('tournaments.results.empty')}</Text>
+              </GlassView>
+            ) : (
+              <>
+                <TournamentResults games={tour.games} meId={me?.userId} limit={allResults ? undefined : 20} />
+                {tour.games.length > 20 && (
+                  <Button size="sm" variant="ghost" title={allResults ? tr('tournaments.results.less') : tr('tournaments.results.all', { count: tour.games.length })} onPress={() => setAllResults(!allResults)} />
+                )}
+              </>
+            ))}
+          {tab === 'chat' && tour.status !== 'cancelled' && (
+            <TournamentChat
+              messages={chat.messages}
+              meId={me?.userId}
+              onSend={me && !tour.you?.disqualified ? chat.send : undefined}
               disabledReason={
                 !me ? (
                   <Button variant="secondary" size="sm" title={tr('tournaments.chat.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: `/tournaments/${tour.id}` } })} />
                 ) : null
               }
             />
-          </View>
-        )}
+          )}
+        </View>
       </View>
       <JoinSheet tournament={tour} visible={joining} busy={busy} onClose={() => setJoining(false)} onAccept={() => void accept()} />
       {prize && (

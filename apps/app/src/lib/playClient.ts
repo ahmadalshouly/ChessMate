@@ -174,6 +174,8 @@ class PlayClient {
   private retry = 0;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   private lobbySubs = 0;
+  /** Tournaments whose chat is followed live, with how many screens follow each. */
+  private tournamentSubs = new Map<string, number>();
   private started = false;
   private token: string;
   /** Token set by the accounts layer; wins over guest tokens. */
@@ -295,6 +297,7 @@ class PlayClient {
   /** Re-establishes lobby subscription, seek and open game after a reconnect. */
   private restore() {
     if (this.lobbySubs > 0) this.send({ t: 'lobbySub' });
+    for (const tournamentId of this.tournamentSubs.keys()) this.send({ t: 'tournamentSub', tournamentId });
     const g = this.state.game;
     if (g && !g.outcome) return; // the server resumes the game itself
     if (this.state.seek) this.send({ t: 'seek', ...this.state.seek });
@@ -531,6 +534,20 @@ class PlayClient {
     return () => {
       this.lobbySubs--;
       if (this.lobbySubs === 0) this.send({ t: 'lobbyUnsub' });
+    };
+  }
+
+  /** Follows a tournament's chat live (`tournamentChat` messages); returns the stop function. */
+  followTournament(tournamentId: string): () => void {
+    this.start();
+    const n = (this.tournamentSubs.get(tournamentId) ?? 0) + 1;
+    this.tournamentSubs.set(tournamentId, n);
+    if (n === 1) this.send({ t: 'tournamentSub', tournamentId });
+    return () => {
+      const left = (this.tournamentSubs.get(tournamentId) ?? 1) - 1;
+      if (left > 0) return void this.tournamentSubs.set(tournamentId, left);
+      this.tournamentSubs.delete(tournamentId);
+      this.send({ t: 'tournamentUnsub', tournamentId });
     };
   }
 

@@ -65,6 +65,9 @@ export function validateClientMessage(m: ClientMessage): string | null {
     case 'challengeCreate':
       if (!isObj(msg.timeControl) || typeof msg.rated !== 'boolean') return 'Invalid challenge';
       return msg.to === undefined || (typeof msg.to === 'string' && msg.to.length <= 128) ? null : 'Invalid challenge target';
+    case 'tournamentSub':
+    case 'tournamentUnsub':
+      return isGameId(msg.tournamentId) ? null : 'Invalid tournament id';
     case 'challengeGet':
     case 'challengeAccept':
     case 'challengeDecline':

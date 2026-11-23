@@ -156,6 +156,7 @@ export const tournaments: Messages<typeof en> = {
   signInToJoin: 'Zum Beitreten anmelden',
   back: 'Zurück zum Turnier',
   results: {
+    empty: 'Noch keine beendeten Partien.',
     title: 'Ergebnisse',
     round: 'Runde {n}',
     points: 'Punkte {white} / {black}',

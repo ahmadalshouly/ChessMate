@@ -190,6 +190,13 @@ describe('tournament rules', () => {
     const admin = await svc.adminDetail(id);
     expect(admin.chat.find((m) => m.id === hi.id)).toMatchObject({ hidden: true, hiddenBy: 'Arbiter' });
 
+    // Everyone following the tournament hears about new and hidden messages at once.
+    const events: string[] = [];
+    (svc as unknown as { bridge: { chatEvent?: (id: string, e: { kind: string }) => void } }).bridge.chatEvent = (_tid, e) => events.push(e.kind);
+    const later = await svc.postChat(c, id, { text: 'gg' });
+    await svc.hideChat(id, later.id, true, 'Arbiter');
+    expect(events).toEqual(['posted', 'hidden']);
+
     // Removed players cannot post.
     svc.disqualify(id, b);
     await expect(svc.postChat(b, id, { text: 'unfair!' })).rejects.toThrow(/removed/);
@@ -197,6 +204,7 @@ describe('tournament rules', () => {
     const again = new TournamentService({ db: h.db, now });
     await again.load();
     expect(again.chat(id)).toHaveLength(2);
+    expect(again.chat(id).map((m) => m.text)).not.toContain('gg');
     svc.stop();
   });
 });

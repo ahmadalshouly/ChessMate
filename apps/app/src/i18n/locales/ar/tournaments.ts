@@ -151,6 +151,7 @@ export const tournaments: Messages<typeof en> = {
   signInToJoin: 'سجّل الدخول للانضمام',
   back: 'العودة إلى البطولة',
   results: {
+    empty: 'لا مباريات منتهية بعد.',
     title: 'النتائج',
     round: 'الجولة {n}',
     points: 'النقاط {white} / {black}',

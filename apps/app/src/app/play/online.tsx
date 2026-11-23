@@ -384,7 +384,7 @@ export default function OnlinePlay() {
             {connectionNotice}
             {sponsor ? (
               <View style={styles.sponsor}>
-                <SponsorBadge sponsor={sponsor} size="lg" />
+                <SponsorBadge sponsor={sponsor} size="lg" align="center" />
               </View>
             ) : null}
           </>
@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   page: { padding: 12, alignItems: 'center' },
   banner: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 2, marginHorizontal: 12, marginTop: 8 },
   restricted: { marginHorizontal: 12, marginTop: 8 },
-  sponsor: { alignItems: 'center', paddingTop: 8, paddingBottom: 4 },
+  sponsor: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 12 },
   // The result card scrolls inside the board when it is taller than the board (small phones).
   overlayScroll: { width: '100%', maxHeight: '100%' },
   overlayContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
