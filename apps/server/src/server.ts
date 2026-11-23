@@ -74,7 +74,8 @@ import {
   type LimitKind,
   type RateLimitConfig,
 } from './fairplay';
-import { ExpoPushSender, MemoryNotificationStore, NotificationService, handleNotificationsHttp, yourTurn, type HttpAuth } from './notifications';
+import { ExpoPushSender, MemoryNotificationStore, NotificationService, handleNotificationsHttp, yourTurn, type HttpAuth, type NotificationStore } from './notifications';
+import { clientIp } from './clientIp';
 import { socialRoutes, type ResolveUser } from './social/http';
 import { isAccountId, type SocialService } from './social/service';
 
@@ -108,8 +109,10 @@ export interface ServerOptions {
   coach?: CoachService;
   /** Engine analysis service, when available, for coach reviews from raw moves. */
   analyzer?: GameAnalyzer;
-  /** Notification service; defaults to in-memory storage with Expo push. */
+  /** Notification service; defaults to `notificationStore` (or in-memory storage) with Expo push. */
   notifications?: NotificationService;
+  /** Where notifications, preferences and push tokens are kept; defaults to memory (lost on restart). */
+  notificationStore?: NotificationStore;
   /** Maps an HTTP bearer token to a user id. Defaults to dev tokens ("dev:<id>:<name>") outside production. */
   httpAuth?: HttpAuth;
   /** Engine analysis. Without it, analysis requests get `engine_unavailable`. */
@@ -242,7 +245,7 @@ export class ChessServer {
     this.notifications =
       opts.notifications ??
       new NotificationService({
-        store: new MemoryNotificationStore(),
+        store: opts.notificationStore ?? new MemoryNotificationStore(),
         push: new ExpoPushSender({ accessToken: process.env.EXPO_ACCESS_TOKEN, log: console.warn }),
         log: console.warn,
       });
@@ -430,6 +433,7 @@ export class ChessServer {
     await new Promise<void>((r) => this.wss.close(() => r()));
     await new Promise<void>((r) => this.http.close(() => r()));
     await this.opts.persistence?.flush();
+    await this.notifications.store.flush?.();
   }
 
   // ---- connection handling ----
@@ -1385,12 +1389,6 @@ export class ChessServer {
   }
 }
 
-function clientIp(req: { socket: { remoteAddress?: string }; headers: Record<string, string | string[] | undefined> }): string {
-  // Behind a proxy, trust X-Forwarded-For only when TRUST_PROXY is set.
-  const fwd = process.env.TRUST_PROXY ? req.headers['x-forwarded-for'] : undefined;
-  const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim();
-  return first || req.socket.remoteAddress || 'unknown';
-}
 /** Development bearer tokens mirror the WebSocket dev tokens: "dev:<id>:<name>". */
 const devHttpAuth: HttpAuth = (token) => {
   if (process.env.NODE_ENV === 'production') return null;

@@ -380,6 +380,12 @@ export const activity = pgTable(
   (t) => [index('activity_actor_idx').on(t.actorId, t.createdAt), index('activity_subject_idx').on(t.subjectId, t.createdAt)],
 );
 
+/**
+ * In-app notifications (apps/server/src/notifications). The server keeps the
+ * recent ones in memory and writes every change here, so the inbox survives
+ * restarts and deploys. Notifications with the same collapse key replace each
+ * other while unread.
+ */
 export const notifications = pgTable(
   'notifications',
   {
@@ -387,14 +393,19 @@ export const notifications = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** e.g. "friend_request", "friend_accepted", "challenge", "game_over". */
-    type: text('type').notNull(),
-    /** Type-specific payload (ids, names) for rendering and deep links. */
-    data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+    /** NotificationKind from @chessmate/core, e.g. "friend_request", "your_turn", "system". */
+    kind: text('type').notNull(),
+    title: text('title').notNull().default(''),
+    body: text('body').notNull().default(''),
+    /** In-app route opened when tapped. */
+    url: text('url'),
+    /** Kind-specific payload (ids, names) for rendering and deep links. */
+    data: jsonb('data').$type<Record<string, string>>().notNull().default({}),
+    collapseKey: text('collapse_key'),
     readAt: ts('read_at'),
     createdAt: createdAt(),
   },
-  (t) => [index('notifications_user_idx').on(t.userId, t.readAt, t.createdAt)],
+  (t) => [index('notifications_user_idx').on(t.userId, t.readAt, t.createdAt), index('notifications_user_created_idx').on(t.userId, t.createdAt)],
 );
 
 // ---------------------------------------------------------------- puzzles
@@ -1183,3 +1194,31 @@ export const userProfiles = pgTable('user_profiles', {
 });
 
 export type UserProfileRow = typeof userProfiles.$inferSelect;
+
+// ---------------------------------------------------------------- notifications
+
+/** Notification preferences per account (the whole NotificationPrefs object from @chessmate/core). */
+export const notificationPrefs = pgTable('notification_prefs', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  prefs: jsonb('prefs').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Expo push tokens: one row per device, moved to whichever account last registered it. */
+export const pushTokens = pgTable(
+  'push_tokens',
+  {
+    token: text('token').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    platform: text('platform').notNull(),
+    updatedAt: ts('updated_at').notNull(),
+  },
+  (t) => [index('push_tokens_user_idx').on(t.userId)],
+);
+
+export type NotificationPrefsRow = typeof notificationPrefs.$inferSelect;
+export type PushTokenDbRow = typeof pushTokens.$inferSelect;
