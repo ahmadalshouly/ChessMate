@@ -1,4 +1,4 @@
-// Synthesises ChessMate's win and lose cues as 16-bit mono WAVs (board sounds: synth-wood.mjs).
+// Synthesises ChessMate's win, lose and illegal-move cues as 16-bit mono WAVs (board sounds: synth-wood.mjs).
 // Every sample is generated here, so the sounds are original and need no licence.
 // Usage: node apps/app/scripts/synth-sounds.mjs
 import { Buffer } from 'node:buffer';
@@ -88,4 +88,26 @@ write('lose', 1.1, (b) => {
   bell(b, 0.28, 349, 0.9, 0.6);
   bell(b, 0.28, 220, 0.9, 0.25);
 });
-console.log('wrote win.wav, lose.wav to', out);
+
+/** A muffled low thud whose pitch sags, like a piece bumping the board edge. */
+function thud(buf, at, freq, dur, gain = 1) {
+  const start = Math.round(at * RATE);
+  const len = Math.round(dur * RATE);
+  let phase = 0;
+  let lp = 0;
+  for (let i = 0; i < len && start + i < buf.length; i++) {
+    const t = i / RATE;
+    phase += (2 * Math.PI * freq * (1 - 0.25 * Math.min(1, t / dur))) / RATE;
+    const tone = Math.sin(phase) + 0.3 * Math.sin(2 * phase);
+    lp += 0.18 * (noise() - lp);
+    const env = Math.min(1, t / 0.003) * Math.exp(-t * (5 / dur));
+    buf[start + i] += gain * env * (0.85 * tone + 0.25 * lp);
+  }
+}
+
+// Illegal move: two soft, low, falling thuds. Says "no" without sounding like an alarm.
+write('illegal', 0.3, (b) => {
+  thud(b, 0, 196, 0.12, 1);
+  thud(b, 0.1, 147, 0.17, 0.9);
+});
+console.log('wrote win.wav, lose.wav, illegal.wav to', out);

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { PromotionChoice, PromotionPiece } from '@/components/Board';
 import { useSettings } from '@/features/account/settingsStore';
 
-import { haptic } from './haptics';
+import { illegalMoveFeedback } from './feedback';
 
 /** A promotion waiting for the player to pick a piece, tied to the position it was made in. */
 export interface PendingPromotion {
@@ -64,8 +64,10 @@ export function useBoardInteraction(fen: string, canMove: (color: Color) => bool
   const onPieceDropNow = (from: Square, to: Square) => {
     setSelected(null);
     if (!movable(from)) return;
-    // An illegal drop snaps back; a short buzz says why nothing happened.
-    if (!tryMove(from, to)) haptic('illegal');
+    // An illegal drop snaps back; a thud and a short buzz say why nothing happened.
+    // A legal move the screen turns down (e.g. a wrong puzzle answer) is not illegal.
+    if (!game.legalMoves(from).some((m) => m.to === to)) return illegalMoveFeedback();
+    tryMove(from, to);
   };
 
   // The board is memoised: hand it callbacks that never change identity and read the

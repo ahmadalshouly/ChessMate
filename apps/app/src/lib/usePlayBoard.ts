@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 import type { PromotionPiece } from '@/components/Board';
 import { useSettings } from '@/features/account/settingsStore';
 
-import { haptic } from './haptics';
+import { illegalMoveFeedback } from './feedback';
 import { promotionChoice, type PendingPromotion } from './useBoardInteraction';
 import { playClient, type GameView, type Premove } from './playClient';
 
@@ -154,7 +154,8 @@ export function usePlayBoard(view: GameView | null, onMove: (uci: string) => boo
   const onPieceDrop = (from: Square, to: Square) => {
     setSelected(null);
     if (!live || !movable(from)) return;
-    if (!commit(from, to)) haptic('illegal');
+    if (!destsFrom(from).includes(to)) return illegalMoveFeedback();
+    commit(from, to);
   };
 
   const cancel = () => {

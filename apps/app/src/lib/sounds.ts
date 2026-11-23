@@ -4,8 +4,8 @@ import { getSettings } from '@/features/account/settingsStore';
 
 /**
  * ChessMate's own sound set: wooden pieces on a wooden board, modelled physically by
- * scripts/synth-wood.mjs (win and lose by scripts/synth-sounds.mjs), so there is
- * nothing to license. Moves, captures, castling and check come in several takes that
+ * scripts/synth-wood.mjs (win, lose and illegal by scripts/synth-sounds.mjs), so there
+ * is nothing to license (see assets/sounds/CREDITS.md). Moves, captures, castling and check come in several takes that
  * are rotated, so repeated moves sound like real play.
  */
 const SOURCES = {
@@ -17,6 +17,7 @@ const SOURCES = {
   start: [require('../../assets/sounds/start.wav')],
   end: [require('../../assets/sounds/end.wav')],
   premove: [require('../../assets/sounds/premove.wav')],
+  illegal: [require('../../assets/sounds/illegal.wav')],
   lowTime: [require('../../assets/sounds/lowtime.wav')],
   win: [require('../../assets/sounds/win.wav')],
   lose: [require('../../assets/sounds/lose.wav')],
@@ -25,7 +26,7 @@ const SOURCES = {
 export type SoundName = keyof typeof SOURCES;
 
 /** Sounds governed by the "Move and capture sounds" setting. */
-const MOVE_SOUNDS = new Set<SoundName>(['move', 'capture', 'check', 'castle', 'promote', 'premove']);
+const MOVE_SOUNDS = new Set<SoundName>(['move', 'capture', 'check', 'castle', 'promote', 'premove', 'illegal']);
 
 /**
  * Players per sound: every take of it, at least two, used in turn. A sound that is
