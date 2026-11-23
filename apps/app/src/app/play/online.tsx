@@ -63,7 +63,15 @@ export default function OnlinePlay() {
     }
   }, [tcParam]);
   const s = usePlay();
-  const view = s.game;
+  // A finished game stays in the play state until it is dismissed. Opening this
+  // screen to set up a challenge, open an invite or quick-pair must not land on
+  // that old result, so a game already over on arrival is set aside.
+  const intent = mode === 'friend' || !!inviteId || !!tcParam;
+  const [staleGameId] = useState(() => (intent && s.game?.outcome ? s.game.gameId : null));
+  useEffect(() => {
+    if (staleGameId && playClient.getState().game?.gameId === staleGameId) playClient.dismissFinished();
+  }, [staleGameId]);
+  const view = s.game && s.game.gameId !== staleGameId ? s.game : null;
   const size = useBoardSize(300);
   const live = !!view && !view.outcome;
   // No way back out mid-game (no back button, swipe or Android back); it returns when the game ends.
