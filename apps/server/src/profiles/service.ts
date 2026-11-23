@@ -6,6 +6,7 @@ import {
   applySettingsPatch,
   formatTimeControl,
   isProvisional,
+  type Avatar,
   type CategoryStats,
   type MyProfile,
   type ProfileEdit,
@@ -120,7 +121,8 @@ export class ProfileService {
       displayName: edit.displayName ?? rec.displayName,
       bio: edit.bio === undefined ? rec.bio : edit.bio,
       country: edit.country === undefined ? rec.country : edit.country,
-      avatar: edit.avatar ?? rec.avatar,
+      // Picking a preset keeps an uploaded photo; only the photo endpoints change it.
+      avatar: edit.avatar ? withPhoto(edit.avatar, rec.avatar.photo) : rec.avatar,
       playerTag: edit.playerTag === undefined ? (rec.playerTag ?? null) : edit.playerTag,
       updatedAt: this.now(),
     };
@@ -135,10 +137,22 @@ export class ProfileService {
     return res;
   }
 
+  /** Sets or clears the uploaded profile picture. Returns the one it replaced, if any. */
+  async setPhoto(userId: string, photo: string | null): Promise<string | null> {
+    const rec = await this.record(userId);
+    const old = rec.avatar.photo ?? null;
+    await this.store.save({ ...rec, avatar: withPhoto(rec.avatar, photo), updatedAt: this.now() });
+    return old;
+  }
+
   /** Called after the account itself is deleted. */
   async forget(userId: string) {
     await this.store.delete(userId);
   }
+}
+
+function withPhoto(a: Avatar, photo: string | null | undefined): Avatar {
+  return photo ? { id: a.id, tone: a.tone, photo } : { id: a.id, tone: a.tone };
 }
 
 /** Rating points are whole numbers on screen: 1523, +8, −6. */

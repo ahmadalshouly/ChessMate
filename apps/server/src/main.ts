@@ -1,10 +1,11 @@
 import { DEFAULT_SETTINGS, isStaff } from '@chessmate/core';
-import { DEFAULT_PGLITE_DIR, abortStaleGames, ensureUser, openDb } from '@chessmate/db';
+import { DEFAULT_PGLITE_DIR, abortStaleGames, ensureUser, openDb, setUserAvatarUrl, type Database } from '@chessmate/db';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import { AdminService, DbModerationStore } from './admin';
+import { blobStoreFromEnv } from './avatars/storage';
 import { DbFairPlayStore } from './fairplay';
 import { AuthService, DbAuthStore, mailerFromEnv, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { CoachService } from './coach/coachService';
@@ -68,16 +69,27 @@ const puzzles = new PuzzleApi({ store: puzzleStore });
 // startup so a restart never resets anyone to 1500.
 const ratingRepo = new MemoryRatingRepository();
 const ratings = new RatingService(ratingRepo);
+// Profile pictures: object storage (Tigris, R2, S3) when configured, so they survive deploys; local disk otherwise.
+const blobs = blobStoreFromEnv(process.env, join(dirname(process.env.DATABASE_PATH ?? DEFAULT_PGLITE_DIR), 'uploads'));
+console.log(`Profile pictures: ${blobs.description}`);
+if (production && !blobs.description.startsWith('S3')) {
+  console.warn('Profile pictures are on local disk and will be lost on redeploy: run `fly storage create` (or set BUCKET_NAME, AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)');
+}
 
 function services(
   authStore: AuthStore,
   gamesOf?: (userId: string, limit: number) => Promise<FinishedGame[]>,
   profileStore: MemoryProfileStore | DbProfileStore = new MemoryProfileStore(),
+  db?: Database,
 ) {
   const auth = new AuthService({ store: authStore, mailer: mailerFromEnv(), secret: authSecret(), oauth: new OAuthVerifier(oauthConfigFromEnv()) });
   // Signed-in players get their own profile; dev tokens and the seeded demo players use the dev backend.
   const profileDeps = new AccountProfileBackend(auth, ratings, production ? null : new DevProfileBackend(), gamesOf);
-  const profiles = profileRoutes(profileDeps, profileStore);
+  const profiles = profileRoutes(profileDeps, profileStore, Date.now, {
+    blobs,
+    // Friends lists, messages and search read the users row: keep its picture in step.
+    onChange: db ? (userId, url) => setUserAvatarUrl(db, userId, url) : undefined,
+  });
   const base: ServerOptions = {
     port,
     auth,
@@ -107,7 +119,7 @@ async function start() {
   const stored = await loadRatingsInto(ratingRepo, db.db);
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   // Profiles and settings (privacy included) live in the database, so they survive restarts.
-  const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db), await DbProfileStore.load(db.db));
+  const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db), await DbProfileStore.load(db.db), db.db);
   base.http = [
     ...(base.http ?? []),
     donateRoutes(stripeFromEnv()),

@@ -63,9 +63,10 @@ Alternatives: Railway (similar, Docker-based, usage billing) or Render (its free
 1. Create a Fly.io account and install `flyctl`.
 2. From the repo root: `fly launch --no-deploy --copy-config --name <app-name>`, then set `app = "<app-name>"` in `fly.toml` if it differs.
 3. Create a Postgres database (for example on Neon) and store its URL: `fly secrets set DATABASE_URL=postgres://...`.
-4. Add any other server secrets (see the table below) with `fly secrets set`.
-5. Create a deploy token: `fly tokens create deploy`, and save it as the GitHub Actions secret `FLY_API_TOKEN`.
-6. Run the **Deploy** workflow (Actions → Deploy → Run workflow → `server`). Or deploy from your machine: `fly deploy`.
+4. Create a bucket for profile pictures: `fly storage create` (Tigris object storage). It sets `BUCKET_NAME`, `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_REGION` as app secrets, and the server picks them up. Without a bucket, pictures go to the machine's disk and are lost on every deploy.
+5. Add any other server secrets (see the table below) with `fly secrets set`.
+6. Create a deploy token: `fly tokens create deploy`, and save it as the GitHub Actions secret `FLY_API_TOKEN`.
+7. Run the **Deploy** workflow (Actions → Deploy → Run workflow → `server`). Or deploy from your machine: `fly deploy`.
 
 The server is then at `wss://<app-name>.fly.dev/ws`.
 
@@ -103,6 +104,7 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
 | `DATABASE_PATH` | `.data/pglite` (image: `/data/pglite`) | rarely needed | PGlite data directory when `DATABASE_URL` is unset |
 | `DATABASE_POOL_MAX` | driver default | `fly.toml` | Max Postgres connections |
+| `BUCKET_NAME`, `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | unset: profile pictures on local disk (`.data/uploads`, image: `/data/uploads`) | set by `fly storage create` (secrets) | S3-compatible object storage for profile pictures (Tigris on Fly, Cloudflare R2, AWS S3, MinIO). `AWS_REGION` defaults to `auto`. The bucket stays private: the server serves pictures at `/api/avatars/…` |
 | `STOCKFISH_PATH` | unset (image: `/usr/games/stockfish`) | image | Native Stockfish. Unset = npm WASM build |
 | `ENGINE_WORKERS` | `1` | `fly.toml` | Parallel Stockfish processes |
 | `ENGINE_THREADS` | engine default | `fly.toml` | Threads per Stockfish |

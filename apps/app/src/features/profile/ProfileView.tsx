@@ -24,6 +24,7 @@ import { ProfileStreamer } from '@/features/watch/ProfileStreamer';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAccuracy } from '@/features/engine/useReviewEntry';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { setMyPhoto } from '@/lib/myPhoto';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
 
@@ -41,7 +42,12 @@ export function ProfileView({ username }: { username: string | null }) {
     const path = username ? `/api/profiles/${encodeURIComponent(username)}` : '/api/me/profile';
     session
       .apiFetch<PublicProfile>(path)
-      .then((p) => live && setProfile(p))
+      .then((p) => {
+        if (!live) return;
+        setProfile(p);
+        // Keeps the header's picture in step after changes made on another device.
+        if (p.isMe) setMyPhoto(p.id, p.avatar.photo);
+      })
       .catch((e: Error) => live && setError(e.message));
     return () => {
       live = false;

@@ -6,6 +6,8 @@ export interface SocialUser {
   username: string;
   displayName: string;
   country: string | null;
+  /** Uploaded profile picture (a path on the game server), when the player has one. */
+  avatarUrl?: string | null;
 }
 
 export type PresenceStatus = 'offline' | 'online' | 'playing';
