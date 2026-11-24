@@ -1,5 +1,6 @@
 import {
   arenaPoints,
+  isAdSpot,
   nextRun,
   swissPairings,
   swissPoints,
@@ -1125,6 +1126,22 @@ export class TournamentService {
     return toSponsorView(row);
   }
 
+  /**
+   * Marks a sponsor application as waiting for material (the title, text,
+   * image and link). The email itself is sent by the admin service, which owns
+   * the mailer; this only records that it was asked for.
+   */
+  async requestSponsorMaterial(id: string, by: string): Promise<SponsorApplicationView> {
+    const row = await updateSponsorApplication(this.db, id, {
+      status: 'material',
+      reviewedBy: by,
+      materialRequestedAt: new Date(this.now()),
+      updatedAt: new Date(this.now()),
+    });
+    if (!row) throw new TournamentError(404, 'No such application');
+    return toSponsorView(row);
+  }
+
   payoutRequests(): PayoutRequestView[] {
     return [...this.payouts.values()]
       .sort((a, b) => ms(b.createdAt) - ms(a.createdAt))
@@ -1168,10 +1185,12 @@ function toSponsorView(r: SponsorApplication): SponsorApplicationView {
     website: r.website,
     budget: r.budget,
     message: r.message,
+    spot: isAdSpot(r.spot) ? r.spot : null,
     status: r.status as SponsorStatus,
     staffNote: r.staffNote,
     reviewedBy: r.reviewedBy,
     createdAt: ms(r.createdAt),
+    materialRequestedAt: r.materialRequestedAt ? ms(r.materialRequestedAt) : null,
   };
 }
 

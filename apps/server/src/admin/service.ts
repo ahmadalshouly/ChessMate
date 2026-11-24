@@ -75,8 +75,9 @@ import { TitleService, toApplication } from '../titles/service';
 import type { MessageService } from '../messages/service';
 import { TournamentError, type TournamentService } from '../tournaments/service';
 import { LessonError, type LessonService } from '../lessons/service';
+import { AdError, type AdService } from '../ads/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
-import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, warningNotice, type ModerationNotice } from './notices';
+import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
 
@@ -158,6 +159,8 @@ export class AdminService {
   lessons: LessonService | null = null;
   /** Push campaigns: send now, schedule, triggers (database only). */
   campaigns: CampaignService | null = null;
+  /** Sponsored ad spots and placements (database only). */
+  ads: AdService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -689,6 +692,83 @@ export class AdminService {
     const a = await this.tournamentCall(() => this.tournamentService().reviewSponsor(id, input, actor.username));
     await this.audit(actor, 'sponsor.review', { type: 'system', id, name: a.company ?? a.name }, a.staffNote, { status: a.status });
     return a;
+  }
+
+  /**
+   * Asks the company for the material a placement needs and emails them. The
+   * address came from their own application, so no account is involved.
+   */
+  async requestSponsorMaterial(actor: Actor, id: string) {
+    this.require(actor, 'tournaments.manage');
+    const a = await this.tournamentCall(() => this.tournamentService().requestSponsorMaterial(id, actor.username));
+    const notice = sponsorMaterialEmail(a, a.spot);
+    try {
+      if (this.auth.mailer.sendAccountNotice) await this.auth.mailer.sendAccountNotice({ email: a.email, username: a.company ?? a.name }, notice);
+    } catch (e) {
+      this.log(`could not email sponsor ${a.email}: ${String(e)}`);
+    }
+    await this.audit(actor, 'sponsor.material', { type: 'system', id, name: a.company ?? a.name }, null, { email: a.email, spot: a.spot });
+    return a;
+  }
+
+  // ---------------------------------------------------------------- ad spots
+
+  private adService() {
+    if (!this.ads) throw new AdminError('unavailable', 'Ad spots need the database');
+    return this.ads;
+  }
+
+  private async adCall<T>(fn: () => T | Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof AdError) throw new AdminError(e.status === 404 ? 'not_found' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  adConsole(actor: Actor) {
+    this.require(actor, 'ads.manage');
+    return this.adService().console();
+  }
+
+  async setAdSpot(actor: Actor, spot: string, input: { enabled?: unknown; note?: unknown }) {
+    this.require(actor, 'ads.manage');
+    const s = await this.adCall(() => this.adService().setSpot(spot, input, actor.username));
+    await this.audit(actor, s.enabled ? 'ads.spot.on' : 'ads.spot.off', { type: 'system', id: s.spot, name: s.spot }, s.note);
+    return s;
+  }
+
+  async createAdPlacement(actor: Actor, input: unknown) {
+    this.require(actor, 'ads.manage');
+    const p = await this.adCall(() => this.adService().createPlacement(input, actor.username));
+    await this.audit(actor, 'ads.place', { type: 'system', id: p.id, name: p.sponsor }, null, { spot: p.spot, startsAt: p.startsAt, endsAt: p.endsAt });
+    return p;
+  }
+
+  async updateAdPlacement(actor: Actor, id: string, input: unknown) {
+    this.require(actor, 'ads.manage');
+    const p = await this.adCall(() => this.adService().updatePlacement(id, input, actor.username));
+    await this.audit(actor, 'ads.edit', { type: 'system', id: p.id, name: p.sponsor }, null, { spot: p.spot, endsAt: p.endsAt });
+    return p;
+  }
+
+  async stopAdPlacement(actor: Actor, id: string, input: { stopped?: unknown }) {
+    this.require(actor, 'ads.manage');
+    const stopped = input.stopped !== false;
+    const p = await this.adCall(() => this.adService().stopPlacement(id, stopped));
+    await this.audit(actor, stopped ? 'ads.stop' : 'ads.resume', { type: 'system', id: p.id, name: p.sponsor }, null, { spot: p.spot });
+    return p;
+  }
+
+  async deleteAdPlacement(actor: Actor, id: string) {
+    this.require(actor, 'ads.manage');
+    const p = this.adService()
+      .console()
+      .placements.find((x) => x.id === id);
+    const r = await this.adCall(() => this.adService().deletePlacement(id));
+    await this.audit(actor, 'ads.delete', { type: 'system', id, name: p?.sponsor ?? id }, null, { spot: p?.spot });
+    return r;
   }
 
   payoutRequests(actor: Actor) {

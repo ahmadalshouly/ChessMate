@@ -2,6 +2,7 @@
 import type { Messages } from '../../core';
 import type { en } from '../en';
 import { admin } from './admin';
+import { ads } from './ads';
 import { analysis } from './analysis';
 import { auth } from './auth';
 import { board } from './board';
@@ -52,4 +53,4 @@ import { media } from './media';
 import { cookies } from './cookies';
 import { pushAdmin } from './pushAdmin';
 
-export const ar: Messages<typeof en> = { pushAdmin, cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };
+export const ar: Messages<typeof en> = { ads, pushAdmin, cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };

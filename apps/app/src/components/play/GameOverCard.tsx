@@ -9,6 +9,7 @@ import { Text } from '@/ui/primitives';
 import { pickIndex } from '@/components/play/GameEndCelebration';
 import { ResultHeader, Scoreline, STAMP_MS, reasonText, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
 import { Label } from '@/components/ui';
+import { AdSpot } from '@/features/ads/AdSpot';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { useTheme } from '@/constants/theme';
 import { translate, useT } from '@/i18n';
@@ -167,6 +168,8 @@ export function GameOverCard({
         <CardButton icon="plus-circle-outline" label={tr('play.over.newGame', { tc })} onPress={onNewGame} />
         <CardButton icon="home-outline" label={tr('play.over.lobby')} onPress={onLobby} />
       </View>
+      {/* A sold spot, below the actions. Skipped on tournament games, which already name their own sponsor. */}
+      {!sponsor && <AdSpot spot="game.over" />}
     </Animated.View>
   );
 }

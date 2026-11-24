@@ -18,3 +18,4 @@ export * from './repo/profiles';
 export * from './repo/notifications';
 export * from './repo/lessons';
 export * from './repo/campaigns';
+export * from './repo/ads';

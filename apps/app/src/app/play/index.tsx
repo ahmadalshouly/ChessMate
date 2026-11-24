@@ -12,6 +12,7 @@ import { GameSetupSheet, postOpenGame, setSeekOptions, startSeek, useSeekOptions
 import { Glass } from '@/components/shell/Glass';
 import { RestrictionBanner } from '@/components/shell/RestrictionBanner';
 import { isGuest, playClient, usePlay } from '@/lib/playClient';
+import { AdSpot } from '@/features/ads/AdSpot';
 import { Avatar, Backdrop, Button, GlassView, SectionHeader, Text, useAppTheme } from '@/ui';
 import { dirIcon, useT, type TKey } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
@@ -193,6 +194,8 @@ export default function Lobby() {
           </OptionRow>
         </GlassView>
       </View>
+
+      <AdSpot spot="play.lobby" />
 
       {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} canCreate={canCreate} onPlay={play} onCreate={create} />}
     </View>

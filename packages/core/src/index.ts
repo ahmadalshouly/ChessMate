@@ -37,3 +37,4 @@ export * from './broadcasts';
 export * from './media';
 export * from './material';
 export * from './lessons';
+export * from './ads';
