@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiError, authApi, request, type OAuthProvider } from './client';
 import type { AuthResponse, AuthTokens, AuthUser } from './contract';
 import * as storage from './storage';
+import { releasePushToken } from '@/lib/notifications/api';
 
 export type AuthStatus = 'loading' | 'signedIn' | 'guest' | 'signedOut';
 
@@ -158,6 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(
     async (opts?: { everywhere?: boolean }) => {
       const t = tokens.current;
+      // While the session still works: stop this phone getting the account's push notifications.
+      await releasePushToken();
       if (t) authApi.logout(t.refreshToken, !!opts?.everywhere).catch(() => {});
       await becomeSignedOut();
     },

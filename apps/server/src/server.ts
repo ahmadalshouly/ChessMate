@@ -89,6 +89,10 @@ export interface ServerOptions {
   /** How long a disconnected player may be away before forfeiting. */
   reconnectGraceMs?: number;
   matchIntervalMs?: number;
+  /** Socket heartbeat; defaults to 30 s. */
+  heartbeatMs?: number;
+  /** What players do, for push triggers. */
+  activity?: PlayerActivityHooks;
   challengeLimits?: ChallengeLimits;
   match?: Partial<MatchOptions>;
   now?: () => number;
@@ -146,7 +150,24 @@ interface Connection {
   tournaments: Set<string>;
   /** Watch events whose chat this socket follows. */
   events: Set<string>;
+  /** The app said it is in the background (phone locked, another app in front). */
+  background: boolean;
+  /** Answered the last heartbeat ping. */
+  alive: boolean;
 }
+
+/** What players do that push triggers react to (see notifications/campaigns.ts). Account ids only, never guests. */
+export interface PlayerActivityHooks {
+  /** The app came to the front on some device (opened, unlocked, switched back). */
+  foreground(userId: string): void;
+  /** No device has the app in front any more. */
+  background(userId: string): void;
+  gameStarted(userId: string, gameId: string): void;
+  gameFinished(userId: string, gameId: string): void;
+}
+
+/** Sockets that miss a heartbeat this long are closed, so a phone that dropped off counts as away. */
+const HEARTBEAT_MS = 30_000;
 
 /** Close code sent to an account closed for fair-play violations. */
 export const CLOSE_FAIR_PLAY_BAN = 4010;
@@ -199,6 +220,11 @@ export class ChessServer {
   private readonly social: SocialService | undefined;
   private readonly now: () => number;
   private readonly matchTimer: NodeJS.Timeout;
+  private readonly heartbeat: NodeJS.Timeout;
+  private readonly conns = new Map<WebSocket, Connection>();
+  /** Players with the app in front on some device. */
+  private readonly foreground = new Set<string>();
+  private activity: PlayerActivityHooks | null = null;
   readonly moderation: Moderation;
   readonly fairPlay: FairPlayService;
   private readonly limits: RateLimitConfig;
@@ -248,7 +274,8 @@ export class ChessServer {
       deliver: (userId, notification, unread) => {
         for (const ws of this.sockets.get(userId) ?? []) this.send(ws, { t: 'notification', notification, unread });
       },
-      isOnline: (userId) => (this.sockets.get(userId)?.size ?? 0) > 0,
+      // Away = no screen of the app in front, even if a backgrounded socket is still open.
+      isOnline: (userId) => this.isForeground(userId),
     });
     const accountAuth: HttpAuth | null = opts.auth ? (t) => opts.auth!.verifyAccessToken(t)?.userId ?? null : null;
     const httpAuth: HttpAuth = opts.httpAuth ?? ((t) => accountAuth?.(t) ?? devHttpAuth(t));
@@ -427,6 +454,50 @@ export class ChessServer {
       this.onConnection(ws);
     });
     this.matchTimer = setInterval(() => this.tick(), opts.matchIntervalMs ?? 500);
+    this.heartbeat = setInterval(() => this.beat(), opts.heartbeatMs ?? HEARTBEAT_MS);
+    this.heartbeat.unref?.();
+    this.activity = opts.activity ?? null;
+  }
+
+  /** Pings every socket; one that did not answer the last ping is gone (phone off the network) and is closed. */
+  private beat() {
+    for (const conn of this.conns.values()) {
+      if (!conn.alive) {
+        conn.ws.terminate();
+        continue;
+      }
+      conn.alive = false;
+      try {
+        conn.ws.ping();
+      } catch {
+        // closing already
+      }
+    }
+  }
+
+  /** Connects push triggers (or anything else) to what players do. */
+  setActivityHooks(hooks: PlayerActivityHooks | null) {
+    this.activity = hooks;
+  }
+
+  /** True while some device of the player has the app open and in front. */
+  isForeground(userId: string): boolean {
+    for (const ws of this.sockets.get(userId) ?? []) {
+      const c = this.conns.get(ws);
+      if (c && !c.background) return true;
+    }
+    return false;
+  }
+
+  private updateForeground(player: Player) {
+    const now = this.isForeground(player.id);
+    const was = this.foreground.has(player.id);
+    if (now === was) return;
+    if (now) this.foreground.add(player.id);
+    else this.foreground.delete(player.id);
+    if (isGuest(player)) return;
+    if (now) this.activity?.foreground(player.id);
+    else this.activity?.background(player.id);
   }
 
   listen(): Promise<number> {
@@ -440,6 +511,7 @@ export class ChessServer {
 
   async close(): Promise<void> {
     clearInterval(this.matchTimer);
+    clearInterval(this.heartbeat);
     this.opts.tournaments?.stop();
     await this.fairPlay.close();
     this.opts.analysis?.close();
@@ -454,7 +526,18 @@ export class ChessServer {
   // ---- connection handling ----
 
   private onConnection(ws: WebSocket) {
-    const conn: Connection = { ws, player: null, limiter: new ConnectionLimiter(this.limits, this.now()), watching: new Set(), tournaments: new Set(), events: new Set() };
+    const conn: Connection = {
+      ws,
+      player: null,
+      limiter: new ConnectionLimiter(this.limits, this.now()),
+      watching: new Set(),
+      tournaments: new Set(),
+      events: new Set(),
+      background: false,
+      alive: true,
+    };
+    this.conns.set(ws, conn);
+    ws.on('pong', () => (conn.alive = true));
     const helloTimeout = setTimeout(() => !conn.player && ws.close(4001, 'hello timeout'), 10_000);
     ws.on('message', (data) => {
       const msg = decodeClient(String(data));
@@ -472,6 +555,7 @@ export class ChessServer {
     });
     ws.on('close', () => {
       clearTimeout(helloTimeout);
+      this.conns.delete(ws);
       for (const id of conn.watching) this.unwatch(ws, id);
       for (const id of conn.tournaments) this.tournamentFollowers.get(id)?.delete(ws);
       for (const id of conn.events) this.unfollowEvent(ws, id);
@@ -502,6 +586,7 @@ export class ChessServer {
       set.add(ws);
       this.sockets.set(player.id, set);
       if (cameOnline) this.pushPresence(player.id);
+      this.updateForeground(player);
       this.cancelGrace(player.id);
       if (!wasOnline) this.markLobbyDirty();
       this.send(ws, {
@@ -533,6 +618,9 @@ export class ChessServer {
     switch (msg.t) {
       case 'ping':
         return this.send(ws, { t: 'pong', id: msg.id, serverNow: now });
+      case 'appState':
+        conn.background = !msg.active;
+        return this.updateForeground(player);
       case 'seek': {
         if (this.activeRoomOf(player.id)) return this.send(ws, err('bad_request', 'Already in a game'));
         const tc = msg.timeControl;
@@ -790,6 +878,8 @@ export class ChessServer {
     this.lobbySubs.delete(ws);
     const set = this.sockets.get(playerId);
     set?.delete(ws);
+    const player = this.store.get(playerId);
+    if (player) this.updateForeground(player);
     if (set && set.size > 0) return;
     this.sockets.delete(playerId);
     this.pushPresence(playerId);
@@ -1222,6 +1312,7 @@ export class ChessServer {
     this.schedule(room);
     this.pushPresence(white.id);
     this.pushPresence(black.id);
+    for (const p of [white, black]) if (!isGuest(p)) this.activity?.gameStarted(p.id, room.id);
     return room;
   }
 
@@ -1281,6 +1372,7 @@ export class ChessServer {
   private onGameEnded(r: GameRoom) {
     this.pushPresence(r.white.id);
     this.pushPresence(r.black.id);
+    if (r.outcome && r.outcome.reason !== 'aborted') for (const p of [r.white, r.black]) if (!isGuest(p)) this.activity?.gameFinished(p.id, r.id);
     // Spectators get gameOver via broadcast; drop them once the room is gone.
     const o = r.outcome;
     if (!this.social || !o || o.reason === 'aborted') return;

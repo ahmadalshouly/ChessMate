@@ -61,6 +61,29 @@ export const notificationsApi = {
   remove: (id: string) => call<{ unread: number }>('DELETE', `/api/notifications/${encodeURIComponent(id)}`),
   prefs: async () => mergeNotificationPrefs(defaultNotificationPrefs(), await call<NotificationPrefs>('GET', '/api/notifications/prefs')),
   savePrefs: (patch: Partial<NotificationPrefs> | Record<string, unknown>) => call<NotificationPrefs>('PUT', '/api/notifications/prefs', patch),
-  registerPushToken: (token: string, platform: string) => call<{ ok: true }>('POST', '/api/push-tokens', { token, platform }),
-  unregisterPushToken: (token: string) => call<{ ok: true }>('DELETE', '/api/push-tokens', { token }),
+  registerPushToken: async (token: string, platform: string) => {
+    const r = await call<{ ok: true }>('POST', '/api/push-tokens', { token, platform });
+    registeredToken = token;
+    return r;
+  },
+  unregisterPushToken: async (token: string) => {
+    if (registeredToken === token) registeredToken = null;
+    return call<{ ok: true }>('DELETE', '/api/push-tokens', { token });
+  },
 };
+
+/** This device's push token as last registered with the server for the signed-in account. */
+let registeredToken: string | null = null;
+
+/**
+ * Called just before signing out, while the session still works: detaches
+ * this phone from the account so the next person to use it does not get the
+ * previous account's notifications. Gives up after 3 seconds so sign-out never
+ * hangs on a slow network.
+ */
+export async function releasePushToken(): Promise<void> {
+  const token = registeredToken;
+  if (!token) return;
+  registeredToken = null;
+  await Promise.race([call('DELETE', '/api/push-tokens', { token }).catch(() => undefined), new Promise((r) => setTimeout(r, 3000))]);
+}

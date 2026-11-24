@@ -1336,3 +1336,68 @@ export const lessons = pgTable(
 
 export type LessonChapterRow = typeof lessonChapters.$inferSelect;
 export type LessonRow = typeof lessons.$inferSelect;
+
+// ---------------------------------------------------------------- push campaigns
+
+/**
+ * Notifications staff send from the console: right away, at a set time, or
+ * as a trigger on what players do. `message`, `audience`, `trigger` and
+ * `stats` are the shapes of the same names in @chessmate/core (campaigns.ts).
+ */
+export const pushCampaigns = pgTable(
+  'push_campaigns',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    /** instant | scheduled | trigger */
+    kind: text('kind').notNull(),
+    /** draft | scheduled | sending | sent | active | paused | cancelled | failed */
+    status: text('status').notNull(),
+    message: jsonb('message').$type<Record<string, unknown>>().notNull(),
+    audience: jsonb('audience').$type<Record<string, unknown>>().notNull(),
+    trigger: jsonb('trigger').$type<Record<string, unknown>>(),
+    scheduleAt: ts('schedule_at'),
+    stats: jsonb('stats').$type<Record<string, number>>().notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+    sentAt: ts('sent_at'),
+    lastError: text('last_error'),
+  },
+  (t) => [index('push_campaigns_status_idx').on(t.status)],
+);
+
+/** One row per player a campaign reached: frequency caps, trigger cooldowns and "already sent" checks. */
+export const pushCampaignDeliveries = pgTable(
+  'push_campaign_deliveries',
+  {
+    id: id(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => pushCampaigns.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('push_campaign_deliveries_campaign_idx').on(t.campaignId, t.userId), index('push_campaign_deliveries_user_idx').on(t.userId, t.createdAt)],
+);
+
+/** Trigger sends waiting for their delay ("left without playing" 30 minutes later); kept so a deploy does not drop them. */
+export const pushTriggerJobs = pgTable(
+  'push_trigger_jobs',
+  {
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => pushCampaigns.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    dueAt: ts('due_at').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.userId] }), index('push_trigger_jobs_due_idx').on(t.dueAt)],
+);
+
+export type PushCampaignRow = typeof pushCampaigns.$inferSelect;
+export type PushTriggerJobRow = typeof pushTriggerJobs.$inferSelect;

@@ -36,6 +36,8 @@ export function validateClientMessage(m: ClientMessage): string | null {
         ? null
         : 'Invalid rating range';
     }
+    case 'appState':
+      return typeof msg.active === 'boolean' ? null : 'Invalid app state';
     case 'cancelSeek':
     case 'lobbySub':
     case 'lobbyUnsub':

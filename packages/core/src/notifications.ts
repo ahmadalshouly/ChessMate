@@ -4,7 +4,7 @@
  * protocol so the HTTP API and push payloads can use it too.
  */
 
-export const NOTIFICATION_KINDS = ['challenge', 'friend_request', 'friend_accepted', 'your_turn', 'review_ready', 'message', 'tournament', 'system'] as const;
+export const NOTIFICATION_KINDS = ['challenge', 'friend_request', 'friend_accepted', 'your_turn', 'review_ready', 'message', 'tournament', 'news', 'system'] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export interface AppNotification {
@@ -39,6 +39,7 @@ export const NOTIFICATION_KIND_INFO: Record<NotificationKind, { label: string; d
   review_ready: { label: 'Game review ready', description: 'Your game has been reviewed', userConfigurable: true },
   message: { label: 'Messages', description: 'Someone sends you a message', userConfigurable: true },
   tournament: { label: 'Tournaments', description: 'A tournament you joined is starting', userConfigurable: true },
+  news: { label: 'News and reminders', description: 'Updates, events and reminders from ChessMate', userConfigurable: true },
   system: { label: 'Account and security', description: 'Important account messages', userConfigurable: false },
 };
 
