@@ -13,6 +13,7 @@ import { newsApi } from '@/lib/communityApi';
 import { LinkList, PostImage, pictureUri } from '@/features/media/MediaFields';
 import { GlassView, Text } from '@/ui';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { goBack } from '@/lib/goBack';
 
 /** One news post: the full text, likes, comments, and the team's edit tools. */
 export default function NewsPostScreen() {
@@ -76,7 +77,7 @@ export default function NewsPostScreen() {
                         onPress={async () => {
                           if (!confirmDelete) return setConfirmDelete(true);
                           await newsApi.remove(post.id).catch((e: Error) => setError(e.message));
-                          router.back();
+                          goBack('/news');
                         }}
                       />
                     </>
