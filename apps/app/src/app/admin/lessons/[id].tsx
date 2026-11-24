@@ -26,6 +26,7 @@ import { lessonArrows, lessonIcon } from '@/features/learn/lessonView';
 import { useT } from '@/i18n';
 import { puzzleThemeLabel } from '@/i18n/chess';
 import { Badge, Button, Chip, GlassView, IconButton, Row, Stack, Switch, Text, TextField, useAppTheme, useToast } from '@/ui';
+import { goBack } from '@/lib/goBack';
 
 const ALL_THEMES = PUZZLE_THEME_GROUPS.flatMap((g) => Object.keys(g.themes));
 
@@ -99,7 +100,7 @@ export default function AdminLessonEditor() {
   };
 
   const title = isNew ? tr('admin.lessons.editor.titleNew') : (draft?.title ?? '');
-  const back = <Button size="sm" variant="ghost" title={tr('admin.lessons.editor.back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/admin/lessons'))} />;
+  const back = <Button size="sm" variant="ghost" title={tr('admin.lessons.editor.back')} onPress={() => goBack('/admin/lessons')} />;
 
   if (missing) {
     return (

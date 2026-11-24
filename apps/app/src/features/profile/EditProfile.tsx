@@ -1,6 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { AVATARS, AVATAR_TONES, BIO_MAX, DISPLAY_NAME_MAX, PLAYER_TAGS, type Avatar as AvatarValue, type MyProfile, type PlayerTag } from '@chessmate/core';
-import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
@@ -21,6 +20,7 @@ import { CountryPicker } from './CountryPicker';
 import { Field, SectionTitle } from './controls';
 import { pickAvatarPhoto, type PhotoSource } from './pickPhoto';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { goBack } from '@/lib/goBack';
 
 export function EditProfile() {
   const t = useTheme();
@@ -90,8 +90,7 @@ export function EditProfile() {
     setError(null);
     try {
       await session.apiFetch('/api/me/profile', { method: 'PATCH', body: { displayName, bio: bio || null, country, avatar, playerTag } });
-      if (router.canGoBack()) router.back();
-      else router.replace('/profile');
+      goBack('/profile');
     } catch (e) {
       setError(e instanceof ApiError ? { field: e.field, message: e.message } : { message: String(e) });
     } finally {

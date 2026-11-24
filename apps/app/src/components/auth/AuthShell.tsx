@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
@@ -9,6 +8,7 @@ import { Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { goBack } from '@/lib/goBack';
 
 /** The ChessMate line-art mark. */
 export function BrandMark({ size = 56 }: { size?: number }) {
@@ -41,7 +41,7 @@ export function AuthShell({
                 accessibilityRole="button"
                 accessibilityLabel={tr('common.back')}
                 hitSlop={12}
-                onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}
+                onPress={() => goBack('/welcome')}
                 style={styles.back}>
                 <Text style={{ color: t.muted, fontSize: 15, fontWeight: '600' }}>{`${rtl ? '›' : '‹'} ${tr('common.back')}`}</Text>
               </Pressable>
