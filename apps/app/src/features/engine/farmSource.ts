@@ -5,7 +5,12 @@
  * iOS/Android; the app only sends searches and receives finished results.
  *
  * `createFarm(makeEngine, size, post)` returns `onMessage(msg)`. Messages in:
- *   {t:'search', id, fen, depth, multipv, movetime?, urgent?}   {t:'cancel', id}
+ *   {t:'search', id, fen, depth, multipv, movetime?, urgent?, moves?, lane?}   {t:'cancel', id}
+ * With `moves`, the engine is given the game from `fen` plus those moves (so it
+ * knows about repetitions). `lane` asks for one engine: engine k takes lane k's
+ * searches first, so a stretch of consecutive positions runs on the same engine
+ * and each search reuses what the engine learned on the previous one (its hash
+ * table); an engine with no lane work left takes over the end of the longest lane.
  * Messages out (through `post`):
  *   {t:'ready', size}  {t:'result', id, lines: string[], best: string|null}
  *   {t:'cancelled', id}  {t:'error', message}
@@ -19,14 +24,29 @@ function createFarm(makeEngine, size, post) {
     failed = true;
     post({ t: 'error', message: message || 'Engine stopped' });
   }
+  /** Next job for engine k: urgent or lane-less work, then its own lane, then the end of the longest other lane. */
+  function take(k) {
+    var i, own = -1, counts = {}, longest = -1, last = {};
+    for (i = 0; i < queue.length; i++) {
+      var j = queue[i];
+      if (j.urgent || j.lane === undefined || j.lane === null) return queue.splice(i, 1)[0];
+      if (own < 0 && j.lane % slots.length === k) own = i;
+      counts[j.lane] = (counts[j.lane] || 0) + 1;
+      last[j.lane] = i;
+    }
+    if (own >= 0) return queue.splice(own, 1)[0];
+    for (var lane in counts) if (longest < 0 || counts[lane] > counts[longest]) longest = lane;
+    return longest < 0 ? null : queue.splice(last[longest], 1)[0];
+  }
   function pump() {
     for (var i = 0; i < slots.length; i++) {
       var s = slots[i];
       if (!s.ready || s.job || !queue.length) continue;
-      var job = queue.shift();
+      var job = take(i);
+      if (!job) continue;
       s.job = job;
       if (job.multipv !== s.multipv) { s.engine.postMessage('setoption name MultiPV value ' + job.multipv); s.multipv = job.multipv; }
-      s.engine.postMessage('position fen ' + job.fen);
+      s.engine.postMessage('position fen ' + job.fen + (job.moves ? ' moves ' + job.moves : ''));
       s.engine.postMessage('go depth ' + job.depth + (job.movetime ? ' movetime ' + job.movetime : ''));
     }
   }
@@ -63,7 +83,7 @@ function createFarm(makeEngine, size, post) {
   return function onMessage(m) {
     if (!m || failed) return;
     if (m.t === 'search') {
-      var job = { id: m.id, fen: m.fen, depth: m.depth, multipv: m.multipv || 1, movetime: m.movetime, lines: {} };
+      var job = { id: m.id, fen: m.fen, moves: m.moves, lane: m.lane, urgent: !!m.urgent, depth: m.depth, multipv: m.multipv || 1, movetime: m.movetime, lines: {} };
       if (m.urgent) queue.unshift(job); else queue.push(job);
       pump();
     } else if (m.t === 'cancel') {
