@@ -1,11 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { lessonById, lichessPuzzleUrl, nextLesson, type Lesson, type LessonExplainStep, type LessonPuzzleStep } from '@chessmate/core';
+import { lichessPuzzleUrl, type Lesson, type LessonExplainStep, type LessonPuzzleStep } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { PuzzleBoard } from '@/components/PuzzleBoard';
+import { findLesson, lessonAfter, useLessonCatalog } from '@/features/learn/catalog';
 import { LESSON_ARROW_COLORS, lessonArrows } from '@/features/learn/lessonView';
 import { completeLesson, saveLessonStep, useLessonProgress } from '@/features/learn/progress';
 import { dirIcon, useT } from '@/i18n';
@@ -26,8 +27,21 @@ const PANEL_WIDE = 380;
  */
 export default function LessonScreen() {
   const tr = useT();
+  const t = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const lesson = id ? lessonById(id) : undefined;
+  const catalog = useLessonCatalog();
+  const lesson = id ? findLesson(catalog, id) : undefined;
+  // A lesson added since this device last looked: wait for the server before saying it doesn't exist.
+  if (!lesson && !catalog.checked) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: tr('learn.title') }} />
+        <View style={styles.center}>
+          <ActivityIndicator color={t.colors.text} />
+        </View>
+      </Screen>
+    );
+  }
   if (!lesson) {
     return (
       <Screen scroll>
@@ -290,7 +304,7 @@ function Finished({ lesson, onRestart }: { lesson: Lesson; onRestart: () => void
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
-  const next = nextLesson(lesson.id);
+  const next = lessonAfter(useLessonCatalog(), lesson.id);
   const theme = puzzleThemeLabel(lesson.practiceTheme);
   return (
     <>
@@ -317,14 +331,16 @@ function Finished({ lesson, onRestart }: { lesson: Lesson; onRestart: () => void
               onPress={() => router.replace({ pathname: '/learn/[id]', params: { id: next.id } })}
             />
           ) : null}
-          <Button
-            variant={next ? 'secondary' : 'primary'}
-            size="lg"
-            fullWidth
-            title={tr('learn.finished.practiceMore', { theme })}
-            leftIcon={<Ionicons name="extension-puzzle-outline" size={16} color={next ? c.text : c.onAccent} />}
-            onPress={() => router.push({ pathname: '/puzzles/train', params: { theme: lesson.practiceTheme } })}
-          />
+          {lesson.practiceTheme ? (
+            <Button
+              variant={next ? 'secondary' : 'primary'}
+              size="lg"
+              fullWidth
+              title={tr('learn.finished.practiceMore', { theme })}
+              leftIcon={<Ionicons name="extension-puzzle-outline" size={16} color={next ? c.text : c.onAccent} />}
+              onPress={() => router.push({ pathname: '/puzzles/train', params: { theme: lesson.practiceTheme } })}
+            />
+          ) : null}
           <Row gap="sm">
             <View style={styles.flex}>
               <Button variant="ghost" fullWidth title={tr('learn.finished.all')} onPress={() => router.dismissTo('/learn')} />

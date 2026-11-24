@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js';
 import { describe, expect, it } from 'vitest';
 
-import { LESSONS, LESSON_CHAPTERS, isValidPuzzle, lessonById, nextLesson, squaresBetween, type LessonExplainStep } from '../src';
+import { LESSONS, LESSON_CHAPTERS, LessonInputError, cleanLessonInput, isValidPuzzle, lessonById, nextLesson, resolveLessonPuzzles, squaresBetween, type LessonExplainStep } from '../src';
 
 const explainSteps = LESSONS.flatMap((l) => l.steps.filter((s): s is LessonExplainStep => s.kind === 'explain').map((s) => ({ lesson: l.id, step: s })));
 
@@ -102,5 +102,42 @@ describe('lessons', () => {
     expect(nextLesson(LESSONS[0]!.id)?.id).toBe(LESSONS[1]!.id);
     expect(nextLesson(LESSONS[LESSONS.length - 1]!.id)).toBeUndefined();
     expect(squaresBetween('a4', 'e8')).toHaveLength(25);
+  });
+});
+
+describe('lesson input from the console', () => {
+  const ok = {
+    id: 'my-lesson',
+    chapterId: 'tactics',
+    title: '  Title  ',
+    summary: 'Summary',
+    steps: [{ kind: 'explain', title: 'T', body: 'B', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', arrows: [{ from: 'e1', to: 'e2' }], highlights: ['e2', 'e2'] }],
+  };
+
+  it('tidies a valid lesson', () => {
+    const l = cleanLessonInput(ok);
+    expect(l.title).toBe('Title');
+    expect(l.level).toBe('beginner');
+    expect(l.icon).toBe('book-outline');
+    expect(l.published).toBe(true);
+    const step = l.steps[0] as LessonExplainStep;
+    expect(step.arrows).toEqual([{ from: 'e1', to: 'e2', tone: 'move' }]);
+    expect(step.highlights).toEqual(['e2']);
+  });
+
+  it('refuses bad input with the step that is wrong', () => {
+    expect(() => cleanLessonInput({ ...ok, id: 'x' })).toThrow(LessonInputError);
+    expect(() => cleanLessonInput({ ...ok, steps: [] })).toThrow(/at least one step/);
+    expect(() => cleanLessonInput({ ...ok, practiceTheme: 'madeUp' })).toThrow(/theme/);
+    expect(() => cleanLessonInput({ ...ok, readMore: [{ title: 'x', url: 'http://insecure' }] })).toThrow(/https/);
+    expect(() => cleanLessonInput({ ...ok, steps: [ok.steps[0], { kind: 'explain', title: 'T', body: 'B', fen: '8/8/8/8/8/8/8/8 w - - 0 1' }] })).toThrow(/Step 2/);
+  });
+
+  it('looks puzzles up by id', () => {
+    const p = LESSONS[0]!.steps.find((s) => s.kind === 'puzzle')!;
+    if (p.kind !== 'puzzle') throw new Error('no puzzle');
+    const input = cleanLessonInput({ ...ok, steps: [{ kind: 'puzzle', prompt: 'Go', puzzleId: p.puzzle.id }] });
+    expect(resolveLessonPuzzles(input, (id) => (id === p.puzzle.id ? p.puzzle : undefined)).steps[0]).toEqual({ kind: 'puzzle', prompt: 'Go', puzzle: p.puzzle });
+    expect(() => resolveLessonPuzzles(input, () => undefined)).toThrow(/no puzzle/);
   });
 });

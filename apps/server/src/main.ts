@@ -14,6 +14,8 @@ import { DbNotificationStore } from './notifications/dbStore';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
 import { AccountProfileBackend, DbProfileStore, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
 import { PuzzleApi } from './puzzles/api';
+import { lessonRoutes } from './lessons/http';
+import { LessonService, builtinLessonCatalog } from './lessons/service';
 import { loadBundledPuzzles, openPuzzleStore } from './puzzles/setup';
 import { Moderation } from './moderation';
 import { MemoryRatingRepository, RatingService } from './ratingService';
@@ -56,6 +58,8 @@ function authSecret(): string {
 const { service: analysis, engine } = createAnalysisService(process.env);
 const puzzleStore = await openPuzzleStore();
 const puzzles = new PuzzleApi({ store: puzzleStore });
+// Learn-tab lessons: from the database once it is open (staff edit them in the console), the built-in set until then.
+let lessonCatalog = builtinLessonCatalog;
 // Ratings are read from memory during play and written to the database after
 // every rated game (DbGamePersistence). The cache is warmed from the database on
 // startup so a restart never resets anyone to 1500.
@@ -87,7 +91,7 @@ function services(
     auth,
     ratings,
     analysis,
-    http: [authRoutes(auth), profiles, (req, res) => puzzles.handle(req, res)],
+    http: [authRoutes(auth), profiles, (req, res) => puzzles.handle(req, res), lessonRoutes(() => lessonCatalog())],
     adminToken: process.env.ADMIN_TOKEN || undefined,
   };
   return { auth, base, profileDeps, profileStore };
@@ -165,6 +169,10 @@ async function start() {
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
+  const lessons = new LessonService({ db: db.db, puzzles: puzzleStore });
+  await lessons.load();
+  admin.lessons = lessons;
+  lessonCatalog = () => lessons.catalog();
   const server = new ChessServer({
     ...base,
     admin,

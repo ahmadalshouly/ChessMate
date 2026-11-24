@@ -6,6 +6,11 @@ import type {
   AdminFairPlayFile,
   AdminGameDetail,
   AdminGameSummary,
+  AdminLesson,
+  AdminLessonChapter,
+  LessonChapterInput,
+  LessonInput,
+  PuzzleDto,
   AdminMe,
   AdminPlayerDetail,
   AdminPlayerSummary,
@@ -131,6 +136,15 @@ export function useAdminApi() {
       reviewSponsor: (aid: string, status: string, note: string) => post(`/sponsors/${id(aid)}`, { status, note }),
       payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),
       reviewPayout: (pid: string, status: string, note: string) => post(`/payouts/${id(pid)}`, { status, note }),
+      lessons: () => get<{ chapters: AdminLessonChapter[] }>('/lessons').then((r) => r.chapters),
+      createLesson: (l: LessonInput) => post<{ lesson: AdminLesson }>('/lessons', { ...l }).then((r) => r.lesson),
+      saveLesson: (l: LessonInput) => post<{ lesson: AdminLesson }>(`/lessons/${id(l.id)}`, { ...l }).then((r) => r.lesson),
+      deleteLesson: (lid: string) => post(`/lessons/${id(lid)}/delete`),
+      moveLesson: (lid: string, delta: number) => post<{ chapters: AdminLessonChapter[] }>(`/lessons/${id(lid)}/move`, { delta }).then((r) => r.chapters),
+      saveLessonChapter: (c: LessonChapterInput) => post<{ chapter: AdminLessonChapter }>('/lesson-chapters', { ...c }).then((r) => r.chapter),
+      deleteLessonChapter: (cid: string) => post(`/lesson-chapters/${id(cid)}/delete`),
+      moveLessonChapter: (cid: string, delta: number) => post<{ chapters: AdminLessonChapter[] }>(`/lesson-chapters/${id(cid)}/move`, { delta }).then((r) => r.chapters),
+      lessonPuzzles: (q: { theme?: string; rating?: number; id?: string }) => get<{ puzzles: PuzzleDto[] }>(`/lesson-puzzles${qs(q)}`).then((r) => r.puzzles),
     };
   }, [apiFetch]);
 }

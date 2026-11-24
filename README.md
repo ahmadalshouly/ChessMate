@@ -400,9 +400,15 @@ In the app, open **Puzzles** on the home screen: your rating and records, rated 
 
 ### Lessons
 
-The **Learn** tab has 15 free lessons in four chapters (tactics, checkmate patterns, endgames, openings). Each lesson explains one idea on a few example positions, with arrows and marked squares, then practises it on three real puzzles, and ends with a link to more puzzles on that theme in the trainer and further reading on Wikipedia. Lessons run entirely on the device (no server, no account, they work offline), and progress is kept on the device.
+The **Learn** tab has 15 free lessons in four chapters (tactics, checkmate patterns, endgames, openings). Each lesson explains one idea on a few example positions, with arrows and marked squares, then practises it on three real puzzles, and ends with a link to more puzzles on that theme in the trainer and further reading on Wikipedia. Lessons need no account and work offline, and progress is kept on the device.
 
-- Lessons live in `packages/core/src/lessons/lessons.ts`. The explanations are ChessMate's own writing; tests in `packages/core/test/lessons.test.ts` check every position and every claim the text makes about a move (the mates are mate, the fork attacks both pieces, and so on).
+**Adding lessons without an app release.** Staff write and edit lessons in the admin console (**Lessons**, permission `lessons.manage`, moderators and admins). The server keeps them in the database (`lesson_chapters`, `lessons`) and serves the published ones at `GET /api/lessons` (with an ETag, so unchanged catalogs cost a 304). The app asks for it when the Learn tab opens (at most every 10 minutes), keeps the last copy for offline use, and shows the lessons built into the app until the first answer arrives.
+
+- The console editor has live boards: paste a FEN, type arrows (`e2e4 c6e5:attack d1d8:defend`) and marked squares (`e4 d5`), and pick practice puzzles by theme and rating from the server's puzzle set (or type a puzzle id). Lessons can be saved as drafts, which players do not see, and chapters and lessons can be reordered.
+- The server checks every save (legal positions, real squares, a known puzzle theme, https links, length limits; `packages/core/src/lessons/validate.ts`) and copies each chosen puzzle into the lesson, so the app needs no extra request. Saves are written to the audit log.
+- Admin API: `GET /api/admin/lessons`, `POST /api/admin/lessons` (create), `POST /api/admin/lessons/:id` (save), `/:id/delete`, `/:id/move`, `POST /api/admin/lesson-chapters` (create or save), `/:id/delete` (empty chapters only), `/:id/move`, and `GET /api/admin/lesson-puzzles?theme=&rating=` or `?id=`.
+- On first start the database is filled from the built-in lessons below; after that the database is the source.
+- Built-in lessons live in `packages/core/src/lessons/lessons.ts`. The explanations are ChessMate's own writing; tests in `packages/core/test/lessons.test.ts` check every position and every claim the text makes about a move (the mates are mate, the fork attacks both pieces, and so on).
 - Practice puzzles come from the bundled Lichess puzzle database extract (CC0). `node packages/core/scripts/build-lesson-puzzles.mjs` picks three per lesson (easy, medium, harder) and writes `src/lessons/puzzles.ts`; each puzzle links back to Lichess.
 - Read-more links point to Wikipedia (CC BY-SA 4.0); nothing is copied from it. Lichess's own Learn and Practice content is AGPL, so it is not used (see Licensing above).
 - Lesson texts are English for now; the screens around them are translated.
