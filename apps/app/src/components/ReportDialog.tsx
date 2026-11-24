@@ -6,6 +6,7 @@ import { Text, TextInput } from '@/ui/primitives';
 
 import { Button, Card, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
+import { KeyboardAvoider } from '@/ui/components/Keyboard';
 import { translateOr, useT } from '@/i18n';
 
 /** Localised report reason label (falls back to core's English). */
@@ -47,7 +48,7 @@ export function ReportDialog({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <BlurView intensity={30} tint={t.scheme === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
       <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.25)' }]} onPress={onClose} accessibilityLabel={tr('common.close')} />
-      <View style={styles.center} pointerEvents="box-none">
+      <KeyboardAvoider style={styles.center} pointerEvents="box-none">
         <View style={{ width: '100%', maxWidth: 420, borderRadius: 20, backgroundColor: t.surfaceSolid }}>
           <Card>
             {state === 'done' ? (
@@ -93,7 +94,7 @@ export function ReportDialog({
             )}
           </Card>
         </View>
-      </View>
+      </KeyboardAvoider>
     </Modal>
   );
 }

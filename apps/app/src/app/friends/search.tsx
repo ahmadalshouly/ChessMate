@@ -2,7 +2,7 @@ import type { UserWithRelationship } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Pill, SearchField, UserRow } from '@/components/social';
 import { SignInPrompt } from '@/components/SocialSignIn';
@@ -11,6 +11,7 @@ import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { socialApi } from '@/lib/social/api';
 import { useSocialIdentity } from '@/lib/social/session';
 import { useT } from '@/i18n';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 export default function SearchScreen() {
   const me = useSocialIdentity();
@@ -43,7 +44,7 @@ export default function SearchScreen() {
   return (
     <Screen>
       <Stack.Screen options={{ title: tr('friends.find') }} />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           {!me ? (
             <SignInPrompt />
@@ -93,7 +94,7 @@ export default function SearchScreen() {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
     </Screen>
   );
 }
