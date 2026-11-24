@@ -1,3 +1,4 @@
+import { isAdSpot, type AdSpotId } from './ads';
 import type { TimeControl } from './timeControl';
 
 /**
@@ -514,7 +515,12 @@ export function validateTournamentInput(
 
 // ---------------------------------------------------------------- sponsors and payouts
 
-export const SPONSOR_STATUSES = ['new', 'contacted', 'accepted', 'declined'] as const;
+/**
+ * How a sponsor application moves: it arrives `new`, staff get in touch
+ * (`contacted`), ask for the title, text, image and link (`material`), and
+ * once it is placed on a spot it is `accepted`. `declined` closes it.
+ */
+export const SPONSOR_STATUSES = ['new', 'contacted', 'material', 'accepted', 'declined'] as const;
 export type SponsorStatus = (typeof SPONSOR_STATUSES)[number];
 export const PAYOUT_STATUSES = ['new', 'contacted', 'paid', 'rejected'] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
@@ -528,6 +534,8 @@ export interface SponsorApplicationInput {
   website: string | null;
   budget: string | null;
   message: string;
+  /** The ad spot the company asked about, when they picked one. */
+  spot: AdSpotId | null;
 }
 
 export interface SponsorApplicationView extends SponsorApplicationInput {
@@ -537,6 +545,8 @@ export interface SponsorApplicationView extends SponsorApplicationInput {
   staffNote: string | null;
   reviewedBy: string | null;
   createdAt: number;
+  /** When staff last asked the company for material. */
+  materialRequestedAt: number | null;
 }
 
 export interface PayoutRequestView {
@@ -567,7 +577,15 @@ export function validateSponsorApplication(input: unknown): { value: SponsorAppl
   const message = str(i.message, 2000);
   if (message.length < 10) return { error: 'Tell us a little about what you would like to sponsor', field: 'message' };
   return {
-    value: { name, email, message, company: str(i.company, 80) || null, website: str(i.website, 200) || null, budget: str(i.budget, 80) || null },
+    value: {
+      name,
+      email,
+      message,
+      company: str(i.company, 80) || null,
+      website: str(i.website, 200) || null,
+      budget: str(i.budget, 80) || null,
+      spot: isAdSpot(i.spot) ? i.spot : null,
+    },
   };
 }
 

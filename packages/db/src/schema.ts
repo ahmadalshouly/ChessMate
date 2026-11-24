@@ -799,10 +799,14 @@ export const sponsorApplications = pgTable('sponsor_applications', {
   website: text('website'),
   budget: text('budget'),
   message: text('message').notNull(),
-  /** new | contacted | accepted | declined */
+  /** The ad spot they asked about (AD_SPOTS in @chessmate/core), when they picked one. */
+  spot: text('spot'),
+  /** new | contacted | material | accepted | declined */
   status: text('status').notNull().default('new'),
   staffNote: text('staff_note'),
   reviewedBy: text('reviewed_by'),
+  /** When staff last emailed them asking for the title, text, image and link. */
+  materialRequestedAt: ts('material_requested_at'),
   createdAt: createdAt(),
   updatedAt: ts('updated_at'),
 });
@@ -1409,3 +1413,50 @@ export const pushTriggerJobs = pgTable(
 
 export type PushCampaignRow = typeof pushCampaigns.$inferSelect;
 export type PushTriggerJobRow = typeof pushTriggerJobs.$inferSelect;
+
+// ---------------------------------------------------------------- sponsored ad spots
+
+/**
+ * One row per ad spot staff have touched. A spot with no row is off, so the
+ * table only ever holds the spots that were switched on or annotated. The id
+ * is the spot key from AD_SPOTS in @chessmate/core.
+ */
+export const adSpots = pgTable('ad_spots', {
+  spot: text('spot').primaryKey(),
+  enabled: boolean('enabled').notNull().default(false),
+  note: text('note'),
+  updatedBy: text('updated_by'),
+  updatedAt: ts('updated_at'),
+});
+
+/**
+ * A sponsor on a spot for a period. `startsAt`/`endsAt` decide on their own
+ * when it is on screen; `stopped` takes it down early. The image travels as a
+ * data URL, like tournament logos, and is served from its own endpoint.
+ */
+export const adPlacements = pgTable(
+  'ad_placements',
+  {
+    id: id(),
+    spot: text('spot').notNull(),
+    sponsor: text('sponsor').notNull(),
+    title: text('title').notNull(),
+    body: text('body'),
+    url: text('url'),
+    image: text('image'),
+    imageUrl: text('image_url'),
+    startsAt: ts('starts_at').notNull(),
+    endsAt: ts('ends_at').notNull(),
+    stopped: boolean('stopped').notNull().default(false),
+    /** The sponsor application it came from, when it came from one. */
+    applicationId: text('application_id'),
+    impressions: integer('impressions').notNull().default(0),
+    clicks: integer('clicks').notNull().default(0),
+    createdBy: text('created_by'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('ad_placements_spot_idx').on(t.spot, t.endsAt)],
+);
+
+export type AdSpotRow = typeof adSpots.$inferSelect;
+export type AdPlacementRow = typeof adPlacements.$inferSelect;

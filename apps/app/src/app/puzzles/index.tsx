@@ -5,6 +5,7 @@ import { memo, useCallback, useMemo, useState, type ComponentProps } from 'react
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { AdSpot } from '@/features/ads/AdSpot';
 import { formatNumber, translate, useT } from '@/i18n';
 import { puzzleGroupLabel, puzzleThemeLabel } from '@/i18n/chess';
 import { puzzleApi } from '@/lib/puzzleApi';
@@ -156,6 +157,8 @@ export default function PuzzlesHome() {
           {dailyCard}
         </Stack>
       )}
+
+      <AdSpot spot="puzzles.home" />
 
       {/* Themes: one tap starts training on that theme */}
       {groups.length > 0 ? (

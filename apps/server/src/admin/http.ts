@@ -63,6 +63,13 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /tournaments/:id/chat        { text } post in the tournament chat as staff
  *   POST /tournaments/:id/hidechat    { messageId, hidden } hide or show a chat message
  *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
+ *   POST /sponsors/:id/material       emails the company asking for the title, text, image and link
+ *   GET  /ads                         { spots, placements } every spot's switch and every placement
+ *   POST /ads-spots/:id               { enabled?, note? } switches one spot on or off
+ *   POST /ads                         { spot, sponsor, title, body?, url?, image?, imageUrl?, startsAt?, period | endsAt, applicationId? }
+ *   POST /ads/:id                     same fields, saves
+ *   POST /ads/:id/stop                { stopped } takes it down early, or puts it back on
+ *   POST /ads/:id/delete              removes it for good
  *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  *   GET  /lessons                     every chapter and lesson, drafts included
  *   POST /lessons                     { lesson } creates a lesson; POST /lessons/:id { lesson } saves it
@@ -89,7 +96,7 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
     try {
       const actor: Actor = admin.actorFor(bearerUser(req, auth));
       // Tournament forms can carry a sponsor logo (a data URL of up to ~400 KB); everything else stays small.
-      const maxBody = section === 'tournaments' ? 1024 * 1024 : section === 'lessons' ? 256 * 1024 : undefined;
+      const maxBody = section === 'tournaments' || section === 'ads' ? 2 * 1024 * 1024 : section === 'lessons' ? 256 * 1024 : undefined;
       const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req, maxBody) : {});
       const route = `${req.method} ${section}${id ? '/:id' : ''}${action ? `/${action}` : ''}`;
       const ok = (v: unknown) => (sendJson(res, 200, v), true);
@@ -186,6 +193,20 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ applications: await admin.sponsorApplications(actor) });
         case 'POST sponsors/:id':
           return ok({ application: await admin.reviewSponsor(actor, id!, await body()) });
+        case 'POST sponsors/:id/material':
+          return ok({ application: await admin.requestSponsorMaterial(actor, id!) });
+        case 'GET ads':
+          return ok(admin.adConsole(actor));
+        case 'POST ads':
+          return ok({ placement: await admin.createAdPlacement(actor, await body()) });
+        case 'POST ads/:id':
+          return ok({ placement: await admin.updateAdPlacement(actor, id!, await body()) });
+        case 'POST ads-spots/:id':
+          return ok({ spot: await admin.setAdSpot(actor, id!, await body()) });
+        case 'POST ads/:id/stop':
+          return ok({ placement: await admin.stopAdPlacement(actor, id!, await body()) });
+        case 'POST ads/:id/delete':
+          return ok(await admin.deleteAdPlacement(actor, id!));
         case 'GET payouts':
           return ok({ requests: admin.payoutRequests(actor) });
         case 'POST payouts/:id':

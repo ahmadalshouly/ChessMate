@@ -38,3 +38,4 @@ export * from './media';
 export * from './material';
 export * from './footballClubs';
 export * from './lessons';
+export * from './ads';

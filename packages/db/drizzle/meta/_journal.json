@@ -176,6 +176,13 @@
       "when": 1797450000000,
       "tag": "0024_private_tournaments",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1797600000000,
+      "tag": "0025_ad_spots",
+      "breakpoints": true
     }
   ]
 }

@@ -84,3 +84,24 @@ export function reopenNotice(): ModerationNotice {
     email: { subject: 'Your ChessMate account is open again', body: `${REOPENED_BODY}\n\nWelcome back.` },
   };
 }
+
+/**
+ * Asks a company that applied for sponsorship to send what a placement needs.
+ * Sent to the address on the application, which is not an account, so this is
+ * an email only: there is no inbox to put it in.
+ */
+export function sponsorMaterialEmail(a: { name: string; company: string | null }, spotLabel: string | null): AccountNotice {
+  const who = a.company ? `${a.company} (${a.name})` : a.name;
+  return {
+    subject: 'Your ChessMate sponsorship: what we need from you',
+    body:
+      `Hello ${who},\n\nThank you for your interest in sponsoring ChessMate.${spotLabel ? ` We are looking at the ${spotLabel} spot for you.` : ''}\n\n` +
+      'To put you on a spot we need four things:\n\n' +
+      '1. A title, up to 60 characters (for example "Sponsor of the week").\n' +
+      '2. A line of text, up to 160 characters.\n' +
+      '3. An image: PNG, JPEG or WebP, under 1 MB. A wide logo on a transparent or plain background works best.\n' +
+      '4. The link the spot should open.\n\n' +
+      'Please also tell us how long you would like to run: a week, a month, or dates of your own.\n\n' +
+      'Reply to this email with those and we will get your spot live.\n\nThe ChessMate team',
+  };
+}

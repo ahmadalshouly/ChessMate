@@ -6,6 +6,7 @@ import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { BreakBanner } from '@/components/BreakBanner';
+import { AdSpot } from '@/features/ads/AdSpot';
 import { DailyPuzzleCard } from '@/components/DailyPuzzleCard';
 import { LiveBoard } from '@/components/LiveBoard';
 import { OnlineFriends } from '@/components/OnlineFriends';
@@ -125,6 +126,8 @@ export default function Home() {
         <SectionHeader index={3} title={tr('puzzles.daily')} />
         <DailyPuzzleCard width={Math.min(content, 1080) - 32} />
       </View>
+
+      <AdSpot spot="home.feed" />
 
       <ModeSection index={4} title={tr('nav.play')} modes={PLAY} cols={cols} />
       <ModeSection index={5} title={tr('home.improve')} modes={IMPROVE} cols={cols} />

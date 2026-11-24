@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 
+import { AdSpot } from '@/features/ads/AdSpot';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { useT } from '@/i18n';
 import { Text, rimShadow, shadows, useColors } from '@/ui';
@@ -148,7 +149,11 @@ export function GameStartHandshake({
               <View style={[styles.sponsor, { width: Math.min(276, Math.max(120, size - 96)) }]}>
                 <SponsorBadge sponsor={sponsor} size="md" align="center" />
               </View>
-            ) : null}
+            ) : (
+              // A sold spot on the greeting. Not tappable: the whole overlay passes
+              // touches through to the board, so the first move is never held up.
+              <AdSpot spot="game.start" interactive={false} style={[styles.sponsor, { width: Math.min(276, Math.max(140, size - 96)) }]} />
+            )}
           </View>
         </Animated.View>
       </View>

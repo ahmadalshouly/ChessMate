@@ -38,6 +38,7 @@ import { GuestSessions } from './guestSessions';
 import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
 import { messageRoutes } from './messages/http';
 import { tournamentRoutes } from './tournaments/http';
+import { adRoutes } from './ads/http';
 import { communityRoutes } from './community/http';
 import { awardsRoutes } from './awards/http';
 import type { EventService } from './watch/events';
@@ -52,6 +53,7 @@ import { PlayHabitsService } from './habits/service';
 import type { CommunityService } from './community/service';
 import type { MessageService } from './messages/service';
 import type { TournamentService } from './tournaments/service';
+import type { AdService } from './ads/service';
 import { OpenGames } from './openGames';
 import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
@@ -124,6 +126,8 @@ export interface ServerOptions {
   messages?: MessageService;
   /** Arena tournaments (database mode). */
   tournaments?: TournamentService;
+  /** Sponsored ad spots (database mode). Without it, /api/ads is absent and every spot stays empty. */
+  ads?: AdService;
   /** News and forum (database mode). */
   community?: CommunityService;
   /** Watch: streamers and broadcast events. */
@@ -356,6 +360,7 @@ export class ChessServer {
         notify: (userId, title, body, url) => void this.notifications.notify(userId, { kind: 'message', title, body, url }),
       });
     }
+    if (opts.ads) routes.push(adRoutes(opts.ads));
     if (opts.tournaments) {
       routes.push(tournamentRoutes(opts.tournaments, opts.resolveUser ?? devResolveUser));
       opts.tournaments.attach({
