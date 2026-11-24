@@ -140,9 +140,24 @@ export default function AdminFairPlayCase() {
             <Text variant="caption" tone="tertiary">
               {canAnalyzeHere() ? tr('admin.fairplay.analyseHereHint') : tr('admin.fairplay.analyseNoEngine')}
             </Text>
+            {!scan.running && scan.outcome?.kind === 'none' && (
+              <Text variant="caption" tone="muted">
+                {scan.outcome.found > 0 ? tr('admin.fairplay.analyseAllDone', { count: scan.outcome.found }) : tr('admin.fairplay.analyseNoGames')}
+              </Text>
+            )}
+            {!scan.running && scan.outcome?.kind === 'done' && (
+              <Text variant="caption" tone="muted">
+                {tr('admin.fairplay.analyseDone', { count: scan.outcome.analyzed })}
+              </Text>
+            )}
+            {!scan.running && scan.outcome?.kind === 'cancelled' && (
+              <Text variant="caption" tone="muted">
+                {tr('admin.fairplay.analyseStopped', { count: scan.outcome.analyzed })}
+              </Text>
+            )}
             {scan.error && (
               <Text variant="caption" tone="danger">
-                {scan.error}
+                {tr('admin.fairplay.analyseFailed', { message: scan.error })}
               </Text>
             )}
           </Stack>

@@ -30,6 +30,13 @@ const MOVETIME_MS = 4000;
 /** Games analysed in one run by default. */
 export const CASE_GAMES = 5;
 
+/** What the last run came to, so a run that does nothing visible still says why. */
+export type CaseAnalysisOutcome =
+  | { kind: 'none'; found: number }
+  | { kind: 'done'; analyzed: number }
+  | { kind: 'cancelled'; analyzed: number }
+  | { kind: 'failed'; analyzed: number; message: string };
+
 export interface CaseAnalysisState {
   running: boolean;
   /** Games finished so far in this run, and how many it is doing. */
@@ -39,6 +46,8 @@ export interface CaseAnalysisState {
   error: string | null;
   /** Games whose reports the server accepted. */
   analyzed: number;
+  /** How the last run ended; null before the first one. */
+  outcome: CaseAnalysisOutcome | null;
   run: () => void;
   cancel: () => void;
 }
@@ -52,6 +61,7 @@ export function useCaseAnalysis(api: AdminApi, playerId: string, onDone: () => v
   const [positions, setPositions] = useState({ done: 0, total: 0 });
   const [analyzed, setAnalyzed] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<CaseAnalysisOutcome | null>(null);
   const ctrl = useRef<AbortController | null>(null);
 
   const cancel = useCallback(() => ctrl.current?.abort(), []);
@@ -62,14 +72,18 @@ export function useCaseAnalysis(api: AdminApi, playerId: string, onDone: () => v
     ctrl.current = c;
     setRunning(true);
     setError(null);
+    setOutcome(null);
     setAnalyzed(0);
     setGames({ done: 0, total: 0 });
     setPositions({ done: 0, total: 0 });
     void (async () => {
       let ok = 0;
       try {
-        const pending = (await api.fairPlayGames(playerId, CASE_GAMES)).filter((g) => !g.analyzed);
+        const found = await api.fairPlayGames(playerId, CASE_GAMES);
+        const pending = found.filter((g) => !g.analyzed);
         setGames({ done: 0, total: pending.length });
+        // Nothing to do is the easiest run to mistake for a broken button, so say so.
+        if (pending.length === 0) return setOutcome({ kind: 'none', found: found.length });
         localEngine.warmUp();
         for (const [i, g] of pending.entries()) {
           if (c.signal.aborted) break;
@@ -80,8 +94,14 @@ export function useCaseAnalysis(api: AdminApi, playerId: string, onDone: () => v
           setAnalyzed(ok);
           setGames({ done: i + 1, total: pending.length });
         }
+        setOutcome(c.signal.aborted ? { kind: 'cancelled', analyzed: ok } : { kind: 'done', analyzed: ok });
       } catch (e) {
-        if (!c.signal.aborted) setError(e instanceof Error ? e.message : String(e));
+        if (c.signal.aborted) setOutcome({ kind: 'cancelled', analyzed: ok });
+        else {
+          const message = e instanceof Error ? e.message : String(e);
+          setError(message);
+          setOutcome({ kind: 'failed', analyzed: ok, message });
+        }
       } finally {
         ctrl.current = null;
         setRunning(false);
@@ -90,7 +110,7 @@ export function useCaseAnalysis(api: AdminApi, playerId: string, onDone: () => v
     })();
   }, [api, playerId, onDone]);
 
-  return { running, games, positions, error, analyzed, run, cancel };
+  return { running, games, positions, error, analyzed, outcome, run, cancel };
 }
 
 /** One evaluation per position of the game, in the shape the server expects. */
