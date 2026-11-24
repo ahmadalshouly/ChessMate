@@ -1,5 +1,6 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  DEFAULT_RATING,
   MESSAGE_MAX,
   ROLE_TAG_LABELS,
   STAFF_THREAD,
@@ -18,6 +19,7 @@ import {
   type AdminDashboard,
   type AdminFairPlayCase,
   type AdminFairPlayFile,
+  type AdminFairPlayGame,
   type AdminGameDetail,
   type AdminGameSummary,
   type AdminMe,
@@ -53,6 +55,7 @@ import {
   listClosedUsers,
   listRecentGames,
   listStaff,
+  listUserGames,
   listWarnings,
   reopenUserAccount,
   setUserRole,
@@ -67,6 +70,7 @@ import {
 import type { AuthService } from '../auth/service';
 import { validateUsername, AuthError } from '../auth/service';
 import type { FairPlayCase, FairPlayService } from '../fairplay';
+import { MIN_DEVICE_DEPTH, evalsFromDevice, parseDepth } from '../fairplay';
 import type { GameRoom } from '../gameRoom';
 import type { Moderation, Report } from '../moderation';
 import type { NotificationService } from '../notifications';
@@ -1176,6 +1180,77 @@ export class AdminService {
     const names = await this.usernames([playerId]);
     await this.audit(actor, 'fairplay.dismiss', { type: 'case', id: playerId, name: names.get(playerId) ?? playerId }, note, { score: c.score });
     return { case: this.caseView(c, names.get(playerId) ?? playerId) };
+  }
+
+  /**
+   * The games a moderator's device can analyse for this case: the player's
+   * most recent rated games, newest first, long enough to be worth engine
+   * time. Each carries the moves, the think times the server measured and the
+   * ratings at the time, so the device needs nothing else.
+   */
+  async fairPlayGames(actor: Actor, playerId: string, limit = 10): Promise<AdminFairPlayGame[]> {
+    this.require(actor, 'fairplay.review');
+    const t = this.b.fairPlay.thresholds;
+    const minPlies = t.openingPlies + 2 * t.minMovesPerGame;
+    const analysed = new Set(this.b.fairPlay.store.reportsFor(playerId, t.window).map((r) => r.gameId));
+    const rows = await listUserGames(this.db, playerId, { limit: Math.min(Math.max(limit, 1), 20) * 3 });
+    const out: AdminFairPlayGame[] = [];
+    for (const row of rows) {
+      if (out.length >= limit) break;
+      if (!row.rated || row.plyCount < minPlies || !row.whiteUserId || !row.blackUserId) continue;
+      const g = await getGame(this.db, row.id);
+      if (!g || g.moves.length < minPlies) continue;
+      out.push({
+        gameId: g.id,
+        initialFen: g.initialFen,
+        moves: g.moves.map((m) => m.uci),
+        thinkMs: g.moves.map((m) => Math.max(0, m.spentMs ?? 0)),
+        white: { id: g.whiteUserId!, name: g.whiteName, rating: Math.round(g.whiteRatingBefore ?? DEFAULT_RATING.rating) },
+        black: { id: g.blackUserId!, name: g.blackName, rating: Math.round(g.blackRatingBefore ?? DEFAULT_RATING.rating) },
+        timeCategory: g.timeCategory,
+        endedAt: (g.endedAt ?? g.startedAt).getTime(),
+        analyzed: analysed.has(g.id),
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Takes the engine results a moderator's device produced for one of those
+   * games. The server re-walks the game, checks every evaluation against it
+   * and computes the accuracy, match rate and z-scores itself, so only raw
+   * engine output crosses the wire. The reports are marked `device` and the
+   * run is written to the audit log with the moderator's name.
+   */
+  async submitFairPlayAnalysis(actor: Actor, playerId: string, input: { gameId?: unknown; depth?: unknown; evals?: unknown }) {
+    this.require(actor, 'fairplay.review');
+    const gameId = text(input.gameId, 64);
+    if (!gameId) throw new AdminError('invalid_input', 'Which game?');
+    const depth = parseDepth(input.depth);
+    if (depth === null) throw new AdminError('invalid_input', `Search depth must be ${MIN_DEVICE_DEPTH} or more`);
+    const row = await getGame(this.db, gameId);
+    if (!row) throw new AdminError('not_found', 'No such game');
+    if (!row.rated) throw new AdminError('invalid_input', 'Only rated games are analysed');
+    if (row.whiteUserId !== playerId && row.blackUserId !== playerId) throw new AdminError('invalid_input', 'This player did not play that game');
+    const moves = row.moves.map((m) => m.uci);
+    const parsed = evalsFromDevice(row.initialFen, moves, input.evals);
+    if ('error' in parsed) throw new AdminError('invalid_input', parsed.error);
+    const reports = this.b.fairPlay.recordAnalysis(
+      {
+        gameId: row.id,
+        initialFen: row.initialFen,
+        moves,
+        thinkMs: row.moves.map((m) => Math.max(0, m.spentMs ?? 0)),
+        white: { id: row.whiteUserId ?? `guest:${row.id}:w`, rating: Math.round(row.whiteRatingBefore ?? DEFAULT_RATING.rating) },
+        black: { id: row.blackUserId ?? `guest:${row.id}:b`, rating: Math.round(row.blackRatingBefore ?? DEFAULT_RATING.rating) },
+        endedAt: (row.endedAt ?? row.startedAt).getTime(),
+      },
+      parsed.evals,
+      { source: 'device', depth, by: actor.username },
+    );
+    this.b.fairPlay.store.audit({ at: this.now(), playerId, action: 'analyzed', by: actor.username, note: `${gameId} on a moderator device, depth ${depth}` });
+    await this.audit(actor, 'fairplay.analyze', { type: 'case', id: playerId, name: playerId }, `game ${gameId}`, { gameId, depth });
+    return { reports: reports.filter((r) => r.playerId === playerId) };
   }
 
   // ---------------------------------------------------------------- games

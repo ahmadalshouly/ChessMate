@@ -44,7 +44,7 @@ export interface RatedGameEntry {
 export interface AuditEntry {
   at: number;
   playerId: string;
-  action: 'flagged' | 'reopened' | 'dismissed' | 'banned' | 'unbanned' | 'refunded' | 'manual_report' | 'note';
+  action: 'flagged' | 'reopened' | 'dismissed' | 'banned' | 'unbanned' | 'refunded' | 'manual_report' | 'analyzed' | 'note';
   by: string;
   note?: string;
 }
@@ -80,6 +80,10 @@ export class MemoryFairPlayStore implements FairPlayStore {
   addReports(reports: SideReport[]) {
     for (const r of reports) {
       const list = this.reports.get(r.playerId) ?? [];
+      // A game analysed again (deeper, or on a moderator's device) replaces its
+      // earlier report rather than counting twice towards the assessment.
+      const at = list.findIndex((o) => o.gameId === r.gameId && o.color === r.color);
+      if (at >= 0) list.splice(at, 1);
       list.push(r);
       if (list.length > 200) list.shift();
       this.reports.set(r.playerId, list);

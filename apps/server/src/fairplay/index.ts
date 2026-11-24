@@ -1,6 +1,7 @@
 export * from './analysis';
 export * from './adminHttp';
 export * from './engine';
+export * from './evalUpload';
 export * from './jobQueue';
 export * from './rateLimit';
 export * from './service';
