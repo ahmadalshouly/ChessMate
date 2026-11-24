@@ -3,7 +3,7 @@ import { formatMoney, formatTimeControl, timeCategory, type TournamentDetail } f
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router, useFocusEffect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 
 import { useTicker } from '@/components/PlayerBar';
 import { formatDateTime, useT } from '@/i18n';
@@ -22,6 +22,7 @@ import { TournamentChat } from '@/features/tournaments/TournamentChat';
 import { TournamentResults } from '@/features/tournaments/TournamentResults';
 import { useTournamentChat } from '@/features/tournaments/useTournamentChat';
 import { webLink } from '@/lib/links';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 /**
  * One tournament: schedule, prizes, join or pause, your current game and the
@@ -141,7 +142,7 @@ export default function TournamentScreen() {
   const settings = settingsOf(tour);
 
   return (
-    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 40 + insets.bottom }]}>
+    <KeyboardScrollView contentContainerStyle={[styles.page, { paddingBottom: 40 + insets.bottom }]}>
       <Stack.Screen options={{ title: tour.name }} />
       <View style={[styles.inner, { gap: t.space.xl }]}>
         <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
@@ -356,7 +357,7 @@ export default function TournamentScreen() {
           }}
         />
       )}
-    </ScrollView>
+    </KeyboardScrollView>
   );
 }
 

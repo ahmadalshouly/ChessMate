@@ -1,7 +1,7 @@
 import { COMMUNITY_LIMITS, type ReplyView, type TopicView } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Action, AuthorLine, CommentItem, Composer, useStaff } from '@/components/community';
 import { Screen } from '@/components/ui';
@@ -11,6 +11,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { forumApi } from '@/lib/communityApi';
 import { useSocialRefresh } from '@/lib/realtime';
 import { Badge, GlassView, Text } from '@/ui';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 /** One forum topic with its replies; staff can pin, lock or remove it. */
 export default function TopicScreen() {
@@ -45,7 +46,7 @@ export default function TopicScreen() {
   return (
     <Screen>
       <Stack.Screen options={{ title: topic?.title ?? tr('forum.title') }} />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           {error && <Text tone="muted">{serverText(error)}</Text>}
           {topic && (
@@ -115,7 +116,7 @@ export default function TopicScreen() {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
     </Screen>
   );
 }

@@ -1,7 +1,7 @@
 import { type FriendRequestAudience, type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/ui/primitives';
 import { rimShadow } from '@/ui';
@@ -16,6 +16,7 @@ import { BoardCustomizer } from '@/features/board/BoardCustomizer';
 import { CookiePreferences } from '@/features/privacy/CookiePreferences';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
 import { LANGS, LANGUAGE_NAMES, deviceLanguage, needsRestartFor, setLanguagePreference, useI18n, type LanguagePreference, type TKey } from '@/i18n';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 const VOLUME: { value: string; label: TKey }[] = [
   { value: '0.3', label: 'settings.sound.low' },
@@ -59,7 +60,7 @@ export function SettingsScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           {saveError && (
             <Card>
@@ -216,7 +217,7 @@ export function SettingsScreen() {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
     </Screen>
   );
 }

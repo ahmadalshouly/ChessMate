@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { createContext, useContext, type ReactNode } from 'react';
-import { Platform, ScrollView, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type ScrollViewProps, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { Space } from '../theme/tokens';
+import { KeyboardScrollView } from './Keyboard';
 import { Text } from './Text';
 
 type Edge = 'top' | 'bottom' | 'left' | 'right';
@@ -59,9 +60,9 @@ export function Screen({
     <View style={{ flex: 1, backgroundColor: framed ? 'transparent' : t.colors.bg }}>
       {!framed && <Backdrop />}
       {scroll ? (
-        <ScrollView {...scrollProps} contentContainerStyle={[pad, { alignItems: 'center', flexGrow: 1 }]}>
+        <KeyboardScrollView {...scrollProps} contentContainerStyle={[pad, { alignItems: 'center', flexGrow: 1 }]}>
           {column}
-        </ScrollView>
+        </KeyboardScrollView>
       ) : (
         <View style={[pad, { flex: 1, alignItems: 'center' }]}>{column}</View>
       )}

@@ -1,7 +1,7 @@
 import { formatTimeControl, materialBalance, opposite, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -38,6 +38,7 @@ import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
 import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'frenzy';
 
@@ -171,7 +172,7 @@ export default function OnlinePlay() {
     return (
       <Screen>
         <Stack.Screen options={{ title, ...lockOptions }} />
-        <ScrollView contentContainerStyle={styles.page}>
+        <KeyboardScrollView contentContainerStyle={styles.page}>
           <View style={{ width: Math.min(size, 480), gap: 8 }}>
             {connectionNotice}
             {incoming.map((c) => (
@@ -218,7 +219,7 @@ export default function OnlinePlay() {
               {!inviteId && mode !== 'friend' && <Button variant="secondary" title={tr('home.online.cta')} onPress={() => router.replace('/play')} />}
             </Card>
           </View>
-        </ScrollView>
+        </KeyboardScrollView>
       </Screen>
     );
   }
