@@ -5,7 +5,7 @@ export const pages = {
     playTitle: 'Play',
     play: 'Real-time games from bullet to classical, friendly challenges, tournaments and practice against the computer, on your phone and on the web.',
     learnTitle: 'Learn',
-    learn: 'Every game can be reviewed move by move with a strong engine and a coach that explains why a move works. Puzzles train your eye every day.',
+    learn: 'Free lessons walk you through tactics, checkmates and endgames, with practice puzzles from the open Lichess database. Every game can be reviewed move by move with a strong engine, and puzzles train your eye every day.',
     belongTitle: 'Belong',
     belong: 'Friends, messages, news from the team and a forum to talk chess. ChessMate is more than a game.',
     fairTitle: 'Fair and safe',

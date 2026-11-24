@@ -38,6 +38,10 @@ export interface BoardProps {
   checkSquare?: Square | null;
   /** Squares to tint as under threat (feedback mode only). */
   threatened?: Square[];
+  /** Squares to tint as points of interest (lessons), e.g. an area of the board. */
+  highlighted?: Square[];
+  /** Squares to ring as points of interest (lessons), e.g. the pieces a fork hits. */
+  ringed?: Square[];
   /** Queued premove, tinted until it plays or is cancelled. */
   premove?: { from: string; to: string } | null;
   /** Several queued premoves (web), all tinted. */
@@ -523,6 +527,7 @@ export const Board = memo(function Board(props: BoardProps) {
     premoveSquares.add(pm.to);
   }
   const threatSet = new Set(threatened);
+  const highlightSet = new Set(props.highlighted ?? []);
   const pickable = props.pickable ? new Set(props.pickable) : null;
   const crowned = props.crowned ? new Set(props.crowned) : null;
 
@@ -543,6 +548,7 @@ export const Board = memo(function Board(props: BoardProps) {
           if (lastMoveColor) tint(lastMoveColor);
           else if (look.highlightLastMove) tint(colors.lastMove);
         }
+        if (highlightSet.has(sq)) tint(colors.selected);
         if (threatSet.has(sq)) tint(colors.threat);
         if (premoveSquares.has(sq)) tint(PREMOVE_TINT);
         if (selected === sq) tint(colors.selected);
@@ -593,14 +599,14 @@ export const Board = memo(function Board(props: BoardProps) {
       )}
       {dragEnabled && <DropTarget ui={dragUI} cell={cell} size={size} color={colors.hint} />}
       {dragEnabled && <DraggedPieces ui={dragUI} cell={cell} size={size} set={set} />}
-      {drawn.marks.map((m) => {
+      {[...(props.ringed ?? []).map((sq) => ({ sq, color: colors.hint, key: `ring-${sq}` })), ...drawn.marks.map((m) => ({ ...m, key: `mark-${m.sq}` }))].map((m) => {
         const f = m.sq.charCodeAt(0) - 97;
         const r = Number(m.sq[1]);
         const col = orientation === 'w' ? f : 7 - f;
         const row = orientation === 'w' ? 8 - r : r - 1;
         return (
           <View
-            key={`mark-${m.sq}`}
+            key={m.key}
             pointerEvents="none"
             style={[placeAt(col * cell + cell * 0.06, row * cell + cell * 0.06, cell * 0.88, cell * 0.88, size), { borderRadius: cell, borderWidth: Math.max(2, cell * 0.07), borderColor: m.color }]}
           />

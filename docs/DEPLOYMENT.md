@@ -113,8 +113,8 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `TRUST_PROXY` | unset (`fly` in `fly.toml`) | `fly.toml` | Where rate limits read the player's IP. `fly` = `Fly-Client-IP`; `1` = last `X-Forwarded-For` entry (one proxy of your own); unset = socket address. Without it behind a proxy, every player shares the proxy's address and its limits (20 signups an hour, about 1 connection a second) |
 | `PUBLIC_URL` | derived from the request | `fly.toml` | Public server address used in links the server hands out (title proof files in the admin console) |
 
-Features that add their own server settings (for example an AI coach API key
-or push notification credentials) should add a row here and to `.env.example`.
+Features that add their own server settings (for example push notification
+credentials) should add a row here and to `.env.example`.
 Anything secret goes in `fly secrets set`, never in `fly.toml` or git.
 
 ### App (build time)

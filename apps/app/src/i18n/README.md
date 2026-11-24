@@ -46,10 +46,6 @@ const tr = useT(); // `tr`, because `t` is the theme in most screens
 
 Montserrat and Geist have no Arabic letters. In Arabic, `@/ui/primitives` and `<Text variant>` swap Sans and Display for **IBM Plex Sans Arabic** at the same weight and clear letter spacing (tracking breaks Arabic joins). Geist Mono stays for clocks and ratings. Nothing to do per screen: use the `Text` from `@/ui` or `@/ui/primitives` and it works.
 
-## The AI coach
-
-`lib/coachApi.ts` sends the current language; the server asks the model to answer in it (`coachLanguageNote` in `packages/core/src/review.ts`).
-
 ## Not translated (on purpose)
 
 - `/admin` (the staff console) is translated like the rest of the app (`admin` namespace). `/design` (component gallery) is internal and stays English.

@@ -2,7 +2,7 @@ import type { Messages } from '../../core';
 import type { home as en } from '../en/home';
 
 export const home: Messages<typeof en> = {
-  heroBody: 'Live-Partien gegen Spieler weltweit und ein Coach, der dir zeigt, warum ein Zug funktioniert.',
+  heroBody: 'Live-Partien gegen Spieler weltweit und kostenlose Lektionen, die dir zeigen, warum ein Zug funktioniert.',
   online: {
     title: 'Online spielen',
     cta: 'Lobby öffnen',
@@ -15,9 +15,9 @@ export const home: Messages<typeof en> = {
     title: 'Gegen den Computer',
     body: 'Acht Gegner vom Anfänger bis zum Experten. Tipps und Zurücknehmen, funktioniert offline.',
   },
-  coach: {
-    title: 'KI-Coach-Analyse',
-    body: 'Die Schlüsselmomente einer Partie, erklärt. Dann frag zu jeder Stellung.',
+  lessons: {
+    title: 'Lektionen',
+    body: 'Taktik, Mattbilder und Endspiele Schritt für Schritt, mit Puzzles zum Üben.',
   },
   analysis: {
     title: 'Analysebrett',

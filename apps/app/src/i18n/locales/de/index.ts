@@ -10,7 +10,6 @@ import { bots } from './bots';
 import { challenge } from './challenge';
 import { chat } from './chat';
 import { chess } from './chess';
-import { coach } from './coach';
 import { common } from './common';
 import { computer } from './computer';
 import { errors } from './errors';
@@ -52,4 +51,4 @@ import { awards } from './awards';
 import { media } from './media';
 import { cookies } from './cookies';
 
-export const de: Messages<typeof en> = { cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, coach, game, games, board, boardThemes, pieceSets };
+export const de: Messages<typeof en> = { cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };

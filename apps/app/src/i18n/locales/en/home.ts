@@ -1,5 +1,5 @@
 export const home = {
-  heroBody: 'Real-time games against players worldwide, and a coach that shows you why a move works.',
+  heroBody: 'Real-time games against players worldwide, and free lessons that show you why a move works.',
   online: {
     title: 'Play online',
     cta: 'Open the lobby',
@@ -12,9 +12,9 @@ export const home = {
     title: 'Play vs computer',
     body: 'Eight opponents, beginner to expert. Hints and takebacks, works offline.',
   },
-  coach: {
-    title: 'AI coach review',
-    body: 'The key moments of a game, explained. Then ask about any position.',
+  lessons: {
+    title: 'Lessons',
+    body: 'Tactics, checkmates and endgames, step by step, with puzzles to practise.',
   },
   analysis: {
     title: 'Analysis board',

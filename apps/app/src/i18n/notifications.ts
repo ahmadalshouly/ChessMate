@@ -14,7 +14,7 @@ const BODY: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^You and (.+) are now friends$/, (m) => translate('friends.feed.friendsSubject', { b: m[1]! })],
   [/^(.+) played (\S+)$/, (m) => translate('notifications.body.played', { name: m[1]!, san: m[2]! })],
   [/^(.+) is waiting for your move$/, (m) => translate('notifications.body.waiting', { name: m[1]! })],
-  [/^Your coach review of the game against (.+) is ready$/, (m) => translate('notifications.body.reviewReady', { name: m[1]! })],
+  [/^Your review of the game against (.+) is ready$/, (m) => translate('notifications.body.reviewReady', { name: m[1]! })],
   [/^Your game against (.+): (\d+)% accuracy\. See where it turned$/, (m) => translate('notifications.body.reviewAccuracy', { name: m[1]!, accuracy: m[2]! })],
   [/^Notifications are working on this device\.$/, () => translate('notifications.body.test')],
   // Moderation notices (apps/server/src/admin/notices.ts).

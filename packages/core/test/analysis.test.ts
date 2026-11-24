@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   START_FEN,
   buildReview,
-  coachContextFor,
   importPosition,
   lineFromInfo,
   positionEvalFrom,
@@ -83,14 +82,6 @@ describe('buildReview', () => {
     expect(review.counts.b.best).toBe(1);
     expect(review.accuracy.b).toBe(100);
     expect(review.accuracy.w).toBeLessThan(60);
-  });
-
-  it('produces coach context for a move', () => {
-    const ctx = coachContextFor(review, 3)!;
-    expect(ctx.movePlayed).toBe('g4');
-    expect(ctx.bestMove).toBe('d4');
-    expect(ctx.judgement.classification).toBe('blunder');
-    expect(coachContextFor(review, 99)).toBeNull();
   });
 
   it('requires one evaluation per position', () => {
