@@ -25,8 +25,6 @@ export const server: Messages<typeof en> = {
   signInRated: 'Melde dich an, um gewertet zu spielen.',
   reportSelf: 'Du kannst dich nicht selbst melden.',
   tooManyReports: 'Zu viele Meldungen. Versuch es später erneut.',
-  coachRateLimited: 'Zu viele Coach-Anfragen. Versuch es später erneut.',
-  coachFailed: 'Der Coach konnte nicht antworten. Versuch es erneut.',
   noSuchAccount: 'Konto nicht gefunden.',
   closedFairPlay: 'Dieses Konto wurde wegen eines Fair-Play-Verstoßes geschlossen.',
   accountClosed: 'Dieses Konto wurde vom ChessMate-Team geschlossen.',

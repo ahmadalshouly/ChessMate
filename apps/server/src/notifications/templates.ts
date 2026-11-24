@@ -56,7 +56,7 @@ export const reviewReady = (p: { gameId: string; opponentName: string; accuracy?
   title: 'Game review ready',
   body:
     p.accuracy === undefined
-      ? `Your coach review of the game against ${p.opponentName} is ready`
+      ? `Your review of the game against ${p.opponentName} is ready`
       : `Your game against ${p.opponentName}: ${Math.round(p.accuracy)}% accuracy. See where it turned`,
   url: `/review/${encodeURIComponent(p.gameId)}`,
   data: { gameId: p.gameId },

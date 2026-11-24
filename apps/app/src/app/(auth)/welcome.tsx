@@ -15,7 +15,7 @@ import { useI18n, type TKey } from '@/i18n';
 const FEATURES: { icon: ComponentProps<typeof Ionicons>['name']; title: TKey; body: TKey }[] = [
   { icon: 'flash-outline', title: 'auth.welcome.rated', body: 'auth.welcome.ratedBody' },
   { icon: 'analytics-outline', title: 'auth.welcome.engine', body: 'auth.welcome.engineBody' },
-  { icon: 'chatbubble-ellipses-outline', title: 'auth.welcome.coach', body: 'auth.welcome.coachBody' },
+  { icon: 'chatbubble-ellipses-outline', title: 'auth.welcome.learn', body: 'auth.welcome.learnBody' },
 ];
 
 export default function Welcome() {

@@ -1,6 +1,6 @@
 # ChessMate
 
-Online chess platform for web, iOS and Android: real-time games against other players, engine evaluation, move feedback with threat detection, and an AI coach.
+Online chess platform for web, iOS and Android: real-time games against other players, engine evaluation, move feedback with threat detection, and free lessons built on open content.
 
 ## Repository layout
 
@@ -33,10 +33,10 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 | `uci.ts` | UCI engine output parsing and strength settings, for the server-side engine workers |
 | `rating.ts` | Glicko-2 ratings per time category |
 | `protocol.ts` | Typed client/server WebSocket messages |
-| `coach.ts` | Structured prompt for the AI coach plus deterministic quick feedback |
+| `moveFeedback.ts` | Deterministic one-line move feedback (best to blunder, with the threat or hanging piece behind it) |
 | `bot/` | ChessMate's own small engine (alpha-beta, written for this repo) and the eight computer opponents for unrated play |
-| `review.ts` | Engine analysis interface for the coach, game review facts, offline review ([docs/coach.md](docs/coach.md)) |
-| `analysis.ts` | Engine lines for display, FEN/PGN import, per-move game review (`buildReview`) and coach context (`coachContextFor`) |
+| `analysis.ts` | Engine lines for display, FEN/PGN import, per-move game review (`buildReview`) |
+| `lessons/` | Learn-tab lessons: explanations on example positions plus practice puzzles from the CC0 Lichess database |
 | `openings.ts` | Opening name and ECO detection by position (handles transpositions), from the CC0 Lichess opening tables |
 | `pgn.ts` | PGN export (single or many games) and import (multi-game files, comments and variations skipped) |
 | `archive.ts` | Archived game model, filters (result, colour, time control, source, opening, text, dates) and stats |
@@ -50,7 +50,7 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 
 - **One Expo app for all three platforms** (Expo Router, React Native Web). Shared UI, shared logic.
 - **Server is authoritative.** Clients send moves with the ply they expect; the server validates, runs the clocks and broadcasts. Clients play moves optimistically and resync on rejection.
-- **Live analysis and the coach run server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
+- **Live analysis runs server-side** so live games cannot be assisted from the client. The practice board's threat hints run on device because they are not engine strength.
 - **Game reviews run only on the player's device** (`apps/app/src/features/engine`): Stockfish compiled to WebAssembly, in Web Workers on the web and in a hidden WebView on iOS/Android, one engine per spare core. The server never grades a review. Moves appear graded from the first one while the rest are searched, finished reviews are kept on the device, and a game is graded as soon as it ends so Review usually opens finished. Review is for signed-in accounts; guests see **Sign in to review**. Like the server, the app refuses engine help while you have a live game.
 - **Saved reviews.** The first review of an online game is saved on the server (`POST /api/games/:id/review` with the device's per-position engine results; only the two players may save it, and the server rebuilds the grades and accuracy itself from those results). From then on anyone signed in who opens that game, for example from a profile, gets the saved review instead of a fresh one, and reviewed games show their accuracy where the Review button was.
 - **Play vs computer runs on device** with ChessMate's own lightweight engine (`packages/core/src/bot`), so it works offline and costs no server time. Games against bots are unrated, so on-device strength is fine. Eight levels, from Pip (~400) to Monolith (~2200), weaken by search depth, score noise and occasional careless moves.
@@ -152,23 +152,6 @@ Local development needs no setup: accounts are saved in the same database as gam
 - `APPLE_CLIENT_IDS`: comma-separated Apple audiences, default `com.chessmate.app`. Outside production Expo Go's `host.exp.Exponent` is accepted too. Set it to an empty string to turn Apple sign-in off.
 
 Google and Apple ID tokens are checked against the providers' published signing keys (fetched and cached), plus issuer, audience and expiry (`apps/server/src/auth/oauth.ts`). Links live in the `oauth_accounts` table.
-
-### AI coach
-
-The coach works without setup using rule-based reviews. To turn on the AI coach, give the server a Claude API key before starting it:
-
-```powershell
-# Windows PowerShell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."
-pnpm dev:server
-```
-
-```bash
-# macOS / Linux
-ANTHROPIC_API_KEY=sk-ant-... pnpm dev:server
-```
-
-Then open the app and tap **Try a sample review** on the home screen. Details: [docs/coach.md](docs/coach.md).
 
 ## Engine analysis
 
@@ -413,6 +396,15 @@ By default it keeps well-tested puzzles (popularity 50+, 100+ plays, rating devi
 
 In the app, open **Puzzles** on the home screen: your rating and records, rated training, streak (one mistake ends it), rush (3 minutes, 3 lives), the daily puzzle, and themes (one tap starts training on a theme). Puzzle screens are left with the back button only, so dragging a piece near the edge never swipes the puzzle away.
 
+### Lessons
+
+The **Learn** tab has 15 free lessons in four chapters (tactics, checkmate patterns, endgames, openings). Each lesson explains one idea on a few example positions, with arrows and marked squares, then practises it on three real puzzles, and ends with a link to more puzzles on that theme in the trainer and further reading on Wikipedia. Lessons run entirely on the device (no server, no account, they work offline), and progress is kept on the device.
+
+- Lessons live in `packages/core/src/lessons/lessons.ts`. The explanations are ChessMate's own writing; tests in `packages/core/test/lessons.test.ts` check every position and every claim the text makes about a move (the mates are mate, the fork attacks both pieces, and so on).
+- Practice puzzles come from the bundled Lichess puzzle database extract (CC0). `node packages/core/scripts/build-lesson-puzzles.mjs` picks three per lesson (easy, medium, harder) and writes `src/lessons/puzzles.ts`; each puzzle links back to Lichess.
+- Read-more links point to Wikipedia (CC BY-SA 4.0); nothing is copied from it. Lichess's own Learn and Practice content is AGPL, so it is not used (see Licensing above).
+- Lesson texts are English for now; the screens around them are translated.
+
 ### Web
 
 `pnpm build:web` produces a static site in `apps/app/dist`. Set `EXPO_PUBLIC_SERVER_URL=wss://.../ws` when building for a public host.
@@ -459,11 +451,6 @@ Shared types and validation live in `packages/core/src/profile.ts`; server code 
 
 1. Accounts and persistence (Postgres for players, games and ratings; signed session tokens in place of guest tokens).
 2. Engine service: Stockfish workers behind a queue for post-game review and evaluation bar.
-3. AI coach: game review and position chat are in (see docs/coach.md); next, open reviews from finished games once the engine service lands.
-4. Promotion picker, drag-to-move, premoves, sounds, original piece set.
-5. Openings from the CC0 Lichess databases (puzzles are in).
-6. Horizontal scaling of the game server (route by game id, Redis pub/sub), anti-cheat signals.
-2. AI coach: game review that explains each mistake, using the structured context from `coach.ts`.
 3. Promotion picker, drag-to-move, premoves, sounds, original piece set.
-4. Puzzles and openings from the CC0 Lichess databases.
+4. Openings from the CC0 Lichess databases (puzzles are in).
 5. Horizontal scaling of the game server (route by game id, Redis pub/sub), anti-cheat signals.

@@ -146,7 +146,7 @@ describe('rating', () => {
   });
 });
 
-describe('coach', () => {
+describe('move feedback', () => {
   it('produces quick feedback for a blunder', () => {
     const insight = analyzePosition('4k3/8/8/4n3/3P4/8/8/4K3 b - - 0 1', 'b');
     const text = quickFeedback({

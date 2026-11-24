@@ -11,7 +11,7 @@ export const notifications = {
     friendRequest: '{name} wants to be friends',
     played: '{name} played {san}',
     waiting: '{name} is waiting for your move',
-    reviewReady: 'Your coach review of the game against {name} is ready',
+    reviewReady: 'Your review of the game against {name} is ready',
     reviewAccuracy: 'Your game against {name}: {accuracy}% accuracy. See where it turned',
     test: 'Notifications are working on this device.',
     fairPlay: 'Our fair play review found outside help in your games. You can still sign in to see your games and puzzles, but online play is turned off. Opponents got back the rating points they lost.',
@@ -65,7 +65,7 @@ export const notifications = {
     },
     review_ready: {
       label: 'Game review ready',
-      description: 'The coach finished reviewing your game',
+      description: 'Your game has been reviewed',
     },
     message: {
       label: 'Messages',

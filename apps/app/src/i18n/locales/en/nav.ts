@@ -1,7 +1,7 @@
 export const nav = {
   play: 'Play',
   learn: 'Learn',
-  learnTitle: 'Learn & Coach',
+  learnTitle: 'Learn',
   social: 'Social',
   tournaments: 'Tournaments',
   profile: 'Profile',

@@ -5,7 +5,7 @@ export const pages = {
     playTitle: 'Spielen',
     play: 'Echtzeitpartien von Bullet bis Klassisch, Herausforderungen unter Freunden, Turniere und Training gegen den Computer, auf dem Handy und im Web.',
     learnTitle: 'Lernen',
-    learn: 'Jede Partie lässt sich Zug für Zug mit einer starken Engine analysieren, und ein Coach erklärt, warum ein Zug funktioniert. Puzzles trainieren täglich deinen Blick.',
+    learn: 'Kostenlose Lektionen führen dich durch Taktik, Mattbilder und Endspiele, mit Übungspuzzles aus der offenen Lichess-Datenbank. Jede Partie lässt sich Zug für Zug mit einer starken Engine analysieren, und Puzzles trainieren täglich deinen Blick.',
     belongTitle: 'Dazugehören',
     belong: 'Freunde, Nachrichten, Neuigkeiten vom Team und ein Forum zum Fachsimpeln. ChessMate ist mehr als ein Spiel.',
     fairTitle: 'Fair und sicher',

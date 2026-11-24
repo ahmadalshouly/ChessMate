@@ -4,7 +4,7 @@ import type { nav as en } from '../en/nav';
 export const nav: Messages<typeof en> = {
   play: 'Spielen',
   learn: 'Lernen',
-  learnTitle: 'Lernen & Coach',
+  learnTitle: 'Lernen',
   social: 'Community',
   tournaments: 'Turniere',
   profile: 'Profil',

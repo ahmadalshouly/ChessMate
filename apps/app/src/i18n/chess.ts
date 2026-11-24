@@ -85,7 +85,7 @@ export function countryLabel(code: string | null | undefined): string | null {
 
 /**
  * Localised one-line move feedback, mirroring core's English `quickFeedback`
- * (core/src/coach.ts). Recomputes the tactical facts from the position after the move.
+ * (core/src/moveFeedback.ts). Recomputes the tactical facts from the position after the move.
  */
 export function moveFeedbackText(m: Pick<ReviewedMove, 'san' | 'bestSan' | 'color' | 'fenAfter' | 'judgement'>): string {
   const cls = m.judgement.classification;
