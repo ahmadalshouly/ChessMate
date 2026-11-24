@@ -1,6 +1,7 @@
 import {
   AD_PERIODS,
   AD_SPOTS,
+  AD_SPOT_KEY,
   AD_SPOT_INFO,
   placementStatus,
   type AdPeriodKey,
@@ -96,7 +97,7 @@ export default function AdminAds() {
       </Section>
 
       {newFor && (
-        <Section title={tr('admin.ads.newTitle', { spot: tr(`ads.spot.${newFor}`) })}>
+        <Section title={tr('admin.ads.newTitle', { spot: tr(`ads.spot.${AD_SPOT_KEY[newFor]}`) })}>
           <PlacementForm
             initial={blank(newFor, now)}
             onCancel={() => setNewFor(null)}
@@ -163,14 +164,14 @@ function SpotRow({ s, placements, now, onDone, onPlace }: { s: AdSpotState; plac
       <Stack gap="sm">
         <Row justify="space-between" gap="md" wrap>
           <Stack gap="xxs" style={{ flexShrink: 1, minWidth: 180 }}>
-            <Text variant="subheading">{tr(`ads.spot.${s.spot}`)}</Text>
+            <Text variant="subheading">{tr(`ads.spot.${AD_SPOT_KEY[s.spot]}`)}</Text>
             <Text variant="caption" tone="muted">
-              {tr(`admin.ads.spotWhere.${s.spot}`)}
+              {tr(`admin.ads.spotWhere.${AD_SPOT_KEY[s.spot]}`)}
             </Text>
           </Stack>
           <Row gap="sm" align="center">
             <Badge label={tr(`admin.ads.form.${AD_SPOT_INFO[s.spot].form}`)} tone="outline" />
-            <Switch value={s.enabled} disabled={busy} onValueChange={(v) => void save({ enabled: v })} accessibilityLabel={tr(`ads.spot.${s.spot}`)} />
+            <Switch value={s.enabled} disabled={busy} onValueChange={(v) => void save({ enabled: v })} accessibilityLabel={tr(`ads.spot.${AD_SPOT_KEY[s.spot]}`)} />
           </Row>
         </Row>
         <Text variant="caption" tone={liveNow ? 'muted' : 'tertiary'}>
@@ -235,7 +236,7 @@ function PlacementRow({ p, now, live, onDone }: { p: AdPlacementView; now: numbe
             {p.sponsor}
           </Text>
           <Row gap="xs" wrap>
-            <Badge label={tr(`ads.spot.${p.spot}`)} tone="outline" />
+            <Badge label={tr(`ads.spot.${AD_SPOT_KEY[p.spot]}`)} tone="outline" />
             <Badge label={tr(`admin.ads.status.${status}`)} tone={live ? 'solid' : status === 'scheduled' ? 'outline' : 'danger'} />
           </Row>
         </Row>
@@ -339,7 +340,7 @@ function PlacementForm({ initial, keepPeriod, onSave, onCancel }: { initial: For
 
   return (
     <Stack gap="md">
-      <Segmented<AdSpotId> size="sm" value={f.spot} onChange={set('spot')} options={AD_SPOTS.map((s) => ({ value: s, label: tr(`ads.spot.${s}`) }))} />
+      <Segmented<AdSpotId> size="sm" value={f.spot} onChange={set('spot')} options={AD_SPOTS.map((s) => ({ value: s, label: tr(`ads.spot.${AD_SPOT_KEY[s]}`) }))} />
       <TextField label={tr('admin.ads.sponsor')} value={f.sponsor} onChangeText={set('sponsor')} maxLength={60} />
       <TextField label={tr('admin.ads.title')} value={f.title} onChangeText={set('title')} maxLength={60} placeholder={tr('admin.ads.titleHint')} />
       <TextField label={tr('admin.ads.body')} value={f.body} onChangeText={set('body')} multiline maxLength={160} />

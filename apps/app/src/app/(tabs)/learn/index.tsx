@@ -30,6 +30,8 @@ export default function Learn() {
 
   return (
     <Screen scroll width="wide">
+      <AdSpot spot="learn.list" />
+
       <GlassView strength="strong" padding="xl" radius="xl" style={{ gap: t.space.lg }}>
         <Row gap="md">
           <Circle icon="school" big />
@@ -66,8 +68,6 @@ export default function Learn() {
           </Text>
         ) : null}
       </GlassView>
-
-      <AdSpot spot="learn.list" />
 
       {chapters.map((chapter, i) => (
         <Stack key={chapter.id} gap="md">
