@@ -18,6 +18,14 @@ export const pushSupported = Platform.OS === 'ios' || Platform.OS === 'android';
 /** Expo Go on Android cannot receive remote push since SDK 53; a development build can. */
 const isExpoGoAndroid = Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
+/**
+ * Whether the remote push token APIs can be touched at all. In Expo Go on
+ * Android `getExpoPushTokenAsync` and `addPushTokenListener` do not fail
+ * softly: expo-notifications throws, which takes the whole screen down. Check
+ * this before calling either.
+ */
+export const pushTokensAvailable = pushSupported && !isExpoGoAndroid;
+
 function unsupportedReason(): string | null {
   if (!pushSupported) return translate('notifications.push.webOnly');
   if (!Device.isDevice) return translate('notifications.push.simulator');
