@@ -47,6 +47,8 @@ export const server = {
   messageSelf: 'You cannot message yourself.',
   signInMessages: 'Sign in to use messages.',
   tournamentFull: 'This tournament is full.',
+  tournamentPrivate: 'This tournament is invite-only. You can watch, but only invited players can join.',
+  tournamentPrivateChat: 'Only invited players can chat in this tournament.',
   tournamentOver: 'This tournament is over.',
   signInTournament: 'Sign in to join tournaments.',
   secretRevealed: 'That move is not possible: the secret queen covers it and is revealed now.',

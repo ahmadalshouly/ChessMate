@@ -57,6 +57,8 @@ const EXACT: Record<string, TKey> = {
   'Sign in to use messages': 'server.signInMessages',
   'This tournament is full': 'server.tournamentFull',
   'This tournament is over': 'server.tournamentOver',
+  'This tournament is invite-only': 'server.tournamentPrivate',
+  'Only invited players can chat in this tournament': 'server.tournamentPrivateChat',
   'Sign in to join tournaments': 'server.signInTournament',
   'That move is illegal: the secret queen was revealed': 'server.secretRevealed',
   'Pick one of your pawns before your first move': 'server.secretPick',

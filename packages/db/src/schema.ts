@@ -674,6 +674,10 @@ export const tournaments = pgTable(
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
     /** Swiss: the round being played (0 before the first). */
     currentRound: integer('current_round').notNull().default(0),
+    /** Invite-only: only the `invited` players may join and play; everyone can watch. */
+    private: boolean('private').notNull().default(false),
+    /** Players staff invited to a private tournament (usernames as they were when invited). */
+    invited: jsonb('invited').$type<{ userId: string; username: string }[]>().notNull().default([]),
   },
   (t) => [index('tournaments_starts_idx').on(t.startsAt)],
 );

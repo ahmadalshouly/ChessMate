@@ -124,6 +124,14 @@ export interface TournamentSummary {
   joined: boolean;
   /** Leader once finished. */
   winner: string | null;
+  /** Invite-only: only invited players may join and play; everyone else can watch. */
+  private: boolean;
+}
+
+/** A player invited to a private tournament. */
+export interface TournamentInvitee {
+  userId: string;
+  username: string;
 }
 
 export interface TournamentStanding {
@@ -188,6 +196,8 @@ export interface TournamentDetail extends TournamentSummary {
   yourGameId: string | null;
   /** About the signed-in viewer; null when signed out. */
   you: TournamentViewer | null;
+  /** Private tournaments: the invited players (empty for open tournaments). */
+  invited: TournamentInvitee[];
 }
 
 export interface TournamentViewer {
@@ -200,6 +210,8 @@ export interface TournamentViewer {
   /** The viewer's payout request, if they made one. */
   payout: { status: PayoutStatus; method: PayoutMethod } | null;
   disqualified: boolean;
+  /** Private tournaments: the viewer is on the invite list. */
+  invited: boolean;
 }
 
 export interface TournamentInput {
@@ -224,6 +236,10 @@ export interface TournamentInput {
   /** Logo as a data URL; null removes it, undefined keeps the current one. */
   sponsorLogo?: string | null;
   settings: TournamentSettings;
+  /** Invite-only: only the invited players may join and play. */
+  private: boolean;
+  /** Usernames of the invited players (private tournaments; the server looks them up). */
+  invited: string[];
 }
 
 export const TOURNAMENT_LIMITS = {
@@ -238,7 +254,12 @@ export const TOURNAMENT_LIMITS = {
   feeMaxCents: 50_000,
   /** Logo data URL size (about 300 KB of image). */
   logoMaxChars: 400_000,
+  /** Players on a private tournament's invite list. */
+  invitedMax: 500,
 } as const;
+
+/** The message players get when they are not on a private tournament's invite list. */
+export const PRIVATE_TOURNAMENT_BLOCKED = 'This tournament is invite-only';
 
 /** PNG, JPEG or WebP only: an SVG served from the API could carry script. */
 const LOGO_DATA_URL = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -445,6 +466,24 @@ export function validateTournamentInput(
   }
   const settings = tournamentSettings({ ...baseSettings, ...rawSettings });
 
+  const isPrivate = pick('private') === true;
+  const invited: string[] = [];
+  if (isPrivate) {
+    const raw = pick('invited');
+    if (raw !== undefined && raw !== null && !Array.isArray(raw)) return { error: 'Invited players must be a list of usernames', field: 'invited' };
+    const seen = new Set<string>();
+    for (const u of (raw as unknown[] | null | undefined) ?? []) {
+      const name = typeof u === 'string' ? u.trim().replace(/^@/, '') : '';
+      if (!name) continue;
+      if (name.length > 40) return { error: `"${name.slice(0, 40)}…" is not a username`, field: 'invited' };
+      if (seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      invited.push(name);
+    }
+    if (invited.length < 2) return { error: 'Invite at least two players to a private tournament', field: 'invited' };
+    if (invited.length > TOURNAMENT_LIMITS.invitedMax) return { error: `Invite at most ${TOURNAMENT_LIMITS.invitedMax} players`, field: 'invited' };
+  }
+
   return {
     value: {
       name,
@@ -467,6 +506,8 @@ export function validateTournamentInput(
       sponsorUrl,
       ...(sponsorLogo !== undefined ? { sponsorLogo } : {}),
       settings,
+      private: isPrivate,
+      invited,
     },
   };
 }

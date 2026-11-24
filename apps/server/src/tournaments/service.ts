@@ -26,12 +26,15 @@ import {
   type TournamentResult,
   type TournamentChatMessage,
   type TournamentGameView,
+  type TournamentInvitee,
   CHAT_RATE,
   PAYOUT_STATUSES,
+  PRIVATE_TOURNAMENT_BLOCKED,
   SPONSOR_STATUSES,
   prepareChat,
 } from '@chessmate/core';
 import {
+  findUserByUsername,
   getUser,
   insertPayment,
   insertPayoutRequest,
@@ -295,6 +298,11 @@ export class TournamentService {
     return !p.withdrawn && !p.disqualified;
   }
 
+  /** Private tournaments: whether this account is on the invite list. Open tournaments: everyone. */
+  private invitedTo(e: Entry, userId: string) {
+    return !e.row.private || (e.row.invited ?? []).some((x) => x.userId === userId);
+  }
+
   // ---------------------------------------------------------------- clock
 
   tick() {
@@ -340,7 +348,7 @@ export class TournamentService {
   /** Who may be paired now: active, paid when there is a fee, online and not in another game. */
   private available(e: Entry, p: Player) {
     const b = this.bridge;
-    return !!b && this.active(p) && (e.row.entryFeeCents === 0 || p.paid) && b.isOnline(p.userId) && !b.liveGameOf(p.userId);
+    return !!b && this.active(p) && this.invitedTo(e, p.userId) && (e.row.entryFeeCents === 0 || p.paid) && b.isOnline(p.userId) && !b.liveGameOf(p.userId);
   }
 
   /**
@@ -557,6 +565,8 @@ export class TournamentService {
     if (!opts.staff) {
       if (e.row.status === 'cancelled') throw new TournamentError(409, 'This tournament was cancelled');
       if (e.players.get(userId)?.disqualified) throw new TournamentError(403, 'You were removed from this tournament');
+      // Private tournaments: spectators watch and read; the invited players and staff talk.
+      if (!this.invitedTo(e, userId)) throw new TournamentError(403, 'Only invited players can chat in this tournament');
       const blocked = this.bridge?.chatBlockedReason?.(userId);
       if (blocked) throw new TournamentError(403, blocked);
     }
@@ -607,6 +617,7 @@ export class TournamentService {
     const existing = e.players.get(userId);
     if (existing?.disqualified) return 'You were removed from this tournament';
     if (e.row.status === 'finished' || e.row.status === 'cancelled') return 'This tournament is over';
+    if (!this.invitedTo(e, userId)) return PRIVATE_TOURNAMENT_BLOCKED;
     if (existing) return null; // rejoining after a pause
     if (e.row.status === 'running' && !e.row.lateJoin) return 'Late joining is closed for this tournament';
     const active = [...e.players.values()].filter((p) => this.active(p)).length;
@@ -706,6 +717,11 @@ export class TournamentService {
     await setPaymentStatus(this.db, sessionId, 'paid', new Date(this.now()));
     const e = this.entries.get(pay.tournamentId);
     if (!e) return;
+    // Taken off the invite list while paying: record the payment, but they do not play (staff refund it).
+    if (!this.invitedTo(e, pay.userId)) {
+      console.warn(`paid entry from ${pay.userId} for private tournament ${e.row.id}, but they are no longer invited`);
+      return;
+    }
     const p = await this.addPlayer(e, pay.userId, { paid: true });
     p.paid = true;
     this.persistPlayer(e.row.id, p);
@@ -815,6 +831,7 @@ export class TournamentService {
       players: [...e.players.values()].filter((p) => (this.active(p) || p.games > 0) && !p.disqualified).length,
       joined: !!viewer && !!e.players.get(viewer) && this.active(e.players.get(viewer)!),
       winner: r.status === 'finished' && standings[0] && standings[0].games > 0 ? standings[0].username : null,
+      private: r.private,
     };
   }
 
@@ -873,13 +890,15 @@ export class TournamentService {
         prizePlace: this.prizePlaceOf(e, viewer),
         payout: payout ? { status: payout.status as PayoutStatus, method: payout.method as PayoutMethod } : null,
         disqualified: !!p?.disqualified,
+        invited: e.row.private && this.invitedTo(e, viewer),
       };
     }
     const games = e.results
       .filter((r) => r.result !== '*' && r.counted)
       .reverse()
       .map((r) => this.gameView(e, r));
-    return { ...this.summary(e, viewer), standings: this.standings(e), games, liveGames, yourGameId, you };
+    const invited: TournamentInvitee[] = e.row.private ? (e.row.invited ?? []).map((x) => ({ userId: x.userId, username: e.players.get(x.userId)?.username ?? x.username })) : [];
+    return { ...this.summary(e, viewer), standings: this.standings(e), games, liveGames, yourGameId, you, invited };
   }
 
   // ---------------------------------------------------------------- staff
@@ -931,14 +950,18 @@ export class TournamentService {
     const v = validateTournamentInput(input, this.now());
     if ('error' in v) throw new TournamentError(400, v.error);
     if (v.value.entryFeeCents > 0 && !this.stripe) throw new TournamentError(400, 'Set up Stripe (STRIPE_SECRET_KEY) before charging entry fees');
+    const invited = await this.resolveInvites(v.value);
     const row = await insertTournament(this.db, {
       id: randomUUID().slice(0, 10),
       ...this.columns(v.value),
+      invited,
       sponsorLogo: v.value.sponsorLogo ?? null,
       status: 'scheduled',
       createdBy,
     });
-    this.entries.set(row.id, { row, players: new Map(), games: new Map(), roundDoneAt: 0, results: [], chat: [] });
+    const e: Entry = { row, players: new Map(), games: new Map(), roundDoneAt: 0, results: [], chat: [] };
+    this.entries.set(row.id, e);
+    this.notifyInvited(e, invited);
     return this.detail(null, row.id);
   }
 
@@ -964,7 +987,31 @@ export class TournamentService {
       sponsorName: v.sponsorName,
       sponsorUrl: v.sponsorUrl,
       settings: { ...v.settings } as Record<string, unknown>,
+      private: v.private,
     };
+  }
+
+  /** Looks up a private tournament's invited usernames; every one must be an open account. */
+  private async resolveInvites(v: TournamentInput, current: TournamentInvitee[] = []): Promise<TournamentInvitee[]> {
+    if (!v.private) return [];
+    const out: TournamentInvitee[] = [];
+    const missing: string[] = [];
+    for (const name of v.invited) {
+      const known = current.find((x) => x.username.toLowerCase() === name.toLowerCase());
+      const u = await findUserByUsername(this.db, name);
+      if (u && !u.closedAt && !u.deletedAt) {
+        if (!out.some((x) => x.userId === u.id)) out.push({ userId: u.id, username: u.username });
+      } else if (known) out.push(known);
+      else missing.push(name);
+    }
+    if (missing.length) throw new TournamentError(400, missing.length === 1 ? `No player named ${missing[0]}` : `No players named ${missing.join(', ')}`);
+    return out;
+  }
+
+  /** Tells newly invited players about a private tournament. */
+  private notifyInvited(e: Entry, invitees: TournamentInvitee[]) {
+    if (!e.row.private || e.row.status === 'finished' || e.row.status === 'cancelled') return;
+    for (const x of invitees) this.bridge?.notify(x.userId, `You are invited to ${e.row.name}`, 'Open the tournament to join.', `/tournaments/${e.row.id}`);
   }
 
   private inputOf(row: Tournament): TournamentInput {
@@ -988,6 +1035,8 @@ export class TournamentService {
       sponsorName: row.sponsorName,
       sponsorUrl: row.sponsorUrl,
       settings: tournamentSettings(row.settings),
+      private: row.private,
+      invited: (row.invited ?? []).map((x) => x.username),
     };
   }
 
@@ -1017,11 +1066,24 @@ export class TournamentService {
         minRatedGames: e.row.minRatedGames,
         // Format and scoring are what players signed up for.
         settings: e.row.settings,
+        // Open or invite-only is too; the invite list itself can still change.
+        private: e.row.private,
       };
     }
     if (v.value.sponsorLogo !== undefined) cols.sponsorLogo = v.value.sponsorLogo;
-    await updateTournament(this.db, id, cols);
-    e.row = { ...e.row, ...cols };
+    const before = e.row.invited ?? [];
+    // A started private tournament stays private: without a new list, keep the old one.
+    const invited = !cols.private ? [] : v.value.private ? await this.resolveInvites(v.value, before) : before;
+    await updateTournament(this.db, id, { ...cols, invited });
+    e.row = { ...e.row, ...cols, invited };
+    this.notifyInvited(e, invited.filter((x) => !before.some((b) => b.userId === x.userId)));
+    // Taken off the list: they stop being paired (points so far are kept).
+    for (const p of e.players.values()) {
+      if (this.active(p) && !this.invitedTo(e, p.userId)) {
+        p.withdrawn = true;
+        this.persistPlayer(id, p);
+      }
+    }
     return this.detail(null, id);
   }
 

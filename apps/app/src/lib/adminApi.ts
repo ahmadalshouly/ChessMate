@@ -135,6 +135,8 @@ export function useAdminApi() {
       campaignPreview: (audience: CampaignAudience) => post<{ count: number; sample: string[]; withPush: number }>('/campaign-preview', { audience }),
       campaignTest: (message: CampaignMessage) => post<{ devices: number; push: string }>('/campaign-test', { message }),
       tournaments: () => get<{ tournaments: TournamentSummary[] }>('/tournaments').then((r) => r.tournaments),
+      /** Open accounts matching a username, to invite to a private tournament. */
+      invitees: (q: string) => get<{ players: { userId: string; username: string; displayName: string | null }[] }>(`/invitees${qs({ q })}`).then((r) => r.players),
       createTournament: (t: TournamentInput) => post<{ tournament: TournamentDetail }>('/tournaments', { ...t }).then((r) => r.tournament),
       updateTournament: (tid: string, t: Partial<TournamentInput>) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}`, { ...t }).then((r) => r.tournament),
       cancelTournament: (tid: string, reason: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/cancel`, { reason }).then((r) => r.tournament),

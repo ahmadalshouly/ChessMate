@@ -162,6 +162,13 @@
       "when": 1797300000000,
       "tag": "0023_push_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1797450000000,
+      "tag": "0024_private_tournaments",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,8 @@
-import { DEFAULT_TOURNAMENT_SETTINGS, TOURNAMENT_CURRENCIES, formatMoney, type TournamentSettings, formatTimeControl, type TournamentCurrency, type TournamentInput, type TournamentPrize, type TournamentSummary } from '@chessmate/core';
+import { DEFAULT_TOURNAMENT_SETTINGS, TOURNAMENT_CURRENCIES, formatMoney, type TournamentSettings, formatTimeControl, type TournamentCurrency, type TournamentInput, type TournamentInvitee, type TournamentPrize, type TournamentSummary } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Segmented } from '@/components/play/Controls';
@@ -12,7 +12,7 @@ import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, ErrorLine, PageHeader, Section, useLoad } from '@/features/admin/ui';
 import { formatLabel, settingsOf, tournamentClock } from '@/features/tournaments/format';
 import { formatDateTime, useT } from '@/i18n';
-import { Badge, Button, GlassView, Modal, Row, Stack, Switch, Text, TextField, useAppTheme, useToast } from '@/ui';
+import { Badge, Button, Chip, GlassView, Modal, Row, Stack, Switch, Text, TextField, useAppTheme, useToast } from '@/ui';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const localDate = (ms: number) => {
@@ -61,6 +61,10 @@ interface Form {
   settings: TournamentSettings;
   /** Swiss rounds as typed. */
   rounds: string;
+  /** Invite-only: only `invited` players may join and play. */
+  private: boolean;
+  /** Usernames of the invited players. */
+  invited: string[];
 }
 
 /** Reads a picked image file as a data URL (web and phones). */
@@ -127,10 +131,12 @@ function emptyForm(): Form {
     logoPath: null,
     settings: { ...DEFAULT_TOURNAMENT_SETTINGS },
     rounds: String(DEFAULT_TOURNAMENT_SETTINGS.rounds),
+    private: false,
+    invited: [],
   };
 }
 
-function formOf(t: TournamentSummary): Form {
+function formOf(t: TournamentSummary, invited: TournamentInvitee[] = []): Form {
   return {
     name: t.name,
     description: t.description ?? '',
@@ -156,6 +162,8 @@ function formOf(t: TournamentSummary): Form {
     logoPath: t.sponsor?.logoPath ?? null,
     settings: settingsOf(t),
     rounds: String(settingsOf(t).rounds),
+    private: t.private,
+    invited: invited.map((x) => x.username),
   };
 }
 
@@ -181,6 +189,8 @@ function inputOf(f: Form): TournamentInput {
     sponsorUrl: f.sponsorUrl.trim() || null,
     ...(f.logo !== undefined ? { sponsorLogo: f.logo } : {}),
     settings: { ...f.settings, rounds: f.settings.format === 'swiss' ? Number(f.rounds) : f.settings.rounds },
+    private: f.private,
+    invited: f.private ? f.invited : [],
   };
 }
 
@@ -202,7 +212,16 @@ export default function AdminTournaments() {
       {data && list.length === 0 && <EmptyState icon="trophy-outline" title={tr('admin.tournaments.empty')} body={tr('admin.tournaments.emptyBody')} />}
       <Stack gap="md">
         {list.map((t) => (
-          <TournamentRow key={t.id} t={t} onEdit={() => setEditing({ id: t.id, status: t.status, form: formOf(t) })} onDone={reload} />
+          <TournamentRow
+            key={t.id}
+            t={t}
+            onEdit={async () => {
+              // The list has no invite list: load it from the live view first.
+              const invited = t.private ? (await api.tournamentMonitor(t.id)).invited : [];
+              setEditing({ id: t.id, status: t.status, form: formOf(t, invited) });
+            }}
+            onDone={reload}
+          />
         ))}
       </Stack>
       {editing && (
@@ -221,17 +240,19 @@ export default function AdminTournaments() {
   );
 }
 
-function TournamentRow({ t, onEdit, onDone }: { t: TournamentSummary; onEdit: () => void; onDone: () => void }) {
+function TournamentRow({ t, onEdit, onDone }: { t: TournamentSummary; onEdit: () => Promise<void>; onDone: () => void }) {
   const tr = useT();
+  const { colors: c } = useAppTheme();
   const { api } = useAdmin();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const run = (key: string, fn: () => Promise<unknown>) => async () => {
+  const run = (key: string, fn: () => Promise<unknown>, report = true) => async () => {
     setBusy(key);
     setError(null);
     try {
       await fn();
+      if (!report) return;
       toast.show({ title: tr('admin.common.done'), tone: 'success' });
       onDone();
     } catch (e) {
@@ -249,6 +270,7 @@ function TournamentRow({ t, onEdit, onDone }: { t: TournamentSummary; onEdit: ()
             <Row gap="sm" wrap>
               <Text variant="subheading">{t.name}</Text>
               <Badge label={tr(`admin.tournaments.status.${t.status}`)} tone={tone} />
+              {t.private && <Badge label={tr('tournaments.private.badge')} tone="outline" icon={<Ionicons name="lock-closed" size={11} color={c.text} />} />}
             </Row>
             <Text variant="caption" tone="muted">
               {formatLabel(t)} · {formatTimeControl(t.timeControl)} · {t.rated ? tr('play.rated') : tr('play.casual')} · {formatDateTime(t.startsAt)} · {tr('tournaments.minutes', { count: t.durationMinutes })} ·{' '}
@@ -265,7 +287,7 @@ function TournamentRow({ t, onEdit, onDone }: { t: TournamentSummary; onEdit: ()
           <Row gap="sm" wrap>
             <Button size="sm" variant="secondary" title={tr('admin.tournaments.monitor')} onPress={() => router.push({ pathname: '/admin/tournaments/[id]', params: { id: t.id } })} />
             <Button size="sm" variant="ghost" title={tr('admin.tournaments.view')} onPress={() => router.push({ pathname: '/tournaments/[id]', params: { id: t.id } })} />
-            {t.status !== 'cancelled' && <Button size="sm" variant="secondary" title={tr('admin.tournaments.edit')} onPress={onEdit} />}
+            {t.status !== 'cancelled' && <Button size="sm" variant="secondary" title={tr('admin.tournaments.edit')} loading={busy === 'edit'} onPress={run('edit', onEdit, false)} />}
             {t.status === 'scheduled' && <Button size="sm" variant="secondary" title={tr('admin.tournaments.startNow')} loading={busy === 'start'} onPress={run('start', () => api.startTournament(t.id))} />}
             {(t.status === 'scheduled' || t.status === 'running') && (
               <Button size="sm" variant="danger" title={tr('admin.tournaments.cancel')} loading={busy === 'cancel'} onPress={run('cancel', () => api.cancelTournament(t.id, ''))} />
@@ -408,6 +430,22 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
             </Row>
           </Stack>
         </Section>
+        <Section title={tr('admin.tournaments.access')} padding="none">
+          <Stack gap="md">
+            <Segmented
+              value={f.private ? 'private' : 'open'}
+              onChange={(v) => set('private', v === 'private')}
+              options={[
+                { value: 'open', label: tr('admin.tournaments.accessOpen'), disabled: started },
+                { value: 'private', label: tr('admin.tournaments.accessPrivate'), disabled: started },
+              ]}
+            />
+            <Text variant="caption" tone="muted">
+              {f.private ? tr('admin.tournaments.accessPrivateHint') : tr('admin.tournaments.accessOpenHint')}
+            </Text>
+            {f.private && <InvitePicker invited={f.invited} onChange={(v) => set('invited', v)} />}
+          </Stack>
+        </Section>
         <Section title={tr('admin.tournaments.entry')} padding="none">
           <Stack gap="md">
             <Row gap="sm" align="flex-end">
@@ -507,6 +545,86 @@ function TournamentForm({ initial, id, started, onClose, onSaved }: { initial: F
         <ErrorLine message={error} />
       </Stack>
     </Modal>
+  );
+}
+
+/** Private tournaments: add players by username (with suggestions) and remove them again. */
+function InvitePicker({ invited, onChange }: { invited: string[]; onChange: (v: string[]) => void }) {
+  const tr = useT();
+  const { colors: c } = useAppTheme();
+  const { api } = useAdmin();
+  const [q, setQ] = useState('');
+  const [found, setFound] = useState<{ userId: string; username: string; displayName: string | null }[]>([]);
+  const has = (name: string) => invited.some((x) => x.toLowerCase() === name.toLowerCase());
+  const add = (name: string) => {
+    const n = name.trim().replace(/^@/, '');
+    if (n && !has(n)) onChange([...invited, n]);
+    setQ('');
+    setFound([]);
+  };
+  useEffect(() => {
+    const term = q.trim().replace(/^@/, '');
+    if (term.length < 2) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      api
+        .invitees(term)
+        .then((r) => live && setFound(r))
+        .catch(() => live && setFound([]));
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [q, api]);
+  const suggestions = q.trim().replace(/^@/, '').length < 2 ? [] : found.filter((p) => !has(p.username));
+  return (
+    <Stack gap="sm">
+      <Row gap="sm" align="flex-end">
+        <TextField
+          containerStyle={{ flex: 1 }}
+          label={tr('admin.tournaments.invite')}
+          value={q}
+          onChangeText={setQ}
+          placeholder={tr('admin.tournaments.invitePlaceholder')}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onSubmitEditing={() => add(suggestions.find((p) => p.username.toLowerCase() === q.trim().replace(/^@/, '').toLowerCase())?.username ?? q)}
+          left={<Ionicons name="person-add-outline" size={16} color={c.muted} />}
+        />
+        <Button size="sm" variant="secondary" title={tr('admin.tournaments.inviteAdd')} disabled={!q.trim()} onPress={() => add(q)} />
+      </Row>
+      {suggestions.length > 0 && (
+        <Row gap="xs" wrap>
+          {suggestions.map((p) => (
+            <Chip
+              key={p.userId}
+              label={p.displayName && p.displayName !== p.username ? `${p.username} · ${p.displayName}` : p.username}
+              icon={<Ionicons name="add" size={14} color={c.text} />}
+              onPress={() => add(p.username)}
+            />
+          ))}
+        </Row>
+      )}
+      <Text variant="label">{tr('admin.tournaments.invitedCount', { count: invited.length })}</Text>
+      {invited.length > 0 ? (
+        <Row gap="xs" wrap>
+          {invited.map((name) => (
+            <Chip
+              key={name}
+              label={name}
+              selected
+              icon={<Ionicons name="close" size={14} color={c.onAccent} />}
+              onPress={() => onChange(invited.filter((x) => x !== name))}
+            />
+          ))}
+        </Row>
+      ) : (
+        <Text variant="caption" tone="muted">
+          {tr('admin.tournaments.invitedNone')}
+        </Text>
+      )}
+    </Stack>
   );
 }
 

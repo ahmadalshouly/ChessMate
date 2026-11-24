@@ -50,6 +50,8 @@ export const server: Messages<typeof en> = {
   messageSelf: 'Du kannst dir nicht selbst schreiben.',
   signInMessages: 'Melde dich an, um Nachrichten zu nutzen.',
   tournamentFull: 'Dieses Turnier ist voll.',
+  tournamentPrivate: 'Dieses Turnier ist nur auf Einladung. Du kannst zuschauen, aber nur eingeladene Spieler können beitreten.',
+  tournamentPrivateChat: 'Nur eingeladene Spieler können in diesem Turnier chatten.',
   tournamentOver: 'Dieses Turnier ist vorbei.',
   signInTournament: 'Melde dich an, um Turnieren beizutreten.',
   secretRevealed: 'Dieser Zug geht nicht: Die geheime Dame deckt das Feld und ist jetzt aufgedeckt.',

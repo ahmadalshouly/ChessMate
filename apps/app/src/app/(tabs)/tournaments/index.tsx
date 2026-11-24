@@ -117,6 +117,7 @@ function TournamentCard({ t: x, now }: { t: TournamentSummary; now: number }) {
               </Text>
               {x.status === 'running' && <Badge tone="live" size="sm" label={tr('tournaments.liveBadge')} />}
               {x.joined && <Badge tone="outline" size="sm" label={tr('tournaments.joinedBadge')} />}
+              {x.private && <Badge tone="outline" size="sm" label={tr('tournaments.private.badge')} icon={<Ionicons name="lock-closed" size={10} color={c.text} />} />}
               <Badge tone={x.entryFeeCents > 0 ? 'solid' : 'neutral'} size="sm" label={x.entryFeeCents > 0 ? formatMoney(x.entryFeeCents, x.currency) : tr('tournaments.free')} />
             </View>
             <Text variant="caption" tone="muted">
