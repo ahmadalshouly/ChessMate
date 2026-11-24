@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import { Logo } from '@/components/shell/Logo';
 import { Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 /** The ChessMate line-art mark. */
 export function BrandMark({ size = 56 }: { size?: number }) {
@@ -33,33 +34,31 @@ export function AuthShell({
   return (
     <Screen>
       <SafeAreaView style={{ flex: 1 }}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-            <View style={styles.column}>
-              {back ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={tr('common.back')}
-                  hitSlop={12}
-                  onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}
-                  style={styles.back}>
-                  <Text style={{ color: t.muted, fontSize: 15, fontWeight: '600' }}>{`${rtl ? '›' : '‹'} ${tr('common.back')}`}</Text>
-                </Pressable>
-              ) : null}
-              <View style={styles.header}>
-                <BrandMark />
-                <Label size={26} bold>
-                  {title}
-                </Label>
-                {subtitle ? <Label muted>{subtitle}</Label> : null}
-              </View>
-              <Card>
-                <View style={styles.form}>{children}</View>
-              </Card>
-              {footer ? <View style={styles.footer}>{footer}</View> : null}
+        <KeyboardScrollView contentContainerStyle={styles.scroll}>
+          <View style={styles.column}>
+            {back ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tr('common.back')}
+                hitSlop={12}
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}
+                style={styles.back}>
+                <Text style={{ color: t.muted, fontSize: 15, fontWeight: '600' }}>{`${rtl ? '›' : '‹'} ${tr('common.back')}`}</Text>
+              </Pressable>
+            ) : null}
+            <View style={styles.header}>
+              <BrandMark />
+              <Label size={26} bold>
+                {title}
+              </Label>
+              {subtitle ? <Label muted>{subtitle}</Label> : null}
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
+            <Card>
+              <View style={styles.form}>{children}</View>
+            </Card>
+            {footer ? <View style={styles.footer}>{footer}</View> : null}
+          </View>
+        </KeyboardScrollView>
       </SafeAreaView>
     </Screen>
   );

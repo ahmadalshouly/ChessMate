@@ -2,7 +2,7 @@ import { usernameFromLink } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { QrCode } from '@/components/QrCode';
 import { Screen } from '@/components/ui';
@@ -11,6 +11,7 @@ import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { profileLink } from '@/lib/links';
 import { Button, GlassView, Text, TextField, useAppTheme } from '@/ui';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 /**
  * Add a friend with a QR code: show your own code for them to scan with their
@@ -35,7 +36,7 @@ export default function AddByQr() {
   return (
     <Screen>
       <Stack.Screen options={{ title: tr('qr.addTitle') }} />
-      <ScrollView contentContainerStyle={styles.page}>
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={[styles.inner, { gap: t.space.lg }]}>
           <GlassView padding="lg" radius="xl" style={{ alignItems: 'center', gap: t.space.md }}>
             <Text variant="heading">{tr('qr.yourCode')}</Text>
@@ -82,7 +83,7 @@ export default function AddByQr() {
             <Button variant="secondary" title={tr('qr.open')} disabled={!text.trim()} onPress={open} />
           </GlassView>
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
     </Screen>
   );
 }

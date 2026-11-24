@@ -20,6 +20,7 @@ export * from './components/Layout';
 export * from './components/Button';
 export * from './components/TextField';
 export * from './components/Modal';
+export * from './components/Keyboard';
 export * from './components/Toast';
 export * from './components/Avatar';
 export * from './components/Badge';

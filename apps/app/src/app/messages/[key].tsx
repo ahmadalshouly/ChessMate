@@ -2,7 +2,7 @@ import { MESSAGE_MAX, STAFF_THREAD, type MessageView } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
@@ -10,7 +10,7 @@ import { formatDateTime, translate, useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { messagesApi, onDirectMessage, setUnreadMessages, type Thread } from '@/lib/messagesApi';
 import { useSocialIdentity } from '@/lib/social/session';
-import { Avatar, GlassView, Text, useAppTheme } from '@/ui';
+import { Avatar, GlassView, KeyboardAvoider, Text, useAppTheme } from '@/ui';
 import { avatarPhotoUri } from '@/lib/avatarPhoto';
 
 /** One conversation: a player, or the ChessMate team (read only). */
@@ -86,8 +86,15 @@ export default function Conversation() {
             ) : null,
         }}
       />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-        <ScrollView ref={scroll} contentContainerStyle={styles.page} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
+      {/* Lifts the composer above the keyboard; finds its own offset under the header. */}
+      <KeyboardAvoider style={{ flex: 1 }}>
+        <ScrollView
+          ref={scroll}
+          contentContainerStyle={styles.page}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}
+          // The keyboard shrinks the list: keep the latest message in view.
+          onLayout={() => scroll.current?.scrollToEnd({ animated: false })}>
           <View style={[styles.inner, { gap: 8 }]}>
             {thread && thread.messages.length === 0 && (
               <Text tone="muted" align="center" style={{ marginTop: 24 }}>
@@ -157,7 +164,7 @@ export default function Conversation() {
             )}
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </Screen>
   );
 }

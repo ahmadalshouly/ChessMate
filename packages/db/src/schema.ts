@@ -1305,3 +1305,38 @@ export const pushTokens = pgTable(
 
 export type NotificationPrefsRow = typeof notificationPrefs.$inferSelect;
 export type PushTokenDbRow = typeof pushTokens.$inferSelect;
+
+// ---------------------------------------------------------------- lessons
+
+/** Learn-tab chapters, in `position` order. */
+export const lessonChapters = pgTable('lesson_chapters', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  blurb: text('blurb').notNull().default(''),
+  position: integer('position').notNull().default(0),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * Learn-tab lessons. `data` is the whole Lesson from @chessmate/core (title,
+ * steps with their positions and puzzles, links), checked by the server before
+ * it is saved. Unpublished lessons are drafts only staff see.
+ */
+export const lessons = pgTable(
+  'lessons',
+  {
+    id: text('id').primaryKey(),
+    chapterId: text('chapter_id')
+      .notNull()
+      .references(() => lessonChapters.id, { onDelete: 'restrict' }),
+    position: integer('position').notNull().default(0),
+    published: boolean('published').notNull().default(true),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+    updatedBy: text('updated_by'),
+  },
+  (t) => [index('lessons_chapter_idx').on(t.chapterId, t.position)],
+);
+
+export type LessonChapterRow = typeof lessonChapters.$inferSelect;
+export type LessonRow = typeof lessons.$inferSelect;

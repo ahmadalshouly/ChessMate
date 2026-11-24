@@ -16,3 +16,4 @@ export * from './repo/awards';
 export * from './repo/broadcasts';
 export * from './repo/profiles';
 export * from './repo/notifications';
+export * from './repo/lessons';

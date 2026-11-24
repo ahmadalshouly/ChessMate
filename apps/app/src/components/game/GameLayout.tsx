@@ -1,11 +1,11 @@
 import { Stack } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, useWindowDimensions } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
 import { Logo } from '@/components/shell/Logo';
-import { Text, useAppTheme } from '@/ui';
+import { KeyboardAvoider, Text, useAppTheme } from '@/ui';
 
 import { ActionBar, type GameAction } from './ActionBar';
 import { PLAYER_CARD_HEIGHT } from './PlayerCard';
@@ -135,11 +135,11 @@ export function GameLayout({ strip, top, bottom, renderBoard, notices, popover, 
           {popover ? (
             <>
               <Pressable accessibilityRole="button" accessibilityLabel={tr('game.close')} onPress={onDismissPopover} style={[styles.scrim, { bottom: BAR + GAP + bottomSpace }]} />
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={StyleSheet.absoluteFill} pointerEvents="box-none">
+              <KeyboardAvoider style={StyleSheet.absoluteFill} pointerEvents="box-none">
                 <View style={{ flex: 1 }} pointerEvents="none" />
                 <View style={[styles.popover, { width: column, maxHeight: Math.min(POPOVER_MAX, box.h * 0.7), backgroundColor: t.colors.surfaceSolid }, t.shadows.lg]}>{popover}</View>
                 <View style={{ height: keyboard ? GAP : BAR + GAP * 2 + bottomSpace }} pointerEvents="none" />
-              </KeyboardAvoidingView>
+              </KeyboardAvoider>
             </>
           ) : null}
         </>

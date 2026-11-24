@@ -1,4 +1,6 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Lesson, LessonArrow } from '@chessmate/core';
+import type { ComponentProps } from 'react';
 
 import type { Arrow } from '@/components/BoardArrows';
 
@@ -15,6 +17,13 @@ export const LESSON_ARROW_COLORS: Record<NonNullable<LessonArrow['tone']>, strin
 
 export function lessonArrows(arrows: LessonArrow[] | undefined): Arrow[] {
   return (arrows ?? []).map((a) => ({ from: a.from, to: a.to, color: LESSON_ARROW_COLORS[a.tone ?? 'move'] }));
+}
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
+/** The lesson's icon, or a book when the name is not an Ionicons icon (lessons come from the server). */
+export function lessonIcon(name: string): IconName {
+  return name in Ionicons.glyphMap ? (name as IconName) : 'book-outline';
 }
 
 export function lessonPuzzleCount(lesson: Lesson): number {

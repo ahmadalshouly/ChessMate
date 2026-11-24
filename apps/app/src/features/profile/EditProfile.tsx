@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { AVATARS, AVATAR_TONES, BIO_MAX, DISPLAY_NAME_MAX, PLAYER_TAGS, type Avatar as AvatarValue, type MyProfile, type PlayerTag } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
@@ -21,6 +21,7 @@ import { Avatar, TONES } from './Avatar';
 import { CountryPicker } from './CountryPicker';
 import { Field, SectionTitle } from './controls';
 import { pickAvatarPhoto, type PhotoSource } from './pickPhoto';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 export function EditProfile() {
   const t = useTheme();
@@ -111,7 +112,7 @@ export function EditProfile() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           <Card>
             <SectionTitle>{tr('profile.editScreen.avatar')}</SectionTitle>
@@ -224,7 +225,7 @@ export function EditProfile() {
           {error && !['displayName', 'bio', 'country', 'footballClub'].includes(error.field ?? '') && <Label muted>{error.message}</Label>}
           <Button title={saving ? tr('common.saving') : tr('profile.editScreen.save')} onPress={save} disabled={saving} />
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
     </Screen>
   );
 }

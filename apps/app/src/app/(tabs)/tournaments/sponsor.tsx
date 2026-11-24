@@ -2,7 +2,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { useT } from '@/i18n';
@@ -10,6 +10,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { useAuth } from '@/lib/auth';
 import { tournamentsApi } from '@/lib/tournamentsApi';
 import { Button, GlassView, Text, TextField, useAppTheme } from '@/ui';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 /** "Sponsor a tournament": anyone can apply; the team reviews it and gets in touch. */
 export default function SponsorApply() {
@@ -37,7 +38,7 @@ export default function SponsorApply() {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 40 + insets.bottom }]} keyboardShouldPersistTaps="handled">
+    <KeyboardScrollView contentContainerStyle={[styles.page, { paddingBottom: 40 + insets.bottom }]}>
       <Stack.Screen options={{ title: tr('tournaments.sponsor.title') }} />
       <View style={[styles.inner, { gap: t.space.lg }]}>
         <View style={{ gap: t.space.sm }}>
@@ -64,7 +65,7 @@ export default function SponsorApply() {
           </GlassView>
         )}
       </View>
-    </ScrollView>
+    </KeyboardScrollView>
   );
 }
 

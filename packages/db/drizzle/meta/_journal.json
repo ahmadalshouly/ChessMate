@@ -153,7 +153,14 @@
       "idx": 21,
       "version": "7",
       "when": 1797100000000,
-      "tag": "0021_football_mate",
+      "tag": "0021_lessons",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1797200000000,
+      "tag": "0022_football_mate",
       "breakpoints": true
     }
   ]

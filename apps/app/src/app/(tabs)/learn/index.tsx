@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { LESSONS, LESSON_CHAPTERS, LESSON_CREDITS, type Lesson } from '@chessmate/core';
+import { LESSON_CREDITS, type Lesson } from '@chessmate/core';
 import { router } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { lessonPuzzleCount } from '@/features/learn/lessonView';
+import { useLessonCatalog } from '@/features/learn/catalog';
+import { lessonIcon, lessonPuzzleCount } from '@/features/learn/lessonView';
 import { useLessonProgress, type ProgressMap } from '@/features/learn/progress';
 import { useI18n, useT } from '@/i18n';
 import { Badge, Button, GlassView, Row, Screen, SectionHeader, Stack, Text, useAppTheme } from '@/ui';
@@ -20,9 +21,10 @@ export default function Learn() {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const { progress } = useLessonProgress();
-  const done = LESSONS.filter((l) => progress[l.id]?.done).length;
+  const { chapters, lessons } = useLessonCatalog();
+  const done = lessons.filter((l) => progress[l.id]?.done).length;
   // Carry on where you left off, else the first lesson not finished yet.
-  const resume = LESSONS.find((l) => !progress[l.id]?.done && (progress[l.id]?.step ?? 0) > 0) ?? LESSONS.find((l) => !progress[l.id]?.done);
+  const resume = lessons.find((l) => !progress[l.id]?.done && (progress[l.id]?.step ?? 0) > 0) ?? lessons.find((l) => !progress[l.id]?.done);
   const open = (id: string) => router.push({ pathname: '/learn/[id]', params: { id } });
 
   return (
@@ -37,10 +39,10 @@ export default function Learn() {
         </Row>
         <Stack gap="xs">
           <Text variant="caption" tone="muted">
-            {tr('learn.progress', { done, total: LESSONS.length })}
+            {tr('learn.progress', { done, total: lessons.length })}
           </Text>
           <View style={[styles.track, { backgroundColor: c.surfaceSunken, borderColor: c.border }]}>
-            <View style={[styles.fill, { width: `${(done / LESSONS.length) * 100}%`, backgroundColor: c.text }]} />
+            <View style={[styles.fill, { width: `${lessons.length ? (done / lessons.length) * 100 : 0}%`, backgroundColor: c.text }]} />
           </View>
         </Stack>
         {resume ? (
@@ -64,7 +66,7 @@ export default function Learn() {
         ) : null}
       </GlassView>
 
-      {LESSON_CHAPTERS.map((chapter, i) => (
+      {chapters.map((chapter, i) => (
         <Stack key={chapter.id} gap="md">
           <SectionHeader index={i + 1} title={chapter.title} action={<Text variant="caption" tone="tertiary">{tr('learn.lessonCount', { count: chapter.lessons.length })}</Text>} />
           <Text tone="muted" style={{ marginTop: -t.space.sm }}>
@@ -106,7 +108,7 @@ function LessonCard({ lesson, progress, wide, onPress }: { lesson: Lesson; progr
         <GlassView padding="lg" radius="xl" style={{ gap: t.space.sm, flexGrow: 1, transform: [{ scale: pressed ? 0.985 : 1 }] }}>
           {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfacePressed }]} />}
           <Row gap="sm">
-            <Circle icon={lesson.icon as IconName} />
+            <Circle icon={lessonIcon(lesson.icon)} />
             <Text variant="heading" style={{ flex: 1 }}>
               {lesson.title}
             </Text>

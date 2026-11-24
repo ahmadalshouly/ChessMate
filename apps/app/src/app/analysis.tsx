@@ -9,7 +9,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
@@ -29,6 +29,7 @@ import { useEngine } from '@/lib/useEngine';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
 import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 const EVAL_BAR = 20;
 /** Depth an engine result needs before it is used to grade moves. */
@@ -190,10 +191,9 @@ export default function Analysis() {
     <Screen>
       <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
-        <ScrollView
+        <KeyboardScrollView
           style={[styles.panel, wide && { flexGrow: 0, flexShrink: 0, flexBasis: panelWidth, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
-          contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}
-          keyboardShouldPersistTaps="handled">
+          contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}>
           <Pressable
             onPress={() => setSettingsOpen(true)}
             accessibilityRole="button"
@@ -309,7 +309,7 @@ export default function Analysis() {
               FEN: {fen}
             </Text>
           </Card>
-        </ScrollView>
+        </KeyboardScrollView>
       </View>
       <EngineSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} engineOn={engineOn} onEngineOn={setEngineOn} />
     </Screen>
