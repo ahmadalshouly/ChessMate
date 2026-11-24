@@ -1,4 +1,4 @@
-import { SPONSOR_STATUSES, type SponsorApplicationView, type SponsorStatus } from '@chessmate/core';
+import { AD_SPOT_KEY, SPONSOR_STATUSES, type SponsorApplicationView, type SponsorStatus } from '@chessmate/core';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -73,7 +73,7 @@ function SponsorRow({ a, onDone }: { a: SponsorApplicationView; onDone: () => vo
         </Text>
         {a.spot ? (
           <Text variant="caption" tone="tertiary">
-            {tr('admin.sponsors.spot', { spot: tr(`ads.spot.${a.spot}`) })}
+            {tr('admin.sponsors.spot', { spot: tr(`ads.spot.${AD_SPOT_KEY[a.spot]}`) })}
           </Text>
         ) : null}
         <Text selectable>{a.message}</Text>

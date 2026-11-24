@@ -18,7 +18,9 @@
 import { cleanImage } from './media';
 
 export const AD_SPOTS = [
-  'home.feed',
+  'home.top',
+  'home.mid',
+  'home.end',
   'play.lobby',
   'game.start',
   'game.over',
@@ -38,7 +40,9 @@ export type AdSpotId = (typeof AD_SPOTS)[number];
  * logo, the title and the sponsor's name fit.
  */
 export const AD_SPOT_INFO: Record<AdSpotId, { form: 'wide' | 'card' | 'compact' }> = {
-  'home.feed': { form: 'wide' },
+  'home.top': { form: 'wide' },
+  'home.mid': { form: 'wide' },
+  'home.end': { form: 'wide' },
   'play.lobby': { form: 'card' },
   'game.start': { form: 'compact' },
   'game.over': { form: 'compact' },
@@ -47,6 +51,29 @@ export const AD_SPOT_INFO: Record<AdSpotId, { form: 'wide' | 'card' | 'compact' 
   'watch.home': { form: 'wide' },
   'learn.list': { form: 'card' },
 };
+
+/**
+ * The translation-key segment for each spot. Spot ids contain dots, and the
+ * translator reads a dotted key as a path into the dictionary, so a spot id
+ * can never be a key segment itself: `ads.spot.home.feed` would be looked up
+ * as home → feed and never found. These dot-free names are what the
+ * dictionaries use.
+ */
+export const AD_SPOT_KEY = {
+  'home.top': 'homeTop',
+  'home.mid': 'homeMid',
+  'home.end': 'homeEnd',
+  'play.lobby': 'playLobby',
+  'game.start': 'gameStart',
+  'game.over': 'gameOver',
+  'tournaments.list': 'tournamentsList',
+  'puzzles.home': 'puzzlesHome',
+  'watch.home': 'watchHome',
+  'learn.list': 'learnList',
+} as const satisfies Record<AdSpotId, string>;
+
+/** The dot-free segments themselves, so `ads.spot.${...}` is a checkable key. */
+export type AdSpotKey = (typeof AD_SPOT_KEY)[AdSpotId];
 
 export function isAdSpot(v: unknown): v is AdSpotId {
   return typeof v === 'string' && (AD_SPOTS as readonly string[]).includes(v);

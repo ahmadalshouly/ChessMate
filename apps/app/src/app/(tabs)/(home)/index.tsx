@@ -117,6 +117,8 @@ export default function Home() {
         <OnlineFriends width={Math.min(content, 1080) - 32} />
       </View>
 
+      <AdSpot spot="home.top" />
+
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={2} title={tr('home.liveBoard.title')} />
         <LiveBoard width={Math.min(content, 1080) - 32} />
@@ -127,11 +129,14 @@ export default function Home() {
         <DailyPuzzleCard width={Math.min(content, 1080) - 32} />
       </View>
 
-      <AdSpot spot="home.feed" />
+      <AdSpot spot="home.mid" />
 
       <ModeSection index={4} title={tr('nav.play')} modes={PLAY} cols={cols} />
       <ModeSection index={5} title={tr('home.improve')} modes={IMPROVE} cols={cols} />
       <ModeSection index={6} title={tr('home.community')} modes={COMMUNITY} cols={cols} />
+
+      <AdSpot spot="home.end" />
+
       <BrandLine />
       <GameSetupSheet
         timeControl={setupTc}

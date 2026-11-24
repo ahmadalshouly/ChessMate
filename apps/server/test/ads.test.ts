@@ -85,20 +85,20 @@ describe('ad spots', () => {
   });
 
   it('keeps a placement hidden while its spot is off', async () => {
-    const r = await call('owner', 'POST', '/ads', { spot: 'home.feed', sponsor: 'Acme', title: 'Sponsor of the week', period: 'week' });
+    const r = await call('owner', 'POST', '/ads', { spot: 'home.top', sponsor: 'Acme', title: 'Sponsor of the week', period: 'week' });
     expect(r.status).toBe(200);
     expect((await publicAds()).ads).toEqual([]);
     // Switching the spot on makes the same placement appear.
-    expect((await call('owner', 'POST', '/ads-spots/home.feed', { enabled: true })).status).toBe(200);
+    expect((await call('owner', 'POST', '/ads-spots/home.top', { enabled: true })).status).toBe(200);
     const live = await publicAds();
     expect(live.ads).toHaveLength(1);
-    expect(live.ads[0]).toMatchObject({ spot: 'home.feed', sponsor: 'Acme', title: 'Sponsor of the week' });
+    expect(live.ads[0]).toMatchObject({ spot: 'home.top', sponsor: 'Acme', title: 'Sponsor of the week' });
   });
 
   it('hides it again when the spot is switched off', async () => {
-    await call('owner', 'POST', '/ads-spots/home.feed', { enabled: false });
+    await call('owner', 'POST', '/ads-spots/home.top', { enabled: false });
     expect((await publicAds()).ads).toEqual([]);
-    await call('owner', 'POST', '/ads-spots/home.feed', { enabled: true });
+    await call('owner', 'POST', '/ads-spots/home.top', { enabled: true });
   });
 
   it('serves an uploaded image from its own endpoint, and never inside the feed', async () => {
@@ -122,15 +122,15 @@ describe('ad spots', () => {
   });
 
   it('takes a placement down by hand and puts it back', async () => {
-    const id = (await call('owner', 'GET', '/ads')).body.placements.find((p: { spot: string }) => p.spot === 'home.feed').id;
+    const id = (await call('owner', 'GET', '/ads')).body.placements.find((p: { spot: string }) => p.spot === 'home.top').id;
     await call('owner', 'POST', `/ads/${id}/stop`, { stopped: true });
-    expect((await publicAds()).ads.some((a) => a.spot === 'home.feed')).toBe(false);
+    expect((await publicAds()).ads.some((a) => a.spot === 'home.top')).toBe(false);
     await call('owner', 'POST', `/ads/${id}/stop`, { stopped: false });
-    expect((await publicAds()).ads.some((a) => a.spot === 'home.feed')).toBe(true);
+    expect((await publicAds()).ads.some((a) => a.spot === 'home.top')).toBe(true);
   });
 
   it('counts views and taps, and shrugs off an id it does not know', async () => {
-    const ad = (await publicAds()).ads.find((a) => a.spot === 'home.feed')!;
+    const ad = (await publicAds()).ads.find((a) => a.spot === 'home.top')!;
     await fetch(`${base}/api/ads/${ad.id}/view`, { method: 'POST' });
     await fetch(`${base}/api/ads/${ad.id}/click`, { method: 'POST' });
     const p = (await call('owner', 'GET', '/ads')).body.placements.find((x: { id: string }) => x.id === ad.id);
@@ -142,7 +142,7 @@ describe('ad spots', () => {
   });
 
   it('refuses a bad placement with the field that is wrong', async () => {
-    const r = await call('owner', 'POST', '/ads', { spot: 'home.feed', sponsor: 'Acme', title: 'Hi', url: 'not a link', period: 'week' });
+    const r = await call('owner', 'POST', '/ads', { spot: 'home.top', sponsor: 'Acme', title: 'Hi', url: 'not a link', period: 'week' });
     expect(r.status).toBe(400);
     expect(r.body.error.message).toContain('valid link');
   });
@@ -166,7 +166,7 @@ describe('ad spots', () => {
     await call('owner', 'POST', `/players/${ids.mod}/role`, { role: 'moderator' });
     // Moderators run community safety; selling spots is an admin job.
     expect((await call('mod', 'GET', '/ads')).status).toBe(403);
-    expect((await call('mod', 'POST', '/ads-spots/home.feed', { enabled: false })).status).toBe(403);
+    expect((await call('mod', 'POST', '/ads-spots/home.top', { enabled: false })).status).toBe(403);
   });
 });
 
