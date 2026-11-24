@@ -63,6 +63,12 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /tournaments/:id/hidechat    { messageId, hidden } hide or show a chat message
  *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
  *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
+ *   GET  /lessons                     every chapter and lesson, drafts included
+ *   POST /lessons                     { lesson } creates a lesson; POST /lessons/:id { lesson } saves it
+ *   POST /lessons/:id/delete          deletes a lesson; POST /lessons/:id/move { delta: -1 | 1 }
+ *   POST /lesson-chapters             { id, title, blurb } creates or saves a chapter
+ *   POST /lesson-chapters/:id/delete  (only when empty); POST /lesson-chapters/:id/move { delta }
+ *   GET  /lesson-puzzles?theme=&rating=   a few puzzles to pick from; ?id= one puzzle by id
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -76,7 +82,7 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
     try {
       const actor: Actor = admin.actorFor(bearerUser(req, auth));
       // Tournament forms can carry a sponsor logo (a data URL of up to ~400 KB); everything else stays small.
-      const maxBody = section === 'tournaments' ? 1024 * 1024 : undefined;
+      const maxBody = section === 'tournaments' ? 1024 * 1024 : section === 'lessons' ? 256 * 1024 : undefined;
       const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req, maxBody) : {});
       const route = `${req.method} ${section}${id ? '/:id' : ''}${action ? `/${action}` : ''}`;
       const ok = (v: unknown) => (sendJson(res, 200, v), true);
@@ -175,6 +181,27 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ requests: admin.payoutRequests(actor) });
         case 'POST payouts/:id':
           return ok({ request: await admin.reviewPayout(actor, id!, await body()) });
+        case 'GET lessons':
+          return ok({ chapters: admin.lessonContent(actor) });
+        case 'POST lessons':
+          return ok({ lesson: await admin.saveLesson(actor, await body(), true) });
+        case 'POST lessons/:id': {
+          const b = await body();
+          if (b.id !== id) throw new AdminError('invalid_input', 'Lesson ids cannot be changed');
+          return ok({ lesson: await admin.saveLesson(actor, b, false) });
+        }
+        case 'POST lessons/:id/delete':
+          return ok(await admin.deleteLesson(actor, id!));
+        case 'POST lessons/:id/move':
+          return ok(await admin.moveLesson(actor, id!, await body()));
+        case 'POST lesson-chapters':
+          return ok({ chapter: await admin.saveLessonChapter(actor, await body()) });
+        case 'POST lesson-chapters/:id/delete':
+          return ok(await admin.deleteLessonChapter(actor, id!));
+        case 'POST lesson-chapters/:id/move':
+          return ok(await admin.moveLessonChapter(actor, id!, await body()));
+        case 'GET lesson-puzzles':
+          return ok({ puzzles: admin.lessonPuzzles(actor, { theme: q.get('theme') ?? undefined, rating: num('rating'), id: q.get('id') ?? undefined }) });
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

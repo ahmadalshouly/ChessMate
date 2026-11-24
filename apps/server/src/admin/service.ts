@@ -74,6 +74,7 @@ import type { RatingService } from '../ratingService';
 import { TitleService, toApplication } from '../titles/service';
 import type { MessageService } from '../messages/service';
 import { TournamentError, type TournamentService } from '../tournaments/service';
+import { LessonError, type LessonService } from '../lessons/service';
 import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, warningNotice, type ModerationNotice } from './notices';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
@@ -152,6 +153,8 @@ export class AdminService {
   /** Set in database mode, once the services exist. */
   messages: MessageService | null = null;
   tournaments: TournamentService | null = null;
+  /** Learn-tab lessons (database only). */
+  lessons: LessonService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -432,6 +435,78 @@ export class AdminService {
       titleGrantedAt: u.titleGrantedAt?.getTime() ?? null,
       titleApplications: titleApps.map((a) => toApplication(a, true)),
     };
+  }
+
+  // ---------------------------------------------------------------- lessons
+
+  private lessonService() {
+    if (!this.lessons) throw new AdminError('unavailable', 'Lessons need the database');
+    return this.lessons;
+  }
+
+  private async lessonCall<T>(fn: () => T | Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof LessonError) throw new AdminError(e.status === 404 ? 'not_found' : e.status === 409 ? 'conflict' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  /** Every chapter and lesson, drafts included. */
+  lessonContent(actor: Actor) {
+    this.require(actor, 'lessons.manage');
+    return this.lessonService().all();
+  }
+
+  async saveLesson(actor: Actor, input: Record<string, unknown>, create: boolean) {
+    this.require(actor, 'lessons.manage');
+    const l = await this.lessonCall(() => this.lessonService().saveLesson(input, actor.username, { create }));
+    await this.audit(actor, create ? 'lesson.create' : 'lesson.update', { type: 'system', id: l.id, name: l.title }, null, { published: l.published, steps: l.steps.length });
+    return l;
+  }
+
+  async deleteLesson(actor: Actor, id: string) {
+    this.require(actor, 'lessons.manage');
+    const l = await this.lessonCall(() => this.lessonService().removeLesson(id));
+    await this.audit(actor, 'lesson.delete', { type: 'system', id: l.id, name: l.title });
+    return { ok: true };
+  }
+
+  async moveLesson(actor: Actor, id: string, input: { delta?: unknown }) {
+    this.require(actor, 'lessons.manage');
+    await this.lessonCall(() => this.lessonService().moveLesson(id, Number(input.delta) || 0));
+    return { chapters: this.lessonService().all() };
+  }
+
+  async saveLessonChapter(actor: Actor, input: Record<string, unknown>) {
+    this.require(actor, 'lessons.manage');
+    const c = await this.lessonCall(() => this.lessonService().saveChapter(input));
+    await this.audit(actor, 'lesson.chapter', { type: 'system', id: c.id, name: c.title });
+    return c;
+  }
+
+  async deleteLessonChapter(actor: Actor, id: string) {
+    this.require(actor, 'lessons.manage');
+    const c = await this.lessonCall(() => this.lessonService().removeChapter(id));
+    await this.audit(actor, 'lesson.chapter_delete', { type: 'system', id: c.id, name: c.title });
+    return { ok: true };
+  }
+
+  async moveLessonChapter(actor: Actor, id: string, input: { delta?: unknown }) {
+    this.require(actor, 'lessons.manage');
+    await this.lessonCall(() => this.lessonService().moveChapter(id, Number(input.delta) || 0));
+    return { chapters: this.lessonService().all() };
+  }
+
+  lessonPuzzles(actor: Actor, q: { theme?: string; rating?: number; id?: string }) {
+    this.require(actor, 'lessons.manage');
+    const svc = this.lessonService();
+    if (q.id) {
+      const p = svc.puzzle(q.id);
+      return p ? [p] : [];
+    }
+    return svc.suggestPuzzles({ theme: q.theme, rating: q.rating });
   }
 
   // ---------------------------------------------------------------- tournaments

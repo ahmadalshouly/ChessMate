@@ -24,6 +24,7 @@ export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconN
   { key: 'tournaments', href: '/admin/tournaments', label: 'admin.nav.tournaments', icon: 'trophy-outline', needs: 'tournaments.manage' },
   { key: 'sponsors', href: '/admin/sponsors', label: 'admin.nav.sponsors', icon: 'ribbon-outline', needs: 'tournaments.manage' },
   { key: 'payouts', href: '/admin/payouts', label: 'admin.nav.payouts', icon: 'cash-outline', needs: 'tournaments.manage' },
+  { key: 'lessons', href: '/admin/lessons', label: 'admin.nav.lessons', icon: 'school-outline', needs: 'lessons.manage' },
   { key: 'broadcasts', href: '/admin/broadcasts', label: 'watch.admin.broadcasts', icon: 'tv-outline', needs: 'broadcasts.manage' },
   { key: 'streamers', href: '/admin/streamers', label: 'watch.admin.streamers', icon: 'videocam-outline', needs: 'streamers.review' },
   { key: 'messages', href: '/admin/messages', label: 'admin.nav.messages', icon: 'megaphone-outline', needs: 'messages.broadcast' },

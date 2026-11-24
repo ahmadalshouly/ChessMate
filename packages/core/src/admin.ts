@@ -52,6 +52,8 @@ export const ADMIN_PERMISSIONS = [
   'tournaments.manage',
   /** Approve or reject streamer applications and remove streamers. */
   'streamers.review',
+  /** Create, edit, publish and delete Learn-tab lessons and chapters. */
+  'lessons.manage',
   /** Create, edit, feature, hide and delete broadcast events; approve organisers; import settings. Admins only. */
   'broadcasts.manage',
 ] as const;
@@ -74,6 +76,7 @@ const MODERATOR: readonly AdminPermission[] = [
   'titles.review',
   'messages.send',
   'streamers.review',
+  'lessons.manage',
 ];
 
 export const ROLE_PERMISSIONS: Record<StaffRole, readonly AdminPermission[]> = {
