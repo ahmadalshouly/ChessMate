@@ -34,6 +34,7 @@ import { TournamentService } from './tournaments/service';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
 import { donateRoutes } from './payments/donate';
+import { footballLogoRoutes, footballLogosFromEnv } from './football/logos';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -90,13 +91,15 @@ function services(
     // Friends lists, messages and search read the users row: keep its picture in step.
     onChange: db ? (userId, url) => setUserAvatarUrl(db, userId, url) : undefined,
   });
+  // Football Mate club logos, looked up in the background once the server is listening.
+  footballLogos = footballLogosFromEnv();
   const base: ServerOptions = {
     port,
     auth,
     ratings,
     coach,
     analysis,
-    http: [authRoutes(auth), profiles, (req, res) => puzzles.handle(req, res)],
+    http: [authRoutes(auth), profiles, footballLogoRoutes(footballLogos), (req, res) => puzzles.handle(req, res)],
     adminToken: process.env.ADMIN_TOKEN || undefined,
   };
   return { auth, base, profileDeps, profileStore };
@@ -104,6 +107,8 @@ function services(
 
 // Postgres when DATABASE_URL is set, otherwise embedded Postgres in .data/pglite.
 // CHESSMATE_DB=off runs fully in memory (nothing saved, no friends).
+let footballLogos: ReturnType<typeof footballLogosFromEnv> = null;
+
 async function start() {
   if (process.env.CHESSMATE_DB === 'off') {
     console.log('Database disabled (CHESSMATE_DB=off): accounts and games are not saved, friends are off');
@@ -214,6 +219,7 @@ async function start() {
 
 const { server, close } = await start();
 server.listen().then((p) => {
+  footballLogos?.start();
   console.log(`ChessMate game server listening on :${p} (ws path /ws, auth API /api/auth, social API /api/social, ${puzzleStore.count()} puzzles)`);
   // ~20,700 bundled puzzles, loaded in the background on first start.
   void loadBundledPuzzles(puzzleStore).catch((e) => console.warn('bundled puzzles failed to load:', e instanceof Error ? e.message : e));

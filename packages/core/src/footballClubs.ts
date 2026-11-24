@@ -2,10 +2,10 @@
  * Football Mate: players pick the football club they support, and a small club
  * badge shows next to their name (profile, games, player cards).
  *
- * Club crests are trademarks, so ChessMate does not ship them. Each club is drawn
- * as an original badge from its colours and short name (apps/app/src/features/football).
- * `logo` is the slot for official artwork once it is licensed; while it is empty the
- * neutral badge is used.
+ * Logos come from TheSportsDB: the game server looks each club up and serves the URLs
+ * (apps/server/src/football/logos.ts), and the app draws them (apps/app/src/features/football).
+ * A club without a logo, or whose logo fails to load, gets an original shield drawn from
+ * its colours and short name. `logo` pins a URL for one club and wins over the lookup.
  */
 
 export interface FootballClub {
@@ -20,7 +20,7 @@ export interface FootballClub {
   league: FootballLeague;
   /** Badge colours: field, then trim. Hex, #rrggbb. */
   colors: readonly [primary: string, secondary: string];
-  /** Licensed crest URL. Empty until artwork is licensed for that club. */
+  /** Fixed logo URL for this club, used instead of the server's lookup. Usually empty. */
   logo?: string;
 }
 

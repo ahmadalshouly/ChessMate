@@ -5,19 +5,33 @@ import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
 import { useT } from '@/i18n';
 import { Text, useAppTheme } from '@/ui';
 
+import { markLogoBroken, useClubLogo } from './logos';
+
 /** Shield outline in a 24 x 28 box. */
 const SHIELD = 'M12 1.2 L22.4 4.2 V13 C22.4 19.8 17.8 24.4 12 26.8 C6.2 24.4 1.6 19.8 1.6 13 V4.2 Z';
 
 /**
- * A club's badge: the licensed crest when the club has one, otherwise an original
- * shield in the club's colours with its short name (no club artwork is copied).
- * Short names are drawn from 30 px up; smaller shields show the colours only.
+ * A club's badge: its logo from the server's logo lookup (or `club.logo`) when there is
+ * one, otherwise an original shield in the club's colours with its short name. A logo
+ * that fails to load falls back to the shield. Short names are drawn from 30 px up;
+ * smaller shields show the colours only.
  */
 export function ClubCrest({ club, size = 20 }: { club: FootballClub; size?: number }) {
   const c = useAppTheme().colors;
   const h = size;
   const w = (size * 24) / 28;
-  if (club.logo) return <Image source={{ uri: club.logo }} style={{ width: w, height: h }} resizeMode="contain" accessibilityIgnoresInvertColors />;
+  const logo = useClubLogo(club.id) ?? club.logo ?? null;
+  if (logo) {
+    return (
+      <Image
+        source={{ uri: logo }}
+        style={{ width: w, height: h }}
+        resizeMode="contain"
+        accessibilityIgnoresInvertColors
+        onError={() => markLogoBroken(logo)}
+      />
+    );
+  }
   const [field, trim] = club.colors;
   const letters = size >= 30;
   const fontSize = club.short.length > 3 ? 5.6 : 7;
