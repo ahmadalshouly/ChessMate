@@ -6,7 +6,7 @@ import { AppState } from 'react-native';
 
 import { notificationsApi, onNotificationsAccountChange } from './api';
 import { playClient } from '../playClient';
-import { currentPushStatus, disablePush, enablePush, pushSupported, type PushStatus } from './push';
+import { currentPushStatus, disablePush, enablePush, pushSupported, pushTokensAvailable, type PushStatus } from './push';
 import { translate } from '@/i18n';
 
 const POLL_MS = 30_000;
@@ -122,8 +122,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       return;
     }
     void currentPushStatus().then(setPush);
-    // Apple or Google can rotate the device token; register the new one.
-    const rotated = Notifications.addPushTokenListener(() => void currentPushStatus().then(setPush));
+    // Apple or Google can rotate the device token; register the new one. Not in
+    // Expo Go on Android, where subscribing throws instead of doing nothing.
+    const rotated = pushTokensAvailable ? Notifications.addPushTokenListener(() => void currentPushStatus().then(setPush)) : null;
     const received = Notifications.addNotificationReceivedListener(() => void refresh());
     const tapped = Notifications.addNotificationResponseReceivedListener((r) => {
       const data = r.notification.request.content.data as Record<string, unknown> | undefined;
@@ -134,7 +135,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const launchUrl = launch?.notification.request.content.data?.url;
     if (typeof launchUrl === 'string') setTimeout(() => go(launchUrl), 0);
     return () => {
-      rotated.remove();
+      rotated?.remove();
       received.remove();
       tapped.remove();
     };
