@@ -2,7 +2,20 @@
 
 /** To the engine farm (see farmSource.ts). */
 export type FarmIn =
-  | { t: 'search'; id: number; fen: string; depth: number; multipv: number; movetime?: number; urgent?: boolean }
+  | {
+      t: 'search';
+      id: number;
+      /** The position, or with `moves` the game's start position. */
+      fen: string;
+      /** UCI moves played from `fen`, space separated, so the engine sees the game's history (repetitions). */
+      moves?: string;
+      /** Engine preference: lane k runs on engine k when it can, so consecutive positions share a hash table. */
+      lane?: number;
+      depth: number;
+      multipv: number;
+      movetime?: number;
+      urgent?: boolean;
+    }
   | { t: 'cancel'; id: number };
 
 /** From the engine farm. */

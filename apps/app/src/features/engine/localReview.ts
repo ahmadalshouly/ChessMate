@@ -19,10 +19,15 @@ import { AbortError, localEngine } from './localEngine';
 import { evaluateOnServer, isTransient } from './serverEngine';
 
 /**
- * Per-position search for reviews on the device. Depth 12 with two lines grades
- * moves the same as deeper searches in almost every position (measured on a
- * full game: same accuracy within a point, same blunders and best moves) at a
- * fraction of the time; the time cap stops one sharp position stalling a review.
+ * Per-position search for reviews on the device: depth 12 with two lines (the
+ * second spots only moves), each engine walking a stretch of the game
+ * backwards with the game's moves (see gradePositions). Measured with the
+ * app's own engine page in Chromium on four games (304 positions), against
+ * Stockfish's full network at depth 20: evaluations off by ~61 centipawns on
+ * average instead of ~77, the engine's best move matched 69% of the time
+ * instead of 65%, and about 15% less time than searching the same depth in
+ * game order without history. Depth 13 is closer still (~56) but takes about
+ * 1.7 times as long. The time cap stops one sharp position stalling a review.
  */
 export const LOCAL_REVIEW = { depth: 12, multipv: 2, movetimeMs: 1500 } as const;
 
@@ -242,6 +247,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   try {
     if (done < total) {
       await gradePositions(fens, evals, {
+        moves,
         signal,
         watched: () => job.listeners.size > 0,
         onEval: (i, ev) => {
@@ -294,7 +300,7 @@ const SERVER_RETRIES = 3;
 function gradePositions(
   fens: string[],
   evals: (PositionEval | undefined)[],
-  o: { signal: AbortSignal; watched: () => boolean; onEval: (i: number, ev: PositionEval) => void; onServer: () => void },
+  o: { moves: string[]; signal: AbortSignal; watched: () => boolean; onEval: (i: number, ev: PositionEval) => void; onServer: () => void },
 ): Promise<void> {
   const total = fens.length;
   return new Promise<void>((resolve, reject) => {
@@ -390,16 +396,31 @@ function gradePositions(
       if (serverDead) fail();
       else startServer();
     };
-    const startLocal = () => {
-      fens.forEach((fen, i) => {
-        if (evals[i]) return;
-        const ctrl = new AbortController();
-        local.set(i, ctrl);
-        localEngine.search(fen, { ...LOCAL_REVIEW, signal: ctrl.signal }).then(
-          (res) => settle(i, positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null)),
-          localFailed,
-        );
-      });
+    const startLocal = async () => {
+      let lanes: number;
+      try {
+        lanes = await localEngine.engines();
+      } catch (e) {
+        return localFailed(e);
+      }
+      if (settled) return;
+      // Each engine takes one stretch of the game and walks it backwards: every
+      // search then starts from what the engine just learned about the position
+      // after it (its hash table), which makes the same depth noticeably more
+      // accurate. The engines also get the moves that led to each position, so
+      // they see repetitions.
+      const todo = fens.map((_, i) => i).filter((i) => !evals[i]);
+      const per = Math.ceil(todo.length / lanes);
+      for (let lane = 0; lane < lanes; lane++) {
+        for (const i of todo.slice(lane * per, (lane + 1) * per).reverse()) {
+          const fen = fens[i]!;
+          const ctrl = new AbortController();
+          local.set(i, ctrl);
+          localEngine
+            .search(fen, { ...LOCAL_REVIEW, signal: ctrl.signal, lane, history: { start: fens[0]!, moves: o.moves.slice(0, i) } })
+            .then((res) => settle(i, positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null)), localFailed);
+        }
+      }
     };
 
     // Watches for a device engine that has gone quiet.
@@ -411,7 +432,7 @@ function gradePositions(
     if (o.signal.aborted) return onAbort();
     o.signal.addEventListener('abort', onAbort, { once: true });
     if (localDead) startServer();
-    else startLocal();
+    else void startLocal();
   });
 }
 
