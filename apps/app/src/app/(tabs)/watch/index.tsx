@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { useTicker } from '@/components/PlayerBar';
+import { AdSpot } from '@/features/ads/AdSpot';
 import { EventCard, GameThumb, StatusPill, StreamerCard } from '@/features/watch/components';
 import { FeaturedStream } from '@/features/watch/FeaturedStream';
 import { useT } from '@/i18n';
@@ -119,6 +120,8 @@ export default function WatchScreen() {
           </Text>
         )}
       </Stack>
+
+      <AdSpot spot="watch.home" />
 
       {/* Events */}
       {!data && events.loading && <Skeleton height={120} radius="lg" />}

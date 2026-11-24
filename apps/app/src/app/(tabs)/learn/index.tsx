@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { AdSpot } from '@/features/ads/AdSpot';
 import { useLessonCatalog } from '@/features/learn/catalog';
 import { lessonIcon, lessonPuzzleCount } from '@/features/learn/lessonView';
 import { useLessonProgress, type ProgressMap } from '@/features/learn/progress';
@@ -65,6 +66,8 @@ export default function Learn() {
           </Text>
         ) : null}
       </GlassView>
+
+      <AdSpot spot="learn.list" />
 
       {chapters.map((chapter, i) => (
         <Stack key={chapter.id} gap="md">

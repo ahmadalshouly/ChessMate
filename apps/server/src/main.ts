@@ -32,6 +32,7 @@ import { BroadcastSync } from './watch/sync';
 import { PlayHabitsService } from './habits/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
+import { AdService } from './ads/service';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
 import { donateRoutes } from './payments/donate';
@@ -170,6 +171,10 @@ async function start() {
   const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
   await tournaments.load();
   admin.tournaments = tournaments;
+  // Sponsored ad spots: staff switch a spot on and place a sponsor on it for a period.
+  const ads = new AdService({ db: db.db });
+  await ads.load();
+  admin.ads = ads;
   const lessons = new LessonService({ db: db.db, puzzles: puzzleStore });
   await lessons.load();
   admin.lessons = lessons;
@@ -185,6 +190,7 @@ async function start() {
     social: new SocialService(db.db, { privacyOf }),
     messages,
     tournaments,
+    ads,
     community,
     habits,
     awards,

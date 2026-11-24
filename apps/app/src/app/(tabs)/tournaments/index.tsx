@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useTicker } from '@/components/PlayerBar';
+import { AdSpot } from '@/features/ads/AdSpot';
 import { Page } from '@/components/shell/Page';
 import { formatLabel, tournamentClock } from '@/features/tournaments/format';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
@@ -65,6 +66,7 @@ export default function Tournaments() {
           <Text tone="muted">{tr('tournaments.noneBody')}</Text>
         </GlassView>
       )}
+      <AdSpot spot="tournaments.list" />
       {live.length > 0 && <Section title={tr('tournaments.live')} items={live} now={now} />}
       {upcoming.length > 0 && <Section title={tr('tournaments.upcoming')} items={upcoming} now={now} />}
       {past.length > 0 && <Section title={tr('tournaments.past')} items={past} now={now} />}

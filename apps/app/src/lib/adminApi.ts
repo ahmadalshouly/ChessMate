@@ -1,5 +1,8 @@
 import type {
   AccountCloseReason,
+  AdPlacementInput,
+  AdPlacementView,
+  AdSpotState,
   Campaign,
   CampaignAudience,
   CampaignInput,
@@ -40,6 +43,17 @@ import type {
 import { useMemo } from 'react';
 
 import { useAuth } from '@/lib/auth';
+
+/**
+ * A placement as the console's form sends it: `period` is the shorthand the
+ * server turns into `endsAt`, and `image` left out keeps the stored one.
+ */
+export type AdPlacementForm = Partial<Omit<AdPlacementInput, 'startsAt' | 'endsAt'>> & {
+  spot: AdPlacementInput['spot'];
+  startsAt?: number;
+  endsAt?: number;
+  period?: string;
+};
 
 /** Admin live view of a tournament (see TournamentService.adminDetail on the server). */
 export interface AdminTournamentView extends TournamentDetail {
@@ -148,6 +162,14 @@ export function useAdminApi() {
         post<{ message: TournamentChatMessage }>(`/tournaments/${id(tid)}/hidechat`, { messageId, hidden }).then((r) => r.message),
       sponsors: () => get<{ applications: SponsorApplicationView[] }>('/sponsors').then((r) => r.applications),
       reviewSponsor: (aid: string, status: string, note: string) => post(`/sponsors/${id(aid)}`, { status, note }),
+      /** Emails the company asking for the title, text, image and link. */
+      requestSponsorMaterial: (aid: string) => post<{ application: SponsorApplicationView }>(`/sponsors/${id(aid)}/material`).then((r) => r.application),
+      ads: () => get<{ spots: AdSpotState[]; placements: AdPlacementView[] }>('/ads'),
+      setAdSpot: (spot: string, patch: { enabled?: boolean; note?: string }) => post<{ spot: AdSpotState }>(`/ads-spots/${id(spot)}`, patch).then((r) => r.spot),
+      createAdPlacement: (p: AdPlacementForm) => post<{ placement: AdPlacementView }>('/ads', { ...p }).then((r) => r.placement),
+      saveAdPlacement: (pid: string, p: AdPlacementForm) => post<{ placement: AdPlacementView }>(`/ads/${id(pid)}`, { ...p }).then((r) => r.placement),
+      stopAdPlacement: (pid: string, stopped: boolean) => post<{ placement: AdPlacementView }>(`/ads/${id(pid)}/stop`, { stopped }).then((r) => r.placement),
+      deleteAdPlacement: (pid: string) => post(`/ads/${id(pid)}/delete`),
       payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),
       reviewPayout: (pid: string, status: string, note: string) => post(`/payouts/${id(pid)}`, { status, note }),
       lessons: () => get<{ chapters: AdminLessonChapter[] }>('/lessons').then((r) => r.chapters),

@@ -58,6 +58,8 @@ export const ADMIN_PERMISSIONS = [
   'broadcasts.manage',
   /** Send, schedule and automate push notifications to players. Admins only. */
   'notifications.send',
+  /** Switch ad spots on and off, and place sponsors on them. Admins only. */
+  'ads.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
