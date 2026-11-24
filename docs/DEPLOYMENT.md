@@ -112,6 +112,7 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `ADMIN_USERNAMES` | unset | `fly.toml` or `fly secrets set` | Comma-separated usernames made admins at startup (or when they sign up). Staff roles are stored in the database, so this is only needed once. `pnpm admin:grant <username> [admin\|moderator\|user]` does the same from a shell |
 | `TRUST_PROXY` | unset (`fly` in `fly.toml`) | `fly.toml` | Where rate limits read the player's IP. `fly` = `Fly-Client-IP`; `1` = last `X-Forwarded-For` entry (one proxy of your own); unset = socket address. Without it behind a proxy, every player shares the proxy's address and its limits (20 signups an hour, about 1 connection a second) |
 | `PUBLIC_URL` | derived from the request | `fly.toml` | Public server address used in links the server hands out (title proof files in the admin console) |
+| `EXPO_ACCESS_TOKEN` | unset | `fly secrets set` | Only when "Enhanced push security" is on for the Expo project. Push keys for Apple and Google live in Expo, not here: see [PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md) |
 
 Features that add their own server settings (for example push notification
 credentials) should add a row here and to `.env.example`.
@@ -121,6 +122,7 @@ Anything secret goes in `fly secrets set`, never in `fly.toml` or git.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
+| `GOOGLE_SERVICES_JSON` | `./google-services.json` if present | EAS file variable with the Firebase `google-services.json`; Android builds need it for push ([PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md)) |
 | `EXPO_PUBLIC_SERVER_URL` | LAN auto-detect in dev | Game server WebSocket URL, e.g. `wss://chessmate-server.fly.dev/ws`. Public: it ends up in the app bundle. Store and preview builds take it from `apps/app/eas.json`; change it there if the Fly app has another name. A `production` EAS build stops if it is missing or not `wss://` |
 
 ### GitHub Actions secrets and variables
@@ -131,6 +133,7 @@ Anything secret goes in `fly secrets set`, never in `fly.toml` or git.
 | `FLY_API_TOKEN` | secret | `deploy.yml` | Deploy the server to Fly.io |
 | `CLOUDFLARE_API_TOKEN` | secret | `deploy.yml` | Publish the web app to Cloudflare Pages |
 | `CLOUDFLARE_ACCOUNT_ID` | secret | `deploy.yml` | Cloudflare account for Pages |
+| `GOOGLE_SERVICES_JSON` | `./google-services.json` if present | EAS file variable with the Firebase `google-services.json`; Android builds need it for push ([PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md)) |
 | `EXPO_PUBLIC_SERVER_URL` | variable | `ci.yml`, `deploy.yml` | Server URL baked into web builds |
 | `CLOUDFLARE_PAGES_PROJECT` | variable | `deploy.yml` | Pages project name (default `chessmate`) |
 

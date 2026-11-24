@@ -9,6 +9,7 @@ import { BreakBanner } from '@/components/BreakBanner';
 import { DailyPuzzleCard } from '@/components/DailyPuzzleCard';
 import { LiveBoard } from '@/components/LiveBoard';
 import { OnlineFriends } from '@/components/OnlineFriends';
+import { PushPrompt } from '@/components/notifications/PushPrompt';
 import { GameSetupSheet } from '@/components/play/GameSetupSheet';
 import { BrandLine } from '@/components/shell/BrandLine';
 import { Page } from '@/components/shell/Page';
@@ -84,6 +85,7 @@ export default function Home() {
       </View>
 
       <BreakBanner />
+      <PushPrompt />
 
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={1} title={tr('home.quick.title')} action={<Text variant="caption" tone="tertiary">{tr('home.quick.hint')}</Text>} />

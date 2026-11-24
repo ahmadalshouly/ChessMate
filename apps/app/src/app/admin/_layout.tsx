@@ -33,6 +33,8 @@ export default function AdminLayout() {
       <Stack.Screen name="broadcasts/index" options={{ title: tr('watch.admin.broadcasts'), headerShown: !wide }} />
       <Stack.Screen name="streamers" options={{ title: tr('watch.admin.streamers'), headerShown: !wide }} />
       <Stack.Screen name="lessons/index" options={{ title: tr('admin.nav.lessons'), headerShown: !wide }} />
+      <Stack.Screen name="notifications/index" options={{ title: tr('pushAdmin.nav'), headerShown: !wide }} />
+      <Stack.Screen name="notifications/[id]" options={{ title: tr('pushAdmin.nav') }} />
     </Stack>
   );
   return (

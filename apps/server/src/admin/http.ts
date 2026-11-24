@@ -70,6 +70,12 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /lesson-chapters             { id, title, blurb } creates or saves a chapter
  *   POST /lesson-chapters/:id/delete  (only when empty); POST /lesson-chapters/:id/move { delta }
  *   GET  /lesson-puzzles?theme=&rating=   a few puzzles to pick from; ?id= one puzzle by id
+ *   GET  /campaigns                   push campaigns and push health
+ *   POST /campaigns                   { name, kind, message, audience, scheduleAt?, trigger?, go? } (go: send/schedule/switch on now)
+ *   GET  /campaigns/:id;  POST /campaigns/:id  same fields, saves (go: launch after saving)
+ *   POST /campaigns/:id/action        { action: launch | pause | resume | cancel | delete }
+ *   POST /campaign-preview            { audience } how many players it reaches now
+ *   POST /campaign-test               { message } sends it to your own devices
  */
 export function adminRoutes(admin: AdminService, auth: AuthService, opts: { corsOrigins?: string[] } = {}): HttpRoute {
   const corsOrigins = opts.corsOrigins ?? (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()) : undefined);
@@ -205,6 +211,22 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.moveLessonChapter(actor, id!, await body()));
         case 'GET lesson-puzzles':
           return ok({ puzzles: admin.lessonPuzzles(actor, { theme: q.get('theme') ?? undefined, rating: num('rating'), id: q.get('id') ?? undefined }) });
+        case 'GET campaigns':
+          return ok(await admin.campaignList(actor));
+        case 'POST campaigns':
+          return ok({ campaign: await admin.createCampaign(actor, await body()) });
+        case 'GET campaigns/:id':
+          return ok({ campaign: await admin.campaign(actor, id!) });
+        case 'POST campaigns/:id':
+          return ok({ campaign: await admin.updateCampaign(actor, id!, await body()) });
+        case 'POST campaigns/:id/action': {
+          const b = await body();
+          return ok({ result: await admin.campaignAction(actor, id!, b.action) });
+        }
+        case 'POST campaign-preview':
+          return ok(await admin.campaignPreview(actor, await body()));
+        case 'POST campaign-test':
+          return ok(await admin.campaignTest(actor, await body()));
         case 'GET audit':
           return ok({
             entries: await admin.auditLog(actor, { target: q.get('target') ?? undefined, actor: q.get('actor') ?? undefined, action: q.get('action') ?? undefined, before: num('before'), limit: num('limit') }),

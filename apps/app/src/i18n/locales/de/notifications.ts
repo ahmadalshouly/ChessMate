@@ -2,6 +2,12 @@ import type { Messages } from '../../core';
 import type { notifications as en } from '../en/notifications';
 
 export const notifications: Messages<typeof en> = {
+  prompt: {
+    title: 'Wissen, wann du am Zug bist',
+    body: 'Erhalte eine Benachrichtigung, wenn dein Gegner zieht, dich jemand herausfordert oder ein Turnier beginnt.',
+    enable: 'Einschalten',
+    later: 'Nicht jetzt',
+  },
   push: {
     webOnly: 'Push-Benachrichtigungen gibt es in den Apps für iOS und Android.',
     simulator: 'Push-Benachrichtigungen brauchen ein echtes Telefon, keinen Simulator.',
@@ -77,6 +83,10 @@ export const notifications: Messages<typeof en> = {
     tournament: {
       label: 'Turniere',
       description: 'Ein Turnier, dem du beigetreten bist, beginnt',
+    },
+    news: {
+      label: 'Neuigkeiten und Erinnerungen',
+      description: 'Updates, Events und Erinnerungen von ChessMate',
     },
     system: {
       label: 'Konto und Sicherheit',

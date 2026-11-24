@@ -337,8 +337,9 @@ The bell in the header opens the inbox; **Settings** there picks which alerts ar
 
 - **Inbox and settings** work everywhere (web, Expo Go, builds) as soon as `pnpm dev:server` is running.
 - **Push on iPhone**: works in Expo Go. Open Notification settings, tap **Turn on push** and allow. To see one arrive, send yourself a friend request or challenge from a second account (another browser tab works): a system banner appears and the bell badge updates. There is no test button in the app; development servers still accept `POST /api/notifications/test` with your access token for scripted checks.
-- **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development build with Firebase credentials (`google-services.json`), which uses EAS build quota, so it is not set up yet.
-- Push goes through Expo's push service. Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
+- **Push on Android**: Expo Go cannot receive push (Expo removed it in SDK 53). It needs a development or preview build with Firebase credentials (`google-services.json`); see [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md).
+- Push goes through Expo's push service. Store builds need an APNs key (iPhone) and an FCM V1 key (Android) uploaded to Expo; the steps are in [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md). Set `EXPO_ACCESS_TOKEN` on the server only if "enhanced push security" is turned on for the Expo project.
+- **Admin → Notifications** sends push campaigns now, on a schedule, or as triggers on what players do, and shows push health (devices, delivery receipts, credential errors).
 
 ### Testing on many devices at once
 
