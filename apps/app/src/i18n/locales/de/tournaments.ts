@@ -165,6 +165,14 @@ export const tournaments: Messages<typeof en> = {
     all: { one: 'Alle {count} zeigen', other: 'Alle {count} zeigen' },
     less: 'Weniger zeigen',
   },
+  private: {
+    badge: 'Nur auf Einladung',
+    title: 'Eingeladene Spieler',
+    hint: 'Nur eingeladene Spieler können beitreten und spielen. Zuschauen können alle.',
+    youAreInvited: 'Du bist zum Spielen eingeladen.',
+    watchOnly: 'Dieses Turnier ist nur auf Einladung. Du kannst die Partien ansehen und die Tabelle verfolgen.',
+    chatReadOnly: 'Nur eingeladene Spieler können hier chatten.',
+  },
   chat: {
     title: 'Chat',
     placeholder: 'Schreib allen im Turnier etwas',

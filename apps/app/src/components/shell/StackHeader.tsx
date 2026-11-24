@@ -31,7 +31,9 @@ export function StackHeader({ navigation, options, route, back, insetTop }: Nati
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel={back.title ? tr('common.backTo', { title: back.title }) : tr('common.back')}
-            onPress={() => navigation.goBack()}
+            // A quick second tap lands after the first already went back; going back again
+            // from there has nowhere to go and only logs an unhandled GO_BACK.
+            onPress={() => navigation.canGoBack() && navigation.goBack()}
             hitSlop={8}
             scaleTo={0.88}>
             <Glass radius={20} interactive style={[styles.back, floatShadow(t.scheme)]}>

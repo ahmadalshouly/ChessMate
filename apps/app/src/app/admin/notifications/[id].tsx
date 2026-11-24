@@ -13,7 +13,7 @@ import {
   type CampaignTrigger,
   type TriggerEvent,
 } from '@chessmate/core';
-import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router';
+import { Stack as RouterStack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -23,6 +23,7 @@ import { STATUS_TONE } from '@/features/admin/campaigns';
 import { AdminPage, ErrorLine, PageHeader, Section } from '@/features/admin/ui';
 import { useT, type TKey } from '@/i18n';
 import { Badge, Button, Row, Stack, Switch, Text, TextField, useAppTheme, useToast } from '@/ui';
+import { goBack } from '@/lib/goBack';
 
 
 const LINKS: { url: string | null; label: TKey }[] = [
@@ -229,7 +230,7 @@ export default function CampaignEditor() {
         title: tr(!go ? 'pushAdmin.form.saved' : c.kind === 'trigger' ? 'pushAdmin.form.triggerOn' : c.kind === 'scheduled' ? 'pushAdmin.form.scheduled' : 'pushAdmin.form.sent'),
         tone: 'success',
       });
-      router.back();
+      goBack('/admin/notifications');
     } catch (e) {
       setError(e instanceof Error ? e.message : tr('admin.common.failed'));
       setConfirm(false);

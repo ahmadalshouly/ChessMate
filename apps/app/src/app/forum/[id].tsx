@@ -1,5 +1,5 @@
 import { COMMUNITY_LIMITS, type ReplyView, type TopicView } from '@chessmate/core';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -12,6 +12,7 @@ import { forumApi } from '@/lib/communityApi';
 import { useSocialRefresh } from '@/lib/realtime';
 import { Badge, GlassView, Text } from '@/ui';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { goBack } from '@/lib/goBack';
 
 /** One forum topic with its replies; staff can pin, lock or remove it. */
 export default function TopicScreen() {
@@ -78,7 +79,7 @@ export default function TopicScreen() {
                         onPress={async () => {
                           if (!confirmDelete) return setConfirmDelete(true);
                           await forumApi.removeTopic(topic.id).catch((e: Error) => setError(e.message));
-                          router.back();
+                          goBack('/forum');
                         }}
                       />
                     )}

@@ -50,6 +50,8 @@ export const server: Messages<typeof en> = {
   messageSelf: 'لا يمكنك مراسلة نفسك.',
   signInMessages: 'سجّل الدخول لاستخدام الرسائل.',
   tournamentFull: 'هذه البطولة ممتلئة.',
+  tournamentPrivate: 'هذه البطولة بالدعوة فقط. يمكنك المشاهدة، لكن الانضمام للاعبين المدعوين فقط.',
+  tournamentPrivateChat: 'يمكن فقط للاعبين المدعوين الدردشة في هذه البطولة.',
   tournamentOver: 'انتهت هذه البطولة.',
   signInTournament: 'سجّل الدخول للانضمام إلى البطولات.',
   secretRevealed: 'هذه النقلة غير ممكنة: الوزير السري يحمي المربع وقد كُشف الآن.',

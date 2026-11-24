@@ -9,6 +9,7 @@ import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { apiRequest } from '@/lib/social/api';
 import { Button, GlassView, Text } from '@/ui';
+import { goBack } from '@/lib/goBack';
 
 interface PublicGame {
   id: string;
@@ -97,7 +98,7 @@ export default function OnlineGameScreen() {
           <GlassView padding="lg" radius="xl" style={{ gap: 12, alignItems: 'flex-start', maxWidth: 480, width: '100%' }}>
             <Text variant="heading">{tr('games.replay.notFound')}</Text>
             <Text tone="muted">{serverText(error)}</Text>
-            <Button variant="secondary" title={tr('common.back')} onPress={() => router.back()} />
+            <Button variant="secondary" title={tr('common.back')} onPress={() => goBack('/games')} />
           </GlassView>
         ) : (
           <ActivityIndicator style={{ marginTop: 48 }} />

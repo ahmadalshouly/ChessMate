@@ -1,6 +1,6 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { tournamentsApi } from '@/lib/tournamentsApi';
 import { Button, GlassView, Text, TextField, useAppTheme } from '@/ui';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { goBack } from '@/lib/goBack';
 
 /** "Sponsor a tournament": anyone can apply; the team reviews it and gets in touch. */
 export default function SponsorApply() {
@@ -50,7 +51,7 @@ export default function SponsorApply() {
             <Ionicons name="checkmark-circle" size={28} color={t.colors.success} />
             <Text variant="heading">{tr('tournaments.sponsor.thanksTitle')}</Text>
             <Text tone="muted">{tr('tournaments.sponsor.thanksBody')}</Text>
-            <Button variant="secondary" title={tr('tournaments.back')} onPress={() => router.back()} />
+            <Button variant="secondary" title={tr('tournaments.back')} onPress={() => goBack('/tournaments')} />
           </GlassView>
         ) : (
           <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
