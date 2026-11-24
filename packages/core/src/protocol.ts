@@ -89,6 +89,8 @@ export interface LobbyState {
 export type ClientMessage =
   | { t: 'hello'; v: number; token: string }
   | { t: 'ping'; id: number }
+  /** The app moved to the foreground (active) or background; push goes out only while no screen is in front. */
+  | { t: 'appState'; active: boolean }
   | {
       t: 'seek';
       timeControl: TimeControl;

@@ -122,7 +122,48 @@ describe('ExpoPushSender', () => {
     const msgs = Array.from({ length: 150 }, (_, i) => ({ to: i === 7 ? 'ExpoPushToken[dead]' : `ExpoPushToken[${i}]`, title: 't', body: 'b' }));
     const r = await sender.send(msgs);
     expect(bodies.map((b) => b.length)).toEqual([100, 50]);
-    expect(r).toEqual({ sent: 149, failed: 1, invalidTokens: ['ExpoPushToken[dead]'] });
+    expect(r).toMatchObject({ sent: 149, failed: 1, invalidTokens: ['ExpoPushToken[dead]'] });
+    expect(r.ok[7]).toBe(false);
+    expect(r.ok.filter(Boolean)).toHaveLength(149);
+    // The platform is for the error log only; Expo never sees it.
+    await sender.send([{ to: 'ExpoPushToken[p]', title: 't', body: 'b', platform: 'ios' }]);
+    expect(bodies.at(-1)![0]).not.toHaveProperty('platform');
+  });
+
+  it('reads receipts: drops dead devices and logs missing push credentials', async () => {
+    let now = 1_000_000;
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      if (url.endsWith('/send')) {
+        const msgs = JSON.parse(String(init.body)) as { to: string }[];
+        return new Response(JSON.stringify({ data: msgs.map((m) => ({ status: 'ok', id: `t-${m.to}` })) }), { status: 200 });
+      }
+      const { ids } = JSON.parse(String(init.body)) as { ids: string[] };
+      const data: Record<string, unknown> = {};
+      for (const id of ids) {
+        if (id.includes('[gone]')) data[id] = { status: 'error', message: 'not registered', details: { error: 'DeviceNotRegistered' } };
+        else if (id.includes('[android]')) data[id] = { status: 'error', message: 'Unable to retrieve the FCM server key', details: { error: 'InvalidCredentials' } };
+        else data[id] = { status: 'ok' };
+      }
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    }) as typeof fetch;
+    const logs: string[] = [];
+    const sender = new ExpoPushSender({ fetch: fakeFetch, now: () => now, log: (m) => logs.push(m) });
+    const dead: string[] = [];
+    sender.onInvalidToken = (t) => dead.push(t);
+    await sender.send([
+      { to: 'ExpoPushToken[ok]', title: 't', body: 'b', platform: 'ios' },
+      { to: 'ExpoPushToken[gone]', title: 't', body: 'b', platform: 'ios' },
+      { to: 'ExpoPushToken[android]', title: 't', body: 'b', platform: 'android' },
+    ]);
+    await sender.checkReceipts();
+    expect(sender.health().totals.delivered).toBe(0); // too early: Expo asks to wait ~15 minutes
+    now += 16 * 60_000;
+    await sender.checkReceipts();
+    expect(dead).toEqual(['ExpoPushToken[gone]']);
+    const h = sender.health();
+    expect(h.totals).toEqual({ accepted: 3, delivered: 1, failed: 2 });
+    expect(h.errors.map((e) => [e.code, e.platform])).toEqual(expect.arrayContaining([['InvalidCredentials', 'android'], ['DeviceNotRegistered', 'ios']]));
+    expect(logs.join('\n')).toMatch(/InvalidCredentials.*FCM V1/);
   });
 });
 
@@ -208,5 +249,48 @@ describe('HTTP API and realtime delivery', () => {
     await server.notifications.flush();
     expect(push.sent.at(-1)).toMatchObject({ to: 'ExpoPushToken[away]', title: 'Your turn', data: { kind: 'your_turn', gameId: start.game.gameId } });
     mover.ws.close();
+  });
+
+  it('counts a phone with the app in the background as away, and tells activity hooks', async () => {
+    const events: string[] = [];
+    server.setActivityHooks({
+      foreground: (id) => events.push(`fg:${id}`),
+      background: (id) => events.push(`bg:${id}`),
+      gameStarted: (id) => events.push(`start:${id}`),
+      gameFinished: (id) => events.push(`end:${id}`),
+    });
+    const ws = new WebSocket(`ws://localhost:${port}/ws`);
+    const inbox: ServerMessage[] = [];
+    ws.on('message', (d) => inbox.push(decodeServer(String(d))!));
+    await new Promise((r) => ws.on('open', r));
+    ws.send(encode({ t: 'hello', v: 1, token: 'dev:bgplayer:Bg' }));
+    const until = async (cond: () => boolean) => {
+      for (let i = 0; i < 200 && !cond(); i++) await new Promise((r) => setTimeout(r, 10));
+      expect(cond()).toBe(true);
+    };
+    await until(() => inbox.some((m) => m.t === 'welcome'));
+    server.notifications.store.addPushToken({ token: 'ExpoPushToken[bg]', userId: 'bgplayer', platform: 'ios', updatedAt: 0 });
+
+    // In front: in-app only.
+    expect(server.isForeground('bgplayer')).toBe(true);
+    server.notifications.notify('bgplayer', friendRequest({ fromId: 'x', fromName: 'X' }));
+    await server.notifications.flush();
+    expect(push.sent.some((m) => m.to === 'ExpoPushToken[bg]')).toBe(false);
+
+    // Phone locked: the socket may stay open, but the player is away, so push goes out.
+    ws.send(encode({ t: 'appState', active: false }));
+    await until(() => !server.isForeground('bgplayer'));
+    server.notifications.notify('bgplayer', friendRequest({ fromId: 'y', fromName: 'Y' }));
+    await server.notifications.flush();
+    expect(push.sent.filter((m) => m.to === 'ExpoPushToken[bg]')).toHaveLength(1);
+
+    ws.send(encode({ t: 'appState', active: true }));
+    await until(() => server.isForeground('bgplayer'));
+    const mine = () => events.filter((e) => e.endsWith(':bgplayer'));
+    expect(mine()).toEqual(['fg:bgplayer', 'bg:bgplayer', 'fg:bgplayer']);
+    ws.close();
+    await until(() => mine().length === 4);
+    expect(mine()[3]).toBe('bg:bgplayer');
+    server.setActivityHooks(null);
   });
 });

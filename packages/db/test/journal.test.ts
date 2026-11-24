@@ -16,4 +16,10 @@ describe('migration journal', () => {
       expect(cur.when, `${cur.tag} must be later than ${prev.tag}`).toBeGreaterThan(prev.when);
     }
   });
+
+  // Two branches each adding "0022_..." merge cleanly in git but leave two migrations with one number.
+  it('no two migrations share a number', () => {
+    const numbers = journal.entries.map((e) => e.tag.split('_')[0]);
+    expect(new Set(numbers).size).toBe(numbers.length);
+  });
 });

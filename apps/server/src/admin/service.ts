@@ -75,6 +75,7 @@ import { TitleService, toApplication } from '../titles/service';
 import type { MessageService } from '../messages/service';
 import { TournamentError, type TournamentService } from '../tournaments/service';
 import { LessonError, type LessonService } from '../lessons/service';
+import { CampaignError, type CampaignService } from '../notifications/campaigns';
 import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, warningNotice, type ModerationNotice } from './notices';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
@@ -155,6 +156,8 @@ export class AdminService {
   tournaments: TournamentService | null = null;
   /** Learn-tab lessons (database only). */
   lessons: LessonService | null = null;
+  /** Push campaigns: send now, schedule, triggers (database only). */
+  campaigns: CampaignService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -435,6 +438,92 @@ export class AdminService {
       titleGrantedAt: u.titleGrantedAt?.getTime() ?? null,
       titleApplications: titleApps.map((a) => toApplication(a, true)),
     };
+  }
+
+  // ---------------------------------------------------------------- push campaigns
+
+  private campaignService() {
+    if (!this.campaigns) throw new AdminError('unavailable', 'Push campaigns need the database');
+    return this.campaigns;
+  }
+
+  private async campaignCall<T>(fn: (c: CampaignService) => T | Promise<T>): Promise<T> {
+    try {
+      return await fn(this.campaignService());
+    } catch (e) {
+      if (e instanceof CampaignError) throw new AdminError(e.status === 404 ? 'not_found' : e.status === 409 ? 'conflict' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  async campaignList(actor: Actor) {
+    this.require(actor, 'notifications.send');
+    return this.campaignCall(async (c) => ({ campaigns: c.list(), health: await c.health() }));
+  }
+
+  campaign(actor: Actor, id: string) {
+    this.require(actor, 'notifications.send');
+    return this.campaignCall((c) => c.get(id));
+  }
+
+  /** `go: true` sends now, schedules, or switches a trigger on; otherwise it is saved as a draft. */
+  async createCampaign(actor: Actor, input: Record<string, unknown>) {
+    this.require(actor, 'notifications.send');
+    const go = input.go === true;
+    const c = await this.campaignCall((s) => s.create(input, actor.username, go));
+    await this.audit(actor, go ? `campaign.${c.kind === 'trigger' ? 'activate' : c.kind === 'scheduled' ? 'schedule' : 'send'}` : 'campaign.create', { type: 'system', id: c.id, name: c.name }, c.message.title, {
+      kind: c.kind,
+      audience: c.audience,
+      scheduleAt: c.scheduleAt,
+      trigger: c.trigger,
+    });
+    return c;
+  }
+
+  async updateCampaign(actor: Actor, id: string, input: Record<string, unknown>) {
+    this.require(actor, 'notifications.send');
+    let c = await this.campaignCall((s) => s.update(id, input));
+    if (input.go === true) c = await this.campaignCall((s) => s.launch(id));
+    await this.audit(actor, input.go === true ? 'campaign.launch' : 'campaign.update', { type: 'system', id: c.id, name: c.name }, c.message.title, { kind: c.kind, status: c.status });
+    return c;
+  }
+
+  async campaignAction(actor: Actor, id: string, action: unknown) {
+    this.require(actor, 'notifications.send');
+    const name = this.campaignService().get(id).name;
+    let result: unknown;
+    switch (action) {
+      case 'launch':
+        result = await this.campaignCall((s) => s.launch(id));
+        break;
+      case 'pause':
+        result = await this.campaignCall((s) => s.pause(id));
+        break;
+      case 'resume':
+        result = await this.campaignCall((s) => s.launch(id));
+        break;
+      case 'cancel':
+        result = await this.campaignCall((s) => s.cancel(id));
+        break;
+      case 'delete':
+        await this.campaignCall((s) => s.remove(id));
+        result = { deleted: true };
+        break;
+      default:
+        throw new AdminError('invalid_input', 'Unknown action');
+    }
+    await this.audit(actor, `campaign.${String(action)}`, { type: 'system', id, name });
+    return result;
+  }
+
+  async campaignPreview(actor: Actor, input: Record<string, unknown>) {
+    this.require(actor, 'notifications.send');
+    return this.campaignCall((s) => s.preview(input.audience));
+  }
+
+  async campaignTest(actor: Actor, input: Record<string, unknown>) {
+    this.require(actor, 'notifications.send');
+    return this.campaignCall((s) => s.test(input.message, { id: actor.id, username: actor.username }));
   }
 
   // ---------------------------------------------------------------- lessons

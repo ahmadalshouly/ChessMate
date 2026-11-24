@@ -10,6 +10,7 @@ import { DbFairPlayStore } from './fairplay';
 import { AuthService, DbAuthStore, mailerFromEnv, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
 import { createAnalysisService } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
+import { CampaignService } from './notifications/campaigns';
 import { DbNotificationStore } from './notifications/dbStore';
 import { DbGamePersistence, DbPlayerStore, loadRatingsInto } from './persistence';
 import { AccountProfileBackend, DbProfileStore, DevProfileBackend, MemoryProfileStore, dbGamesOf, profileRoutes, type FinishedGame } from './profiles';
@@ -205,6 +206,12 @@ async function start() {
       return id;
     },
   });
+  // Push campaigns from the admin console: send now, schedule, and triggers on what players do.
+  const campaigns = new CampaignService({ db: db.db, notifications: server.notifications, isForeground: (id) => server.isForeground(id) });
+  await campaigns.load();
+  campaigns.start();
+  admin.campaigns = campaigns;
+  server.setActivityHooks(campaigns);
   // Profiles show the same live presence as friends lists.
   profileDeps.online = (id) => server.isOnline(id);
   profileDeps.liveGame = (id) => server.liveGameOf(id);
@@ -217,6 +224,7 @@ server.listen().then((p) => {
   // ~20,700 bundled puzzles, loaded in the background on first start.
   void loadBundledPuzzles(puzzleStore).catch((e) => console.warn('bundled puzzles failed to load:', e instanceof Error ? e.message : e));
   console.log(`Engine analysis: ${engine} (starts on first request)`);
+  console.log(`Push notifications: Expo push service${process.env.EXPO_ACCESS_TOKEN ? ' with EXPO_ACCESS_TOKEN' : ''}. Delivery errors show in Admin → Notifications → Health`);
   const p2 = oauthConfigFromEnv();
   console.log(`Sign in with Google: ${p2.googleClientIds.length ? 'on' : 'off (set GOOGLE_CLIENT_IDS)'}; Sign in with Apple: ${p2.appleClientIds.length ? `on (${p2.appleClientIds.join(', ')})` : 'off'}`);
   if (!production) {

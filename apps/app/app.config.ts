@@ -4,6 +4,8 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 type NetAddress = { family: string | number; internal: boolean; address: string };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { networkInterfaces } = require('node:os') as { networkInterfaces(): Record<string, NetAddress[] | undefined> };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { existsSync } = require('node:fs') as { existsSync(path: string): boolean };
 
 /**
  * Wraps app.json. Two additions:
@@ -14,6 +16,12 @@ const { networkInterfaces } = require('node:os') as { networkInterfaces(): Recor
  *    the laptop). Left out of EAS builds.
  * 2. Sign in with Apple and Google: the Apple capability, and the app's bundle
  *    ID as a URL scheme so Google can redirect back to installed builds.
+ *
+ * 3. Push on Android: Expo sends Android push through Firebase Cloud Messaging,
+ *    and the app needs the Firebase project's google-services.json to get a
+ *    push token. It is read from the EAS file variable GOOGLE_SERVICES_JSON,
+ *    or ./google-services.json when present (it is not secret, but keep it out
+ *    of git if you prefer). See docs/PUSH_NOTIFICATIONS.md.
  *
  * Store builds (EAS profile "production") must name a public wss:// game
  * server, or the app would look for one on the local network. The build
@@ -39,10 +47,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const base = config as ExpoConfig;
   const scheme = Array.isArray(base.scheme) ? base.scheme : base.scheme ? [base.scheme] : [];
   const bundleId = base.ios?.bundleIdentifier ?? 'com.chessmate.app';
+  const googleServicesFile = process.env.GOOGLE_SERVICES_JSON || (existsSync('./google-services.json') ? './google-services.json' : undefined);
+  if (process.env.EAS_BUILD_PLATFORM === 'android' && !googleServicesFile) {
+    console.warn('No google-services.json (EAS variable GOOGLE_SERVICES_JSON): this Android build cannot receive push notifications. See docs/PUSH_NOTIFICATIONS.md');
+  }
   return {
     ...base,
     scheme: [...new Set([...scheme, bundleId])],
     ios: { ...base.ios, usesAppleSignIn: true },
+    android: { ...base.android, ...(googleServicesFile ? { googleServicesFile } : null) },
     plugins: [...(base.plugins ?? []), 'expo-apple-authentication'],
     extra: {
       ...base.extra,

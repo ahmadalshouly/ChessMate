@@ -1,4 +1,10 @@
 export const notifications = {
+  prompt: {
+    title: 'Know when it is your move',
+    body: 'Get a notification when an opponent moves, someone challenges you, or a tournament starts.',
+    enable: 'Turn on',
+    later: 'Not now',
+  },
   push: {
     webOnly: 'Push notifications are available in the iOS and Android apps.',
     simulator: 'Push notifications need a real phone, not a simulator.',
@@ -74,6 +80,10 @@ export const notifications = {
     tournament: {
       label: 'Tournaments',
       description: 'A tournament you joined is starting',
+    },
+    news: {
+      label: 'News and reminders',
+      description: 'Updates, events and reminders from ChessMate',
     },
     system: {
       label: 'Account and security',

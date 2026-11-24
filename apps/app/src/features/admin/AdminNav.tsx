@@ -27,6 +27,7 @@ export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconN
   { key: 'lessons', href: '/admin/lessons', label: 'admin.nav.lessons', icon: 'school-outline', needs: 'lessons.manage' },
   { key: 'broadcasts', href: '/admin/broadcasts', label: 'watch.admin.broadcasts', icon: 'tv-outline', needs: 'broadcasts.manage' },
   { key: 'streamers', href: '/admin/streamers', label: 'watch.admin.streamers', icon: 'videocam-outline', needs: 'streamers.review' },
+  { key: 'notifications', href: '/admin/notifications', label: 'pushAdmin.nav', icon: 'notifications-outline', needs: 'notifications.send' },
   { key: 'messages', href: '/admin/messages', label: 'admin.nav.messages', icon: 'megaphone-outline', needs: 'messages.broadcast' },
   { key: 'games', href: '/admin/games', label: 'admin.nav.games', icon: 'grid-outline', needs: 'games.view' },
   { key: 'audit', href: '/admin/audit', label: 'admin.nav.audit', icon: 'document-text-outline', needs: 'audit.view' },
