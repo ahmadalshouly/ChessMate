@@ -12,6 +12,7 @@ import type {
   AdminDashboard,
   AdminFairPlayCase,
   AdminFairPlayFile,
+  AdminFairPlayGame,
   AdminGameDetail,
   AdminGameSummary,
   AdminLesson,
@@ -126,6 +127,11 @@ export function useAdminApi() {
       openCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/open`, { note }),
       dismissCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/dismiss`, { note }),
       banFairPlay: (playerId: string, note: string) => post<{ refunds: { playerId: string; points: number }[] }>(`/fairplay/${id(playerId)}/ban`, { note }),
+      /** Recent rated games of a case that a moderator's device can analyse. */
+      fairPlayGames: (playerId: string, limit?: number) => get<{ games: AdminFairPlayGame[] }>(`/fairplay/${id(playerId)}/games${qs({ limit })}`).then((r) => r.games),
+      /** Engine results from this device for one of those games; the server checks and grades them. */
+      submitFairPlayAnalysis: (playerId: string, gameId: string, depth: number, evals: unknown[]) =>
+        post(`/fairplay/${id(playerId)}/analysis`, { gameId, depth, evals }),
       games: (player?: string, before?: number) => get<{ games: AdminGameSummary[] }>(`/games${qs({ player, before })}`).then((r) => r.games),
       game: (gameId: string) => get<{ game: AdminGameDetail }>(`/games/${id(gameId)}`).then((r) => r.game),
       abortGame: (gameId: string, reason: string) => post(`/games/${id(gameId)}/abort`, { reason }),

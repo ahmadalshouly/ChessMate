@@ -118,6 +118,19 @@ export interface SideReport {
   /** Coefficient of variation of think times; low = suspiciously regular. */
   thinkCv: number;
   analyzedAt: number;
+  /** Whose engine evaluated the positions: this server's, or a moderator's device. Server when unset. */
+  source?: 'server' | 'device';
+  /** Search depth per position, when known. */
+  depth?: number;
+  /** Moderator who ran a device analysis. */
+  by?: string;
+}
+
+/** Provenance recorded with a report, so device evidence is never mistaken for the server's own. */
+export interface ReportOrigin {
+  source?: 'server' | 'device';
+  depth?: number;
+  by?: string;
 }
 
 const cpOf = (s: Score) => (s.mate !== undefined ? (s.mate > 0 ? 1000 : s.mate < 0 ? -1000 : 0) : Math.max(-1000, Math.min(1000, s.cp)));
@@ -146,6 +159,7 @@ export function reportsFromEvals(
   evals: PositionEval[],
   t: FairPlayThresholds = DEFAULT_THRESHOLDS,
   now = Date.now(),
+  origin: ReportOrigin = {},
 ): SideReport[] {
   const g = new Game(game.initialFen);
   const acc: Record<Color, { accs: number[]; matches: number; loss: number; times: number[] }> = {
@@ -200,6 +214,9 @@ export function reportsFromEvals(
       meanThinkMs: Math.round(mean),
       thinkCv: side.times.length >= 2 && mean > 0 ? round2(Math.sqrt(variance) / mean) : 1,
       analyzedAt: now,
+      ...(origin.source ? { source: origin.source } : {}),
+      ...(origin.depth ? { depth: origin.depth } : {}),
+      ...(origin.by ? { by: origin.by } : {}),
     });
   }
   return out;

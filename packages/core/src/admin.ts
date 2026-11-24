@@ -255,6 +255,35 @@ export interface AdminEngineReport {
   meanThinkMs: number;
   thinkCv: number;
   analyzedAt: number;
+  /**
+   * Whose engine produced the evaluations: this server's own Stockfish, or a
+   * moderator's device (see AdminFairPlayGame). Device evidence is checked and
+   * re-graded by the server, but it never opens a case on its own.
+   */
+  source?: 'server' | 'device';
+  /** Search depth per position, when the analysis recorded one. */
+  depth?: number;
+  /** The moderator whose device analysed it, for device analyses. */
+  by?: string;
+}
+
+/**
+ * A game a moderator's device can analyse for a case: everything the engine
+ * and the correlation maths need, so the device never has to ask for more.
+ */
+export interface AdminFairPlayGame {
+  gameId: string;
+  initialFen: string;
+  /** UCI moves of the finished game. */
+  moves: string[];
+  /** Think time per ply in ms, aligned with `moves` (0 where it was not recorded). */
+  thinkMs: number[];
+  white: { id: string; name: string; rating: number };
+  black: { id: string; name: string; rating: number };
+  timeCategory: string;
+  endedAt: number;
+  /** True when this game already has an engine report for the player of the case. */
+  analyzed: boolean;
 }
 
 export interface AdminFairPlayAssessment {

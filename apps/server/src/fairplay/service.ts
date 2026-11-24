@@ -1,7 +1,16 @@
 import { DEFAULT_RATING, timeCategory, type TimeControl } from '@chessmate/core';
 import type { PlayerStore } from '../players';
-import { DEFAULT_THRESHOLDS, assessPlayer, evaluateGame, reportsFromEvals, type FairPlayThresholds, type GameForAnalysis } from './analysis';
-import type { Analyzer } from './engine';
+import {
+  DEFAULT_THRESHOLDS,
+  assessPlayer,
+  evaluateGame,
+  reportsFromEvals,
+  type FairPlayThresholds,
+  type GameForAnalysis,
+  type ReportOrigin,
+  type SideReport,
+} from './analysis';
+import type { Analyzer, PositionEval } from './engine';
 import { JobQueue } from './jobQueue';
 import { MemoryFairPlayStore, type FairPlayBan, type FairPlayCase, type FairPlayStore, type RatingRefund } from './store';
 
@@ -93,9 +102,7 @@ export class FairPlayService {
 
   private async analyze(g: FinishedGame) {
     const evals = await evaluateGame(g, this.opts.analyzer!);
-    const reports = reportsFromEvals(g, evals, this.thresholds, this.now());
-    this.store.addReports(reports);
-    for (const r of reports) this.reassess(r.playerId);
+    this.recordAnalysis(g, evals, { source: 'server' });
   }
 
   /** Recomputes a player's assessment and opens, updates or reopens their case. */
@@ -142,6 +149,21 @@ export class FairPlayService {
       reports: this.store.reportsFor(playerId, this.thresholds.window),
       audit: this.store.auditFor(playerId),
     };
+  }
+
+  /**
+   * Records an analysis of one game that ran somewhere other than this
+   * server's own engine: today, a moderator's device (see the admin API). The
+   * evaluations have already been checked against the stored game; the
+   * correlation maths, the reports and the reassessment are the same code the
+   * server's own engine goes through, and the reports carry `source: 'device'`
+   * so the evidence is never mistaken for the server's.
+   */
+  recordAnalysis(g: GameForAnalysis, evals: PositionEval[], origin: ReportOrigin & { source: 'server' | 'device' }): SideReport[] {
+    const reports = reportsFromEvals(g, evals, this.thresholds, this.now(), origin);
+    this.store.addReports(reports);
+    for (const r of reports) this.reassess(r.playerId);
+    return reports;
   }
 
   /** Opens a case by hand, e.g. from a player report or a moderator's hunch. */

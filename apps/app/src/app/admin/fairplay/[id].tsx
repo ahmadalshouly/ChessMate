@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ActionDialog, ReasonField } from '@/features/admin/ActionDialog';
+import { CASE_GAMES, canAnalyzeHere, useCaseAnalysis } from '@/features/admin/caseAnalysis';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, Field, PlayerBadges, ScoreMeter, Section, StatTile, TileGrid, useLoad } from '@/features/admin/ui';
 import { formatAgo, formatDateTime, translateOr, useT } from '@/i18n';
@@ -18,6 +19,7 @@ export default function AdminFairPlayCase() {
   const { data: f, loading, error, reload } = useLoad(() => api.fairPlayFile(String(id)), [api, id]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [note, setNote] = useState('');
+  const scan = useCaseAnalysis(api, String(id), reload);
   if (!f) {
     return (
       <AdminPage>
@@ -113,6 +115,38 @@ export default function AdminFairPlayCase() {
       )}
 
       <Section title={tr('admin.fairplay.evidence')} index={3} padding="none">
+        {can('fairplay.review') && (
+          <Stack gap="xs" style={{ padding: 10 }}>
+            <Row gap="sm" align="center" wrap>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={scan.running || !canAnalyzeHere()}
+                title={scan.running ? tr('admin.fairplay.analysing') : tr('admin.fairplay.analyseHere', { count: CASE_GAMES })}
+                onPress={scan.run}
+              />
+              {scan.running && <Button size="sm" variant="ghost" title={tr('admin.common.cancel')} onPress={scan.cancel} />}
+              {scan.running && (
+                <Text variant="caption" tone="muted">
+                  {tr('admin.fairplay.analysingProgress', {
+                    game: Math.min(scan.games.done + 1, Math.max(scan.games.total, 1)),
+                    games: scan.games.total,
+                    done: scan.positions.done,
+                    total: scan.positions.total,
+                  })}
+                </Text>
+              )}
+            </Row>
+            <Text variant="caption" tone="tertiary">
+              {canAnalyzeHere() ? tr('admin.fairplay.analyseHereHint') : tr('admin.fairplay.analyseNoEngine')}
+            </Text>
+            {scan.error && (
+              <Text variant="caption" tone="danger">
+                {scan.error}
+              </Text>
+            )}
+          </Stack>
+        )}
         {f.reports.length === 0 ? <EmptyState icon="analytics-outline" title={tr('admin.fairplay.noEvidence')} /> : f.reports.map((r, i) => <EvidenceRow key={`${r.gameId}${r.color}`} r={r} last={i === f.reports.length - 1} />)}
       </Section>
 
@@ -188,6 +222,7 @@ function EvidenceRow({ r, last }: { r: AdminEngineReport; last: boolean }) {
         <Row gap="sm">
           <Badge label={r.color === 'w' ? '♔' : '♚'} tone="outline" />
           <Text variant="label">{`${tr('admin.reports.game', { id: r.gameId })} · ${Math.round(r.rating)}`}</Text>
+          {r.source === 'device' && <Badge label={tr('admin.fairplay.fromDevice')} tone="outline" />}
         </Row>
         <Row gap="sm">
           <Text variant="caption" tone="tertiary">

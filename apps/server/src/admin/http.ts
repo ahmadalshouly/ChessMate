@@ -39,6 +39,8 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /fairplay/:playerId/open     { note? }
  *   POST /fairplay/:playerId/dismiss  { note? }
  *   POST /fairplay/:playerId/ban      { note? }   closes the account for fair play, refunds opponents
+ *   GET  /fairplay/:playerId/games    recent rated games a moderator's device can analyse
+ *   POST /fairplay/:playerId/analysis { gameId, depth, evals }  engine results from a moderator's device
  *   GET  /games?player=&before=
  *   GET  /games/:id
  *   POST /games/:id/abort             { reason }
@@ -141,6 +143,10 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.openFairPlayCase(actor, id!, await body()));
         case 'POST fairplay/:id/dismiss':
           return ok(await admin.dismissFairPlay(actor, id!, await body()));
+        case 'GET fairplay/:id/games':
+          return ok({ games: await admin.fairPlayGames(actor, id!, num('limit')) });
+        case 'POST fairplay/:id/analysis':
+          return ok(await admin.submitFairPlayAnalysis(actor, id!, await body()));
         case 'POST fairplay/:id/ban': {
           const b = await body();
           return ok(await admin.closeAccount(actor, id!, { reason: 'fair_play', note: b.note }));
