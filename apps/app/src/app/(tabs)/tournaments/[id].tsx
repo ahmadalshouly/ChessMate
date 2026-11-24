@@ -151,6 +151,7 @@ export default function TournamentScreen() {
             {tour.status === 'scheduled' && <Badge tone="outline" label={tr('tournaments.upcomingBadge')} />}
             {tour.status === 'finished' && <Badge label={tr('tournaments.finishedBadge')} />}
             {tour.status === 'cancelled' && <Badge tone="danger" label={tr('tournaments.cancelled')} />}
+            {tour.private && <Badge tone="outline" label={tr('tournaments.private.badge')} icon={<Ionicons name="lock-closed" size={11} color={c.text} />} />}
             <Text variant="caption" tone="muted">
               {tournamentClock(tour, now)}
             </Text>
@@ -171,6 +172,15 @@ export default function TournamentScreen() {
               <Fact key={r} icon="shield-checkmark-outline" label={r} />
             ))}
           </View>
+          {tour.private && (
+            <View style={{ gap: 6 }}>
+              <Text variant="label">{tr('tournaments.private.title')}</Text>
+              <Text tone="muted">{tour.invited.map((x) => x.username).join(', ')}</Text>
+              <Text variant="caption" tone="muted">
+                {tour.you?.invited ? tr('tournaments.private.youAreInvited') : tr('tournaments.private.hint')}
+              </Text>
+            </View>
+          )}
           {paid === '1' && !tour.joined && <Text variant="label">{tr('tournaments.paymentProcessing')}</Text>}
           {paid === '0' && !tour.joined && <Text tone="muted">{tr('tournaments.paymentCancelled')}</Text>}
           {error && <Text tone="danger">{serverText(error)}</Text>}
@@ -334,10 +344,14 @@ export default function TournamentScreen() {
             <TournamentChat
               messages={chat.messages}
               meId={me?.userId}
-              onSend={me && !tour.you?.disqualified ? chat.send : undefined}
+              onSend={me && !tour.you?.disqualified && (!tour.private || tour.you?.invited) ? chat.send : undefined}
               disabledReason={
                 !me ? (
                   <Button variant="secondary" size="sm" title={tr('tournaments.chat.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: `/tournaments/${tour.id}` } })} />
+                ) : tour.private && !tour.you?.invited ? (
+                  <Text variant="caption" tone="muted">
+                    {tr('tournaments.private.chatReadOnly')}
+                  </Text>
                 ) : null
               }
             />

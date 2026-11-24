@@ -162,6 +162,14 @@ export const tournaments = {
     all: { one: 'Show all {count}', other: 'Show all {count}' },
     less: 'Show fewer',
   },
+  private: {
+    badge: 'Invite only',
+    title: 'Invited players',
+    hint: 'Only invited players can join and play. Everyone can watch.',
+    youAreInvited: 'You are invited to play.',
+    watchOnly: 'This tournament is invite-only. You can watch the games and follow the standings.',
+    chatReadOnly: 'Only invited players can chat here.',
+  },
   chat: {
     title: 'Chat',
     placeholder: 'Say something to everyone in the tournament',

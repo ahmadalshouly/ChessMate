@@ -155,6 +155,13 @@
       "when": 1797150000000,
       "tag": "0021_lessons",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1797300000000,
+      "tag": "0022_private_tournaments",
+      "breakpoints": true
     }
   ]
 }

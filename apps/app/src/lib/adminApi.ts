@@ -123,6 +123,8 @@ export function useAdminApi() {
       messagePlayer: (playerId: string, body: string) => post(`/players/${id(playerId)}/message`, { body }),
       broadcast: (body: string) => post<{ sent: number }>('/broadcast', { body }),
       tournaments: () => get<{ tournaments: TournamentSummary[] }>('/tournaments').then((r) => r.tournaments),
+      /** Open accounts matching a username, to invite to a private tournament. */
+      invitees: (q: string) => get<{ players: { userId: string; username: string; displayName: string | null }[] }>(`/invitees${qs({ q })}`).then((r) => r.players),
       createTournament: (t: TournamentInput) => post<{ tournament: TournamentDetail }>('/tournaments', { ...t }).then((r) => r.tournament),
       updateTournament: (tid: string, t: Partial<TournamentInput>) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}`, { ...t }).then((r) => r.tournament),
       cancelTournament: (tid: string, reason: string) => post<{ tournament: TournamentDetail }>(`/tournaments/${id(tid)}/cancel`, { reason }).then((r) => r.tournament),

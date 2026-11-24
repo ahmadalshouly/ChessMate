@@ -53,7 +53,8 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /players/:id/message         { body } message from the ChessMate team
  *   POST /broadcast                   { body } announcement to every player (admins only)
  *   GET  /tournaments                 all tournaments, newest first
- *   POST /tournaments                 { name, description?, timeControl, rated, startsAt, durationMinutes, maxPlayers?, prizePool?, prizes? }
+ *   GET  /invitees?q=                 open accounts matching a username, to invite to a private tournament
+ *   POST /tournaments                 { name, description?, timeControl, rated, startsAt, durationMinutes, maxPlayers?, prizePool?, prizes?, private?, invited? (usernames) }
  *   POST /tournaments/:id             same fields, while it has not started
  *   POST /tournaments/:id/cancel      { reason? }
  *   POST /tournaments/:id/start       start a scheduled tournament now
@@ -157,6 +158,8 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok(await admin.broadcast(actor, await body()));
         case 'GET tournaments':
           return ok({ tournaments: admin.tournamentList(actor) });
+        case 'GET invitees':
+          return ok({ players: await admin.findInvitees(actor, q.get('q') ?? '') });
         case 'POST tournaments':
           return ok({ tournament: await admin.createTournament(actor, await body()) });
         case 'POST tournaments/:id':

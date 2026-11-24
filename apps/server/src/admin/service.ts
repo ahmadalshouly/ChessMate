@@ -530,17 +530,26 @@ export class AdminService {
     return this.tournamentService().list(null);
   }
 
+  /** Accounts to invite to a private tournament: open accounts whose username or name matches. */
+  async findInvitees(actor: Actor, q: string): Promise<{ userId: string; username: string; displayName: string | null }[]> {
+    this.require(actor, 'tournaments.manage');
+    const query = q.trim().replace(/^@/, '');
+    if (query.length < 2) return [];
+    const { rows } = await adminSearchUsers(this.db, { query, status: 'active', limit: 8 });
+    return rows.map((u) => ({ userId: u.id, username: u.username, displayName: u.displayName || null }));
+  }
+
   async createTournament(actor: Actor, input: Record<string, unknown>) {
     this.require(actor, 'tournaments.manage');
     const t = await this.tournamentCall(() => this.tournamentService().create(input, actor.id));
-    await this.audit(actor, 'tournament.create', { type: 'system', id: t.id, name: t.name }, null, { startsAt: t.startsAt, prizePool: t.prizePool });
+    await this.audit(actor, 'tournament.create', { type: 'system', id: t.id, name: t.name }, null, { startsAt: t.startsAt, prizePool: t.prizePool, private: t.private, invited: t.invited.length });
     return t;
   }
 
   async updateTournament(actor: Actor, id: string, input: Record<string, unknown>) {
     this.require(actor, 'tournaments.manage');
     const t = await this.tournamentCall(() => this.tournamentService().update(id, input));
-    await this.audit(actor, 'tournament.update', { type: 'system', id: t.id, name: t.name }, null, { prizePool: t.prizePool, prizes: t.prizes.length });
+    await this.audit(actor, 'tournament.update', { type: 'system', id: t.id, name: t.name }, null, { prizePool: t.prizePool, prizes: t.prizes.length, private: t.private, invited: t.invited.length });
     return t;
   }
 
