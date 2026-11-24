@@ -14,7 +14,7 @@ export const notifications: Messages<typeof en> = {
     friendRequest: '{name} يريد إضافتك صديقًا',
     played: 'لعب {name} النقلة {san}',
     waiting: '{name} بانتظار نقلتك',
-    reviewReady: 'مراجعة المدرب لمباراتك ضد {name} جاهزة',
+    reviewReady: 'مراجعة مباراتك ضد {name} جاهزة',
     reviewAccuracy: 'مباراتك ضد {name}: دقة {accuracy}%. اكتشف أين تغيّرت',
     test: 'الإشعارات تعمل على هذا الجهاز.',
     fairPlay: 'وجدت مراجعة اللعب النظيف مساعدة خارجية في مبارياتك. يمكنك تسجيل الدخول ورؤية مبارياتك والألغاز، لكن اللعب عبر الإنترنت متوقف. استعاد خصومك نقاط التصنيف التي خسروها.',
@@ -68,7 +68,7 @@ export const notifications: Messages<typeof en> = {
     },
     review_ready: {
       label: 'مراجعة المباراة جاهزة',
-      description: 'أنهى المدرب مراجعة مباراتك',
+      description: 'تمت مراجعة مباراتك',
     },
     message: {
       label: 'الرسائل',

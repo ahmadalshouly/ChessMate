@@ -36,7 +36,7 @@ export const NOTIFICATION_KIND_INFO: Record<NotificationKind, { label: string; d
   friend_request: { label: 'Friend requests', description: 'Someone wants to add you as a friend', userConfigurable: true },
   friend_accepted: { label: 'Friend accepted', description: 'Someone accepted your friend request', userConfigurable: true },
   your_turn: { label: 'Your turn', description: 'Your opponent moved while you were away', userConfigurable: true },
-  review_ready: { label: 'Game review ready', description: 'The coach finished reviewing your game', userConfigurable: true },
+  review_ready: { label: 'Game review ready', description: 'Your game has been reviewed', userConfigurable: true },
   message: { label: 'Messages', description: 'Someone sends you a message', userConfigurable: true },
   tournament: { label: 'Tournaments', description: 'A tournament you joined is starting', userConfigurable: true },
   system: { label: 'Account and security', description: 'Important account messages', userConfigurable: false },

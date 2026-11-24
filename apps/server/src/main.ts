@@ -8,8 +8,6 @@ import { AdminService, DbModerationStore } from './admin';
 import { blobStoreFromEnv } from './avatars/storage';
 import { DbFairPlayStore } from './fairplay';
 import { AuthService, DbAuthStore, mailerFromEnv, MemoryAuthStore, OAuthVerifier, authRoutes, oauthConfigFromEnv, type AuthStore } from './auth';
-import { CoachService } from './coach/coachService';
-import { ClaudeCoachLlm, DEFAULT_COACH_MODEL } from './coach/llm';
 import { createAnalysisService } from './engine';
 import { DbLeaderboardSource, Leaderboards } from './leaderboard';
 import { DbNotificationStore } from './notifications/dbStore';
@@ -55,12 +53,6 @@ function authSecret(): string {
   return secret;
 }
 
-const coachModel = process.env.COACH_MODEL || DEFAULT_COACH_MODEL;
-const coach = new CoachService({
-  llm: process.env.ANTHROPIC_API_KEY ? new ClaudeCoachLlm(coachModel) : undefined,
-  log: (m) => console.warn(m),
-});
-console.log(coach.aiEnabled ? `AI coach on (${coachModel})` : 'AI coach off: set ANTHROPIC_API_KEY to enable it (rule-based feedback in the meantime)');
 // The engine serves the analysis board, broadcasts, and game reviews for devices that can't run their own engine.
 const { service: analysis, engine } = createAnalysisService(process.env);
 const puzzleStore = await openPuzzleStore();
@@ -97,7 +89,6 @@ function services(
     port,
     auth,
     ratings,
-    coach,
     analysis,
     http: [authRoutes(auth), profiles, footballLogoRoutes(footballLogos), (req, res) => puzzles.handle(req, res)],
     adminToken: process.env.ADMIN_TOKEN || undefined,

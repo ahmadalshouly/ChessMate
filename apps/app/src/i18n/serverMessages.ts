@@ -31,8 +31,6 @@ const EXACT: Record<string, TKey> = {
   'Sign in to play rated games': 'server.signInRated',
   'You cannot report yourself': 'server.reportSelf',
   'Too many reports. Try again later': 'server.tooManyReports',
-  'Too many coach requests, try again later': 'server.coachRateLimited',
-  'Coach failed': 'server.coachFailed',
   'Something went wrong': 'errors.generic',
   'No such account': 'server.noSuchAccount',
   'This account has been closed for a fair play violation.': 'server.closedFairPlay',

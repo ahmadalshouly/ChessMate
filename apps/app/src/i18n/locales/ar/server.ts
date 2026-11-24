@@ -25,8 +25,6 @@ export const server: Messages<typeof en> = {
   signInRated: 'سجّل الدخول للعب مباريات مصنّفة.',
   reportSelf: 'لا يمكنك الإبلاغ عن نفسك.',
   tooManyReports: 'بلاغات كثيرة. حاول لاحقًا.',
-  coachRateLimited: 'طلبات كثيرة للمدرب. حاول لاحقًا.',
-  coachFailed: 'تعذّر على المدرب الإجابة. حاول مرة أخرى.',
   noSuchAccount: 'الحساب غير موجود.',
   closedFairPlay: 'أُغلق هذا الحساب بسبب مخالفة قواعد اللعب النظيف.',
   accountClosed: 'أغلق فريق ChessMate هذا الحساب.',

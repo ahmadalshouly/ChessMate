@@ -14,7 +14,6 @@ import {
   type Color,
   type ColorChoice,
   type ErrorCode,
-  type GameAnalyzer,
   type LobbyState,
   type LiveGameEntry,
   type Presence,
@@ -31,8 +30,6 @@ import { ChallengeBook, type ChallengeError, type ChallengeLimits } from './chal
 import { handleAdmin } from './admin/tokenApi';
 import { CLOSE_ACCOUNT_CLOSED, adminRoutes, type AdminBridge, type AdminService } from './admin';
 import { titleRoutes } from './titles';
-import { CoachService } from './coach/coachService';
-import { createCoachHttpHandler } from './coach/http';
 import type { AnalysisService } from './engine/analysisService';
 import { GameRoom, type MoveError } from './gameRoom';
 import type { HttpRoute } from './auth/http';
@@ -105,10 +102,6 @@ export interface ServerOptions {
   /** Fair-play settings. Defaults read STOCKFISH_PATH and FAIRPLAY_ADMIN_TOKEN from the environment. */
   fairPlay?: FairPlayOptions & { adminToken?: string };
   rateLimits?: Partial<RateLimitConfig>;
-  /** AI coach. Defaults to the rule-based (offline) coach. */
-  coach?: CoachService;
-  /** Engine analysis service, when available, for coach reviews from raw moves. */
-  analyzer?: GameAnalyzer;
   /** Notification service; defaults to `notificationStore` (or in-memory storage) with Expo push. */
   notifications?: NotificationService;
   /** Where notifications, preferences and push tokens are kept; defaults to memory (lost on restart). */
@@ -244,12 +237,6 @@ export class ChessServer {
       this.restrictPlayer(id);
     };
     const admin = createAdminHandler(this.fairPlay, fp.adminToken ?? process.env.FAIRPLAY_ADMIN_TOKEN);
-    const coachHttp = createCoachHttpHandler({
-      service: opts.coach ?? new CoachService(),
-      analyzer: opts.analyzer,
-      authorize: (token) => authenticate(token, this.store, this.opts.auth && ((t) => this.opts.auth!.verifyAccessToken(t)))?.id ?? null,
-      now: this.now,
-    });
     this.notifications =
       opts.notifications ??
       new NotificationService({
@@ -407,10 +394,6 @@ export class ChessServer {
       );
     }
     this.http = createServer(async (req, res) => {
-      if (req.url?.startsWith('/coach/')) {
-        await coachHttp(req, res);
-        return;
-      }
       if (await admin(req, res)) return;
       if (handleAdmin(req, res, this.moderation, opts.adminToken)) return;
       if (req.url === '/health') {

@@ -22,8 +22,6 @@ export const server = {
   signInRated: 'Sign in to play rated games.',
   reportSelf: 'You can\'t report yourself.',
   tooManyReports: 'Too many reports. Try again later.',
-  coachRateLimited: 'Too many coach requests. Try again later.',
-  coachFailed: 'The coach couldn\'t answer. Try again.',
   noSuchAccount: 'No such account.',
   closedFairPlay: 'This account has been closed for a fair play violation.',
   accountClosed: 'This account has been closed by ChessMate staff.',

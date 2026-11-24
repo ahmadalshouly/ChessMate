@@ -36,8 +36,7 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
  * For signed-in players only. The engine runs on the player's device, and
  * moves appear graded from the first one while the rest of the game is still
  * being searched; an online game's first review is saved, and opening it again
- * (from any account) shows that review instead of grading again. The per-move
- * results are what the AI coach explains.
+ * (from any account) shows that review instead of grading again.
  */
 export default function Review() {
   const tr = useT();

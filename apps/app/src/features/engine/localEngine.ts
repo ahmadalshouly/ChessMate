@@ -10,6 +10,10 @@ export interface LocalSearchOptions {
   movetimeMs?: number;
   /** Jumps the queue (a position the player is looking at right now). */
   urgent?: boolean;
+  /** The game up to this position: its start and the moves since, so the engine knows about repetitions. */
+  history?: { start: string; moves: string[] };
+  /** Which engine should search it when it can (see farmSource.ts): consecutive positions on one engine reuse its work. */
+  lane?: number;
   signal?: AbortSignal;
 }
 
@@ -69,12 +73,29 @@ class LocalEngine {
         (t) => {
           if (!this.pending.has(id)) return;
           if (opts.signal?.aborted) return this.settleAbort(id);
-          t.send({ t: 'search', id, fen, depth: opts.depth, multipv: opts.multipv, movetime: opts.movetimeMs, urgent: opts.urgent });
+          const h = opts.history;
+          t.send({
+            t: 'search',
+            id,
+            ...(h && h.moves.length ? { fen: h.start, moves: h.moves.join(' ') } : { fen }),
+            lane: opts.lane,
+            depth: opts.depth,
+            multipv: opts.multipv,
+            movetime: opts.movetimeMs,
+            urgent: opts.urgent,
+          });
           opts.signal?.addEventListener('abort', () => this.transport?.send({ t: 'cancel', id }), { once: true });
         },
         (err: Error) => this.failAll(err),
       );
     });
+  }
+
+  /** How many engines search side by side (starting them if needed). */
+  async engines(): Promise<number> {
+    if (!this.usable) throw new Error('On-device engine unavailable');
+    this.touch();
+    return (await this.start()).size;
   }
 
   /** Starts the engines now (for example when a game ends), so the first search doesn't wait. */

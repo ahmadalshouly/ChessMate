@@ -29,7 +29,7 @@ export interface BoardTheme {
   check: string;
   threat: string;
   hint: string;
-  /** Best-move / arrow colour for analysis and coach overlays. */
+  /** Best-move / arrow colour for analysis overlays. */
   arrow: string;
   /** Frame around the board. */
   frame: string;

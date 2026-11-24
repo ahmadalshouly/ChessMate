@@ -1,6 +1,5 @@
 import { Chess } from 'chess.js';
-import type { CoachContext } from './coach';
-import { quickFeedback } from './coach';
+import { quickFeedback } from './moveFeedback';
 import { classifyMove } from './classify';
 import { MOVE_CLASSES, gameAccuracy, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { Game, START_FEN, parseUci, toUci } from './game';
@@ -166,7 +165,7 @@ export interface ReviewedMove {
   bestSan: string;
   bestLine: string[];
   judgement: MoveJudgement;
-  /** Deterministic one-line explanation (the AI coach can expand on it). */
+  /** Deterministic one-line explanation of the move. */
   feedback: string;
 }
 
@@ -292,24 +291,6 @@ function reusableMoves(previous: GameReview, initialFen: string, moves: string[]
     n++;
   }
   return previous.moves.slice(0, n);
-}
-
-/** Structured input for the AI coach about one reviewed move. */
-export function coachContextFor(review: GameReview, ply: number, playerRating?: number): CoachContext | null {
-  const m = review.moves[ply - 1];
-  if (!m) return null;
-  return {
-    fenBefore: m.fenBefore,
-    movePlayed: m.san,
-    mover: m.color,
-    playerRating,
-    bestMove: m.bestSan,
-    bestLine: m.bestLine,
-    scoreBefore: m.scoreBefore,
-    scoreAfter: m.scoreAfter,
-    judgement: m.judgement,
-    insightAfter: analyzePosition(m.fenAfter, m.color),
-  };
 }
 
 /** Converts raw UCI evaluations (side-to-move relative) for a terminal-aware review. */

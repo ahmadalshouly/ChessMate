@@ -7,6 +7,8 @@ const device = vi.hoisted(() => ({
   usable: true,
   mode: 'answer' as 'answer' | 'fail' | 'silent',
   searched: 0,
+  lanes: new Set<number>(),
+  histories: [] as number[],
 }));
 const server = vi.hoisted(() => ({ calls: [] as string[][], fail: false }));
 
@@ -26,8 +28,14 @@ vi.mock('../src/features/engine/localEngine', () => {
       get usable() {
         return device.usable;
       },
-      search: (fen: string, o: { signal?: AbortSignal }) => {
+      engines: async () => {
+        if (!device.usable) throw new Error('unavailable');
+        return 3;
+      },
+      search: (fen: string, o: { signal?: AbortSignal; lane?: number; history?: { start: string; moves: string[] } }) => {
         device.searched++;
+        device.lanes.add(o.lane ?? -1);
+        if (o.history) device.histories.push(o.history.moves.length);
         if (device.mode === 'fail') return Promise.reject(new Error('Engine stopped'));
         return new Promise((resolve, reject) => {
           o.signal?.addEventListener('abort', () => reject(new AbortError()), { once: true });
@@ -74,6 +82,8 @@ beforeEach(() => {
   device.usable = true;
   device.mode = 'answer';
   device.searched = 0;
+  device.lanes = new Set();
+  device.histories = [];
   server.calls = [];
   server.fail = false;
 });
@@ -83,6 +93,9 @@ describe('game review fallback', () => {
     const r = await review();
     expect(r).toMatchObject({ where: 'device', graded: 8 });
     expect(server.calls).toHaveLength(0);
+    // Spread over the engines in stretches, each search with the moves that led to it.
+    expect([...device.lanes].sort()).toEqual([0, 1, 2]);
+    expect(device.histories.sort((x, y) => x - y)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it("uses the server when the device can't run the engine", async () => {

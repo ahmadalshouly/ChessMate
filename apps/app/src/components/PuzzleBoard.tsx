@@ -50,6 +50,7 @@ export function PuzzleBoard({
   size,
   showHints = true,
   showRating = true,
+  rated = true,
   above,
   below,
   wide = false,
@@ -59,6 +60,8 @@ export function PuzzleBoard({
   size: number;
   showHints?: boolean;
   showRating?: boolean;
+  /** Counts for the puzzle rating. Off for lesson puzzles, which hides the note about hints costing rating. */
+  rated?: boolean;
   above?: ReactNode;
   below?: ReactNode;
   /** Wide screens: the panel sits beside the board instead of under it. */
@@ -161,9 +164,11 @@ export function PuzzleBoard({
                     />
                   </View>
                 </Row>
-                <Text variant="caption" tone="muted">
-                  {tr('puzzles.hintsCount')}
-                </Text>
+                {rated ? (
+                  <Text variant="caption" tone="muted">
+                    {tr('puzzles.hintsCount')}
+                  </Text>
+                ) : null}
               </>
             )}
           </GlassView>

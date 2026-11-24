@@ -14,7 +14,7 @@ export const notifications: Messages<typeof en> = {
     friendRequest: '{name} möchte mit dir befreundet sein',
     played: '{name} hat {san} gespielt',
     waiting: '{name} wartet auf deinen Zug',
-    reviewReady: 'Die Coach-Analyse deiner Partie gegen {name} ist fertig',
+    reviewReady: 'Die Analyse deiner Partie gegen {name} ist fertig',
     reviewAccuracy: 'Deine Partie gegen {name}: {accuracy}% Genauigkeit. Sieh, wo sie kippte',
     test: 'Benachrichtigungen funktionieren auf diesem Gerät.',
     fairPlay: 'Unsere Fair-Play-Prüfung hat fremde Hilfe in deinen Partien festgestellt. Du kannst dich weiter anmelden und deine Partien und Puzzles ansehen, aber Online-Partien sind deaktiviert. Deine Gegner haben ihre verlorenen Wertungspunkte zurückbekommen.',
@@ -68,7 +68,7 @@ export const notifications: Messages<typeof en> = {
     },
     review_ready: {
       label: 'Partieanalyse fertig',
-      description: 'Der Coach hat deine Partie analysiert',
+      description: 'Deine Partie wurde analysiert',
     },
     message: {
       label: 'Nachrichten',
