@@ -1,3 +1,4 @@
+import { isRunningInExpoGo } from 'expo';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
@@ -15,14 +16,22 @@ export type PushStatus =
 
 export const pushSupported = Platform.OS === 'ios' || Platform.OS === 'android';
 
-/** Expo Go on Android cannot receive remote push since SDK 53; a development build can. */
-const isExpoGoAndroid = Platform.OS === 'android' && Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+/**
+ * Expo Go on Android cannot receive remote push since SDK 53; a development
+ * build can. `isRunningInExpoGo()` is what expo-notifications itself checks
+ * before throwing (the native ExpoGo module is either there or not), so it is
+ * the one that agrees with the library. `executionEnvironment` stays as a
+ * fallback: it does not report `storeClient` in every Expo Go version.
+ */
+const isExpoGoAndroid = Platform.OS === 'android' && (isRunningInExpoGo() || Constants.executionEnvironment === ExecutionEnvironment.StoreClient);
 
 /**
  * Whether the remote push token APIs can be touched at all. In Expo Go on
  * Android `getExpoPushTokenAsync` and `addPushTokenListener` do not fail
  * softly: expo-notifications throws, which takes the whole screen down. Check
- * this before calling either.
+ * this before calling either, and still catch: a future Expo Go could throw
+ * somewhere this flag does not predict, and nothing about push is worth a
+ * blank app.
  */
 export const pushTokensAvailable = pushSupported && !isExpoGoAndroid;
 

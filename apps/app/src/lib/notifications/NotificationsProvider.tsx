@@ -123,8 +123,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
     void currentPushStatus().then(setPush);
     // Apple or Google can rotate the device token; register the new one. Not in
-    // Expo Go on Android, where subscribing throws instead of doing nothing.
-    const rotated = pushTokensAvailable ? Notifications.addPushTokenListener(() => void currentPushStatus().then(setPush)) : null;
+    // Expo Go on Android, where subscribing throws instead of doing nothing --
+    // and this provider wraps the whole app, so a throw here means a blank app.
+    let rotated: Notifications.EventSubscription | null = null;
+    if (pushTokensAvailable) {
+      try {
+        rotated = Notifications.addPushTokenListener(() => void currentPushStatus().then(setPush));
+      } catch {
+        // No remote token in this environment, so there is nothing to follow.
+      }
+    }
     const received = Notifications.addNotificationReceivedListener(() => void refresh());
     const tapped = Notifications.addNotificationResponseReceivedListener((r) => {
       const data = r.notification.request.content.data as Record<string, unknown> | undefined;
