@@ -14,6 +14,7 @@ export * from './challenge';
 export * from './chat';
 export * from './bot';
 export * from './notifications';
+export * from './campaigns';
 export * from './analysis';
 export * from './openings';
 export * from './archive';

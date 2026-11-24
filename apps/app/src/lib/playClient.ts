@@ -31,6 +31,7 @@ import {
   type TimeControl,
 } from '@chessmate/core';
 import { useSyncExternalStore } from 'react';
+import { AppState } from 'react-native';
 
 import { SERVER_URL } from './config';
 import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
@@ -239,6 +240,11 @@ class PlayClient {
   private start() {
     if (this.started) return;
     this.started = true;
+    // Tell the server when the app goes to the background, so it sends push
+    // notifications (your turn, challenges) instead of only in-app banners.
+    AppState.addEventListener('change', (s) => {
+      if (s === 'active' || s === 'background') this.send({ t: 'appState', active: s === 'active' });
+    });
     this.connect();
   }
 
@@ -298,6 +304,7 @@ class PlayClient {
 
   /** Re-establishes lobby subscription, seek and open game after a reconnect. */
   private restore() {
+    if (AppState.currentState === 'background') this.send({ t: 'appState', active: false });
     if (this.lobbySubs > 0) this.send({ t: 'lobbySub' });
     for (const tournamentId of this.tournamentSubs.keys()) this.send({ t: 'tournamentSub', tournamentId });
     for (const eventId of this.eventSubs.keys()) this.send({ t: 'eventSub', eventId });

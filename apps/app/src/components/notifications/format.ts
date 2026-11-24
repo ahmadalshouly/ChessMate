@@ -23,5 +23,6 @@ export const KIND_GLYPH: Record<NotificationKind, string> = {
   review_ready: '★',
   message: '✉',
   tournament: '♛',
+  news: '♟',
   system: 'i',
 };

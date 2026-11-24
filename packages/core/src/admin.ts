@@ -56,6 +56,8 @@ export const ADMIN_PERMISSIONS = [
   'lessons.manage',
   /** Create, edit, feature, hide and delete broadcast events; approve organisers; import settings. Admins only. */
   'broadcasts.manage',
+  /** Send, schedule and automate push notifications to players. Admins only. */
+  'notifications.send',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

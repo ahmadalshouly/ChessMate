@@ -152,7 +152,7 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1797100000000,
+      "when": 1797150000000,
       "tag": "0021_lessons",
       "breakpoints": true
     },
@@ -161,6 +161,13 @@
       "version": "7",
       "when": 1797200000000,
       "tag": "0022_football_mate",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1797300000000,
+      "tag": "0023_push_campaigns",
       "breakpoints": true
     }
   ]

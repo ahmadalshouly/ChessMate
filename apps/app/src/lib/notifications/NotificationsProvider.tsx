@@ -33,6 +33,8 @@ export interface NotificationsContextValue {
   push: PushStatus;
   turnOnPush: () => Promise<void>;
   turnOffPush: () => Promise<void>;
+  /** Push was never asked for on this phone: worth offering it. */
+  pushPromptVisible: boolean;
 }
 
 const Ctx = createContext<NotificationsContextValue | null>(null);
@@ -120,6 +122,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       return;
     }
     void currentPushStatus().then(setPush);
+    // Apple or Google can rotate the device token; register the new one.
+    const rotated = Notifications.addPushTokenListener(() => void currentPushStatus().then(setPush));
     const received = Notifications.addNotificationReceivedListener(() => void refresh());
     const tapped = Notifications.addNotificationResponseReceivedListener((r) => {
       const data = r.notification.request.content.data as Record<string, unknown> | undefined;
@@ -130,6 +134,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const launchUrl = launch?.notification.request.content.data?.url;
     if (typeof launchUrl === 'string') setTimeout(() => go(launchUrl), 0);
     return () => {
+      rotated.remove();
       received.remove();
       tapped.remove();
     };
@@ -195,6 +200,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         void refresh();
         void loadPrefs();
+        // Push follows the account: register this device for whoever is signed in now.
+        if (pushSupported) void currentPushStatus().then(setPush);
       }),
     [refresh, loadPrefs],
   );
@@ -222,6 +229,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       updatePrefs,
       push,
       turnOnPush: async () => setPush(await enablePush()),
+      pushPromptVisible: pushSupported && push.state === 'unknown',
       turnOffPush: async () => {
         if (push.state === 'enabled') await disablePush(push.token);
         setPush({ state: 'unknown' });

@@ -2,6 +2,12 @@ import type { Messages } from '../../core';
 import type { notifications as en } from '../en/notifications';
 
 export const notifications: Messages<typeof en> = {
+  prompt: {
+    title: 'اعرف متى يحين دورك',
+    body: 'تلقَّ إشعارًا عندما يلعب خصمك أو يتحداك أحد أو تبدأ بطولة.',
+    enable: 'تفعيل',
+    later: 'ليس الآن',
+  },
   push: {
     webOnly: 'الإشعارات الفورية متاحة في تطبيقي iOS وAndroid.',
     simulator: 'الإشعارات الفورية تحتاج إلى هاتف حقيقي لا محاكٍ.',
@@ -77,6 +83,10 @@ export const notifications: Messages<typeof en> = {
     tournament: {
       label: 'البطولات',
       description: 'بدأت بطولة انضممت إليها',
+    },
+    news: {
+      label: 'الأخبار والتذكيرات',
+      description: 'تحديثات وفعاليات وتذكيرات من ChessMate',
     },
     system: {
       label: 'الحساب والأمان',
