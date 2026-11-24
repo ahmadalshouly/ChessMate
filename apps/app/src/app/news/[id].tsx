@@ -1,7 +1,7 @@
 import { COMMUNITY_LIMITS, type CommentView, type NewsPostView } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Action, AuthorLine, CommentItem, Composer, useSignedIn, useStaff } from '@/components/community';
 import { NewsEditor } from '@/components/NewsEditor';
@@ -12,6 +12,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { newsApi } from '@/lib/communityApi';
 import { LinkList, PostImage, pictureUri } from '@/features/media/MediaFields';
 import { GlassView, Text } from '@/ui';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 /** One news post: the full text, likes, comments, and the team's edit tools. */
 export default function NewsPostScreen() {
@@ -50,7 +51,7 @@ export default function NewsPostScreen() {
   return (
     <Screen>
       <Stack.Screen options={{ title: post?.title ?? tr('news.title') }} />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           {error && <Text tone="muted">{serverText(error)}</Text>}
           {post && (
@@ -112,7 +113,7 @@ export default function NewsPostScreen() {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
       <NewsEditor visible={editing} onClose={() => setEditing(false)} post={post} onSaved={setPost} />
     </Screen>
   );

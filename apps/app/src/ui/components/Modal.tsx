@@ -1,10 +1,11 @@
 import { BlurView } from 'expo-blur';
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal as RNModal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal as RNModal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import { GlassView } from './Glass';
+import { KeyboardAvoider } from './Keyboard';
 import { Row, Stack } from './Layout';
 import { Text } from './Text';
 import { translate } from '@/i18n';
@@ -42,7 +43,7 @@ export function Modal({ visible, onClose, title, description, children, actions,
 
   return (
     <RNModal visible={visible} transparent animationType={sheet ? 'slide' : 'fade'} onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoider style={{ flex: 1 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={translate('common.close')}
@@ -96,7 +97,7 @@ export function Modal({ visible, onClose, title, description, children, actions,
             )}
           </GlassView>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </RNModal>
   );
 }

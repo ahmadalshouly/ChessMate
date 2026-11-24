@@ -1,7 +1,7 @@
 import { parsePgn, type ArchivedGame } from '@chessmate/core';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { TextInput } from '@/ui/primitives';
 
 import { GameRow } from '@/components/archive';
@@ -10,6 +10,7 @@ import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { saveGames } from '@/lib/archive';
 import { pickPgnFile } from '@/lib/share';
+import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 export default function ImportPgn() {
   const t = useTheme();
@@ -39,7 +40,7 @@ export default function ImportPgn() {
   return (
     <Screen>
       <Stack.Screen options={{ title: tr('games.importPgn') }} />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={styles.page}>
         <View style={styles.inner}>
           <Card>
             <Label size={18} bold>
@@ -95,7 +96,7 @@ export default function ImportPgn() {
             </Card>
           )}
         </View>
-      </ScrollView>
+      </KeyboardScrollView>
     </Screen>
   );
 }

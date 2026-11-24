@@ -4,7 +4,7 @@ import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
 
 import { Button, Screen } from '@/components/ui';
-import { BackdropContext } from '@/ui';
+import { BackdropContext, KeyboardAvoider } from '@/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
 import { CountryFlag } from '@/components/CountryFlag';
@@ -51,7 +51,7 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
             screen must paint its own themed background (otherwise it shows the window's white). */}
         <BackdropContext value={false}>
           <Screen>
-            <View style={styles.modal}>
+            <KeyboardAvoider style={styles.modal}>
               <Field label={tr('profile.country.search')} value={q} onChangeText={setQ} placeholder={tr('profile.country.placeholder')} autoFocus autoCorrect={false} />
               <FlatList
                 data={[['', tr('profile.country.notSet')] as const, ...list]}
@@ -70,7 +70,7 @@ export function CountryPicker({ value, onChange }: { value: string | null; onCha
                 )}
               />
               <Button variant="secondary" title={tr('common.cancel')} onPress={() => setOpen(false)} />
-            </View>
+            </KeyboardAvoider>
           </Screen>
         </BackdropContext>
       </Modal>

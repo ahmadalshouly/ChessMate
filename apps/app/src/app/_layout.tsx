@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { InAppBanner } from '@/components/notifications/InAppBanner';
 import { RootStackHeader } from '@/components/shell/StackHeader';
@@ -42,9 +43,12 @@ export default function RootLayout() {
   return (
     // Board drag-and-drop runs on gesture-handler, which needs this at the root.
     <GestureHandlerRootView style={rootStyle}>
-      <UIProvider>
-        <Navigator />
-      </UIProvider>
+      {/* Tracks the keyboard so focused fields stay above it (iPhone and edge-to-edge Android). */}
+      <KeyboardProvider>
+        <UIProvider>
+          <Navigator />
+        </UIProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
