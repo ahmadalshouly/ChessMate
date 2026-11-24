@@ -37,3 +37,4 @@ export * from './awards';
 export * from './broadcasts';
 export * from './media';
 export * from './material';
+export * from './footballClubs';

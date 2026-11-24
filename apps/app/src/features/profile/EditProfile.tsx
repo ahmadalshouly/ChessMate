@@ -14,6 +14,7 @@ import { useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { setMyPhoto } from '@/lib/myPhoto';
 
+import { ClubPicker } from '@/features/football/ClubPicker';
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 
 import { Avatar, TONES } from './Avatar';
@@ -31,6 +32,7 @@ export function EditProfile() {
   const [country, setCountry] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<AvatarValue>({ id: 'initials', tone: 'ink' });
   const [playerTag, setPlayerTag] = useState<PlayerTag | null>(null);
+  const [footballClub, setFootballClub] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export function EditProfile() {
         setCountry(p.country);
         setAvatar(p.avatar);
         setPlayerTag(p.playerTag ?? null);
+        setFootballClub(p.footballClub ?? null);
       })
       .catch((e: Error) => setError({ message: e.message }));
   }, [session]);
@@ -88,7 +91,7 @@ export function EditProfile() {
     setSaving(true);
     setError(null);
     try {
-      await session.apiFetch('/api/me/profile', { method: 'PATCH', body: { displayName, bio: bio || null, country, avatar, playerTag } });
+      await session.apiFetch('/api/me/profile', { method: 'PATCH', body: { displayName, bio: bio || null, country, avatar, playerTag, footballClub } });
       if (router.canGoBack()) router.back();
       else router.replace('/profile');
     } catch (e) {
@@ -211,7 +214,14 @@ export function EditProfile() {
             </View>
           </Card>
 
-          {error && !['displayName', 'bio', 'country'].includes(error.field ?? '') && <Label muted>{error.message}</Label>}
+          <Card>
+            <SectionTitle>{tr('football.title')}</SectionTitle>
+            <Text style={{ color: t.muted, fontSize: 13 }}>{tr('football.hint')}</Text>
+            <ClubPicker value={footballClub} onChange={setFootballClub} />
+            {error?.field === 'footballClub' && <Text style={{ color: t.danger }}>{error.message}</Text>}
+          </Card>
+
+          {error && !['displayName', 'bio', 'country', 'footballClub'].includes(error.field ?? '') && <Label muted>{error.message}</Label>}
           <Button title={saving ? tr('common.saving') : tr('profile.editScreen.save')} onPress={save} disabled={saving} />
         </View>
       </ScrollView>

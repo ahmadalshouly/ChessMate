@@ -1,4 +1,4 @@
-import { DEFAULT_AVATAR, normalizeSettings, type Avatar } from '@chessmate/core';
+import { DEFAULT_AVATAR, isFootballClubId, isPlayerTag, normalizeSettings, type Avatar } from '@chessmate/core';
 import { allProfiles, deleteProfile, upsertProfile, type Database } from '@chessmate/db';
 import type { ProfileRecord, ProfileStore } from './types';
 
@@ -33,13 +33,25 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   country TEXT,
   avatar TEXT NOT NULL,
   settings TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  player_tag TEXT,
+  football_club TEXT
 );`;
+
+/** Columns added after the table first shipped; added to older files when the store opens. */
+const ADDED_COLUMNS = ['player_tag TEXT', 'football_club TEXT'];
 
 /** Profile rows in their own table, keyed by user id, on a shared SQLite connection. */
 export class SqliteProfileStore implements ProfileStore {
   constructor(private readonly sql: SqlConnection) {
     sql.exec(SCHEMA);
+    for (const col of ADDED_COLUMNS) {
+      try {
+        sql.exec(`ALTER TABLE user_profiles ADD COLUMN ${col}`);
+      } catch {
+        // Already there.
+      }
+    }
   }
 
   get(userId: string): ProfileRecord | undefined {
@@ -51,6 +63,8 @@ export class SqliteProfileStore implements ProfileStore {
       bio: (r.bio as string | null) ?? null,
       country: (r.country as string | null) ?? null,
       avatar: parse<Avatar>(r.avatar, DEFAULT_AVATAR),
+      playerTag: isPlayerTag(r.player_tag) ? r.player_tag : null,
+      footballClub: isFootballClubId(r.football_club) ? r.football_club : null,
       settings: normalizeSettings(parse(r.settings, {})),
       updatedAt: r.updated_at as number,
     };
@@ -59,11 +73,12 @@ export class SqliteProfileStore implements ProfileStore {
   save(p: ProfileRecord): void {
     this.sql
       .prepare(
-        `INSERT INTO user_profiles (user_id, display_name, bio, country, avatar, settings, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO user_profiles (user_id, display_name, bio, country, avatar, settings, updated_at, player_tag, football_club) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET display_name = excluded.display_name, bio = excluded.bio, country = excluded.country,
-           avatar = excluded.avatar, settings = excluded.settings, updated_at = excluded.updated_at`,
+           avatar = excluded.avatar, settings = excluded.settings, updated_at = excluded.updated_at,
+           player_tag = excluded.player_tag, football_club = excluded.football_club`,
       )
-      .run(p.userId, p.displayName, p.bio, p.country, JSON.stringify(p.avatar), JSON.stringify(p.settings), p.updatedAt);
+      .run(p.userId, p.displayName, p.bio, p.country, JSON.stringify(p.avatar), JSON.stringify(p.settings), p.updatedAt, p.playerTag ?? null, p.footballClub ?? null);
   }
 
   delete(userId: string): void {
@@ -98,6 +113,8 @@ export class DbProfileStore implements ProfileStore {
         bio: r.bio,
         country: r.country,
         avatar: (r.avatar as Avatar | null) ?? DEFAULT_AVATAR,
+        playerTag: isPlayerTag(r.playerTag) ? r.playerTag : null,
+        footballClub: isFootballClubId(r.footballClub) ? r.footballClub : null,
         settings: normalizeSettings(r.settings),
         updatedAt: new Date(r.updatedAt).getTime(),
       });
@@ -117,6 +134,8 @@ export class DbProfileStore implements ProfileStore {
       bio: p.bio,
       country: p.country,
       avatar: p.avatar,
+      playerTag: p.playerTag ?? null,
+      footballClub: p.footballClub ?? null,
       settings: p.settings,
       updatedAt: new Date(p.updatedAt || Date.now()),
     });

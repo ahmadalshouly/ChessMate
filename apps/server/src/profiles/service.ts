@@ -78,6 +78,7 @@ export class ProfileService {
       title: this.deps.titleOf?.(user.id) ?? null,
       roleTag: this.deps.roleTagOf?.(user.id) ?? null,
       playerTag: rec.playerTag ?? null,
+      footballClub: rec.footballClub ?? null,
       username: user.username,
       displayName: rec.displayName ?? user.username,
       avatar: rec.avatar,
@@ -124,6 +125,7 @@ export class ProfileService {
       // Picking a preset keeps an uploaded photo; only the photo endpoints change it.
       avatar: edit.avatar ? withPhoto(edit.avatar, rec.avatar.photo) : rec.avatar,
       playerTag: edit.playerTag === undefined ? (rec.playerTag ?? null) : edit.playerTag,
+      footballClub: edit.footballClub === undefined ? (rec.footballClub ?? null) : edit.footballClub,
       updatedAt: this.now(),
     };
     await this.store.save(next);

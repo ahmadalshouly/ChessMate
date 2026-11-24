@@ -1268,6 +1268,10 @@ export const userProfiles = pgTable('user_profiles', {
   bio: text('bio'),
   country: text('country'),
   avatar: jsonb('avatar').notNull(),
+  /** Tag the player picked for themselves (PLAYER_TAGS in @chessmate/core). */
+  playerTag: text('player_tag'),
+  /** Football Mate: the club they support (FOOTBALL_CLUBS id in @chessmate/core). */
+  footballClub: text('football_club'),
   settings: jsonb('settings').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
