@@ -66,6 +66,8 @@ export default function Home() {
 
   return (
     <Page maxWidth={1080}>
+      <AdSpot spot="home.top" />
+
       <View style={[styles.hero, { gap: t.space.xl }]}>
         <View style={{ gap: t.space.sm }}>
           <Text variant="overline" tone="muted">
@@ -116,8 +118,6 @@ export default function Home() {
         </View>
         <OnlineFriends width={Math.min(content, 1080) - 32} />
       </View>
-
-      <AdSpot spot="home.top" />
 
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={2} title={tr('home.liveBoard.title')} />

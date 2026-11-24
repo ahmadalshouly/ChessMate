@@ -128,6 +128,8 @@ export default function PuzzlesHome() {
 
   return (
     <Screen scroll width="wide">
+      <AdSpot spot="puzzles.home" />
+
       {/* The app header already says "Puzzles". */}
       <Text tone="muted">{total ? tr('puzzles.home.subtitle', { n: formatNumber(total) }) : tr('puzzles.home.credit')}</Text>
 
@@ -157,8 +159,6 @@ export default function PuzzlesHome() {
           {dailyCard}
         </Stack>
       )}
-
-      <AdSpot spot="puzzles.home" />
 
       {/* Themes: one tap starts training on that theme */}
       {groups.length > 0 ? (
