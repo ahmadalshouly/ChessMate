@@ -39,6 +39,11 @@ development.
 
 ## Android: Firebase (about 10 minutes)
 
+Steps 1–3 are **done**: the Firebase project `chessmate-afff1` has an Android
+app for `com.chessmate.app`, and its `google-services.json` is committed at
+`apps/app/google-services.json`. Only step 4 (the FCM V1 service account key in
+Expo) and a new build are left.
+
 1. Go to <https://console.firebase.google.com> → **Add project** (Analytics not needed).
 2. **Add app → Android**, package name `com.chessmate.app`. Download
    **`google-services.json`**.
