@@ -13,7 +13,6 @@ import { reasonText } from '@/components/play/GameOverCard';
 import { GameStartHandshake, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Screen } from '@/components/ui';
 import { useMoveFeedback } from '@/lib/feedback';
-import { prepareReview } from '@/features/engine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { saveGame } from '@/lib/archive';
@@ -64,7 +63,6 @@ export default function LocalPlay() {
   useEffect(() => {
     if (!outcome) return;
     save();
-    prepareReview(history.map((m) => m.uci));
   }, [outcome]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const undo = () => {

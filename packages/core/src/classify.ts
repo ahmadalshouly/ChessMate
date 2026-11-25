@@ -45,8 +45,8 @@ function makeCheapestCapture(chess: Chess, square: Square): Move | null {
   return null;
 }
 
-/** Material a capture wins: the piece taken, plus what a promotion adds. */
-const captureGain = (m: Move) => VALUE[m.captured!] + (m.promotion ? VALUE[m.promotion as PieceType] - 1 : 0);
+/** Material a move wins: the piece taken, if any, plus what a promotion adds. */
+const captureGain = (m: Move) => (m.captured ? VALUE[m.captured] : 0) + (m.promotion ? VALUE[m.promotion as PieceType] - 1 : 0);
 
 /**
  * Static exchange on `square` for the side to move: the material it can win
@@ -125,9 +125,68 @@ function immediateRecoup(chess: Chess, square: Square): number {
 const PROMOTIONS = ['q', 'r', 'b', 'n'] as const;
 
 /**
+ * The least material the mover could have left to be taken, net of what the
+ * move itself captures, over every legal move other than `playedUci`: what was
+ * lost whatever the mover did. Only needed when a move leaves a piece that was
+ * already attacked, which is rare, so the full move list is affordable here.
+ */
+function unavoidableLoss(fenBefore: string, playedUci: string): number {
+  const chess = new Chess(fenBefore);
+  const mover = chess.turn() as Color;
+  let least = Infinity;
+  for (const m of chess.moves({ verbose: true })) {
+    if (m.from + m.to + (m.promotion ?? '') === playedUci) continue;
+    chess.move(m);
+    let most = 0;
+    for (const won of looseMaterial(chess, mover).values()) most = Math.max(most, won);
+    chess.undo();
+    least = Math.min(least, Math.max(0, most - captureGain(m)));
+    if (least === 0) break;
+  }
+  return least === Infinity ? 0 : least;
+}
+
+/** Material balance for `side`, in pawns. */
+function balance(chess: Chess, side: Color): number {
+  let sum = 0;
+  for (const sq of ALL_SQUARES) {
+    const p = chess.get(sq);
+    if (p) sum += p.color === side ? VALUE[p.type] : -VALUE[p.type];
+  }
+  return sum;
+}
+
+/** Moves of the engine's line after a sacrifice in which the material must come back. */
+const WIN_BACK_PLIES = 7;
+
+/**
+ * True when, along the engine's best line after the move (`line`, starting
+ * with the opponent's reply), the mover wins the material back within a few
+ * moves: after one of the opponent's replies the mover is no more than a pawn
+ * down compared with before the move. Checked after the opponent's replies so
+ * that a capture which is simply taken back does not count.
+ */
+export function winsMaterialBack(fenBefore: string, uci: string, line: readonly string[]): boolean {
+  const chess = new Chess(fenBefore);
+  const mover = chess.turn() as Color;
+  const start = balance(chess, mover);
+  try {
+    chess.move(parseUci(uci));
+    for (let i = 0; i < Math.min(line.length, WIN_BACK_PLIES); i++) {
+      chess.move(parseUci(line[i]!));
+      if (i >= 2 && i % 2 === 0 && balance(chess, mover) >= start - 1) return true;
+    }
+  } catch {
+    // A line that does not fit the position (stale or cut short) proves nothing.
+  }
+  return false;
+}
+
+/**
  * Finds the material a move really offers: a piece the move puts (or leaves)
  * where the opponent can take it for profit. To count, the offer must be new
- * (a piece that was already loose before the move is not a sacrifice), worth
+ * (a piece that was already loose before the move, and that no move could
+ * have saved, is not a sacrifice), worth
  * at least a minor piece net of what the move captured, and not won straight
  * back by an obvious capture after the opponent takes. Returns the biggest
  * such offer, or null when the move is not a sacrifice.
@@ -136,6 +195,7 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
   const chess = new Chess(fenBefore);
   const mover = chess.turn() as Color;
   let before: Map<Square, number> | null = null;
+  let unavoidable: number | undefined;
   let played: Move;
   try {
     played = chess.move(parseUci(uci));
@@ -144,16 +204,22 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
   }
   // A move that ends the game offers nothing.
   if (chess.isGameOver()) return null;
-  const capturedValue = played.captured ? VALUE[played.captured] : 0;
+  // What the move itself won (a capture, a promotion) pays back part of any offer.
+  const gained = captureGain(played);
   let best: Sacrifice | null = null;
   for (const [sq, won] of looseMaterial(chess, mover)) {
     const p = chess.get(sq)!;
-    // What the mover just took pays back part of an offer on the destination square.
-    const amount = sq === played.to ? won - capturedValue : won;
+    const amount = won - gained;
     if (amount < 2) continue;
     before ??= looseBefore(fenBefore, mover);
     const already = before.get(sq === played.to ? played.from : sq) ?? 0;
-    if (amount - already < 2) continue;
+    if (amount - already < 2) {
+      // It was attacked already. Leaving it there is still an offer when another
+      // move would have kept the material (Fischer's 17...Be6!! leaves the queen
+      // that Bc5 attacked); a piece that was lost whatever the mover did is not.
+      unavoidable ??= unavoidableLoss(fenBefore, uci);
+      if (amount - unavoidable < 2) continue;
+    }
     if (amount - immediateRecoup(chess, sq) < 2) continue;
     if (!best || amount > best.amount || (amount === best.amount && VALUE[p.type] > VALUE[best.piece])) {
       best = { square: sq, piece: p.type, amount };
@@ -175,6 +241,8 @@ export interface ClassifyInput {
   secondBestScore?: Score;
   /** Score after the played move with best play from there, White's view. */
   playedScore: Score;
+  /** Engine's best line after the played move (opponent's reply first), used to see whether sacrificed material comes back. */
+  playedLine?: readonly string[];
   /** Number of legal moves before. Computed from the position when absent. */
   legalMoveCount?: number;
   /** True when the move is a known opening move. */
@@ -209,6 +277,7 @@ export function classifyMove(input: ClassifyInput): MoveJudgement {
     secondBestScore: input.secondBestScore,
     // Only searched for a move that could earn !! or !!! (most moves can't): it is slow.
     sacrifice: movedPiece ? () => findSacrifice(input.fenBefore, input.uci) : null,
+    winsMaterialBack: () => !!input.playedLine?.length && winsMaterialBack(input.fenBefore, input.uci, input.playedLine),
     isRecapture,
     previousLoss: input.previousLoss,
   });

@@ -164,7 +164,7 @@ The game server runs Stockfish as separate processes (UCI over stdin/stdout) and
 - **Board editor** (analysis board → pencil in the header, or **Set up position** under the moves): set up any position by hand. Pick a piece from the rows above and below the board and tap squares to place it; drag pieces to move them, or off the board to remove them. Choose the side to move and castling (only offered while king and rook stand on their home squares), copy or paste the FEN, then **Analyse**. The editor says what still stops a position being analysed (a missing king, a pawn on the back rank, the side not to move in check); the server refuses such positions too, so they never reach Stockfish. Rules live in `packages/core/src/setup.ts`.
 - **Game review** (signed in; after a game → Review game, from game history or a profile, or from the analysis board): every move gets a badge on the moved piece's square, accuracy per side, eval graph, and the better move drawn on the board.
 
-Reviews are graded on the device as soon as a game ends, so Review usually opens finished. An online game's first review is saved in the database (`game_reviews` table, one per game), so opening it again, from any account, just fetches it, and its accuracy replaces the Review button on the result screen, in game history and on profile rows. Games against the computer and pass-and-play keep their reviews on the device.
+Reviews are graded on the device when **Review** is opened, never in the background after a game ends, so the phone does not heat up after every game. Leaving Review stops the engine, and it shuts down after a minute with nothing to do. Stockfish otherwise runs only on the analysis board and for bots rated 1320 and up, and only on the bot's turn. An online game's first review is saved in the database (`game_reviews` table, one per game), so opening it again, from any account, just fetches it, and its accuracy replaces the Review button on the result screen, in game history and on profile rows. Games against the computer and pass-and-play keep their reviews on the device.
 
 To try it: sign in with two accounts (one in a private window), play an online game between them, then tap **Review game** on one side. When grading finishes the button reads *Accuracy ○ 84.2 · ● 71.5*; open the other account's profile from the first one and its recent game shows the accuracy and opens the same review without grading again.
 
@@ -173,7 +173,7 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 | Badge | Meaning |
 | --- | --- |
 | **!!!** Masterpiece (purple, crown) | A queen or rook sacrifice that leads to a forced mate. ChessMate's top tier. Any other sound sacrifice is !!. |
-| **!!** Brilliant (teal, sparkles) | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
+| **!!** Brilliant (teal, sparkles) | A sacrifice that pays off. The best (or near best) move gives away at least a minor piece's worth of material (a piece left attacked when it could have been saved counts too), and it leads to mate, gives the mover the advantage (about +1 or better), or wins the material back within a few moves. A sacrifice that only keeps the balance is not brilliant, and neither is one made when already winning easily, unless it forces mate. |
 | **!** Great (sapphire, target) | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
 | Best Move (gold, star), Excellent (copper, check), Good (green, rising check) | Close to the engine's choice. |
 | Theory (brown, book), Forced (slate, arrow) | A known opening move; the only legal move. |
@@ -182,7 +182,7 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 
 Badges are SVG medallions (`react-native-svg`): the full coin with its name, icon and symbol in the review, and a small white-edged coin (symbol or icon only) pinned to the moved piece on the board. Run `pnpm install` after pulling, since `react-native-svg` is new.
 
-To try them: open the analysis board, import `1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7`, and step through it (6. Nxf7 is brilliant). For the !!! (Masterpiece) badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
+To try them: open the analysis board, import `1. e4 e5 2. Nf3 d6 3. Bc4 Bg4 4. Nc3 g6 5. Nxe5`, and step through it (5. Nxe5 is brilliant: the queen is offered, and Bxd1 loses to Bxf7+ Ke7 Nd5#). For the !!! (Masterpiece) badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
 
 Engine help is refused while you have a live game, and for any position currently on the board in a live game.
 

@@ -10,7 +10,7 @@ export const feedback: Messages<typeof en> = {
   undefended: 'Deine Figur auf {square} ({piece}) bleibt ungedeckt.',
   bad: '{san} ist {cls}.{reason} Besser war {best}.',
   masterpiece: '{san}!!! Ein Meisterwerk: ein Damen- oder Turmopfer, das Matt erzwingt.',
-  brilliant: '{san}!! Ein korrektes Opfer. Das Material kommt mit Zinsen zurück.',
+  brilliant: '{san}!! Ein Opfer, das sich auszahlt: Es führt zum Matt, bringt den Vorteil oder holt das Material zurück.',
   great: '{san}! Der einzige Zug, der den Vorteil hält. Alles andere war klar schlechter.',
   miss: '{san} verpasst eine Chance nach dem Fehler deines Gegners. {best} hätte ihn bestraft.',
 };

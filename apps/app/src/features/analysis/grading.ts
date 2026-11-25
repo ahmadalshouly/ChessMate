@@ -43,6 +43,7 @@ export function gradeLine(
         bestMove: best.pv[0],
         secondBestScore: before.lines[1]?.score,
         playedScore,
+        playedLine: after?.lines[0]?.pv,
         book: inBook,
         previousUci: history[i - 1]?.uci,
         previousLoss: out[i - 1]?.loss,
