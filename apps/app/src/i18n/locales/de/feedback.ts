@@ -9,7 +9,7 @@ export const feedback: Messages<typeof en> = {
   allows: 'Das erlaubt {threat}.',
   undefended: 'Deine Figur auf {square} ({piece}) bleibt ungedeckt.',
   bad: '{san} ist {cls}.{reason} Besser war {best}.',
-  masterpiece: '{san}!!! Ein Meisterwerk: Die Dame wird angeboten, und die Engine bestätigt es.',
+  masterpiece: '{san}!!! Ein Meisterwerk: ein Damen- oder Turmopfer, das Matt erzwingt.',
   brilliant: '{san}!! Ein korrektes Opfer. Das Material kommt mit Zinsen zurück.',
   great: '{san}! Der einzige Zug, der den Vorteil hält. Alles andere war klar schlechter.',
   miss: '{san} verpasst eine Chance nach dem Fehler deines Gegners. {best} hätte ihn bestraft.',

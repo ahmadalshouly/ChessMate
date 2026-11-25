@@ -209,7 +209,6 @@ export function classifyMove(input: ClassifyInput): MoveJudgement {
     secondBestScore: input.secondBestScore,
     // Only searched for a move that could earn !! or !!! (most moves can't): it is slow.
     sacrifice: movedPiece ? () => findSacrifice(input.fenBefore, input.uci) : null,
-    movedPiece,
     isRecapture,
     previousLoss: input.previousLoss,
   });

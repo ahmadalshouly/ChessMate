@@ -26,7 +26,7 @@ export function quickFeedback(ctx: MoveFeedbackFacts): string {
     case 'book':
       return `${ctx.movePlayed} is a known opening move.`;
     case 'masterpiece':
-      return `${ctx.movePlayed}!!! A Masterpiece: the queen is offered and the engine backs it.`;
+      return `${ctx.movePlayed}!!! A Masterpiece: a queen or rook sacrifice that forces mate.`;
     case 'brilliant':
       return `${ctx.movePlayed}!! A sound sacrifice. The material comes back with interest.`;
     case 'great':
