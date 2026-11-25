@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { BOTS, Game, Position, chooseBotMove, perft, positionFromMoves, suggestMove } from '../src';
+import {
+  BOT_BANDS,
+  BOT_RATING_MAX,
+  BOT_RATING_MIN,
+  BOT_STYLES,
+  BOTS,
+  Game,
+  Position,
+  botBandOf,
+  botById,
+  chooseBotMove,
+  perft,
+  positionFromMoves,
+  suggestMove,
+} from '../src';
 
 const seeded = (seed: number) => () => {
   seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -22,24 +36,52 @@ describe('bot engine move generation (perft)', () => {
 });
 
 describe('bots', () => {
-  it('has eight levels with increasing strength', () => {
-    expect(BOTS).toHaveLength(8);
+  it('ranges from beginner to full strength, weakest first, with unique ids', () => {
+    expect(BOTS[0]!.rating).toBe(BOT_RATING_MIN);
+    expect(BOTS[BOTS.length - 1]!.rating).toBe(BOT_RATING_MAX);
     for (let i = 1; i < BOTS.length; i++) expect(BOTS[i]!.rating).toBeGreaterThan(BOTS[i - 1]!.rating);
+    expect(new Set(BOTS.map((b) => b.id)).size).toBe(BOTS.length);
+    for (const b of BOTS) {
+      expect(b.id).toMatch(/^[a-z]+$/);
+      expect(b.initial).toBe(b.name[0]);
+      expect(BOT_STYLES).toContain(b.style);
+    }
   });
 
-  it('every level returns a legal move', () => {
+  it('has several bots in every rating band, and the bands cover the whole range', () => {
+    for (let i = 1; i < BOT_BANDS.length; i++) expect(BOT_BANDS[i]!.min).toBe(BOT_BANDS[i - 1]!.max + 1);
+    expect(BOT_BANDS[0]!.min).toBe(BOT_RATING_MIN);
+    expect(BOT_BANDS[BOT_BANDS.length - 1]!.max).toBe(BOT_RATING_MAX);
+    for (const band of BOT_BANDS) {
+      const inBand = BOTS.filter((b) => botBandOf(b.rating) === band.id);
+      expect(inBand.length, band.id).toBeGreaterThanOrEqual(3);
+      // Different styles within a band, so the choice is a real one.
+      expect(new Set(inBand.map((b) => b.style)).size, band.id).toBeGreaterThanOrEqual(2);
+    }
+    expect(botBandOf(-50)).toBe('beginner');
+    expect(botBandOf(1999)).toBe('club');
+    expect(botBandOf(2000)).toBe('expert');
+    expect(botBandOf(9999)).toBe('superhuman');
+  });
+
+  it('keeps the original eight opponents at their ratings', () => {
+    const was: Record<string, number> = { pip: 400, juniper: 700, marlow: 1000, sable: 1250, quill: 1500, vesper: 1750, halcyon: 2000, monolith: 2200 };
+    for (const [id, rating] of Object.entries(was)) expect(botById(id)?.rating).toBe(rating);
+  });
+
+  it('every bot returns a legal move from the small search', () => {
     const moves = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4'];
     for (const bot of BOTS) {
-      const m = chooseBotMove({ ...bot, timeMs: Math.min(bot.timeMs, 300) }, { moves, random: seeded(bot.level) });
+      const m = chooseBotMove(bot, { moves, random: seeded(bot.rating), maxTimeMs: 300 });
       expect(Game.fromUciMoves(moves).isLegal(m.uci)).toBe(true);
     }
   });
 
-  it('finds mate in one at level 2 and above', () => {
+  it('finds mate in one from 700 up', () => {
     // Scholar's mate pattern: Qxf7#.
     const moves = ['e2e4', 'e7e5', 'f1c4', 'b8c6', 'd1h5', 'g8f6'];
-    for (const bot of BOTS.slice(1)) {
-      expect(chooseBotMove({ ...bot, timeMs: 300 }, { moves, random: seeded(7) }).uci).toBe('h5f7');
+    for (const bot of BOTS.filter((b) => b.rating >= 700)) {
+      expect(chooseBotMove(bot, { moves, random: seeded(7), maxTimeMs: 300 }).uci).toBe('h5f7');
     }
   });
 

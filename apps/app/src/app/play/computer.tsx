@@ -1,21 +1,26 @@
-import { BOTS, Game, START_FEN, chooseBotMove, type BotProfile, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
+import { Game, START_FEN, type BotBandId, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useGameLock } from '@/lib/useGameLock';
 import { ResultPopup } from '@/components/play/ResultPopup';
 import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
 import { currentPlayLock, reportComputerGame } from '@/lib/habits';
 import { Text } from '@/ui/primitives';
-import { rimShadow } from '@/ui';
+import { Badge, Chip, rimShadow, useToast } from '@/ui';
 
 import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
 import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
+import { AbortError, localEngine } from '@/features/engine/localEngine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
+import { BotAvatar } from '@/features/bots/BotAvatar';
+import { botMove, usesStockfish } from '@/features/bots/botMove';
+import { allOpponents, byBand, defaultOpponent, onlineBotId, onlineOpponent, type Opponent } from '@/features/bots/opponents';
+import { reportOnlineBotResult, useOnlineBots } from '@/features/bots/store';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useCurrentUser } from '@/lib/currentUser';
 import { dirIcon, translate, useT, type TKey } from '@/i18n';
@@ -32,14 +37,24 @@ import { ResultHeader, Scoreline, STAMP_MS, useCardEntrance, type EndResult } fr
 import { GameStartHandshake, HANDSHAKE_MS, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 
-const botTagline = (b: BotProfile) => translate(`bots.${b.id}` as TKey);
+/** The bot's one line: its own for an online bot, translated for a built-in one. */
+const botTagline = (b: Opponent) => (b.kind === 'online' ? (b.tagline ?? '') : translate(`bots.taglines.${b.id}` as TKey));
+
+/** "~1650 · Club", the line under a bot's name everywhere. */
+const ratingLine = (b: Pick<Opponent, 'rating' | 'band'>) => translate('computer.bandRating', { rating: b.rating, band: translate(`bots.bands.${b.band}`) });
 
 type ColorChoice = 'w' | 'random' | 'b';
 
 interface Setup {
-  bot: BotProfile;
+  bot: Opponent;
   color: Color;
 }
+
+/** The last opponent and colour picked, so "change opponent" opens where the player left off. */
+let lastChoice: { id: string; color: ColorChoice } | null = null;
+
+/** Roughly how strong ChessMate's own search plays a Stockfish bot on a device that cannot run Stockfish. */
+const FALLBACK_RATING = 2200;
 
 /**
  * Unrated practice against ChessMate's built-in computer opponents. The
@@ -77,14 +92,30 @@ export default function PlayComputer() {
 function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const t = useTheme();
   const tr = useT();
-  const [botId, setBotId] = useState(BOTS[2]!.id);
-  const [color, setColor] = useState<ColorChoice>('w');
-  const bot = BOTS.find((b) => b.id === botId)!;
+  const user = useCurrentUser();
+  const online = useOnlineBots();
+  const all = useMemo(() => allOpponents(online.bots), [online.bots]);
+  const groups = useMemo(() => byBand(all), [all]);
+  // Featured online bots in the order staff set them, ahead of everything else.
+  const featured = useMemo(() => online.bots.filter((b) => b.featured).map(onlineOpponent), [online.bots]);
+  const fallback = defaultOpponent(user.status === 'signedIn' ? user.rating : null);
+  const [botId, setBotId] = useState(lastChoice?.id ?? fallback.id);
+  const [color, setColor] = useState<ColorChoice>(lastChoice?.color ?? 'w');
+  // A remembered online bot that is gone (switched off, or offline now) falls back quietly.
+  const bot = all.find((b) => b.id === botId) ?? fallback;
+  const [band, setBand] = useState<BotBandId>(bot.band);
+  const shown = groups.find((g) => g.band.id === band)?.opponents ?? [];
 
+  const choose = (b: Opponent) => {
+    setBotId(b.id);
+    setBand(b.band);
+  };
   const start = () => {
+    lastChoice = { id: bot.id, color };
     const c: Color = color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : color;
     onStart({ bot, color: c });
   };
+  const visit = (url: string) => void Linking.openURL(url).catch(() => {});
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -94,16 +125,56 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
         </Label>
         <Label muted>{tr('computer.intro')}</Label>
 
+        {featured.length > 0 && (
+          <View style={{ gap: 8 }}>
+            <Text style={[styles.overline, { color: t.muted }]}>{tr('computer.featured')}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredRow}>
+              {featured.map((b) => {
+                const active = b.id === bot.id;
+                return (
+                  <Pressable
+                    key={b.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={tr('computer.botA11y', { name: b.name, band: tr(`bots.bands.${b.band}`), rating: b.rating })}
+                    onPress={() => choose(b)}
+                    style={({ pressed }) => [
+                      styles.featuredCard,
+                      { backgroundColor: active ? t.accent : t.surface, borderColor: active ? t.accent : t.glassBorder, opacity: pressed ? 0.85 : 1 },
+                      rimShadow(t, active ? 'bright' : 'soft'),
+                    ]}>
+                    <BotAvatar bot={b} size={64} inverted={active} />
+                    <Text numberOfLines={1} style={[styles.botName, { color: active ? t.onAccent : t.text }]}>
+                      {b.name}
+                    </Text>
+                    {b.tag ? <Badge label={tr(`chessTitle.roleTags.${b.tag}`)} tone={active ? 'outline' : 'solid'} /> : null}
+                    <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>{ratingLine(b)}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bands}>
+          {groups.map((g) => (
+            <Chip key={g.band.id} label={`${tr(`bots.bands.${g.band.id}`)} · ${g.band.min}–${g.band.max}`} selected={g.band.id === band} onPress={() => setBand(g.band.id)} />
+          ))}
+        </ScrollView>
+        {online.status === 'offline' && (
+          <Text style={[styles.botMeta, { color: t.muted }]}>{tr('computer.onlineBotsOffline')}</Text>
+        )}
+
         <View style={styles.botGrid}>
-          {BOTS.map((b) => {
-            const active = b.id === botId;
+          {shown.map((b) => {
+            const active = b.id === bot.id;
             return (
               <View key={b.id} style={styles.botCell}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
-                  accessibilityLabel={tr('computer.botA11y', { name: b.name, level: b.level, rating: b.rating })}
-                  onPress={() => setBotId(b.id)}
+                  accessibilityLabel={tr('computer.botA11y', { name: b.name, band: tr(`bots.bands.${b.band}`), rating: b.rating })}
+                  onPress={() => choose(b)}
                   style={({ pressed }) => [
                     styles.botTile,
                     {
@@ -114,10 +185,15 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
                     },
                     rimShadow(t, active ? 'bright' : 'soft'),
                   ]}>
-                  <Avatar bot={b} inverted={active} />
-                  <Text style={[styles.botName, { color: active ? t.onAccent : t.text }]}>{b.name}</Text>
+                  <View style={styles.tileTop}>
+                    <BotAvatar bot={b} inverted={active} />
+                    {b.kind === 'online' ? <Badge label={b.tag ? tr(`chessTitle.roleTags.${b.tag}`) : tr('computer.online')} tone={active ? 'outline' : 'solid'} /> : null}
+                  </View>
+                  <Text numberOfLines={1} style={[styles.botName, { color: active ? t.onAccent : t.text }]}>
+                    {b.name}
+                  </Text>
                   <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>
-                    {tr('computer.levelRating', { level: b.level, rating: b.rating })}
+                    {tr('computer.tileMeta', { rating: b.rating, style: tr(`bots.styles.${b.style}`) })}
                   </Text>
                 </Pressable>
               </View>
@@ -127,14 +203,24 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
 
         <Card>
           <View style={styles.row}>
-            <Avatar bot={bot} size={48} />
+            <BotAvatar bot={bot} size={56} />
             <View style={{ flex: 1, gap: 2 }}>
-              <Label size={18} bold>
-                {bot.name}
-              </Label>
-              <Label muted>{botTagline(bot)}</Label>
+              <View style={styles.nameRow}>
+                <Label size={18} bold>
+                  {bot.name}
+                </Label>
+                {bot.tag ? <Badge label={tr(`chessTitle.roleTags.${bot.tag}`)} tone="solid" /> : null}
+              </View>
+              <Label muted>{tr('computer.detailMeta', { line: ratingLine(bot), style: tr(`bots.styles.${bot.style}`) })}</Label>
             </View>
           </View>
+          {botTagline(bot) ? <Label>{botTagline(bot)}</Label> : null}
+          <Label muted>{tr(`bots.styleHint.${bot.style}`)}</Label>
+          {bot.url ? (
+            <Pressable accessibilityRole="link" onPress={() => visit(bot.url!)} style={({ pressed }) => [styles.visit, { borderColor: t.glassBorder, opacity: pressed ? 0.7 : 1 }]}>
+              <Text style={[styles.botMeta, { color: t.text, fontWeight: '700' }]}>{tr('computer.visit', { host: hostOf(bot.url) })}</Text>
+            </Pressable>
+          ) : null}
 
           <Label bold>{tr('computer.playAs')}</Label>
           <Segmented
@@ -154,25 +240,15 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   );
 }
 
-function Avatar({ bot, size = 40, inverted }: { bot: BotProfile; size?: number; inverted?: boolean }) {
-  const t = useTheme();
-  // Ring thickness grows with level: a quiet visual cue for strength.
-  const ring = 1 + Math.floor(bot.level / 3);
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        borderWidth: ring,
-        borderColor: inverted ? t.onAccent : t.text,
-        backgroundColor: inverted ? 'transparent' : t.surfaceSolid,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      <Text style={{ color: inverted ? t.onAccent : t.text, fontSize: size * 0.42, fontWeight: '700' }}>{bot.initial}</Text>
-    </View>
-  );
+/** "twitch.tv/name" from a link, for the visit button. */
+function hostOf(url: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, '');
+    return `${u.hostname.replace(/^www\./, '')}${path}`.slice(0, 40);
+  } catch {
+    return url.slice(0, 40);
+  }
 }
 
 function Segmented<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
@@ -185,9 +261,6 @@ interface GameView {
   fen: string;
   history: PlayedMove[];
 }
-
-/** Lets React paint (e.g. "Thinking…") before a blocking engine call. */
-const nextFrame = (fn: () => void, delay = 0) => setTimeout(fn, delay);
 
 function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () => void; onRematch: (s: Setup) => void }) {
   const tr = useT();
@@ -209,6 +282,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const [hideResult, setHideResult] = useState(false);
   /** Incremented to cancel a pending bot move (takeback, new game). */
   const epoch = useRef(0);
+  const toast = useToast();
+  /** Said once per game when this device plays the bot without Stockfish. */
+  const warned = useRef(false);
 
   const sync = () => setView({ fen: game.current.fen, history: game.current.history() });
 
@@ -229,26 +305,53 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   useEffect(() => {
     if (outcome || snapshot.turn === me) return;
     const token = ++epoch.current;
+    const abort = new AbortController();
     setThinking(true);
     const moves = game.current.uciHistory();
     // Playing black, the computer waits for the handshake before its first move.
-    const pause = 250 + Math.min(500, bot.level * 60) + (intro.active && moves.length === 0 ? HANDSHAKE_MS : 0);
-    const id = nextFrame(() => {
+    const pause = 250 + Math.min(450, Math.round(bot.rating / 8)) + (intro.active && moves.length === 0 ? HANDSHAKE_MS : 0);
+    let rest: ReturnType<typeof setTimeout> | undefined;
+    const id = setTimeout(() => {
       if (token !== epoch.current) return;
       const started = Date.now();
-      const m = chooseBotMove(bot, { moves });
-      // Keep a natural rhythm: weak bots never answer instantly.
-      const rest = Math.max(0, 350 - (Date.now() - started));
-      nextFrame(() => {
-        if (token !== epoch.current) return;
-        game.current.move(m.uci);
-        setThinking(false);
-        sync();
-      }, rest);
+      botMove(bot, moves, { signal: abort.signal }).then(
+        (m) => {
+          if (token !== epoch.current) return;
+          if (m.source === 'fallback' && !warned.current && bot.rating > FALLBACK_RATING) {
+            warned.current = true;
+            toast.show({ title: tr('computer.deviceFallback', { name: bot.name, rating: FALLBACK_RATING }) });
+          }
+          // Keep a natural rhythm: no bot answers instantly.
+          rest = setTimeout(
+            () => {
+              if (token !== epoch.current) return;
+              game.current.move(m.uci);
+              setThinking(false);
+              sync();
+            },
+            Math.max(0, 350 - (Date.now() - started)),
+          );
+        },
+        (e: unknown) => {
+          if (!(e instanceof AbortError)) console.warn('[computer] no move', e);
+        },
+      );
     }, pause);
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+      if (rest) clearTimeout(rest);
+      abort.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.fen, outcome?.reason]);
+
+  // Stockfish bots: start the engine now and keep it running for the whole game.
+  const over = !!outcome;
+  useEffect(() => {
+    if (over || !usesStockfish(bot)) return;
+    localEngine.warmUp();
+    return localEngine.hold();
+  }, [over, bot]);
 
   const play = (uci: string) => {
     if (!myTurn) return false;
@@ -268,6 +371,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     const id = setTimeout(() => prepareReview(moves), PREPARE_DELAY_MS);
     // Counts for the streak and the play limit (signed-in players).
     void reportComputerGame(view.history.length);
+    // Online bots show staff how often they are played.
+    const online = onlineBotId(bot);
+    if (online && view.history.length >= 2) reportOnlineBotResult(online, outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss');
     return () => clearTimeout(id);
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
   const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci) } : null);
@@ -318,8 +424,8 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const botCard = (
     <PlayerCard
       player={{ id: `bot_${bot.id}`, name: bot.name, rating: bot.rating, provisional: false }}
-      avatar={<Avatar bot={bot} size={36} />}
-      subtitle={tr('computer.levelRating', { level: bot.level, rating: bot.rating })}
+      avatar={<BotAvatar bot={bot} size={36} />}
+      subtitle={ratingLine(bot)}
       status={thinking ? tr('computer.thinking') : null}
       active={!outcome && snapshot.turn === botColor}
       pressable={false}
@@ -407,7 +513,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
             me={me}
             title={verdict.title}
             detail={`${reasonText(outcome.reason)} · ${tr('computer.unrated')}${takebacks ? ` · ${tr('computer.takebacks', { count: takebacks })}` : ''}`}
-            eyebrow={tr('computer.levelRating', { level: bot.level, rating: bot.rating })}
+            eyebrow={ratingLine(bot)}
             white={me === 'w' ? user.displayName || tr('computer.you') : bot.name}
             black={me === 'b' ? user.displayName || tr('computer.you') : bot.name}
             onClose={() => setHideResult(true)}>
@@ -487,6 +593,13 @@ const styles = StyleSheet.create({
   botTile: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'flex-start' },
   botName: { fontSize: 16, fontWeight: '700' },
   botMeta: { fontSize: 13 },
+  tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: 6 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  overline: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  featuredRow: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
+  featuredCard: { width: 150, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'center' },
+  bands: { gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
+  visit: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
   overlayScroll: { width: '100%', maxHeight: '100%' },

@@ -176,6 +176,13 @@
       "when": 1797600000000,
       "tag": "0025_ad_spots",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1797750000000,
+      "tag": "0026_online_bots",
+      "breakpoints": true
     }
   ]
 }

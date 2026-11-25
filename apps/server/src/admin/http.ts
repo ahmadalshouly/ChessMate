@@ -73,6 +73,11 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /ads/:id                     same fields, saves
  *   POST /ads/:id/stop                { stopped } takes it down early, or puts it back on
  *   POST /ads/:id/delete              removes it for good
+ *   GET  /bots                        { bots } every online computer opponent, with how often it was played
+ *   POST /bots                        { name, tagline?, rating, style, tag?, url?, image?, imageUrl?, featured?, enabled? }
+ *   POST /bots/:id                    same fields, saves (image left out keeps the stored picture)
+ *   POST /bots/:id/flags              { enabled?, featured? } switches it on or off, in or out of the featured row
+ *   POST /bots/:id/delete             removes it for good
  *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  *   GET  /lessons                     every chapter and lesson, drafts included
  *   POST /lessons                     { lesson } creates a lesson; POST /lessons/:id { lesson } saves it
@@ -99,7 +104,7 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
     try {
       const actor: Actor = admin.actorFor(bearerUser(req, auth));
       // Tournament forms can carry a sponsor logo (a data URL of up to ~400 KB); everything else stays small.
-      const maxBody = section === 'tournaments' || section === 'ads' ? 2 * 1024 * 1024 : section === 'lessons' ? 256 * 1024 : undefined;
+      const maxBody = section === 'tournaments' || section === 'ads' || section === 'bots' ? 2 * 1024 * 1024 : section === 'lessons' ? 256 * 1024 : undefined;
       const body = async (): Promise<Record<string, unknown>> => (req.method === 'POST' ? readJson(req, maxBody) : {});
       const route = `${req.method} ${section}${id ? '/:id' : ''}${action ? `/${action}` : ''}`;
       const ok = (v: unknown) => (sendJson(res, 200, v), true);
@@ -216,6 +221,16 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ placement: await admin.stopAdPlacement(actor, id!, await body()) });
         case 'POST ads/:id/delete':
           return ok(await admin.deleteAdPlacement(actor, id!));
+        case 'GET bots':
+          return ok({ bots: admin.botConsole(actor) });
+        case 'POST bots':
+          return ok({ bot: await admin.createBot(actor, await body()) });
+        case 'POST bots/:id':
+          return ok({ bot: await admin.updateBot(actor, id!, await body()) });
+        case 'POST bots/:id/flags':
+          return ok({ bot: await admin.setBotFlags(actor, id!, await body()) });
+        case 'POST bots/:id/delete':
+          return ok(await admin.deleteBot(actor, id!));
         case 'GET payouts':
           return ok({ requests: admin.payoutRequests(actor) });
         case 'POST payouts/:id':

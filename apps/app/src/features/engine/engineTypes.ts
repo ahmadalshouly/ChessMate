@@ -15,6 +15,8 @@ export type FarmIn =
       multipv: number;
       movetime?: number;
       urgent?: boolean;
+      /** Play at Stockfish's strength limit (UCI_Elo, 1320 to 3190) instead of full strength: computer opponents. */
+      elo?: number;
     }
   | { t: 'cancel'; id: number };
 

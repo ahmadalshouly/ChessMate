@@ -31,6 +31,24 @@ export function cleanImage(raw: unknown, field = 'image'): Clean<string | null |
   return { value: raw };
 }
 
+/**
+ * One web link from a form: https, with http upgraded and a missing scheme
+ * added. Empty means "no link".
+ */
+export function cleanWebLink(raw: unknown, field: string, max = MEDIA_LIMITS.linkUrl): Clean<string | null> {
+  const s = typeof raw === 'string' ? raw.trim().slice(0, max) : '';
+  if (!s) return { value: null };
+  const withScheme = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  try {
+    const u = new URL(withScheme);
+    if (!u.hostname.includes('.')) throw new Error('no host');
+    if (u.protocol === 'http:') u.protocol = 'https:';
+    return { value: u.toString() };
+  } catch {
+    return { error: 'Enter a valid link, such as https://example.com', field };
+  }
+}
+
 /** Up to six links: https (http is upgraded), with an optional label. */
 export function cleanLinks(raw: unknown, field = 'links'): Clean<PostLink[]> {
   if (raw === undefined || raw === null) return { value: [] };
