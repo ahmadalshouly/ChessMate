@@ -14,7 +14,6 @@ import { Board } from '@/components/Board';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useMoveFeedback } from '@/lib/feedback';
-import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
 import { AbortError, localEngine } from '@/features/engine/localEngine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { BotAvatar } from '@/features/bots/BotAvatar';
@@ -367,17 +366,13 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     startCue: true,
     result: outcome ? (outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss') : undefined,
   });
-  // Grade the game as soon as it ends (on the device where it can), so Review opens with every badge ready.
   useEffect(() => {
     if (!outcome) return;
-    const moves = view.history.map((m) => m.uci);
-    const id = setTimeout(() => prepareReview(moves), PREPARE_DELAY_MS);
     // Counts for the streak and the play limit (signed-in players).
     void reportComputerGame(view.history.length);
     // Online bots show staff how often they are played.
     const online = onlineBotId(bot);
     if (online && view.history.length >= 2) reportOnlineBotResult(online, outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss');
-    return () => clearTimeout(id);
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
   const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci) } : null);
 

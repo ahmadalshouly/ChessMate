@@ -78,8 +78,6 @@ interface Job {
   key: string;
   ctrl: AbortController;
   listeners: Set<Listener>;
-  /** Started when a game ended: keeps going with nobody watching, so Review opens finished. */
-  keep: boolean;
   last: ReviewSnapshot;
 }
 
@@ -160,37 +158,27 @@ export function keepReview(req: ReviewRequest, review: GameReview) {
  * Reviews a game on this device, calling `listener` as moves are graded (in
  * game order) and once more with the finished review. A review already
  * running for the same game is joined, not started again. Returns a function
- * that stops listening; the search stops too unless it was started by
- * `prepareLocalReview` or someone else is still watching.
+ * that stops listening; the search stops too once nobody is watching, so the
+ * engine only works while Review is open.
  */
 export function reviewLocally(req: ReviewRequest, listener: Listener): () => void {
-  const job = ensureJob(req, false);
+  const job = ensureJob(req);
   job.listeners.add(listener);
   listener(job.last);
   return () => {
     job.listeners.delete(listener);
-    if (!job.keep && job.listeners.size === 0) job.ctrl.abort();
+    if (job.listeners.size === 0) job.ctrl.abort();
   };
 }
 
-/** Starts reviewing a game that just ended, so Review opens with most or all of it done. */
-export function prepareLocalReview(req: ReviewRequest): void {
-  if (req.moves.length < 2 || !localEngine.usable) return;
-  ensureJob(req, true);
-}
-
-function ensureJob(req: ReviewRequest, keep: boolean): Job {
+function ensureJob(req: ReviewRequest): Job {
   const key = reviewKey(req.initialFen, req.moves);
   const running = jobs.get(key);
-  if (running && !running.ctrl.signal.aborted) {
-    running.keep ||= keep;
-    return running;
-  }
+  if (running && !running.ctrl.signal.aborted) return running;
   const job: Job = {
     key,
     ctrl: new AbortController(),
     listeners: new Set(),
-    keep,
     last: { review: null, done: 0, total: req.moves.length + 1, final: false },
   };
   jobs.set(key, job);
