@@ -40,3 +40,4 @@ export * from './media';
 export * from './material';
 export * from './lessons';
 export * from './ads';
+export * from './setup';

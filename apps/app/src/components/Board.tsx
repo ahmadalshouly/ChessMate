@@ -1,4 +1,4 @@
-import { ALL_SQUARES, FILES, Game, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
+import { ALL_SQUARES, FILES, fenBoard, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Image, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
@@ -51,6 +51,13 @@ export interface BoardProps {
   canDrag?: (square: Square) => boolean;
   /** A dragged piece was released on another square. */
   onPieceDrop?: (from: Square, to: Square) => void;
+  /**
+   * A dragged piece was released off the board (the board editor removes it).
+   * Without it, a piece dropped off the board glides back to its square.
+   */
+  onPieceRemove?: (from: Square) => void;
+  /** Picking up a piece also selects it (onSquarePress), so its legal moves show. Default on; the board editor turns it off. */
+  dragSelects?: boolean;
   /** Right-click on the web: cancel the selection or queued premove. */
   onCancel?: () => void;
   /** Override the user's board theme (previews). Defaults to the theme chosen in settings. */
@@ -506,7 +513,8 @@ export const Board = memo(function Board(props: BoardProps) {
   const { fen, orientation, size, selected, targets = [], lastMove, lastMoveColor, checkSquare, threatened = [], premove, onSquarePress } = props;
   const { boardTheme } = useBoardTheme();
   const colors = props.theme ?? boardTheme;
-  const position = useMemo(() => new Game(fen).raw.board() as (Piece | null)[][], [fen]);
+  // Read straight from the FEN, so the board editor can show positions the rules refuse (no kings yet).
+  const position = useMemo(() => fenBoard(fen), [fen]);
   const cell = size / 8;
   // Piece set, coordinates, legal-move dots and last-move highlight follow the user's board settings.
   const look = useBoardAppearance();
@@ -758,6 +766,8 @@ function useDrag(p: {
   onSquarePress?: (square: Square) => void;
   canDrag?: (square: Square) => boolean;
   onPieceDrop?: (from: Square, to: Square) => void;
+  onPieceRemove?: (from: Square) => void;
+  dragSelects?: boolean;
   onCancel?: () => void;
   /** Told about a drop before onPieceDrop, so the board doesn't slide that piece again. */
   onDropped?: (from: Square, to: Square) => void;
@@ -788,6 +798,12 @@ function useDrag(p: {
    * piece ('a' + its KINDS index), so touch-down is decided on the UI thread.
    */
   const movable = useSharedValue('');
+  /** Dropping off the board removes the piece (board editor) instead of gliding it home. */
+  const removeOff = useSharedValue(false);
+  const removes = !!p.onPieceRemove;
+  useEffect(() => {
+    removeOff.set(removes);
+  }, [removes, removeOff]);
 
   const movableKey =
     enabled && p.canDrag
@@ -838,16 +854,22 @@ function useDrag(p: {
       dragStart(idx: number) {
         haptic('pickup');
         setPending(null);
-        const { selected, onSquarePress } = latest.current;
+        const { selected, onSquarePress, dragSelects } = latest.current;
         const sq = squareOfCell(idx);
-        if (selected !== sq) onSquarePress?.(sq);
+        if (selected !== sq && dragSelects !== false) onSquarePress?.(sq);
       },
       drop(overIdx: number, fromIdx: number) {
-        const { onPieceDrop, onDropped, fen } = latest.current;
+        const { onPieceDrop, onPieceRemove, onDropped, fen } = latest.current;
         const sq = squareOfCell(fromIdx);
+        const to = overIdx >= 0 ? squareOfCell(overIdx) : null;
+        // Off the board in the editor: the piece goes. It stays under the finger until the new position shows.
+        if (!to && onPieceRemove) {
+          onPieceRemove(sq);
+          setPending({ fen, from: fromIdx });
+          return;
+        }
         // Dropped back on its square or off the board: the UI thread already glides it home,
         // and it stays selected for a tap move.
-        const to = overIdx >= 0 ? squareOfCell(overIdx) : null;
         if (!to || to === sq) return;
         onDropped?.(sq, to);
         onPieceDrop?.(sq, to);
@@ -932,8 +954,9 @@ function useDrag(p: {
             scheduleOnRN(js.cancel);
             return;
           }
-          // Back on its own square or off the board: glide home right here, without waiting for JavaScript.
-          if (target < 0 || target === origin) anim.snapBack(origin);
+          // Back on its own square or off the board: glide home right here, without waiting for JavaScript
+          // (unless dropping off the board removes the piece).
+          if (target === origin || (target < 0 && !removeOff.get())) anim.snapBack(origin);
           scheduleOnRN(js.drop, target, origin);
         },
         onFinalize: () => {
