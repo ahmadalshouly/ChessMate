@@ -9,6 +9,10 @@ import { getSettings } from '@/features/account/settingsStore';
  * scripts/synth-wood.mjs (win, lose and illegal by scripts/synth-sounds.mjs), so there
  * is nothing to license (see assets/sounds/CREDITS.md). Moves, captures, castling and check come in several takes that
  * are rotated, so repeated moves sound like real play.
+ *
+ * Every file lasts at least a second, the sound followed by silence. Android plays nothing
+ * for a file short enough to fit whole in its audio buffer (MIN_SECONDS in
+ * scripts/synth-wood.mjs explains why); test/soundFiles.test.ts checks each file.
  */
 const SOURCES = {
   move: [require('../../assets/sounds/move1.wav'), require('../../assets/sounds/move2.wav'), require('../../assets/sounds/move3.wav'), require('../../assets/sounds/move4.wav')],

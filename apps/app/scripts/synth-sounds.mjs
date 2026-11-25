@@ -9,6 +9,12 @@ import { fileURLToPath } from 'node:url';
 const RATE = 44100;
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'sounds');
 
+/**
+ * Every file lasts at least this long, the sound followed by silence: a shorter file is
+ * silent on Android (see MIN_SECONDS in synth-wood.mjs).
+ */
+const MIN_SECONDS = 1;
+
 /** Seeded noise so the files are byte-identical on every run. */
 let seed = 7;
 const noise = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x3fffffff) - 1;
@@ -30,8 +36,8 @@ function write(name, seconds, draw) {
   const buf = new Float32Array(Math.round(seconds * RATE));
   draw(buf);
   const peak = buf.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
-  const data = Buffer.alloc(buf.length * 2);
-  // Normalise to about -3 dBFS and fade the tail to avoid clicks.
+  const data = Buffer.alloc(Math.max(buf.length, Math.round(MIN_SECONDS * RATE)) * 2);
+  // Normalise to about -3 dBFS and fade the tail to avoid clicks. Past the sound: silence.
   for (let i = 0; i < buf.length; i++) {
     const fade = Math.min(1, (buf.length - i) / (0.01 * RATE));
     data.writeInt16LE(Math.round((buf[i] / peak) * 0.7 * fade * 32767), i * 2);
@@ -89,7 +95,11 @@ write('lose', 1.1, (b) => {
   bell(b, 0.28, 220, 0.9, 0.25);
 });
 
-/** A muffled low thud whose pitch sags, like a piece bumping the board edge. */
+/**
+ * A muffled low thud whose pitch sags, like a piece bumping the board edge. Its upper
+ * partials die away within a few hundredths of a second: they are the knock a phone's
+ * small speaker can play, which cannot reproduce the low note itself.
+ */
 function thud(buf, at, freq, dur, gain = 1) {
   const start = Math.round(at * RATE);
   const len = Math.round(dur * RATE);
@@ -99,9 +109,10 @@ function thud(buf, at, freq, dur, gain = 1) {
     const t = i / RATE;
     phase += (2 * Math.PI * freq * (1 - 0.25 * Math.min(1, t / dur))) / RATE;
     const tone = Math.sin(phase) + 0.3 * Math.sin(2 * phase);
+    const knock = Math.exp(-t / 0.025) * (0.55 * Math.sin(3 * phase) + 0.45 * Math.sin(4 * phase) + 0.3 * Math.sin(6 * phase));
     lp += 0.18 * (noise() - lp);
     const env = Math.min(1, t / 0.003) * Math.exp(-t * (5 / dur));
-    buf[start + i] += gain * env * (0.85 * tone + 0.25 * lp);
+    buf[start + i] += gain * env * (0.85 * tone + knock + 0.25 * lp);
   }
 }
 
