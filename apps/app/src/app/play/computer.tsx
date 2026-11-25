@@ -107,6 +107,9 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const bot = all.find((b) => b.id === botId) ?? fallback;
   const [band, setBand] = useState<BotBandId>(bot.band);
   const shown = groups.find((g) => g.band.id === band)?.opponents ?? [];
+  const bandInfo = groups.find((g) => g.band.id === band)?.band;
+  // Known already this session: the strong bots will play weaker on this device.
+  const weakerHere = !localEngine.usable && usesStockfish(bot) && bot.rating > FALLBACK_RATING;
 
   const choose = (b: Opponent) => {
     setBotId(b.id);
@@ -130,39 +133,47 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
         {featured.length > 0 && (
           <View style={{ gap: 8 }}>
             <Text style={[styles.overline, { color: t.muted }]}>{tr('computer.featured')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredRow}>
+            <View style={styles.botGrid}>
               {featured.map((b) => {
                 const active = b.id === bot.id;
                 return (
-                  <Pressable
-                    key={b.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={tr('computer.botA11y', { name: b.name, band: tr(`bots.bands.${b.band}`), rating: b.rating })}
-                    onPress={() => choose(b)}
-                    style={({ pressed }) => [
-                      styles.featuredCard,
-                      { backgroundColor: active ? t.accent : t.surface, borderColor: active ? t.accent : t.glassBorder, opacity: pressed ? 0.85 : 1 },
-                      rimShadow(t, active ? 'bright' : 'soft'),
-                    ]}>
-                    <BotAvatar bot={b} size={64} inverted={active} />
-                    <Text numberOfLines={1} style={[styles.botName, { color: active ? t.onAccent : t.text }]}>
-                      {b.name}
-                    </Text>
-                    {b.tag ? <Badge label={tr(`chessTitle.roleTags.${b.tag}`)} tone={active ? 'outline' : 'solid'} /> : null}
-                    <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>{ratingLine(b)}</Text>
-                  </Pressable>
+                  <View key={b.id} style={styles.botCell}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={tr('computer.botA11y', { name: b.name, band: tr(`bots.bands.${b.band}`), rating: b.rating })}
+                      onPress={() => choose(b)}
+                      style={({ pressed }) => [
+                        styles.featuredCard,
+                        { backgroundColor: active ? t.accent : t.surface, borderColor: active ? t.accent : t.glassBorder, opacity: pressed ? 0.85 : 1 },
+                        rimShadow(t, active ? 'bright' : 'soft'),
+                      ]}>
+                      <BotAvatar bot={b} size={64} inverted={active} />
+                      <Text numberOfLines={1} style={[styles.botName, { color: active ? t.onAccent : t.text }]}>
+                        {b.name}
+                      </Text>
+                      {b.tag ? <Badge label={tr(`chessTitle.roleTags.${b.tag}`)} tone={active ? 'outline' : 'solid'} /> : null}
+                      <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>{ratingLine(b)}</Text>
+                    </Pressable>
+                  </View>
                 );
               })}
-            </ScrollView>
+            </View>
           </View>
         )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bands}>
-          {groups.map((g) => (
-            <Chip key={g.band.id} label={`${tr(`bots.bands.${g.band.id}`)} · ${g.band.min}–${g.band.max}`} selected={g.band.id === band} onPress={() => setBand(g.band.id)} />
-          ))}
-        </ScrollView>
+        <View style={{ gap: 6 }}>
+          <View style={styles.bands}>
+            {groups.map((g) => (
+              <Chip key={g.band.id} label={tr(`bots.bands.${g.band.id}`)} selected={g.band.id === band} onPress={() => setBand(g.band.id)} />
+            ))}
+          </View>
+          {bandInfo ? (
+            <Text style={[styles.botMeta, { color: t.muted }]}>
+              {tr('computer.bandRange', { band: tr(`bots.bands.${bandInfo.id}`), min: bandInfo.min, max: bandInfo.max })}
+            </Text>
+          ) : null}
+        </View>
         {online.status === 'offline' && (
           <Text style={[styles.botMeta, { color: t.muted }]}>{tr('computer.onlineBotsOffline')}</Text>
         )}
@@ -218,6 +229,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
           </View>
           {botTagline(bot) ? <Label>{botTagline(bot)}</Label> : null}
           <Label muted>{tr(`bots.styleHint.${bot.style}`)}</Label>
+          {weakerHere ? <Label muted>{tr('computer.deviceFallback', { name: bot.name, rating: FALLBACK_RATING })}</Label> : null}
           {bot.url ? (
             <Pressable accessibilityRole="link" onPress={() => visit(bot.url!)} style={({ pressed }) => [styles.visit, { borderColor: t.glassBorder, opacity: pressed ? 0.7 : 1 }]}>
               <Text style={[styles.botMeta, { color: t.text, fontWeight: '700' }]}>{tr('computer.visit', { host: hostOf(bot.url) })}</Text>
@@ -285,7 +297,8 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   /** Incremented to cancel a pending bot move (takeback, new game). */
   const epoch = useRef(0);
   const toast = useToast();
-  /** Said once per game when this device plays the bot without Stockfish. */
+  /** True once this device has played the bot without Stockfish: weaker than its rating, and the card says so. */
+  const [reduced, setReduced] = useState(false);
   const warned = useRef(false);
 
   const sync = () => setView({ fen: game.current.fen, history: game.current.history() });
@@ -321,6 +334,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
           if (token !== epoch.current) return;
           if (m.source === 'fallback' && !warned.current && bot.rating > FALLBACK_RATING) {
             warned.current = true;
+            setReduced(true);
             toast.show({ title: tr('computer.deviceFallback', { name: bot.name, rating: FALLBACK_RATING }) });
           }
           // Keep a natural rhythm: no bot answers instantly.
@@ -424,7 +438,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     <PlayerCard
       player={{ id: `bot_${bot.id}`, name: bot.name, rating: bot.rating, provisional: false }}
       avatar={<BotAvatar bot={bot} size={36} />}
-      subtitle={ratingLine(bot)}
+      subtitle={reduced ? tr('computer.reducedLine', { line: ratingLine(bot), rating: FALLBACK_RATING }) : ratingLine(bot)}
       status={thinking ? tr('computer.thinking') : null}
       active={!outcome && snapshot.turn === botColor}
       pressable={false}
@@ -615,9 +629,8 @@ const styles = StyleSheet.create({
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: 6 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   overline: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-  featuredRow: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
-  featuredCard: { width: 150, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'center' },
-  bands: { gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
+  featuredCard: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'center' },
+  bands: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   visit: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },

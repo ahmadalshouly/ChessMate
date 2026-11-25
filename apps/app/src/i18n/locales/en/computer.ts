@@ -11,6 +11,8 @@ export const computer = {
   botA11y: '{name}, {band}, about {rating}',
   /** Under a bot's name: its rating and band, e.g. "~1650 · Club". */
   bandRating: '~{rating} · {band}',
+  bandRange: '{band}: rated {min} to {max}',
+  reducedLine: '{line} · about {rating} on this device',
   tileMeta: '~{rating} · {style}',
   /** "~1650 · Club · Aggressive" */
   detailMeta: '{line} · {style}',

@@ -13,6 +13,8 @@ export const computer: Messages<typeof en> = {
   threatFeedback: 'ملاحظات التهديد',
   botA11y: '{name}، {band}، نحو {rating}',
   bandRating: '~{rating} · {band}',
+  bandRange: '{band}: تصنيف من {min} إلى {max}',
+  reducedLine: '{line} · نحو {rating} على هذا الجهاز',
   tileMeta: '~{rating} · {style}',
   detailMeta: '{line} · {style}',
   featured: 'مميّزون',
