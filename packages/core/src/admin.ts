@@ -60,6 +60,8 @@ export const ADMIN_PERMISSIONS = [
   'notifications.send',
   /** Switch ad spots on and off, and place sponsors on them. Admins only. */
   'ads.manage',
+  /** Create, edit and remove online computer opponents (streamer and creator bots). Admins only. */
+  'bots.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

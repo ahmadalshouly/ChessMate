@@ -1456,3 +1456,39 @@ export const adPlacements = pgTable(
 
 export type AdSpotRow = typeof adSpots.$inferSelect;
 export type AdPlacementRow = typeof adPlacements.$inferSelect;
+
+// ---------------------------------------------------------------- online computer opponents
+
+/**
+ * Computer opponents staff create in the console (a streamer's bot, say). The
+ * app lists the enabled ones and plays them on the player's device like any
+ * built-in bot of the same rating and style. The picture travels as a data
+ * URL, like ad images, and is served from its own endpoint. The counters are
+ * a courtesy for staff and for the person the bot is named after.
+ */
+export const onlineBots = pgTable(
+  'online_bots',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    tagline: text('tagline'),
+    rating: integer('rating').notNull(),
+    style: text('style').notNull().default('balanced'),
+    tag: text('tag'),
+    url: text('url'),
+    image: text('image'),
+    imageUrl: text('image_url'),
+    featured: boolean('featured').notNull().default(false),
+    enabled: boolean('enabled').notNull().default(true),
+    games: integer('games').notNull().default(0),
+    playerWins: integer('player_wins').notNull().default(0),
+    botWins: integer('bot_wins').notNull().default(0),
+    draws: integer('draws').notNull().default(0),
+    createdBy: text('created_by'),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at'),
+  },
+  (t) => [index('online_bots_enabled_idx').on(t.enabled, t.rating)],
+);
+
+export type OnlineBotRow = typeof onlineBots.$inferSelect;

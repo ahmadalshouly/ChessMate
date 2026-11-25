@@ -5,12 +5,15 @@
  * iOS/Android; the app only sends searches and receives finished results.
  *
  * `createFarm(makeEngine, size, post)` returns `onMessage(msg)`. Messages in:
- *   {t:'search', id, fen, depth, multipv, movetime?, urgent?, moves?, lane?}   {t:'cancel', id}
+ *   {t:'search', id, fen, depth, multipv, movetime?, urgent?, moves?, lane?, elo?}   {t:'cancel', id}
  * With `moves`, the engine is given the game from `fen` plus those moves (so it
  * knows about repetitions). `lane` asks for one engine: engine k takes lane k's
  * searches first, so a stretch of consecutive positions runs on the same engine
  * and each search reuses what the engine learned on the previous one (its hash
  * table); an engine with no lane work left takes over the end of the longest lane.
+ * `elo` plays at Stockfish's own strength limit (UCI_Elo, for computer
+ * opponents); every search without it runs at full strength, so a review that
+ * follows a game against the computer is never graded by a handicapped engine.
  * Messages out (through `post`):
  *   {t:'ready', size}  {t:'result', id, lines: string[], best: string|null}
  *   {t:'cancelled', id}  {t:'error', message}
@@ -45,6 +48,11 @@ function createFarm(makeEngine, size, post) {
       var job = take(i);
       if (!job) continue;
       s.job = job;
+      if (job.elo !== s.elo) {
+        if (job.elo) { s.engine.postMessage('setoption name UCI_LimitStrength value true'); s.engine.postMessage('setoption name UCI_Elo value ' + job.elo); }
+        else s.engine.postMessage('setoption name UCI_LimitStrength value false');
+        s.elo = job.elo;
+      }
       if (job.multipv !== s.multipv) { s.engine.postMessage('setoption name MultiPV value ' + job.multipv); s.multipv = job.multipv; }
       s.engine.postMessage('position fen ' + job.fen + (job.moves ? ' moves ' + job.moves : ''));
       s.engine.postMessage('go depth ' + job.depth + (job.movetime ? ' movetime ' + job.movetime : ''));
@@ -75,7 +83,7 @@ function createFarm(makeEngine, size, post) {
     }
   }
   for (var i = 0; i < size; i++) (function (k) {
-    var s = { engine: null, ready: false, multipv: 1, job: null };
+    var s = { engine: null, ready: false, multipv: 1, elo: 0, job: null };
     s.engine = makeEngine(function (l) { onLine(s, String(l)); }, function (msg) { fail(msg); });
     slots.push(s);
     s.engine.postMessage('uci');
@@ -83,7 +91,7 @@ function createFarm(makeEngine, size, post) {
   return function onMessage(m) {
     if (!m || failed) return;
     if (m.t === 'search') {
-      var job = { id: m.id, fen: m.fen, moves: m.moves, lane: m.lane, urgent: !!m.urgent, depth: m.depth, multipv: m.multipv || 1, movetime: m.movetime, lines: {} };
+      var job = { id: m.id, fen: m.fen, moves: m.moves, lane: m.lane, urgent: !!m.urgent, depth: m.depth, multipv: m.multipv || 1, movetime: m.movetime, elo: m.elo > 0 ? Math.round(m.elo) : 0, lines: {} };
       if (m.urgent) queue.unshift(job); else queue.push(job);
       pump();
     } else if (m.t === 'cancel') {

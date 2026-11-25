@@ -33,6 +33,7 @@ import { PlayHabitsService } from './habits/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { AdService } from './ads/service';
+import { BotService } from './bots/service';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
 import { donateRoutes } from './payments/donate';
@@ -175,6 +176,10 @@ async function start() {
   const ads = new AdService({ db: db.db });
   await ads.load();
   admin.ads = ads;
+  // Online computer opponents (streamer and creator bots) that staff add in the console.
+  const bots = new BotService({ db: db.db });
+  await bots.load();
+  admin.bots = bots;
   const lessons = new LessonService({ db: db.db, puzzles: puzzleStore });
   await lessons.load();
   admin.lessons = lessons;
@@ -191,6 +196,7 @@ async function start() {
     messages,
     tournaments,
     ads,
+    bots,
     community,
     habits,
     awards,

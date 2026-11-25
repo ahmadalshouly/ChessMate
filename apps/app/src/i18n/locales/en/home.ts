@@ -10,7 +10,7 @@ export const home = {
   },
   computer: {
     title: 'Play vs computer',
-    body: 'Eight opponents, beginner to expert. Hints and takebacks, works offline.',
+    body: 'Over twenty opponents from beginner to superhuman (about 3500). Takebacks allowed, works offline.',
   },
   lessons: {
     title: 'Lessons',

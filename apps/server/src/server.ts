@@ -39,6 +39,7 @@ import { Matchmaker, whiteOf, type MatchOptions } from './matchmaker';
 import { messageRoutes } from './messages/http';
 import { tournamentRoutes } from './tournaments/http';
 import { adRoutes } from './ads/http';
+import { botRoutes } from './bots/http';
 import { communityRoutes } from './community/http';
 import { awardsRoutes } from './awards/http';
 import type { EventService } from './watch/events';
@@ -54,6 +55,7 @@ import type { CommunityService } from './community/service';
 import type { MessageService } from './messages/service';
 import type { TournamentService } from './tournaments/service';
 import type { AdService } from './ads/service';
+import type { BotService } from './bots/service';
 import { OpenGames } from './openGames';
 import { Leaderboards, MemoryLeaderboardSource } from './leaderboard';
 import type { GamePersistence } from './persistence';
@@ -128,6 +130,8 @@ export interface ServerOptions {
   tournaments?: TournamentService;
   /** Sponsored ad spots (database mode). Without it, /api/ads is absent and every spot stays empty. */
   ads?: AdService;
+  /** Online computer opponents (database mode). Without it, /api/bots is absent and only built-in bots show. */
+  bots?: BotService;
   /** News and forum (database mode). */
   community?: CommunityService;
   /** Watch: streamers and broadcast events. */
@@ -361,6 +365,7 @@ export class ChessServer {
       });
     }
     if (opts.ads) routes.push(adRoutes(opts.ads));
+    if (opts.bots) routes.push(botRoutes(opts.bots));
     if (opts.tournaments) {
       routes.push(tournamentRoutes(opts.tournaments, opts.resolveUser ?? devResolveUser));
       opts.tournaments.attach({
