@@ -246,6 +246,7 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
       bestMove,
       secondBestScore: before.secondScore,
       playedScore: playedScoreForJudge,
+      playedLine: after.pv,
       legalMoveCount,
       book: inBook,
       previousUci: moves[i - 1],

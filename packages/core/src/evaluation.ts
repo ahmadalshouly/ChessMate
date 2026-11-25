@@ -7,8 +7,10 @@ export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: unde
  * Move classes, strongest first:
  * - masterpiece (!!!): a queen or rook sacrifice that leads to a forced
  *   mate. ChessMate's own top tier, above brilliant.
- * - brilliant (!!): a sound sacrifice; the best (or near best) move gives
- *   material away and the position stays good.
+ * - brilliant (!!): a sacrifice that pays off; the best (or near best) move
+ *   gives material away and it leads to mate, gives the mover the advantage,
+ *   or wins the material back within a few moves. Not every sacrifice is
+ *   brilliant: one that only keeps the balance is not.
  * - great (!): the only good move; every alternative is clearly worse.
  * - best, excellent, good: close to the engine's choice.
  * - book: a known opening move. forced: the only legal move.
@@ -91,6 +93,8 @@ const TOP_LOSS = 0.01;
 const ONLY_MOVE_GAP = 0.15;
 /** Expected score a sacrifice must keep for the mover to be sound. */
 const SOUND_AFTER = 0.45;
+/** Expected score (about +1 by centipawns) at which a sacrifice has given the mover the advantage. */
+const ADVANTAGE = 0.6;
 /**
  * At or above this expected score (about +5.5 by centipawns, not mate) the
  * mover is already completely winning, so a sacrifice or only move is not
@@ -107,8 +111,8 @@ const MISS_LOSS = 0.1;
 /**
  * Judges a move by how much expected score the mover gave up compared with
  * the engine's best line, then upgrades strong moves (sacrifices, only moves)
- * and marks missed chances. The board facts (`sacrifice`, `isRecapture`)
- * come from `classifyMove`.
+ * and marks missed chances. The board facts (`sacrifice`, `winsMaterialBack`,
+ * `isRecapture`) come from `classifyMove`.
  */
 export function judgeMove(params: {
   mover: Color;
@@ -125,6 +129,8 @@ export function judgeMove(params: {
    * could earn !! or !!!.
    */
   sacrifice?: { piece: PieceType; amount: number } | null | (() => { piece: PieceType; amount: number } | null);
+  /** Whether the engine's line after the move wins the sacrificed material back within a few moves (asked only for a sacrifice). */
+  winsMaterialBack?: boolean | (() => boolean);
   isRecapture?: boolean;
   /** Loss of the opponent's previous move. */
   previousLoss?: number;
@@ -138,15 +144,26 @@ export function judgeMove(params: {
 
   const top = params.playedIsBest || loss < TOP_LOSS;
   const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING;
-  const mateFor = params.playedScore.mate !== undefined && (params.mover === 'w' ? params.playedScore.mate > 0 : params.playedScore.mate < 0);
-  // A sacrifice that forces mate may still be a Masterpiece from a won position:
-  // the search before the move just had not seen the mate yet.
-  if (top && (!easilyWinning || mateFor)) {
+  const forMover = (s: Score) => s.mate !== undefined && (params.mover === 'w' ? s.mate > 0 : s.mate < 0);
+  // The move forces mate, and no slower than a mate the engine had already seen
+  // (one move of slack, for separate searches): dragging out a won mating attack is not special.
+  const forcesMate =
+    forMover(params.playedScore) && (!forMover(params.bestScore) || Math.abs(params.playedScore.mate!) <= Math.abs(params.bestScore.mate!));
+  // A sacrifice that forces mate counts even from a won position: the search
+  // before the move just had not seen the mate yet.
+  if (top && (!easilyWinning || forcesMate)) {
     const sac = after >= SOUND_AFTER ? (typeof params.sacrifice === 'function' ? params.sacrifice() : params.sacrifice) : null;
-    // !!! (Masterpiece): the queen or a rook is given up, whichever piece moved, and it forces mate.
-    if (sac && mateFor && (sac.piece === 'q' || sac.piece === 'r')) return { classification: 'masterpiece', loss, accuracy: 100 };
-    // !!: any other sound sacrifice, unless the mover was already winning easily.
-    if (sac && !easilyWinning) return { classification: 'brilliant', loss, accuracy: 100 };
+    if (sac && forcesMate) {
+      // !!! (Masterpiece): the queen or a rook is given up, whichever piece moved, and it forces mate.
+      return { classification: sac.piece === 'q' || sac.piece === 'r' ? 'masterpiece' : 'brilliant', loss, accuracy: 100 };
+    }
+    // !!: the sacrifice gives the mover the advantage, or the material comes back
+    // within a few moves. One that only keeps the balance is just a good move,
+    // and so is one that merely slows down a mate the mover already had.
+    if (sac && !easilyWinning && !forMover(params.bestScore)) {
+      const back = () => (typeof params.winsMaterialBack === 'function' ? params.winsMaterialBack() : !!params.winsMaterialBack);
+      if (after >= ADVANTAGE || back()) return { classification: 'brilliant', loss, accuracy: 100 };
+    }
   }
   if (top && !easilyWinning) {
     if (params.secondBestScore && !params.isRecapture && after >= SOUND_AFTER) {

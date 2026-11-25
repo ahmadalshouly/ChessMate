@@ -173,7 +173,7 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 | Badge | Meaning |
 | --- | --- |
 | **!!!** Masterpiece (purple, crown) | A queen or rook sacrifice that leads to a forced mate. ChessMate's top tier. Any other sound sacrifice is !!. |
-| **!!** Brilliant (teal, sparkles) | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
+| **!!** Brilliant (teal, sparkles) | A sacrifice that pays off. The best (or near best) move gives away at least a minor piece's worth of material (a piece left attacked when it could have been saved counts too), and it leads to mate, gives the mover the advantage (about +1 or better), or wins the material back within a few moves. A sacrifice that only keeps the balance is not brilliant, and neither is one made when already winning easily, unless it forces mate. |
 | **!** Great (sapphire, target) | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
 | Best Move (gold, star), Excellent (copper, check), Good (green, rising check) | Close to the engine's choice. |
 | Theory (brown, book), Forced (slate, arrow) | A known opening move; the only legal move. |
@@ -182,7 +182,7 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 
 Badges are SVG medallions (`react-native-svg`): the full coin with its name, icon and symbol in the review, and a small white-edged coin (symbol or icon only) pinned to the moved piece on the board. Run `pnpm install` after pulling, since `react-native-svg` is new.
 
-To try them: open the analysis board, import `1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7`, and step through it (6. Nxf7 is brilliant). For the !!! (Masterpiece) badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
+To try them: open the analysis board, import `1. e4 e5 2. Nf3 d6 3. Bc4 Bg4 4. Nc3 g6 5. Nxe5`, and step through it (5. Nxe5 is brilliant: the queen is offered, and Bxd1 loses to Bxf7+ Ke7 Nd5#). For the !!! (Masterpiece) badge, import the FEN `5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1`, play Qg8+, Rxg8, Nf7#, and press **Review game**.
 
 Engine help is refused while you have a live game, and for any position currently on the board in a live game.
 
