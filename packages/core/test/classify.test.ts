@@ -13,6 +13,17 @@ describe('sacrifice detection', () => {
     expect(staticExchange(c, 'f5')).toBe(3);
   });
 
+  it('leaves pinned pieces out of the exchange', () => {
+    // The e6 pawn could take the knight, but it is pinned to its king by the rook.
+    expect(staticExchange(new Chess('4k3/8/4p3/5N2/8/8/8/4R1K1 b - - 0 1'), 'f5')).toBe(0);
+    expect(staticExchange(new Chess('4k3/8/4p3/5N2/8/8/8/R5K1 b - - 0 1'), 'f5')).toBe(3);
+  });
+
+  it('counts a capture that promotes as the piece taken plus the promotion', () => {
+    // gxh8=Q wins the rook and turns a pawn into a queen.
+    expect(staticExchange(new Chess('k6r/6P1/8/8/8/8/8/6K1 w - - 0 1'), 'h8')).toBe(5 + 9 - 1);
+  });
+
   it('sees a piece offered to a pawn', () => {
     expect(findSacrifice(KNIGHT_OFFER, 'd4f5')).toMatchObject({ square: 'f5', piece: 'n', amount: 3 });
     expect(findSacrifice(KNIGHT_OFFER, 'd4e2')).toBeNull();
