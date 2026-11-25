@@ -1,6 +1,5 @@
 // Dig Deep, the opening explorer.
 export const explorer = {
-  title: 'Dig Deep',
   start: 'Starting position',
   source: {
     lichess: 'Lichess',
@@ -18,7 +17,7 @@ export const explorer = {
     eval: 'Eval',
     played: 'Played',
     games: 'Games',
-    results: 'White · Draw · Black',
+    results: 'Results',
   },
   filters: 'Filters',
   filterSummary: '{speeds} · {ratings}',
@@ -32,7 +31,6 @@ export const explorer = {
     rapid: 'Rapid',
     classical: 'Classical',
   },
-  avgRating: 'Average rating {n}',
   empty: 'No games in this collection reached this position.',
   emptyChessmate: 'No ChessMate games have reached this position yet. Every finished game adds to it.',
   stale: 'Lichess is not answering right now, so these numbers may be a little out of date.',
@@ -49,6 +47,8 @@ export const explorer = {
   reset: 'Back to start',
   moves: 'Moves',
   noMoves: 'Tap a move in the list or play one on the board.',
-  credit: 'Lichess games from the Lichess open database (CC0).',
-  hint: 'Tap a move to play it on the board.',
+  credit: {
+    lichess: 'Games from the Lichess open database (CC0), through the Lichess opening explorer.',
+    masters: 'Masters games through the Lichess opening explorer.',
+  },
 };

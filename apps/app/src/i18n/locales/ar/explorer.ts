@@ -1,6 +1,5 @@
 // Dig Deep، مستكشف الافتتاحيات.
 export const explorer = {
-  title: 'Dig Deep',
   start: 'الوضع الابتدائي',
   source: {
     lichess: 'Lichess',
@@ -18,7 +17,7 @@ export const explorer = {
     eval: 'التقييم',
     played: 'لُعبت',
     games: 'المباريات',
-    results: 'الأبيض · تعادل · الأسود',
+    results: 'النتائج',
   },
   filters: 'التصفية',
   filterSummary: '{speeds} · {ratings}',
@@ -32,7 +31,6 @@ export const explorer = {
     rapid: 'سريع',
     classical: 'كلاسيكي',
   },
-  avgRating: 'متوسط التصنيف {n}',
   empty: 'لم تصل أي مباراة في هذه المجموعة إلى هذا الوضع.',
   emptyChessmate: 'لم تصل أي مباراة على ChessMate إلى هذا الوضع بعد. كل مباراة تنتهي تُضاف إليها.',
   stale: 'لا يستجيب Lichess الآن، لذا قد تكون هذه الأرقام قديمة قليلًا.',
@@ -49,6 +47,8 @@ export const explorer = {
   reset: 'العودة إلى البداية',
   moves: 'النقلات',
   noMoves: 'اضغط على نقلة في القائمة أو العبها على الرقعة.',
-  credit: 'مباريات Lichess من قاعدة بيانات Lichess المفتوحة (CC0).',
-  hint: 'اضغط على نقلة لتلعبها على الرقعة.',
+  credit: {
+    lichess: 'مباريات من قاعدة بيانات Lichess المفتوحة (CC0) عبر مستكشف افتتاحيات Lichess.',
+    masters: 'مباريات الأساتذة عبر مستكشف افتتاحيات Lichess.',
+  },
 };

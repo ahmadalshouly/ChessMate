@@ -1,6 +1,5 @@
 // Dig Deep, der Eröffnungsexplorer.
 export const explorer = {
-  title: 'Dig Deep',
   start: 'Grundstellung',
   source: {
     lichess: 'Lichess',
@@ -18,7 +17,7 @@ export const explorer = {
     eval: 'Bewertung',
     played: 'Gespielt',
     games: 'Partien',
-    results: 'Weiß · Remis · Schwarz',
+    results: 'Ergebnisse',
   },
   filters: 'Filter',
   filterSummary: '{speeds} · {ratings}',
@@ -32,7 +31,6 @@ export const explorer = {
     rapid: 'Schnellschach',
     classical: 'Klassisch',
   },
-  avgRating: 'Durchschnittswertung {n}',
   empty: 'Keine Partie dieser Sammlung hat diese Stellung erreicht.',
   emptyChessmate: 'Noch keine ChessMate-Partie hat diese Stellung erreicht. Jede beendete Partie kommt dazu.',
   stale: 'Lichess antwortet gerade nicht, daher sind diese Zahlen eventuell nicht ganz aktuell.',
@@ -49,6 +47,8 @@ export const explorer = {
   reset: 'Zurück zum Anfang',
   moves: 'Züge',
   noMoves: 'Tippe auf einen Zug in der Liste oder spiele ihn auf dem Brett.',
-  credit: 'Lichess-Partien aus der offenen Lichess-Datenbank (CC0).',
-  hint: 'Tippe auf einen Zug, um ihn auf dem Brett zu spielen.',
+  credit: {
+    lichess: 'Partien aus der offenen Lichess-Datenbank (CC0), über den Lichess-Eröffnungsexplorer.',
+    masters: 'Meisterpartien über den Lichess-Eröffnungsexplorer.',
+  },
 };

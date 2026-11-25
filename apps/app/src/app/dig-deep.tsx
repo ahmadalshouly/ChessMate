@@ -56,7 +56,7 @@ export default function DigDeep() {
   const { height: winH } = useWindowDimensions();
   // Wide screens: board on the left, the explorer beside it. Phones: a smaller board, the table scrolls below.
   const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 460, reserve: 130 });
-  const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.46);
+  const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.4);
   const size = Math.max(200, Math.floor(boardSpace / 8) * 8);
   const [fillH, onFill] = useFillHeight();
 
@@ -157,6 +157,8 @@ export default function DigDeep() {
         <ScrollView
           style={[styles.panel, wide && { flexGrow: 0, flexShrink: 0, flexBasis: panelWidth, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
           contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : Math.max(size, 320) }, !wide && { alignSelf: 'center' }]}>
+          <Tabs items={SOURCES.map((s) => ({ key: s, label: tr(`explorer.source.${s}`) }))} value={source} onChange={(s) => setExplorerSettings({ source: s })} />
+
           <Card padding="md" gap="sm">
             <View style={styles.row}>
               <Ionicons name="compass-outline" size={20} color={c.text} />
@@ -164,30 +166,6 @@ export default function DigDeep() {
                 {opening ? `${opening.eco} · ${opening.name}` : tr('explorer.start')}
               </Text>
             </View>
-            {line.length === 0 ? (
-              <Text variant="caption" tone="muted">
-                {tr('explorer.noMoves')}
-              </Text>
-            ) : (
-              <View style={styles.moves}>
-                <Pressable onPress={() => setCursor(0)} style={[styles.moveChip, cursor === 0 && { backgroundColor: c.accent }]} accessibilityLabel={tr('explorer.reset')}>
-                  <Ionicons name="home-outline" size={13} color={cursor === 0 ? c.onAccent : c.muted} />
-                </Pressable>
-                {history.map((m, i) => (
-                  <Pressable key={i} onPress={() => setCursor(i + 1)} style={[styles.moveChip, cursor === i + 1 && { backgroundColor: c.accent }]}>
-                    <Text variant="label" color={cursor === i + 1 ? c.onAccent : c.text}>
-                      {moveLabel(i) ? <Text variant="label" color={cursor === i + 1 ? c.onAccent : c.muted}>{moveLabel(i)} </Text> : null}
-                      {m.san}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </Card>
-
-          <Tabs items={SOURCES.map((s) => ({ key: s, label: tr(`explorer.source.${s}`) }))} value={source} onChange={(s) => setExplorerSettings({ source: s })} />
-
-          <Card padding="md" gap="sm">
             <View style={styles.row}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text variant="label">{tr(`explorer.sourceNote.${source}`)}</Text>
@@ -261,6 +239,31 @@ export default function DigDeep() {
           </Card>
 
           <Card padding="md" gap="sm">
+            <Text variant="overline" tone="muted">
+              {tr('explorer.moves')}
+            </Text>
+            {line.length === 0 ? (
+              <Text variant="caption" tone="muted">
+                {tr('explorer.noMoves')}
+              </Text>
+            ) : (
+              <View style={styles.moves}>
+                <Pressable onPress={() => setCursor(0)} style={[styles.moveChip, cursor === 0 && { backgroundColor: c.accent }]} accessibilityLabel={tr('explorer.reset')}>
+                  <Ionicons name="home-outline" size={13} color={cursor === 0 ? c.onAccent : c.muted} />
+                </Pressable>
+                {history.map((m, i) => (
+                  <Pressable key={i} onPress={() => setCursor(i + 1)} style={[styles.moveChip, cursor === i + 1 && { backgroundColor: c.accent }]}>
+                    <Text variant="label" color={cursor === i + 1 ? c.onAccent : c.text}>
+                      {moveLabel(i) ? <Text variant="label" color={cursor === i + 1 ? c.onAccent : c.muted}>{moveLabel(i)} </Text> : null}
+                      {m.san}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </Card>
+
+          <Card padding="md" gap="sm">
             <View style={styles.row}>
               <Text variant="label" style={{ flex: 1 }}>
                 {tr('explorer.engine')}
@@ -279,7 +282,7 @@ export default function DigDeep() {
             />
             {source !== 'chessmate' && (
               <Text variant="caption" tone="muted">
-                {tr('explorer.credit')}
+                {tr(`explorer.credit.${source}`)}
               </Text>
             )}
           </Card>
