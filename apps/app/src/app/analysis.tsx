@@ -35,6 +35,7 @@ import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 import { PositionEditor } from '@/features/analysis/PositionEditor';
+import { SidebarFrame, useSidebarFrame } from '@/components/shell/SidebarFrame';
 import { Glass, floatShadow } from '@/components/shell/Glass';
 import { PressableScale } from '@/ui/components/liquid';
 
@@ -66,9 +67,11 @@ export default function Analysis() {
   const t = useTheme();
   const tr = useT();
   const { height: winH } = useWindowDimensions();
-  // Wide screens (web, tablets): a big board on the left, panel scrolls on the right.
+  // Wide screens (web, tablets): a big board on the left, the panel on the right with the move
+  // buttons pinned under it, and the app's sidebar beside both once there is room.
   // Phones: board and move buttons stay put; the panel scrolls underneath.
-  const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 404, reserve: 130 });
+  const framed = useSidebarFrame();
+  const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 404, reserve: framed ? 104 : 92, sidebar: framed, gutter: 12 });
   const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.56);
   const size = Math.max(200, Math.floor((boardSpace - EVAL_BAR - 6) / 8) * 8);
   // The panel beside the board scrolls within the window height (web).
@@ -173,6 +176,22 @@ export default function Analysis() {
     return ply % 2 === 0 ? `${num}.` : i === 0 ? `${num}…` : '';
   };
 
+  // Move navigation: under the board on phones, pinned under the panel on wide screens.
+  const moveButtons = (
+    // It follows the board, which stays left-to-right in every language.
+    <View style={{ direction: 'ltr' }}>
+      <ActionBar
+        actions={[
+          { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setCursor(0), disabled: cursor === 0 },
+          { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setCursor((c) => Math.max(0, c - 1)), disabled: cursor === 0, repeat: true },
+          { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setCursor((c) => Math.min(line.length, c + 1)), disabled: cursor >= line.length, repeat: true },
+          { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setCursor(line.length), disabled: cursor >= line.length },
+          { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
+        ]}
+      />
+    </View>
+  );
+
   const boardArea = (
     <View style={{ width: size + EVAL_BAR + 6, gap: 10 }}>
       <View style={[styles.boardRow, { direction: 'ltr' }]}>
@@ -195,16 +214,7 @@ export default function Analysis() {
         </View>
       </View>
 
-      {/* Move navigation follows the board, which stays left-to-right in every language. */}
-      <ActionBar
-        actions={[
-          { key: 'first', icon: dirIcon('page-first'), label: tr('review.first'), onPress: () => setCursor(0), disabled: cursor === 0 },
-          { key: 'prev', icon: dirIcon('chevron-left'), label: tr('review.prev'), onPress: () => setCursor((c) => Math.max(0, c - 1)), disabled: cursor === 0, repeat: true },
-          { key: 'next', icon: dirIcon('chevron-right'), label: tr('review.next'), onPress: () => setCursor((c) => Math.min(line.length, c + 1)), disabled: cursor >= line.length, repeat: true },
-          { key: 'last', icon: dirIcon('page-last'), label: tr('review.last'), onPress: () => setCursor(line.length), disabled: cursor >= line.length },
-          { key: 'flip', icon: 'swap-vertical', label: tr('review.flip'), onPress: () => setFlip((f) => !f) },
-        ]}
-      />
+      {!wide && moveButtons}
     </View>
   );
 
@@ -218,7 +228,8 @@ export default function Analysis() {
   if (editing) {
     return (
       <Screen>
-        <Stack.Screen options={{ title: tr('analysis.setup.title'), headerRight: () => null }} />
+        <Stack.Screen options={{ title: tr('analysis.setup.title'), headerRight: () => null, headerShown: !framed }} />
+        <SidebarFrame title={tr('analysis.setup.title')}>
         <PositionEditor
           fen={editFrom}
           orientation={orientation}
@@ -232,31 +243,32 @@ export default function Analysis() {
             interaction.clear();
           }}
         />
+        </SidebarFrame>
       </Screen>
     );
   }
 
+  const headerButtons = (
+    <View style={styles.headerButtons}>
+      <PressableScale accessibilityRole="button" accessibilityLabel={tr('analysis.setup.title')} onPress={() => setEditFrom(fen)} hitSlop={8} scaleTo={0.88}>
+        <Glass radius={20} interactive style={[styles.round, floatShadow(t.scheme)]}>
+          <Ionicons name="create-outline" size={19} color={t.text} />
+        </Glass>
+      </PressableScale>
+      <ShareGameButton share={share} />
+    </View>
+  );
+
   return (
     <Screen>
-      <Stack.Screen
-        options={{
-          title: tr('titles.analysis'),
-          headerRight: () => (
-            <View style={styles.headerButtons}>
-              <PressableScale accessibilityRole="button" accessibilityLabel={tr('analysis.setup.title')} onPress={() => setEditFrom(fen)} hitSlop={8} scaleTo={0.88}>
-                <Glass radius={20} interactive style={[styles.round, floatShadow(t.scheme)]}>
-                  <Ionicons name="create-outline" size={19} color={t.text} />
-                </Glass>
-              </PressableScale>
-              <ShareGameButton share={share} />
-            </View>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ title: tr('titles.analysis'), headerShown: !framed, headerRight: () => headerButtons }} />
+      <SidebarFrame title={tr('titles.analysis')} actions={headerButtons}>
       <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
+        {/* Wide: a column the height of the window, the panel scrolling above the pinned move buttons. */}
+        <View style={wide ? [styles.sideColumn, { width: panelWidth, height: fillH }] : styles.panel}>
         <KeyboardScrollView
-          style={[styles.panel, wide && { flexGrow: 0, flexShrink: 0, flexBasis: panelWidth, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
+          style={styles.panel}
           contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : size + EVAL_BAR + 6 }, !wide && { alignSelf: 'center' }]}>
           <Pressable
             onPress={() => setSettingsOpen(true)}
@@ -375,7 +387,10 @@ export default function Analysis() {
             </Text>
           </Card>
         </KeyboardScrollView>
+        {wide && <View style={styles.pinned}>{moveButtons}</View>}
+        </View>
       </View>
+      </SidebarFrame>
       <EngineSettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} engineOn={engineOn} onEngineOn={setEngineOn} />
     </Screen>
   );
@@ -424,8 +439,10 @@ const styles = StyleSheet.create({
   headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   round: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   layoutWide: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingHorizontal: 16 },
-  fixed: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
-  panel: { flex: 1, flexGrow: 1 },
+  fixed: { alignItems: 'center', paddingHorizontal: 6, paddingTop: 12, paddingBottom: 8 },
+  panel: { flex: 1, flexGrow: 1, minHeight: 0 },
+  sideColumn: { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch', minHeight: 0 },
+  pinned: { paddingTop: 8, paddingBottom: 12, paddingHorizontal: 2 },
   panelContent: { gap: 12, paddingVertical: 12, paddingHorizontal: 2, paddingBottom: 32 },
   settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
   gear: { width: 32, height: 32, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },

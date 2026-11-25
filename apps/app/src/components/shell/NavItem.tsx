@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTabTrigger } from 'expo-router/ui';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import { Platform, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 
 import { useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
@@ -40,13 +41,28 @@ export function NavItem({ tab, variant, index }: { tab: TabConfig; variant: 'bar
     );
   }
 
+  return <SideRow tab={tab} index={index} focused={focused} webProps={webProps} onPress={triggerProps.onPress} onLongPress={triggerProps.onLongPress} />;
+}
+
+/**
+ * A sidebar destination for screens outside the tab navigator (the analysis board), where the
+ * tab triggers aren't available: a plain link to the section. None of them is the current one.
+ */
+export function NavLink({ tab, index }: { tab: TabConfig; index?: number }) {
+  const webProps = Platform.OS === 'web' ? ({ href: tab.href } as object) : {};
+  return <SideRow tab={tab} index={index} focused={false} webProps={webProps} onPress={() => router.navigate(tab.href)} />;
+}
+
+function SideRow({ tab, index, focused, webProps, onPress, onLongPress }: { tab: TabConfig; index?: number; focused: boolean; webProps: object; onPress?: (e: GestureResponderEvent) => void; onLongPress?: (e: GestureResponderEvent) => void }) {
+  const t = useTheme();
+  const { tr } = useI18n();
   return (
     <Pressable
       {...webProps}
       accessibilityRole="tab"
       accessibilityState={{ selected: focused }}
-      onPress={triggerProps.onPress}
-      onLongPress={triggerProps.onLongPress}
+      onPress={onPress}
+      onLongPress={onLongPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.side,
         { backgroundColor: focused ? t.glassSelected : hovered ? t.surfaceSunken : 'transparent', opacity: pressed ? 0.75 : 1 },
