@@ -170,7 +170,7 @@ Move badges (logic in `packages/core/src/classify.ts` and `evaluation.ts`, visua
 
 | Badge | Meaning |
 | --- | --- |
-| **!!!** Masterpiece (purple, crown) | A queen sacrifice that leads to a forced mate. ChessMate's top tier. Any other brilliant queen move is !!. |
+| **!!!** Masterpiece (purple, crown) | A queen or rook sacrifice that leads to a forced mate. ChessMate's top tier. Any other sound sacrifice is !!. |
 | **!!** Brilliant (teal, sparkles) | A sound sacrifice: the best (or near best) move gives away at least a minor piece's worth of material and the position stays good. Not given when already winning easily. |
 | **!** Great (sapphire, target) | The only good move: the engine's second choice is clearly worse. Plain recaptures don't count. |
 | Best Move (gold, star), Excellent (copper, check), Good (green, rising check) | Close to the engine's choice. |
