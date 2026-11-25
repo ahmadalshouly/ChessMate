@@ -45,8 +45,8 @@ function makeCheapestCapture(chess: Chess, square: Square): Move | null {
   return null;
 }
 
-/** Material a capture wins: the piece taken, plus what a promotion adds. */
-const captureGain = (m: Move) => VALUE[m.captured!] + (m.promotion ? VALUE[m.promotion as PieceType] - 1 : 0);
+/** Material a move wins: the piece taken, if any, plus what a promotion adds. */
+const captureGain = (m: Move) => (m.captured ? VALUE[m.captured] : 0) + (m.promotion ? VALUE[m.promotion as PieceType] - 1 : 0);
 
 /**
  * Static exchange on `square` for the side to move: the material it can win
@@ -140,7 +140,7 @@ function unavoidableLoss(fenBefore: string, playedUci: string): number {
     let most = 0;
     for (const won of looseMaterial(chess, mover).values()) most = Math.max(most, won);
     chess.undo();
-    least = Math.min(least, Math.max(0, most - (m.captured ? captureGain(m) : 0)));
+    least = Math.min(least, Math.max(0, most - captureGain(m)));
     if (least === 0) break;
   }
   return least === Infinity ? 0 : least;
@@ -205,7 +205,7 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
   // A move that ends the game offers nothing.
   if (chess.isGameOver()) return null;
   // What the move itself won (a capture, a promotion) pays back part of any offer.
-  const gained = played.captured || played.promotion ? captureGain(played) : 0;
+  const gained = captureGain(played);
   let best: Sacrifice | null = null;
   for (const [sq, won] of looseMaterial(chess, mover)) {
     const p = chess.get(sq)!;
