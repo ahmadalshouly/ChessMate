@@ -1,4 +1,4 @@
-import { formatTimeControl, materialBalance, opposite, parseTimeControl, timeCategory, type Color } from '@chessmate/core';
+import { formatTimeControl, gamePath, materialBalance, opposite, parseTimeControl, timeCategory, watchPath, type Color } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -29,7 +29,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { useTheme } from '@/constants/theme';
 import { useGameplayPrefs } from '@/features/settings/useGameplayPrefs';
 import { clockRemaining, isGuest, playClient, usePlay } from '@/lib/playClient';
-import { useRecordOnlineGame } from '@/lib/recordGame';
+import { onlineGamePgn, useRecordOnlineGame } from '@/lib/recordGame';
 import { useLowTimeWarning } from '@/lib/feedback';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
@@ -39,6 +39,8 @@ import { dirIcon, useT } from '@/i18n';
 import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
+import { vsTitle } from '@/features/share/gameShares';
 
 type Popup = 'chat' | 'more' | 'draw' | 'abort' | 'resign' | 'rematch' | 'frenzy';
 
@@ -171,7 +173,7 @@ export default function OnlinePlay() {
   if (!view || !players) {
     return (
       <Screen>
-        <Stack.Screen options={{ title, ...lockOptions }} />
+        <Stack.Screen options={{ title, ...lockOptions, headerRight: undefined }} />
         <KeyboardScrollView contentContainerStyle={styles.page}>
           <View style={{ width: Math.min(size, 480), gap: 8 }}>
             {connectionNotice}
@@ -248,13 +250,27 @@ export default function OnlinePlay() {
       setHideResult(true);
       router.push({
         pathname: '/review',
-        params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name },
+        params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name, result: view.outcome?.result },
       });
     });
   const confirmThen = (fn: () => void) => () => {
     setPanel(null);
     fn();
   };
+
+  // While playing: a link to watch along, but no PGN (pasting the moves into an engine mid-game
+  // is the easiest cheat there is). Once over: the game's own page and its PGN. Aborted games
+  // are not kept, and Secret Queen games can't be replayed, so those have nothing to share.
+  const share: GameShare | null =
+    over && (view.outcome!.reason === 'aborted' || secretQueen)
+      ? null
+      : {
+          title: vsTitle(players.w.name, players.b.name),
+          live: !over,
+          link: over ? gamePath(view.gameId) : watchPath(view.gameId),
+          pgn: over ? () => onlineGamePgn({ ...view, outcome: view.outcome! }) : null,
+          pgnNote: secretQueen ? tr('share.noPgnSecretQueen') : undefined,
+        };
 
   // Frenzy: in tournaments that allow it, before your own first move.
   const canFrenzy = !over && view.frenzyAllowed && !view.frenzy[you] && history.length < (you === 'w' ? 1 : 2);
@@ -378,7 +394,7 @@ export default function OnlinePlay() {
 
   return (
     <Screen>
-      <Stack.Screen options={{ title, ...lockOptions }} />
+      <Stack.Screen options={{ title, ...lockOptions, headerRight: () => <ShareGameButton share={share} /> }} />
       <GameLayout
         notice={
           <>

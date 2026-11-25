@@ -4,6 +4,7 @@ export const watch = {
   title: '{white} vs {black}',
   watch: 'Watch',
   ended: 'This game has ended or does not exist.',
+  seeGame: 'See the finished game',
   couldNotOpen: 'Could not open this game.',
   live: { one: 'Live · {count} watching', other: 'Live · {count} watching' },
   screenTitle: 'Watch',

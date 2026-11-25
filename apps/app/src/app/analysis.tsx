@@ -1,12 +1,14 @@
 import {
   Game,
   START_FEN,
+  analysisPath,
   importPosition,
   bookTimeline,
+  linePgn,
   parseUci,
   type PositionAnalysis,
 } from '@chessmate/core';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Platform, Pressable, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
@@ -30,6 +32,7 @@ import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
 import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 
 const EVAL_BAR = 20;
 /** Depth an engine result needs before it is used to grade moves. */
@@ -187,8 +190,16 @@ export default function Analysis() {
     </View>
   );
 
+  // The whole line, opening on the position shown; works for anyone, nothing is stored.
+  const share: GameShare = {
+    title: tr('titles.analysis'),
+    link: analysisPath({ moves: line, initialFen: start, ply: cursor }),
+    pgn: () => linePgn({ moves: line, initialFen: start, tags: { Event: 'ChessMate analysis board' } }),
+  };
+
   return (
     <Screen>
+      <Stack.Screen options={{ headerRight: () => <ShareGameButton share={share} /> }} />
       <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
         <KeyboardScrollView

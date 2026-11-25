@@ -1,9 +1,11 @@
 import {
   Game,
   PRESET_TIME_CONTROLS,
+  analysisPath,
   createClock,
   formatClock,
   formatTimeControl,
+  gameToPgn,
   isFlagged,
   outcomeFor,
   pressClock,
@@ -30,6 +32,8 @@ import { translate, useT, type TKey } from '@/i18n';
 import { useMoveFeedback } from '@/lib/feedback';
 import { checkSquareOf, useBoardInteraction } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
+import { practiceGame } from '@/lib/recordGame';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 
 const NAMES: Record<Color, TKey> = { w: 'play.white', b: 'play.black' };
 const other = (c: Color): Color => (c === 'w' ? 'b' : 'w');
@@ -166,9 +170,18 @@ export default function OverTheBoard() {
     </View>
   );
 
+  // Not kept anywhere: the link carries the moves to the analysis board.
+  const share: GameShare | null = started
+    ? {
+        title: tr('play.otb.title'),
+        link: analysisPath({ moves: view.history.map((m) => m.uci) }),
+        pgn: () => gameToPgn({ ...practiceGame('', view.history, outcome, Date.now()), timeControl: tc }),
+      }
+    : null;
+
   return (
     <Screen>
-      <Stack.Screen options={{ title: tr('play.otb.title') }} />
+      <Stack.Screen options={{ title: tr('play.otb.title'), headerRight: () => <ShareGameButton share={share} /> }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={{ width: size, gap: 8 }}>
           {!started ? (

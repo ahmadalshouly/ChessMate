@@ -7,6 +7,7 @@ export const watch: Messages<typeof en> = {
   title: '{white} ضد {black}',
   watch: 'مشاهدة',
   ended: 'انتهت هذه المباراة أو أنها غير موجودة.',
+  seeGame: 'عرض المباراة المنتهية',
   couldNotOpen: 'تعذّر فتح هذه المباراة.',
   live: { other: 'مباشر · يشاهد {count}' },
   screenTitle: 'المشاهدة',

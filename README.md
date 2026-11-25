@@ -202,6 +202,20 @@ Home → **Game history** lists finished online games, practice games (saved whe
 
 Opening names come from `packages/core/data/*.tsv` (lichess-org/chess-openings, CC0). After changing those files, run `node packages/core/scripts/build-openings.mjs` to regenerate `src/openings-data.ts`.
 
+### Sharing a game
+
+Every board has a **Share** button in its header (play, watch, broadcasts, review, analysis and replays) with **Copy PGN** and **Share link** (the share sheet on phones and tablets, a copied link in desktop browsers; where the browser blocks the clipboard, the text is shown to copy by hand). Links follow the same host rules as invite links (`EXPO_PUBLIC_WEB_URL`, below):
+
+| Board | Link |
+| --- | --- |
+| Online game, live | `/watch/<id>` (spectate); the PGN unlocks when the game ends |
+| Online game, finished (replays, results) | `/game/<id>`; from its review, `/game/<id>?review=1` |
+| Review of any other game | `/review?moves=…&white=…&black=…&result=…` |
+| Broadcast game | `/watch/game/<id>` |
+| Computer, practice, over-the-board, imported games, analysis | `/analysis?moves=e2e4,e7e5&initialFen=…&ply=…`: the moves travel in the link, nothing is stored |
+
+Aborted and Secret Queen games are not shared once over (the server keeps neither as a replayable game).
+
 ## Playing online
 
 Open **Play** (`/play`, or "Open the lobby" on the home screen):

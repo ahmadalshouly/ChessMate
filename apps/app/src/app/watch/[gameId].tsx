@@ -1,18 +1,21 @@
-import { materialBalance, type Color } from '@chessmate/core';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { gamePath, materialBalance, watchPath, type Color } from '@chessmate/core';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Board } from '@/components/Board';
 import { PlayerBar, useTicker } from '@/components/PlayerBar';
 import { Pill } from '@/components/social';
-import { Card, Label, Screen } from '@/components/ui';
+import { Button, Card, Label, Screen } from '@/components/ui';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useBoardSize } from '@/lib/useBoardSize';
 import { clockRemaining } from '@/lib/playClient';
 import { useSpectate } from '@/lib/social/useSpectate';
 import { reasonText } from '@/components/play/GameOverCard';
 import { translate, useT } from '@/i18n';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
+import { vsTitle } from '@/features/share/gameShares';
+import { onlineGamePgn } from '@/lib/recordGame';
 
 const reasonFor = (reason: string) => (reason === 'abandoned' ? translate('watch.byAbandonment') : reason === 'aborted' ? translate('watch.aborted') : reasonText(reason));
 
@@ -31,14 +34,40 @@ export default function WatchScreen() {
   const last = s.history[s.history.length - 1];
   const material = useMemo(() => materialBalance(s.fen), [s.fen]);
 
+  // Live: the link to watch along, and the PGN once the game is over (none for Secret Queen, which
+  // standard rules cannot replay). Finished: the game's own page.
+  const id = String(gameId);
+  const outcome = s.outcome;
+  const done = !!outcome && outcome.reason !== 'aborted' && !s.secretQueen;
+  const share: GameShare | null =
+    s.white && s.black && !(outcome && !done)
+      ? {
+          title: vsTitle(s.white.name, s.black.name),
+          live: !outcome,
+          link: done ? gamePath(id) : watchPath(id),
+          pgn:
+            done && s.timeControl
+              ? () => onlineGamePgn({ gameId: id, white: s.white!, black: s.black!, timeControl: s.timeControl!, rated: s.rated, history: s.history, outcome: outcome!, you: null })
+              : null,
+          pgnNote: s.secretQueen ? tr('share.noPgnSecretQueen') : undefined,
+        }
+      : null;
+
   return (
     <Screen>
-      <Stack.Screen options={{ title: s.white && s.black ? tr('watch.title', { white: s.white.name, black: s.black.name }) : tr('watch.watch') }} />
+      <Stack.Screen
+        options={{
+          title: s.white && s.black ? tr('watch.title', { white: s.white.name, black: s.black.name }) : tr('watch.watch'),
+          headerRight: () => <ShareGameButton share={share} />,
+        }}
+      />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={{ width: size, gap: 4 }}>
           {s.status === 'error' ? (
             <Card>
               <Label>{s.error === 'No such game' ? tr('watch.ended') : (s.error ?? tr('watch.couldNotOpen'))}</Label>
+              {/* A shared watch link opened after the game: the finished game is on its own page. */}
+              {s.error === 'No such game' && <Button variant="secondary" title={tr('watch.seeGame')} onPress={() => router.replace(`/game/${encodeURIComponent(id)}`)} />}
             </Card>
           ) : (
             <>

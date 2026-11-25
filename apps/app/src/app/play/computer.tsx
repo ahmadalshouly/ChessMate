@@ -1,4 +1,4 @@
-import { BOTS, Game, START_FEN, chooseBotMove, type BotProfile, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
+import { BOTS, Game, START_FEN, analysisPath, chooseBotMove, linePgn, type BotProfile, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -31,6 +31,8 @@ import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { ResultHeader, Scoreline, STAMP_MS, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
 import { GameStartHandshake, HANDSHAKE_MS, useGameStartHandshake } from '@/components/play/GameStartHandshake';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
+import { vsTitle } from '@/features/share/gameShares';
 
 const botTagline = (b: BotProfile) => translate(`bots.${b.id}` as TKey);
 
@@ -58,7 +60,8 @@ export default function PlayComputer() {
   };
   return (
     <Screen>
-      <Stack.Screen options={{ title: tr('titles.computer') }} />
+      {/* The game sets its own header button (Share); back on the setup screen there is none. */}
+      <Stack.Screen options={setup ? { title: tr('titles.computer') } : { title: tr('titles.computer'), headerRight: undefined }} />
       {setup ? (
         <ComputerGame key={round} setup={setup} onExit={() => setSetup(null)} onRematch={begin} />
       ) : until ? (
@@ -311,6 +314,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
           orientation: me,
           white: me === 'w' ? user.displayName : bot.name,
           black: me === 'b' ? user.displayName : bot.name,
+          result: outcome?.result,
         },
       });
     });
@@ -354,9 +358,29 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
 
   const lastShown = nav.live ? view.history[view.history.length - 1] : shownMove;
 
+  // Not kept on the server: the link carries the moves to the analysis board.
+  const whiteName = me === 'w' ? user.displayName || tr('computer.you') : bot.name;
+  const blackName = me === 'b' ? user.displayName || tr('computer.you') : bot.name;
+  const moves = view.history.map((m) => m.uci);
+  const share: GameShare = {
+    title: vsTitle(whiteName, blackName),
+    link: analysisPath({ moves }),
+    pgn: () =>
+      linePgn({
+        moves,
+        white: whiteName,
+        black: blackName,
+        whiteRating: me === 'w' ? null : bot.rating,
+        blackRating: me === 'b' ? null : bot.rating,
+        result: outcome?.result ?? '*',
+        reason: outcome?.reason ?? null,
+        tags: { Event: 'ChessMate vs computer' },
+      }),
+  };
+
   return (
     <>
-      <Stack.Screen options={lockOptions} />
+      <Stack.Screen options={{ ...lockOptions, headerRight: () => <ShareGameButton share={share} /> }} />
       <GameLayout
         top={botOnTop ? botCard : youCard}
         bottom={botOnTop ? youCard : botCard}

@@ -1,0 +1,16 @@
+export const share = {
+  button: 'مشاركة المباراة',
+  title: 'مشاركة المباراة',
+  copyPgn: 'نسخ PGN',
+  copyPgnBody: 'النقلات، جاهزة للصقها في أي تطبيق شطرنج',
+  pgnAfterGame: 'يمكن نسخها بعد انتهاء المباراة',
+  noPgnSecretQueen: 'لا يوجد PGN لمباريات الوزير السري: البيادق التي تحركت كالوزير لا تُكتب فيه',
+  shareLink: 'مشاركة الرابط',
+  copyLink: 'نسخ الرابط',
+  pgnCopied: 'نُسخ PGN',
+  linkCopied: 'نُسخ الرابط',
+  failed: 'تعذّرت مشاركة المباراة',
+  copyByHand: 'النسخ محظور هنا. حدّد النص أدناه وانسخه.',
+  message: '{title} على ChessMate',
+  messageLive: 'شاهد {title} مباشرة على ChessMate',
+};
