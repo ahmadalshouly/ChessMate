@@ -16,6 +16,12 @@ export function Text({ style, ...rest }: TextProps) {
   return <RNText {...rest} style={resolveFontStyle(style)} />;
 }
 
+// On the web a text box is not positioned (React Native Web leaves it `static`), so the
+// absolutely positioned glass layers of a Card (blur, tint, sheen) paint over it and the
+// text can't be seen. Positioning it puts it back in source order, above those layers,
+// as it is on iOS and Android.
+const ON_TOP = { position: 'relative' } as const;
+
 export function TextInput({ style, ref, ...rest }: TextInputProps & { ref?: Ref<ComponentRef<typeof RNTextInput>> }) {
-  return <RNTextInput {...rest} ref={ref} style={resolveFontStyle(style)} />;
+  return <RNTextInput {...rest} ref={ref} style={[ON_TOP, resolveFontStyle(style)]} />;
 }

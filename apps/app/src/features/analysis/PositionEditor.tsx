@@ -20,6 +20,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { BackHandler, Image, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Board } from '@/components/Board';
+import { useSidebarFrame } from '@/components/shell/SidebarFrame';
 import { GameIcon, type GameIconName } from '@/components/game/ActionBar';
 import { Card } from '@/components/ui';
 import { useBoardAppearance } from '@/features/account/boardThemes';
@@ -79,9 +80,11 @@ export function PositionEditor({
 
   // Same layout as the analysis board. The palette rows take the room of the move buttons.
   const { height: winH } = useWindowDimensions();
-  const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 404, reserve: 130 });
+  const framed = useSidebarFrame();
+  const { wide, size: wideSpace, panel: panelWidth } = useWideBoard({ panel: 404, reserve: framed ? 104 : 92, sidebar: framed, gutter: 12 });
   const boardSpace = wide ? wideSpace : Math.min(wideSpace, winH * 0.56);
-  const cell = Math.max(25, Math.floor(Math.min(boardSpace / 8, (boardSpace + 52) / (8 + 2 * ROW))));
+  // Wide: board and both rows fill the height. Phones: the rows take the room of the move buttons.
+  const cell = Math.max(25, Math.floor(wide ? (boardSpace - 2 * GAP) / (8 + 2 * ROW) : Math.min(boardSpace / 8, (boardSpace + 52) / (8 + 2 * ROW))));
   const size = cell * 8;
   const [fillH, onFill] = useFillHeight();
 
@@ -220,8 +223,10 @@ export function PositionEditor({
   return (
     <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
       <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
+      {/* Wide: a column the height of the window that the panel scrolls in. */}
+      <View style={wide ? [styles.sideColumn, { width: panelWidth, height: fillH }] : styles.panel}>
       <KeyboardScrollView
-        style={[styles.panel, wide && { flexGrow: 0, flexShrink: 0, flexBasis: panelWidth, width: panelWidth, height: fillH, alignSelf: 'stretch' }]}
+        style={styles.panel}
         contentContainerStyle={[styles.panelContent, { width: wide ? panelWidth - 4 : size }, !wide && { alignSelf: 'center' }]}>
         <Card>
           <Text variant="caption" tone="muted">
@@ -301,6 +306,7 @@ export function PositionEditor({
           </View>
         </Card>
       </KeyboardScrollView>
+      </View>
     </View>
   );
 }
@@ -347,8 +353,9 @@ function Chip({ on, disabled, label, a11y, onPress }: { on: boolean; disabled: b
 const styles = StyleSheet.create({
   layout: { flex: 1, minHeight: 0 },
   layoutWide: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingHorizontal: 16 },
-  fixed: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
-  panel: { flex: 1, flexGrow: 1 },
+  fixed: { alignItems: 'center', paddingHorizontal: 6, paddingTop: 12, paddingBottom: 8 },
+  panel: { flex: 1, flexGrow: 1, minHeight: 0 },
+  sideColumn: { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch', minHeight: 0 },
   panelContent: { gap: 12, paddingVertical: 12, paddingHorizontal: 2, paddingBottom: 32 },
   palette: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch' },
   slot: { flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, marginHorizontal: 1 },
