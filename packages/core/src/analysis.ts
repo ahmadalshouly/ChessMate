@@ -4,6 +4,7 @@ import { classifyMove } from './classify';
 import { MOVE_CLASSES, gameAccuracy, toWhitePov, type MoveClass, type MoveJudgement, type Score } from './evaluation';
 import { Game, START_FEN, parseUci, toUci } from './game';
 import { bookTimeline } from './openings';
+import { fenProblem } from './setup';
 import { analyzePosition } from './threats';
 import type { Color } from './types';
 import type { UciInfo } from './uci';
@@ -117,6 +118,8 @@ export function importPosition(text: string): ImportedGame | null {
   if (/^[pnbrqkPNBRQK1-8]+(\/[pnbrqkPNBRQK1-8]+){7}\s+[wb]\b/.test(input)) {
     try {
       const g = new Game(input.split('\n')[0]!.trim());
+      // A FEN the rules read but the engine must not see (the side that just moved in check).
+      if (fenProblem(g.fen)) return null;
       return { initialFen: g.fen, moves: [], headers: {} };
     } catch {
       return null;
