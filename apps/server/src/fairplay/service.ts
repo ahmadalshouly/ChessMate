@@ -12,7 +12,7 @@ import {
 } from './analysis';
 import type { Analyzer, PositionEval } from './engine';
 import { JobQueue } from './jobQueue';
-import { MemoryFairPlayStore, type FairPlayBan, type FairPlayCase, type FairPlayStore, type RatingRefund } from './store';
+import { MemoryFairPlayStore, type FairPlayBan, type FairPlayCase, type FairPlayStore, type RatedGameEntry, type RatingRefund } from './store';
 
 export interface FairPlayOptions {
   store?: FairPlayStore;
@@ -219,9 +219,24 @@ export class FairPlayService {
     return true;
   }
 
+  /**
+   * Gives opponents back the rating they lost to this account in its last
+   * `count` rated games, without closing it. A moderator does this when a
+   * case is clear enough to put the points right but they are still deciding
+   * about the account, and chooses how far back it goes.
+   */
+  refundRecent(cheaterId: string, by: string, count: number): RatingRefund[] {
+    const recent = [...this.store.ratedGamesOf(cheaterId, 0)].sort((a, b) => b.endedAt - a.endedAt).slice(0, Math.max(0, count));
+    return this.refundGames(cheaterId, recent, by);
+  }
+
   private refundOpponents(cheaterId: string, since: number): RatingRefund[] {
+    return this.refundGames(cheaterId, this.store.ratedGamesOf(cheaterId, since), 'system');
+  }
+
+  private refundGames(cheaterId: string, games: RatedGameEntry[], by: string): RatingRefund[] {
     const refunds: RatingRefund[] = [];
-    for (const g of this.store.ratedGamesOf(cheaterId, since)) {
+    for (const g of games) {
       if (g.refunded) continue;
       const opp = g.white.id === cheaterId ? g.black : g.white;
       if (opp.delta >= 0) continue;
@@ -236,7 +251,7 @@ export class FairPlayService {
       }
       this.store.markRefunded(g.gameId);
       refunds.push({ gameId: g.gameId, playerId: opp.id, category: g.category, points });
-      this.store.audit({ at: this.now(), playerId: opp.id, action: 'refunded', by: 'system', note: `+${points} (${g.category}) from game ${g.gameId} vs ${cheaterId}` });
+      this.store.audit({ at: this.now(), playerId: opp.id, action: 'refunded', by, note: `+${points} (${g.category}) from game ${g.gameId} vs ${cheaterId}` });
     }
     return refunds;
   }

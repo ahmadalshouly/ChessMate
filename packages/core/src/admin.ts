@@ -281,9 +281,18 @@ export interface AdminFairPlayGame {
   white: { id: string; name: string; rating: number };
   black: { id: string; name: string; rating: number };
   timeCategory: string;
+  rated: boolean;
+  /** "1-0", "0-1", "1/2-1/2" or "*". */
+  result: string;
   endedAt: number;
   /** True when this game already has an engine report for the player of the case. */
   analyzed: boolean;
+  /**
+   * Moves the analysis could measure for that player, once analysed. A game
+   * can be analysed and still measure nothing: the opening plies, forced moves
+   * and already-decided positions are all skipped.
+   */
+  measuredMoves: number | null;
 }
 
 export interface AdminFairPlayAssessment {

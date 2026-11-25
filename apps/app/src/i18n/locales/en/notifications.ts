@@ -22,6 +22,7 @@ export const notifications = {
     test: 'Notifications are working on this device.',
     fairPlay: 'Our fair play review found outside help in your games. You can still sign in to see your games and puzzles, but online play is turned off. Opponents got back the rating points they lost.',
     reopened: 'Your account is open again. Online play is back on.',
+    ratingRefund: { one: 'We gave you back {points} rating points from {count} game. An account you played broke our fair play rules.', other: 'We gave you back {points} rating points from {count} games. An account you played broke our fair play rules.' },
     mutedHours: { one: 'Chat is off for your account for {count} hour. Reason: {reason}', other: 'Chat is off for your account for {count} hours. Reason: {reason}' },
     mutedDays: { one: 'Chat is off for your account for {count} day. Reason: {reason}', other: 'Chat is off for your account for {count} days. Reason: {reason}' },
   },
@@ -36,6 +37,7 @@ export const notifications = {
     muted: 'Chat turned off',
     fairPlay: 'Account closed for fair play',
     reopened: 'Account reopened',
+    ratingRefund: 'Rating points returned',
   },
   time: {
     m: { one: '{count}m', other: '{count}m' },

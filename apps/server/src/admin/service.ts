@@ -81,7 +81,7 @@ import { TournamentError, type TournamentService } from '../tournaments/service'
 import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
-import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
+import { closureEmail, fairPlayNotice, muteNotice, ratingRefundNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
 
@@ -1271,25 +1271,33 @@ export class AdminService {
   async fairPlayGames(actor: Actor, playerId: string, limit = 10): Promise<AdminFairPlayGame[]> {
     this.require(actor, 'fairplay.review');
     const t = this.b.fairPlay.thresholds;
-    const minPlies = t.openingPlies + 2 * t.minMovesPerGame;
-    const analysed = new Set(this.b.fairPlay.store.reportsFor(playerId, t.window).map((r) => r.gameId));
-    const rows = await listUserGames(this.db, playerId, { limit: Math.min(Math.max(limit, 1), 20) * 3 });
+    // Which of these games already produced evidence for *this* player. A game
+    // can be analysed and still leave no report (too few measurable moves), so
+    // this is the honest "already analysed" mark, not "already sent".
+    const reports = new Map(this.b.fairPlay.store.reportsFor(playerId, t.window).map((r) => [r.gameId, r]));
+    const rows = await listUserGames(this.db, playerId, { limit: Math.min(Math.max(limit, 1), 50) });
     const out: AdminFairPlayGame[] = [];
     for (const row of rows) {
-      if (out.length >= limit) break;
-      if (!row.rated || row.plyCount < minPlies || !row.whiteUserId || !row.blackUserId) continue;
+      // Every finished game between two accounts is offered: the moderator
+      // decides what is worth engine time, not a length or rating rule.
+      if (!row.whiteUserId || !row.blackUserId || row.plyCount < 2) continue;
       const g = await getGame(this.db, row.id);
-      if (!g || g.moves.length < minPlies) continue;
+      if (!g?.whiteUserId || !g.blackUserId || g.moves.length < 2) continue;
+      const report = reports.get(g.id);
       out.push({
         gameId: g.id,
         initialFen: g.initialFen,
         moves: g.moves.map((m) => m.uci),
         thinkMs: g.moves.map((m) => Math.max(0, m.spentMs ?? 0)),
-        white: { id: g.whiteUserId!, name: g.whiteName, rating: Math.round(g.whiteRatingBefore ?? DEFAULT_RATING.rating) },
-        black: { id: g.blackUserId!, name: g.blackName, rating: Math.round(g.blackRatingBefore ?? DEFAULT_RATING.rating) },
+        white: { id: g.whiteUserId, name: g.whiteName, rating: Math.round(g.whiteRatingBefore ?? DEFAULT_RATING.rating) },
+        black: { id: g.blackUserId, name: g.blackName, rating: Math.round(g.blackRatingBefore ?? DEFAULT_RATING.rating) },
         timeCategory: g.timeCategory,
+        rated: g.rated,
+        result: g.result,
         endedAt: (g.endedAt ?? g.startedAt).getTime(),
-        analyzed: analysed.has(g.id),
+        analyzed: !!report,
+        /** Moves the analysis could measure, once it is analysed. */
+        measuredMoves: report?.moves ?? null,
       });
     }
     return out;
@@ -1310,7 +1318,6 @@ export class AdminService {
     if (depth === null) throw new AdminError('invalid_input', `Search depth must be ${MIN_DEVICE_DEPTH} or more`);
     const row = await getGame(this.db, gameId);
     if (!row) throw new AdminError('not_found', 'No such game');
-    if (!row.rated) throw new AdminError('invalid_input', 'Only rated games are analysed');
     if (row.whiteUserId !== playerId && row.blackUserId !== playerId) throw new AdminError('invalid_input', 'This player did not play that game');
     const moves = row.moves.map((m) => m.uci);
     const parsed = evalsFromDevice(row.initialFen, moves, input.evals);
@@ -1331,6 +1338,36 @@ export class AdminService {
     this.b.fairPlay.store.audit({ at: this.now(), playerId, action: 'analyzed', by: actor.username, note: `${gameId} on a moderator device, depth ${depth}` });
     await this.audit(actor, 'fairplay.analyze', { type: 'case', id: playerId, name: playerId }, `game ${gameId}`, { gameId, depth });
     return { reports: reports.filter((r) => r.playerId === playerId) };
+  }
+
+  /**
+   * Gives the opponents of this account's last `games` rated games back the
+   * rating they lost to it, and tells each of them, without closing the
+   * account and without naming it to them. The moderator chooses how far back
+   * it reaches; a game already refunded is never refunded twice.
+   */
+  async refundFairPlayOpponents(actor: Actor, playerId: string, input: { games?: unknown; note?: unknown }) {
+    this.require(actor, 'fairplay.ban');
+    const count = Math.min(50, Math.max(1, Math.round(typeof input.games === 'number' ? input.games : 10)));
+    const u = await this.user(playerId);
+    const note = text(input.note, 2000);
+    const refunds = this.b.fairPlay.refundRecent(playerId, actor.username, count);
+
+    // One message per opponent, however many of their games were put right.
+    const byPlayer = new Map<string, { points: number; games: number }>();
+    for (const r of refunds) {
+      const e = byPlayer.get(r.playerId) ?? { points: 0, games: 0 };
+      byPlayer.set(r.playerId, { points: e.points + r.points, games: e.games + 1 });
+    }
+    for (const [id, e] of byPlayer) {
+      await this.tell(id, ratingRefundNotice(e.points, e.games), { points: e.points, games: e.games }, actor.id);
+    }
+    await this.audit(actor, 'fairplay.refund', { type: 'case', id: playerId, name: u.username }, note, {
+      games: count,
+      refunded: refunds.length,
+      players: byPlayer.size,
+    });
+    return { refunds, players: byPlayer.size };
   }
 
   // ---------------------------------------------------------------- games

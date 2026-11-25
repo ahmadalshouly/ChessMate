@@ -25,6 +25,14 @@ POST /api/admin/fairplay/:playerId/analysis   { gameId, depth, evals }
 
 Only raw engine output crosses the wire: a score and a best move per position. The server walks the stored game itself, checks every evaluation against it (`evalUpload.ts`: one per position, a legal best move, depth 12 or more, terminal positions scored from the board) and computes the accuracy, match rate and z-scores with the same code its own engine goes through, so nothing graded can be sent directly. A game analysed again replaces its earlier report rather than counting twice.
 
+The case screen lists the account's recent finished games — rated or not, any length — and the moderator picks what is worth engine time: one game, or every game not yet analysed. A game can be analysed and still produce no report, because the opening plies, forced moves and already-decided positions are skipped and a side needs `minMovesPerGame` measured moves to count; the screen says so rather than claiming evidence that is not there.
+
+```
+POST /api/admin/fairplay/:playerId/refund      { games, note? }
+```
+
+Refunding is separate from closing the account. A moderator who is sure enough to put the points right, but still deciding about the account, chooses how many of its last rated games to reach back over; every opponent who lost rating in them gets it back and a message. **The message never names the account.** Who was investigated is not the opponent's business, and naming them invites pile-ons. A game already refunded is never refunded twice, so a later, wider pass only adds what it has not covered. Needs `fairplay.ban` (admins).
+
 **This is not a way to let players analyse their own cases.** Evidence about a suspected cheater must not come from that player's device: the one number that decides a case is how far their accuracy sits above their rating, which is exactly what a dishonest client would shade. The routes need a staff account with `fairplay.review`, reports made this way are stored with `source: 'device'`, the depth and the moderator's name, shown as "Moderator device" on the case screen, and they never open a case on their own — only the server's own engine does that.
 
 ## Flag rules (defaults, all in `DEFAULT_THRESHOLDS`)

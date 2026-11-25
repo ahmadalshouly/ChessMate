@@ -1,16 +1,19 @@
-import type { AdminEngineReport } from '@chessmate/core';
+import type { AdminEngineReport, AdminFairPlayGame } from '@chessmate/core';
 import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ActionDialog, ReasonField } from '@/features/admin/ActionDialog';
-import { CASE_GAMES, canAnalyzeHere, useCaseAnalysis } from '@/features/admin/caseAnalysis';
+import { canAnalyzeHere, useCaseAnalysis } from '@/features/admin/caseAnalysis';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, Field, PlayerBadges, ScoreMeter, Section, StatTile, TileGrid, useLoad } from '@/features/admin/ui';
 import { formatAgo, formatDateTime, translateOr, useT } from '@/i18n';
 import { Badge, Button, Row, Stack, Text, useAppTheme } from '@/ui';
 
-type Dialog = 'dismiss' | 'ban' | 'open' | null;
+type Dialog = 'dismiss' | 'ban' | 'open' | 'refund' | null;
+
+/** How far back a bulk refund can reach, in rated games. */
+const REFUND_CHOICES = [5, 10, 15, 20];
 
 export default function AdminFairPlayCase() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -19,6 +22,8 @@ export default function AdminFairPlayCase() {
   const { data: f, loading, error, reload } = useLoad(() => api.fairPlayFile(String(id)), [api, id]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [note, setNote] = useState('');
+  const [refundGames, setRefundGames] = useState(10);
+  const [refunded, setRefunded] = useState<{ players: number; points: number } | null>(null);
   const scan = useCaseAnalysis(api, String(id), reload);
   if (!f) {
     return (
@@ -93,8 +98,14 @@ export default function AdminFairPlayCase() {
             {f.case?.status === 'open' && can('fairplay.review') && <Button size="sm" variant="secondary" title={tr('admin.fairplay.dismiss')} onPress={() => setDialog('dismiss')} />}
             {!closed && can('fairplay.ban') && f.player && f.player.role === 'user' && <Button size="sm" variant="danger" title={tr('admin.fairplay.ban')} onPress={() => setDialog('ban')} />}
             {(!f.case || f.case.status === 'dismissed') && !closed && can('fairplay.review') && <Button size="sm" variant="secondary" title={tr('admin.fairplay.open')} onPress={() => setDialog('open')} />}
+            {can('fairplay.ban') && <Button size="sm" variant="secondary" title={tr('admin.fairplay.refundOpponents')} onPress={() => setDialog('refund')} />}
             {f.player && <Button size="sm" variant="ghost" title={tr('admin.reports.openPlayer')} onPress={() => router.push(`/admin/players/${encodeURIComponent(f.player!.id)}`)} />}
           </Row>
+          {refunded && (
+            <Text variant="caption" tone="muted">
+              {refunded.players === 0 ? tr('admin.fairplay.refundNone') : tr('admin.fairplay.refundDone', { count: refunded.players, points: Math.round(refunded.points * 10) / 10 })}
+            </Text>
+          )}
         </Stack>
       </Section>
 
@@ -114,16 +125,16 @@ export default function AdminFairPlayCase() {
         </Section>
       )}
 
-      <Section title={tr('admin.fairplay.evidence')} index={3} padding="none">
-        {can('fairplay.review') && (
+      {can('fairplay.review') && (
+        <Section title={tr('admin.fairplay.recentGames')} index={3} padding="none">
           <Stack gap="xs" style={{ padding: 10 }}>
             <Row gap="sm" align="center" wrap>
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={scan.running || !canAnalyzeHere()}
-                title={scan.running ? tr('admin.fairplay.analysing') : tr('admin.fairplay.analyseHere', { count: CASE_GAMES })}
-                onPress={scan.run}
+                disabled={scan.running || !canAnalyzeHere() || !scan.list?.some((g) => !g.analyzed)}
+                title={scan.running ? tr('admin.fairplay.analysing') : tr('admin.fairplay.analyseAll')}
+                onPress={() => scan.run()}
               />
               {scan.running && <Button size="sm" variant="ghost" title={tr('admin.common.cancel')} onPress={scan.cancel} />}
               {scan.running && (
@@ -142,12 +153,14 @@ export default function AdminFairPlayCase() {
             </Text>
             {!scan.running && scan.outcome?.kind === 'none' && (
               <Text variant="caption" tone="muted">
-                {scan.outcome.found > 0 ? tr('admin.fairplay.analyseAllDone', { count: scan.outcome.found }) : tr('admin.fairplay.analyseNoGames')}
+                {tr('admin.fairplay.analyseAllDone')}
               </Text>
             )}
             {!scan.running && scan.outcome?.kind === 'done' && (
               <Text variant="caption" tone="muted">
-                {tr('admin.fairplay.analyseDone', { count: scan.outcome.analyzed })}
+                {scan.outcome.measured > 0
+                  ? tr('admin.fairplay.analyseDone', { count: scan.outcome.analyzed })
+                  : tr('admin.fairplay.analyseNothingMeasured', { count: scan.outcome.analyzed })}
               </Text>
             )}
             {!scan.running && scan.outcome?.kind === 'cancelled' && (
@@ -155,17 +168,39 @@ export default function AdminFairPlayCase() {
                 {tr('admin.fairplay.analyseStopped', { count: scan.outcome.analyzed })}
               </Text>
             )}
-            {scan.error && (
+            {(scan.error || scan.listError) && (
               <Text variant="caption" tone="danger">
-                {tr('admin.fairplay.analyseFailed', { message: scan.error })}
+                {tr('admin.fairplay.analyseFailed', { message: scan.error ?? scan.listError ?? '' })}
               </Text>
             )}
           </Stack>
-        )}
+          {scan.list === null ? (
+            <Text tone="muted" style={{ padding: 10 }}>
+              {tr('admin.common.loading')}
+            </Text>
+          ) : scan.list.length === 0 ? (
+            <EmptyState icon="game-controller-outline" title={tr('admin.fairplay.analyseNoGames')} />
+          ) : (
+            scan.list.map((g, i) => (
+              <GameRow
+                key={g.gameId}
+                g={g}
+                playerId={String(id)}
+                last={i === scan.list!.length - 1}
+                busy={scan.running}
+                active={scan.current === g.gameId}
+                onAnalyse={() => scan.run([g.gameId])}
+              />
+            ))
+          )}
+        </Section>
+      )}
+
+      <Section title={tr('admin.fairplay.evidence')} index={4} padding="none">
         {f.reports.length === 0 ? <EmptyState icon="analytics-outline" title={tr('admin.fairplay.noEvidence')} /> : f.reports.map((r, i) => <EvidenceRow key={`${r.gameId}${r.color}`} r={r} last={i === f.reports.length - 1} />)}
       </Section>
 
-      <Section title={tr('admin.fairplay.log')} index={4}>
+      <Section title={tr('admin.fairplay.log')} index={5}>
         {f.log.length === 0 ? (
           <Text tone="muted">{tr('admin.common.none')}</Text>
         ) : (
@@ -193,6 +228,31 @@ export default function AdminFairPlayCase() {
       {dialog === 'ban' && (
         <ActionDialog visible danger onClose={() => setDialog(null)} title={tr('admin.dialogs.banTitle', { name })} description={tr('admin.dialogs.banBody')} confirmLabel={tr('admin.fairplay.ban')} onConfirm={() => done(() => api.banFairPlay(String(id), note))}>
           <ReasonField value={note} onChange={setNote} multiline />
+        </ActionDialog>
+      )}
+      {dialog === 'refund' && (
+        <ActionDialog
+          visible
+          onClose={() => setDialog(null)}
+          title={tr('admin.dialogs.refundTitle')}
+          description={tr('admin.dialogs.refundBody')}
+          confirmLabel={tr('admin.fairplay.refundOpponents')}
+          onConfirm={() =>
+            done(async () => {
+              const r = await api.refundFairPlay(String(id), refundGames, note);
+              setRefunded({ players: r.players, points: r.refunds.reduce((n, x) => n + x.points, 0) });
+            })
+          }
+        >
+          <Stack gap="xs">
+            <Text variant="label">{tr('admin.fairplay.refundHowMany')}</Text>
+            <Row gap="xs" wrap>
+              {REFUND_CHOICES.map((n) => (
+                <Button key={n} size="sm" variant={n === refundGames ? 'primary' : 'secondary'} title={String(n)} onPress={() => setRefundGames(n)} />
+              ))}
+            </Row>
+            <ReasonField value={note} onChange={setNote} multiline />
+          </Stack>
         </ActionDialog>
       )}
       {dialog === 'open' && (
@@ -225,6 +285,63 @@ function Compare({ label, value, expected, format, max }: { label: string; value
         {tr('admin.fairplay.expected', { value: format(expected) })}
       </Text>
     </Stack>
+  );
+}
+
+/** One of the account's recent games, with what the engine has made of it so far. */
+function GameRow({
+  g,
+  playerId,
+  last,
+  busy,
+  active,
+  onAnalyse,
+}: {
+  g: AdminFairPlayGame;
+  playerId: string;
+  last: boolean;
+  busy: boolean;
+  active: boolean;
+  onAnalyse: () => void;
+}) {
+  const tr = useT();
+  const { colors: c } = useAppTheme();
+  const color = g.white.id === playerId ? 'w' : 'b';
+  const opponent = color === 'w' ? g.black : g.white;
+  return (
+    <Row
+      gap="sm"
+      justify="space-between"
+      align="center"
+      wrap
+      style={[styles.ev, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border }]}
+    >
+      <Stack gap="xxs" style={{ flex: 1, minWidth: 200 }}>
+        <Row gap="sm" align="center" wrap>
+          <Badge label={color === 'w' ? '♔' : '♚'} tone="outline" />
+          <Text variant="label">{tr('admin.fairplay.gameVersus', { name: opponent.name })}</Text>
+          {!g.rated && <Badge label={tr('admin.fairplay.unrated')} tone="neutral" />}
+        </Row>
+        <Text variant="caption" tone="tertiary">
+          {`${tr('admin.fairplay.moves', { count: Math.ceil(g.moves.length / 2) })} · ${g.result} · ${formatAgo(g.endedAt)}`}
+        </Text>
+      </Stack>
+      <Row gap="sm" align="center">
+        {g.analyzed && (
+          <Text variant="caption" tone="muted">
+            {g.measuredMoves === 0 ? tr('admin.fairplay.nothingMeasured') : tr('admin.fairplay.measured', { count: g.measuredMoves ?? 0 })}
+          </Text>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy || !canAnalyzeHere()}
+          title={active ? tr('admin.fairplay.analysing') : g.analyzed ? tr('admin.fairplay.analyseAgain') : tr('admin.fairplay.analyseOne')}
+          onPress={onAnalyse}
+        />
+        <Button size="sm" variant="ghost" title={tr('admin.common.view')} onPress={() => router.push(`/admin/games/${encodeURIComponent(g.gameId)}`)} />
+      </Row>
+    </Row>
   );
 }
 
