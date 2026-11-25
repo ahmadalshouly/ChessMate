@@ -1,6 +1,7 @@
 import {
   ANALYSIS_LIMITS,
   Game,
+  fenProblem,
   lineFromInfo,
   positionEvalFrom,
   terminalScore,
@@ -58,6 +59,8 @@ export class AnalysisService {
     } catch {
       return send({ t: 'error', code: 'bad_request', message: 'Invalid position', id: req.id });
     }
+    // Positions the rules read but Stockfish must not see (the side that just moved in check, 17 queens).
+    if (fenProblem(fen)) return send({ t: 'error', code: 'bad_request', message: 'Invalid position', id: req.id });
     const terminal = terminalState(fen);
     if (terminal) {
       const analysis: PositionAnalysis = { fen, depth: 0, lines: [], terminal };

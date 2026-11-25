@@ -1,4 +1,4 @@
-import { Game, type PositionEval } from '@chessmate/core';
+import { Game, fenProblem, type PositionEval } from '@chessmate/core';
 
 import { readJson } from '../auth/http';
 import type { HttpRoute, ResolveUser } from '../social/http';
@@ -69,11 +69,14 @@ export function reviewEvalRoutes(deps: ReviewEvalDeps): HttpRoute {
     const fens: string[] = [];
     for (const f of raw) {
       if (typeof f !== 'string' || f.length > 120) return json(400, { error: 'Invalid position' });
+      let fen: string;
       try {
-        fens.push(new Game(f).fen);
+        fen = new Game(f).fen;
       } catch {
         return json(400, { error: 'Invalid position' });
       }
+      if (fenProblem(fen)) return json(400, { error: 'Invalid position' });
+      fens.push(fen);
     }
     if (fens.some((f) => deps.isLivePosition(f))) return json(423, { error: 'Engine analysis is disabled during live games' });
     const depth = clampInt(body.depth, DEPTH);

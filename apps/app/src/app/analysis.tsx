@@ -4,6 +4,7 @@ import {
   analysisPath,
   importPosition,
   bookTimeline,
+  parseSetupFen,
   linePgn,
   parseUci,
   type PositionAnalysis,
@@ -33,14 +34,18 @@ import { EngineSettingsSheet } from '@/components/EngineSettingsSheet';
 import { setEngineSettings, useEngineSettings } from '@/lib/engineSettings';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
+import { PositionEditor } from '@/features/analysis/PositionEditor';
+import { Glass, floatShadow } from '@/components/shell/Glass';
+import { PressableScale } from '@/ui/components/liquid';
 
 const EVAL_BAR = 20;
 /** Depth an engine result needs before it is used to grade moves. */
 
 /**
- * Analysis board: explore any position (from a FEN, a PGN, or a finished
- * game) with Stockfish running on the server. Moves for both sides are free;
- * a move away from the current line starts a new line from that point.
+ * Analysis board: explore any position (from a FEN, a PGN, a finished game,
+ * or one set up by hand in the board editor) with Stockfish running on the
+ * server. Moves for both sides are free; a move away from the current line
+ * starts a new line from that point.
  */
 export default function Analysis() {
   const params = useLocalSearchParams<{ fen?: string; moves?: string; initialFen?: string; ply?: string }>();
@@ -55,6 +60,9 @@ export default function Analysis() {
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  // Board editor: the position it opened on while it is showing, null otherwise.
+  const [editFrom, setEditFrom] = useState<string | null>(null);
+  const editing = editFrom !== null;
   const t = useTheme();
   const tr = useT();
   const { height: winH } = useWindowDimensions();
@@ -93,14 +101,14 @@ export default function Analysis() {
   // Ask the engine about every position we land on (debounced while stepping through moves).
   const { analyze, stop } = engine;
   useEffect(() => {
-    if (!engineOn) return stop();
+    if (!engineOn || editing) return stop();
     const id = setTimeout(() => analyze(fen, multipv, { depth: settings.depth, movetimeMs: settings.seconds * 1000 }), 120);
     return () => clearTimeout(id);
-  }, [fen, engineOn, multipv, settings.depth, settings.seconds, analyze, stop]);
+  }, [fen, engineOn, editing, multipv, settings.depth, settings.seconds, analyze, stop]);
 
   // Arrow keys step through the line on web.
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || editing) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement | null)?.tagName === 'TEXTAREA' || (e.target as HTMLElement | null)?.tagName === 'INPUT') return;
       if (e.key === 'ArrowLeft') setCursor((c) => Math.max(0, c - 1));
@@ -108,7 +116,7 @@ export default function Analysis() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [line.length]);
+  }, [line.length, editing]);
 
   // Keep the deepest result per position, so every move on the line can be graded once
   // the engine has seen the position before it and the position after it.
@@ -139,7 +147,17 @@ export default function Analysis() {
 
   const doImport = () => {
     const imported = importPosition(importText);
-    if (!imported) return setImportError(tr('analysis.importError'));
+    if (!imported) {
+      // A FEN that can't be analysed as it stands (no king, the wrong side in check): open it in the editor to fix.
+      const setup = parseSetupFen(importText.trim().split('\n')[0]!);
+      if (setup) {
+        setImportError(null);
+        setShowImport(false);
+        setImportText('');
+        return setEditFrom(importText.trim().split('\n')[0]!);
+      }
+      return setImportError(tr('analysis.importError'));
+    }
     setImportError(null);
     setStart(imported.initialFen);
     setLine(imported.moves);
@@ -197,9 +215,44 @@ export default function Analysis() {
     pgn: () => linePgn({ moves: line, initialFen: start, tags: { Event: 'ChessMate analysis board' } }),
   };
 
+  if (editing) {
+    return (
+      <Screen>
+        <Stack.Screen options={{ title: tr('analysis.setup.title'), headerRight: () => null }} />
+        <PositionEditor
+          fen={editFrom}
+          orientation={orientation}
+          onCancel={() => setEditFrom(null)}
+          onAnalyse={(setupFen, side) => {
+            setStart(setupFen);
+            setLine([]);
+            setCursor(0);
+            setFlip(side === 'b');
+            setEditFrom(null);
+            interaction.clear();
+          }}
+        />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
-      <Stack.Screen options={{ headerRight: () => <ShareGameButton share={share} /> }} />
+      <Stack.Screen
+        options={{
+          title: tr('titles.analysis'),
+          headerRight: () => (
+            <View style={styles.headerButtons}>
+              <PressableScale accessibilityRole="button" accessibilityLabel={tr('analysis.setup.title')} onPress={() => setEditFrom(fen)} hitSlop={8} scaleTo={0.88}>
+                <Glass radius={20} interactive style={[styles.round, floatShadow(t.scheme)]}>
+                  <Ionicons name="create-outline" size={19} color={t.text} />
+                </Glass>
+              </PressableScale>
+              <ShareGameButton share={share} />
+            </View>
+          ),
+        }}
+      />
       <View style={[styles.layout, wide && styles.layoutWide]} onLayout={onFill}>
         <View style={[styles.fixed, wide && { paddingTop: 16 }]}>{boardArea}</View>
         <KeyboardScrollView
@@ -281,6 +334,7 @@ export default function Analysis() {
             )}
             <View style={styles.row}>
               <Button variant="secondary" title={showImport ? tr('common.close') : tr('analysis.import')} onPress={() => setShowImport((s) => !s)} />
+              <Button variant="secondary" title={tr('analysis.setup.title')} onPress={() => setEditFrom(fen)} />
               {line.length > 0 && (
                 <Button
                   variant="secondary"
@@ -367,6 +421,8 @@ function clampPly(n: number, max: number) {
 
 const styles = StyleSheet.create({
   layout: { flex: 1, minHeight: 0 },
+  headerButtons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  round: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   layoutWide: { flexDirection: 'row', justifyContent: 'center', gap: 24, paddingHorizontal: 16 },
   fixed: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8 },
   panel: { flex: 1, flexGrow: 1 },

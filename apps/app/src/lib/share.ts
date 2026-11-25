@@ -36,6 +36,20 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/**
+ * Reads text from the clipboard. Null where that is not possible: a browser
+ * without clipboard access, or one where the player said no.
+ */
+export async function pasteText(): Promise<string | null> {
+  try {
+    if (Platform.OS !== 'web') return await Clipboard.getStringAsync();
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) return null;
+    return await navigator.clipboard.readText();
+  } catch {
+    return null;
+  }
+}
+
 /** Saves a .pgn file in the browser. */
 export function downloadPgn(pgn: string, filename: string) {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
