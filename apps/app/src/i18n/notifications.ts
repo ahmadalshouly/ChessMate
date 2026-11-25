@@ -20,6 +20,10 @@ const BODY: [RegExp, (m: RegExpMatchArray) => string][] = [
   // Moderation notices (apps/server/src/admin/notices.ts).
   [/^Our fair play review found outside help in your games\./, () => translate('notifications.body.fairPlay')],
   [/^Your account is open again\. Online play is back on\.$/, () => translate('notifications.body.reopened')],
+  [
+    /^We gave you back ([\d.]+) rating points from (\d+) games?\. An account you played broke our fair play rules\.$/,
+    (m) => translate('notifications.body.ratingRefund', { points: m[1]!, count: Number(m[2]) }),
+  ],
   [/^Chat is off for your account for (\d+) (hours?|days)\. Reason: (.*)$/s, (m) => translate(m[2] === 'days' ? 'notifications.body.mutedDays' : 'notifications.body.mutedHours', { count: Number(m[1]), reason: m[3]! })],
 ];
 
@@ -34,6 +38,7 @@ const TITLE: Record<string, Parameters<typeof translate>[0]> = {
   'Chat turned off': 'notifications.title.muted',
   'Account closed for fair play': 'notifications.title.fairPlay',
   'Account reopened': 'notifications.title.reopened',
+  'Rating points returned': 'notifications.title.ratingRefund',
 };
 
 export function notificationText(n: Pick<AppNotification, 'title' | 'body'>): { title: string; body: string } {

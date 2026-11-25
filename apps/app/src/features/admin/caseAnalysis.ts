@@ -1,5 +1,5 @@
 import { Game, type AdminFairPlayGame, type Score } from '@chessmate/core';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { localEngine } from '@/features/engine/localEngine';
 
@@ -11,10 +11,9 @@ import type { AdminApi } from '@/lib/adminApi';
  * The server's Stockfish is the normal source of fair-play evidence; on a
  * server with no engine (`STOCKFISH_PATH` unset) nothing is ever analysed and
  * a case stays empty. This fills that gap with the engine the app already
- * carries: the moderator's device evaluates every position of the player's
- * recent rated games and sends the raw results back, and the server checks
- * them against the stored game and computes the accuracy, match rate and
- * z-scores itself.
+ * carries: the moderator's device evaluates every position of a game and sends
+ * the raw results back, and the server checks them against the stored game and
+ * computes the accuracy, match rate and z-scores itself.
  *
  * It is deliberately staff-only. Evidence about a suspected cheater must not
  * come from that player's own device: the one number that matters is how far
@@ -27,90 +26,133 @@ import type { AdminApi } from '@/lib/adminApi';
 export const CASE_DEPTH = 14;
 /** Hard cap per position, so one sharp position can't stall a run. */
 const MOVETIME_MS = 4000;
-/** Games analysed in one run by default. */
-export const CASE_GAMES = 5;
+/** Recent games offered on the case screen. */
+export const CASE_GAMES = 10;
 
 /** What the last run came to, so a run that does nothing visible still says why. */
 export type CaseAnalysisOutcome =
-  | { kind: 'none'; found: number }
-  | { kind: 'done'; analyzed: number }
+  | { kind: 'none' }
+  | { kind: 'done'; analyzed: number; measured: number }
   | { kind: 'cancelled'; analyzed: number }
   | { kind: 'failed'; analyzed: number; message: string };
 
 export interface CaseAnalysisState {
+  /** The account's recent games, newest first, with what is already analysed. */
+  list: AdminFairPlayGame[] | null;
+  listError: string | null;
+  loading: boolean;
   running: boolean;
+  /** The game being analysed right now. */
+  current: string | null;
   /** Games finished so far in this run, and how many it is doing. */
   games: { done: number; total: number };
   /** Positions searched in the game being analysed. */
   positions: { done: number; total: number };
   error: string | null;
-  /** Games whose reports the server accepted. */
-  analyzed: number;
   /** How the last run ended; null before the first one. */
   outcome: CaseAnalysisOutcome | null;
-  run: () => void;
+  /** Analyse these games (all the unanalysed ones when no ids are given). */
+  run: (gameIds?: string[]) => void;
   cancel: () => void;
+  reloadList: () => void;
 }
 
 /** True where this device can run Stockfish at all. */
 export const canAnalyzeHere = () => localEngine.usable;
 
 export function useCaseAnalysis(api: AdminApi, playerId: string, onDone: () => void): CaseAnalysisState {
+  const [list, setList] = useState<AdminFairPlayGame[] | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reloads, setReloads] = useState(0);
   const [running, setRunning] = useState(false);
+  const [current, setCurrent] = useState<string | null>(null);
   const [games, setGames] = useState({ done: 0, total: 0 });
   const [positions, setPositions] = useState({ done: 0, total: 0 });
-  const [analyzed, setAnalyzed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<CaseAnalysisOutcome | null>(null);
   const ctrl = useRef<AbortController | null>(null);
 
+  /** Fetch again (after an analysis, or on demand). */
+  const reloadList = useCallback(() => setReloads((n) => n + 1), []);
+
+  useEffect(() => {
+    let alive = true;
+    api.fairPlayGames(playerId, CASE_GAMES).then(
+      (g) => {
+        if (!alive) return;
+        setList(g);
+        setListError(null);
+        setLoading(false);
+      },
+      (e: unknown) => {
+        if (!alive) return;
+        setListError(e instanceof Error ? e.message : String(e));
+        setLoading(false);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [api, playerId, reloads]);
+
   const cancel = useCallback(() => ctrl.current?.abort(), []);
 
-  const run = useCallback(() => {
-    if (ctrl.current) return;
-    const c = new AbortController();
-    ctrl.current = c;
-    setRunning(true);
-    setError(null);
-    setOutcome(null);
-    setAnalyzed(0);
-    setGames({ done: 0, total: 0 });
-    setPositions({ done: 0, total: 0 });
-    void (async () => {
-      let ok = 0;
-      try {
-        const found = await api.fairPlayGames(playerId, CASE_GAMES);
-        const pending = found.filter((g) => !g.analyzed);
-        setGames({ done: 0, total: pending.length });
-        // Nothing to do is the easiest run to mistake for a broken button, so say so.
-        if (pending.length === 0) return setOutcome({ kind: 'none', found: found.length });
-        localEngine.warmUp();
-        for (const [i, g] of pending.entries()) {
-          if (c.signal.aborted) break;
-          const evals = await analyzeGame(g, c.signal, (done, total) => setPositions({ done, total }));
-          if (c.signal.aborted) break;
-          await api.submitFairPlayAnalysis(playerId, g.gameId, CASE_DEPTH, evals);
-          ok++;
-          setAnalyzed(ok);
-          setGames({ done: i + 1, total: pending.length });
+  const run = useCallback(
+    (gameIds?: string[]) => {
+      if (ctrl.current) return;
+      const all = list ?? [];
+      const todo = gameIds ? all.filter((g) => gameIds.includes(g.gameId)) : all.filter((g) => !g.analyzed);
+      const c = new AbortController();
+      ctrl.current = c;
+      setRunning(true);
+      setError(null);
+      setOutcome(null);
+      setGames({ done: 0, total: todo.length });
+      setPositions({ done: 0, total: 0 });
+      void (async () => {
+        let ok = 0;
+        let measured = 0;
+        try {
+          // Nothing to do is the easiest run to mistake for a broken button.
+          if (todo.length === 0) return setOutcome({ kind: 'none' });
+          localEngine.warmUp();
+          for (const [i, g] of todo.entries()) {
+            if (c.signal.aborted) break;
+            setCurrent(g.gameId);
+            const evals = await analyzeGame(g, c.signal, (done, total) => setPositions({ done, total }));
+            if (c.signal.aborted) break;
+            const r = await api.submitFairPlayAnalysis(playerId, g.gameId, CASE_DEPTH, evals);
+            ok++;
+            // A game can be analysed and still measure nothing: the opening,
+            // forced moves and decided positions are skipped. Say so rather
+            // than claim evidence that isn't there.
+            measured += r.reports.reduce((n, rep) => n + rep.moves, 0);
+            setGames({ done: i + 1, total: todo.length });
+          }
+          setOutcome(c.signal.aborted ? { kind: 'cancelled', analyzed: ok } : { kind: 'done', analyzed: ok, measured });
+        } catch (e) {
+          if (c.signal.aborted) setOutcome({ kind: 'cancelled', analyzed: ok });
+          else {
+            const message = e instanceof Error ? e.message : String(e);
+            setError(message);
+            setOutcome({ kind: 'failed', analyzed: ok, message });
+          }
+        } finally {
+          ctrl.current = null;
+          setRunning(false);
+          setCurrent(null);
+          if (ok > 0) {
+            reloadList();
+            onDone();
+          }
         }
-        setOutcome(c.signal.aborted ? { kind: 'cancelled', analyzed: ok } : { kind: 'done', analyzed: ok });
-      } catch (e) {
-        if (c.signal.aborted) setOutcome({ kind: 'cancelled', analyzed: ok });
-        else {
-          const message = e instanceof Error ? e.message : String(e);
-          setError(message);
-          setOutcome({ kind: 'failed', analyzed: ok, message });
-        }
-      } finally {
-        ctrl.current = null;
-        setRunning(false);
-        if (ok > 0) onDone();
-      }
-    })();
-  }, [api, playerId, onDone]);
+      })();
+    },
+    [api, playerId, list, onDone, reloadList],
+  );
 
-  return { running, games, positions, error, analyzed, outcome, run, cancel };
+  return { list, listError, loading, running, current, games, positions, error, outcome, run, cancel, reloadList };
 }
 
 /** One evaluation per position of the game, in the shape the server expects. */

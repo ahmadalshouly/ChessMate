@@ -25,6 +25,7 @@ export const notifications: Messages<typeof en> = {
     test: 'Benachrichtigungen funktionieren auf diesem Gerät.',
     fairPlay: 'Unsere Fair-Play-Prüfung hat fremde Hilfe in deinen Partien festgestellt. Du kannst dich weiter anmelden und deine Partien und Puzzles ansehen, aber Online-Partien sind deaktiviert. Deine Gegner haben ihre verlorenen Wertungspunkte zurückbekommen.',
     reopened: 'Dein Konto ist wieder offen. Online-Partien sind wieder möglich.',
+    ratingRefund: { one: 'Wir haben dir {points} Wertungspunkte aus {count} Partie zurückgegeben. Ein Konto, gegen das du gespielt hast, hat gegen unsere Fair-Play-Regeln verstoßen.', other: 'Wir haben dir {points} Wertungspunkte aus {count} Partien zurückgegeben. Ein Konto, gegen das du gespielt hast, hat gegen unsere Fair-Play-Regeln verstoßen.' },
     mutedHours: { one: 'Der Chat ist für dein Konto {count} Stunde deaktiviert. Grund: {reason}', other: 'Der Chat ist für dein Konto {count} Stunden deaktiviert. Grund: {reason}' },
     mutedDays: { one: 'Der Chat ist für dein Konto {count} Tag deaktiviert. Grund: {reason}', other: 'Der Chat ist für dein Konto {count} Tage deaktiviert. Grund: {reason}' },
   },
@@ -39,6 +40,7 @@ export const notifications: Messages<typeof en> = {
     muted: 'Chat deaktiviert',
     fairPlay: 'Konto wegen Fair Play geschlossen',
     reopened: 'Konto wieder geöffnet',
+    ratingRefund: 'Wertungspunkte zurückgegeben',
   },
   time: {
     m: { one: '{count} Min.', other: '{count} Min.' },

@@ -18,6 +18,7 @@ export const NOTICE_TITLES = {
   warning: 'Warning from ChessMate moderators',
   muted: 'Chat turned off',
   fairPlay: 'Account closed for fair play',
+  ratingRefund: 'Rating points returned',
   reopened: 'Account reopened',
 } as const;
 
@@ -46,6 +47,25 @@ export function muteNotice(hours: number, until: number, reason: string): Modera
     email: {
       subject: 'Chat is turned off on your ChessMate account',
       body: `A moderator turned off chat on your account for ${span} (until ${when}).\n\nReason: ${reason}\n\nYou can keep playing; you just cannot send chat messages until then.\n\n${CODE_OF_CONDUCT}`,
+    },
+  };
+}
+
+/**
+ * Tells a player their rating was put back after someone they played broke the
+ * fair-play rules. It never names that account: who was investigated or closed
+ * is not the opponent's business, and naming them invites pile-ons.
+ */
+export function ratingRefundNotice(points: number, games: number): ModerationNotice {
+  const p = Math.round(points * 10) / 10;
+  return {
+    title: NOTICE_TITLES.ratingRefund,
+    body: `We gave you back ${p} rating points from ${games} ${games === 1 ? 'game' : 'games'}. An account you played broke our fair play rules.`,
+    email: {
+      subject: 'We put your ChessMate rating back',
+      body:
+        `An account you played against broke our fair play rules, so we have given you back the ${p} rating points you lost to it across ${games} ${games === 1 ? 'game' : 'games'}.\n\n` +
+        'You do not need to do anything. We do not say which account it was.',
     },
   };
 }
