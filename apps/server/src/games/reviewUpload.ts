@@ -12,8 +12,15 @@ const UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
  * well formed and fit the game (one per position, legal best moves, a real
  * search depth), then grades the moves itself from them with the same code
  * the app uses, so the accuracy and move classes cannot be sent directly.
+ * `theoryPlies` is the server's own count of opening moves that are theory
+ * (Dig Deep's masters games), the same the app asked the server for.
  */
-export function reviewFromUpload(initialFen: string, moves: string[], raw: unknown): { review: GameReview } | { error: string } {
+export function reviewFromUpload(
+  initialFen: string,
+  moves: string[],
+  raw: unknown,
+  opts: { theoryPlies?: number } = {},
+): { review: GameReview } | { error: string } {
   if (!moves.length) return { error: 'This game has no moves to review' };
   if (moves.length > ANALYSIS_LIMITS.maxReviewPlies) return { error: 'Game too long to review' };
   if (!Array.isArray(raw) || raw.length !== moves.length + 1) return { error: 'Need one evaluation per position' };
@@ -41,7 +48,7 @@ export function reviewFromUpload(initialFen: string, moves: string[], raw: unkno
     evals.push(ev);
   }
   try {
-    return { review: buildReview(fens[0]!, moves, evals) };
+    return { review: buildReview(fens[0]!, moves, evals, null, { theoryPlies: opts.theoryPlies }) };
   } catch {
     return { error: 'Invalid evaluations' };
   }

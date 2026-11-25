@@ -5,6 +5,7 @@ export const titles = {
   welcome: 'Welcome',
   resetPassword: 'Reset password',
   analysis: 'Analysis board',
+  digDeep: 'Dig Deep',
   review: 'Game review',
   design: 'Design system',
   computer: 'Play vs computer',

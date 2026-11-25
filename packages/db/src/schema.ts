@@ -11,6 +11,7 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -1492,3 +1493,44 @@ export const onlineBots = pgTable(
 );
 
 export type OnlineBotRow = typeof onlineBots.$inferSelect;
+
+// ---------------------------------------------------------------- Dig Deep (opening explorer)
+
+/**
+ * ChessMate's own games for the opening explorer: per position (FEN without
+ * move counters) and move, how many finished games went on with it and how
+ * they ended. Counted once per game when it finishes, for its first plies
+ * only (EXPLORER_MAX_PLY in core).
+ */
+export const explorerMoves = pgTable(
+  'explorer_moves',
+  {
+    position: text('position').notNull(),
+    uci: text('uci').notNull(),
+    san: text('san').notNull(),
+    white: integer('white').notNull().default(0),
+    draws: integer('draws').notNull().default(0),
+    black: integer('black').notNull().default(0),
+    /** Sum of the players' average ratings over the games that have both ratings, and how many those are. */
+    ratingSum: bigint('rating_sum', { mode: 'number' }).notNull().default(0),
+    ratedGames: integer('rated_games').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.position, t.uci] })],
+);
+
+/**
+ * Answers of the Lichess opening explorer, kept so a position is fetched from
+ * Lichess once for everyone and survives restarts. The key holds the
+ * collection, the position and the filters (explorerCacheKey in core).
+ */
+export const explorerCache = pgTable(
+  'explorer_cache',
+  {
+    key: text('key').primaryKey(),
+    body: jsonb('body').$type<unknown>().notNull(),
+    fetchedAt: ts('fetched_at').notNull().defaultNow(),
+  },
+  (t) => [index('explorer_cache_fetched_idx').on(t.fetchedAt)],
+);
+
+export type ExplorerMoveRow = typeof explorerMoves.$inferSelect;

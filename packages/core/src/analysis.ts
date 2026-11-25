@@ -183,6 +183,15 @@ export interface GameReview {
   maxDepth?: number;
 }
 
+export interface ReviewOptions {
+  /**
+   * Opening moves that are theory by the masters' games (see `theoryPlies` in
+   * explorer.ts), on top of the named openings. Such a move still loses its
+   * Book grade when the engine calls it a mistake. Moves kept from
+   * `previous` keep their grade, so build `previous` with the same value.
+   */
+  theoryPlies?: number;
+}
 
 /**
  * Builds a full review from per-position engine results.
@@ -197,7 +206,13 @@ export interface GameReview {
  * rebuilding from scratch every time a few more moves come in grew with the
  * square of the game's length.
  */
-export function buildReview(initialFen: string, moves: string[], evals: PositionEval[], previous?: GameReview | null): GameReview {
+export function buildReview(
+  initialFen: string,
+  moves: string[],
+  evals: PositionEval[],
+  previous?: GameReview | null,
+  opts: ReviewOptions = {},
+): GameReview {
   if (evals.length !== moves.length + 1) throw new Error('Need one evaluation per position');
   const kept = previous ? reusableMoves(previous, initialFen, moves, evals) : [];
   const game = new Game(kept.length ? kept[kept.length - 1]!.fenAfter : initialFen);
@@ -209,8 +224,11 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
   const acc: Record<Color, number[]> = { w: [], b: [] };
   let depth = Infinity;
   let maxDepth = 0;
-  // Moves stay theory while every position so far lies on a known opening line.
-  const theory = bookTimeline(moves, initialFen);
+  // Moves stay theory while every position so far lies on a known opening line,
+  // or for as long as the masters' games say they are theory (Dig Deep).
+  const named = bookTimeline(moves, initialFen);
+  const extra = Math.max(0, Math.floor(opts.theoryPlies ?? 0));
+  const theory = named.map((t, i) => t || i < extra);
   // Still in theory after the kept moves only if every one of them was a theory move.
   let inBook = kept.every((m) => m.judgement.classification === 'book');
   let previousLoss: number | undefined = kept[kept.length - 1]?.judgement.loss;

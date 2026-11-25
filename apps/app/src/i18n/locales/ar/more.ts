@@ -9,6 +9,7 @@ export const more = {
   },
   learn: 'تعلّم',
   analysis: 'رقعة التحليل',
+  digDeep: 'Dig Deep',
   tournaments: 'البطولات',
   watch: 'شاهد',
   puzzles: 'الألغاز',
