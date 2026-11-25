@@ -17,6 +17,7 @@ export * from './notifications';
 export * from './campaigns';
 export * from './analysis';
 export * from './openings';
+export * from './explorer';
 export * from './archive';
 export * from './pgn';
 export * from './share';

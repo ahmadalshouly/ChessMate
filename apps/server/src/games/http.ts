@@ -30,6 +30,28 @@ export interface GameRouteDeps {
   viewerOf: (token: string) => string | null;
   /** True when this player keeps their games private (profile privacy setting). */
   gamesHidden: (userId: string) => Promise<boolean>;
+  /** Opening moves that are theory by the masters' games (Dig Deep), for Book grades. Absent: named openings only. */
+  theoryPlies?: (initialFen: string, moves: string[]) => Promise<number>;
+}
+
+/** A review is saved without masters theory rather than waiting longer than this for it. */
+const THEORY_WAIT_MS = 5_000;
+
+async function theoryOf(deps: GameRouteDeps, initialFen: string, moves: string[]): Promise<number> {
+  if (!deps.theoryPlies) return 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      deps.theoryPlies(initialFen, moves),
+      new Promise<number>((resolve) => {
+        timer = setTimeout(() => resolve(0), THEORY_WAIT_MS);
+      }),
+    ]);
+  } catch {
+    return 0;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -104,7 +126,8 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
         } catch (e) {
           return json(400, { error: e instanceof Error ? e.message : 'Invalid body' });
         }
-        const built = reviewFromUpload(g.initialFen, g.moves.map((mv) => mv.uci), body.evals);
+        const ucis = g.moves.map((mv) => mv.uci);
+        const built = reviewFromUpload(g.initialFen, ucis, body.evals, { theoryPlies: await theoryOf(deps, g.initialFen, ucis) });
         if ('error' in built) return json(400, { error: built.error });
         return json(200, { review: await saveReviewForGame(db, g.id, built.review) });
       }

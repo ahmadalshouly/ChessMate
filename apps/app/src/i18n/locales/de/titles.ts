@@ -8,6 +8,7 @@ export const titles: Messages<typeof en> = {
   welcome: 'Willkommen',
   resetPassword: 'Passwort zurücksetzen',
   analysis: 'Analysebrett',
+  digDeep: 'Dig Deep',
   review: 'Partieanalyse',
   design: 'Designsystem',
   computer: 'Gegen den Computer',

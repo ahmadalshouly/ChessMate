@@ -50,8 +50,18 @@ class WriteQueue {
 
 const defaultLog = (label: string, e: unknown) => console.error(`[db] ${label} failed:`, e);
 
+/** A game that finished (not aborted), as the opening explorer counts it. */
+export interface FinishedGameFacts {
+  initialFen: string;
+  moves: string[];
+  winner: 'w' | 'b' | null;
+  ratings: { w: number; b: number } | null;
+}
+
 export class DbGamePersistence implements GamePersistence {
   readonly queue: WriteQueue;
+  /** Runs after a finished game is saved (Dig Deep counts it). Failures are logged, never retried. */
+  afterFinish: ((game: FinishedGameFacts) => Promise<void>) | null = null;
   constructor(
     private readonly db: Database,
     log = defaultLog,
@@ -85,7 +95,8 @@ export class DbGamePersistence implements GamePersistence {
     const pgn = room.game.pgn(pgnHeaders(room, outcome, ratingChange));
     const finalFen = room.game.fen;
     const plyCount = room.game.ply;
-    const opening = detectOpening(room.game.uciHistory(), room.initialFen);
+    const moves = room.game.uciHistory();
+    const opening = detectOpening(moves, room.initialFen);
     this.queue.push(`finish game ${room.id}`, async () => {
       await finishGame(this.db, room.id, {
         outcome,
@@ -96,6 +107,14 @@ export class DbGamePersistence implements GamePersistence {
         ratingsBefore: ratingChange && { w: ratingChange.w.before.rating, b: ratingChange.b.before.rating },
         ratingsAfter: ratingChange && { w: ratingChange.w.after.rating, b: ratingChange.b.after.rating },
       });
+      if (this.afterFinish && outcome.reason !== 'aborted') {
+        await this.afterFinish({
+          initialFen: room.initialFen,
+          moves,
+          winner: outcome.winner,
+          ratings: { w: ratingChange?.w.before.rating ?? room.white.rating, b: ratingChange?.b.before.rating ?? room.black.rating },
+        }).catch((e) => console.warn('[explorer] counting a finished game failed:', e));
+      }
       if (!ratingChange) return;
       const category = timeCategory(room.timeControl);
       const score = outcome.winner === 'w' ? 1 : outcome.winner === 'b' ? 0 : 0.5;

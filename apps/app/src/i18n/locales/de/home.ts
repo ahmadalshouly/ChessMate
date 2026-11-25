@@ -24,6 +24,10 @@ export const home: Messages<typeof en> = {
     body: 'Engine-Varianten, Bewertungsbalken und Pfeile für jede Stellung oder PGN.',
     cta: 'Analysebrett öffnen',
   },
+  digDeep: {
+    title: 'Dig Deep',
+    body: 'Millionen Partien: Sieh, was aus jeder Stellung gespielt wird und wie es ausgeht.',
+  },
   history: {
     title: 'Partienverlauf',
     body: 'Alte Partien Zug für Zug nachspielen. PGN teilen oder importieren.',

@@ -37,6 +37,7 @@ const PLAY: Mode[] = [
 const IMPROVE: Mode[] = [
   { title: 'home.lessons.title', body: 'home.lessons.body', href: '/learn', glyph: 'chess-queen' },
   { title: 'home.analysis.title', body: 'home.analysis.body', href: '/analysis', glyph: 'chess-king' },
+  { title: 'home.digDeep.title', body: 'home.digDeep.body', href: '/dig-deep', glyph: 'compass-outline' },
   { title: 'home.history.title', body: 'home.history.body', href: '/games', glyph: 'history' },
 ];
 
