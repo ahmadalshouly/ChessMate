@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard';
 import { Platform, Share } from 'react-native';
 
 export const canDownload = Platform.OS === 'web';
@@ -20,10 +21,14 @@ export async function sharePgn(pgn: string, title: string): Promise<boolean> {
   return res.action === Share.sharedAction;
 }
 
-/** Copies text to the clipboard on web. Returns false where unsupported. */
+/**
+ * Copies text to the clipboard. Returns false where that is not possible: a
+ * browser without clipboard access (a page served over plain http on the LAN).
+ */
 export async function copyText(text: string): Promise<boolean> {
-  if (Platform.OS !== 'web' || typeof navigator === 'undefined' || !navigator.clipboard) return false;
   try {
+    if (Platform.OS !== 'web') return await Clipboard.setStringAsync(text);
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return false;
     await navigator.clipboard.writeText(text);
     return true;
   } catch {

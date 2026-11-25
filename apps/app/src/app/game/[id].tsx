@@ -76,7 +76,7 @@ export default function OnlineGameScreen() {
         if (review === '1' && g.moves.length > 0) {
           router.replace({
             pathname: '/review',
-            params: { gameId: g.id, moves: g.moves.join(','), initialFen: g.initialFen, orientation: g.myColor ?? 'w', white: g.white, black: g.black },
+            params: { gameId: g.id, moves: g.moves.join(','), initialFen: g.initialFen, orientation: g.myColor ?? 'w', white: g.white, black: g.black, result: g.result },
           });
           return;
         }
