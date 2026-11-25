@@ -197,6 +197,22 @@ $env:STOCKFISH_PATH = "C:\Tools\stockfish\stockfish-windows-x86-64-avx2.exe"
 pnpm dev:server
 ```
 
+### Dig Deep (opening explorer)
+
+Home → **Dig Deep** (also in More): pick a position by playing moves on the board or tapping them in the list, and see every move played from it, how often, the engine's eval of each, and how the games ended (White / draw / Black bar). Three collections:
+
+| Tab | Games | Where it comes from |
+| --- | --- | --- |
+| Lichess | Rated games on Lichess (billions), filtered by speed and average rating | Lichess opening explorer, fetched by our server |
+| Masters | Over-the-board games of players rated 2200+ (millions) | Lichess opening explorer (masters database) |
+| ChessMate | Games finished on ChessMate, first 30 plies, standard start | Counted by our server as games finish (`explorer_moves` table); older games are counted once in the background after the first start |
+
+The app only talks to our server (`GET /api/explorer`). The server asks Lichess one request at a time (pausing a minute after a 429, as Lichess asks), keeps every answer in memory and in Postgres (`explorer_cache`, kept fresh 7 days for Lichess and 30 for masters, older ones pruned), and serves the stored copy if Lichess is down. So each position is fetched once for everyone, and the server's load is a cached lookup. Engine evals for the listed moves run on the player's device (depth 12), not on the server.
+
+Lichess's explorer needs a token since 2025: create a free personal token at [lichess.org/account/oauth/token](https://lichess.org/account/oauth/token) (no scopes needed) and set it as `LICHESS_TOKEN` (`fly secrets set LICHESS_TOKEN=lip_…`). Without it the Lichess and Masters tabs say they are not connected and the ChessMate tab still works. `LICHESS_EXPLORER_URL` points at a self-hosted [lila-openingexplorer](https://github.com/lichess-org/lila-openingexplorer) instead.
+
+Dig Deep also feeds game review: a move is graded **Book** while each move so far was played in at least 10 master games from its position and at least 1% of them (`THEORY_RULE` in `packages/core/src/explorer.ts`), on top of the named openings. The app asks `GET /api/explorer/theory?moves=…` while it reviews, and the server uses the same answer when it saves a review, so both agree. If Lichess can't be reached, reviews fall back to the named openings alone. Links open a line directly: `/dig-deep?moves=e2e4,c7c5`.
+
 ### Game history
 
 Home → **Game history** lists finished online games, practice games (saved when they end, or with "Save to history") and imported PGNs. They are stored on the device, so history works offline and for guests. Open a game to replay it: tap any move, use the arrow buttons (or ←/→, Home/End, F to flip on web), or press ▶▶ to play it through. Each game can be shared as PGN (share sheet on phones, download or copy on web), and **Import PGN** accepts pasted text or a `.pgn` file on web.
@@ -444,6 +460,8 @@ The game server also serves read-only JSON on the same port (8787), with CORS op
 | Endpoint | What it returns |
 | --- | --- |
 | `GET /api/stats` | Players online, games in progress, players looking for a game (shown live on the home screen, refreshed every 15 s) |
+| `GET /api/explorer?source=lichess\|masters\|chessmate&fen=…` | Dig Deep: moves played from a position with their results (`speeds=blitz,rapid` and `ratings=1600,1800` filter the Lichess collection). See [Dig Deep](#dig-deep-opening-explorer) |
+| `GET /api/explorer/theory?moves=e2e4,c7c5,…` | How many opening moves are theory by the masters' games (Book grades in reviews) |
 | `GET /api/leaderboard?category=blitz&scope=global` | Ranked players for `bullet`, `blitz`, `rapid` or `classical`. `scope` is `global`, `country` (add `country=US`, or it uses the viewer's profile country) or `friends` (needs `Authorization: Bearer <session token>`). Paged with `limit` (max 100) and `offset`; `you` holds the viewer's own rank. |
 
 Global and country boards list players with at least one rated game and a settled rating (RD 150 or less), so a lucky first game cannot top the list; friends boards include provisional players. Equal rounded ratings share a rank. Boards are read from the database (`DbLeaderboardSource` over `users`, `ratings` and accepted `friendships`); with `CHESSMATE_DB=off` they rank the in-memory players instead. To try the leaderboard locally, play a few rated games with `dev:<id>:<name>` tokens; guests are never ranked.

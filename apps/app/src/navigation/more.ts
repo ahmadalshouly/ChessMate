@@ -30,6 +30,7 @@ export const MORE_SECTIONS: MoreSection[] = [
     items: [
       { key: 'learn', label: 'more.learn', icon: 'school-outline', href: '/learn' },
       { key: 'analysis', label: 'more.analysis', icon: 'analytics-outline', href: '/analysis' },
+      { key: 'digDeep', label: 'more.digDeep', icon: 'compass-outline', href: '/dig-deep' },
       { key: 'tournaments', label: 'more.tournaments', icon: 'trophy-outline', href: '/tournaments' },
       { key: 'puzzles', label: 'more.puzzles', icon: 'extension-puzzle-outline', href: '/puzzles' },
     ],

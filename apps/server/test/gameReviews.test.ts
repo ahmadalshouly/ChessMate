@@ -120,4 +120,16 @@ describe('reviewFromUpload', () => {
     const r = reviewFromUpload(START_FEN, mate, evals);
     expect('review' in r && r.review.moves.at(-1)!.san).toBe('Qh4#');
   });
+
+  it('grades masters theory as Book when the server says how far it goes', () => {
+    // Italian, Giuoco Pianissimo: the named openings' book ends after 7. a4 O-O; masters keep playing 8. Re1 Ba7 9. h3 h6.
+    const line = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'f8c5', 'c2c3', 'g8f6', 'd2d3', 'd7d6', 'e1g1', 'a7a6', 'a2a4', 'e8g8', 'f1e1', 'c5a7', 'h2h3', 'h7h6'];
+    const evals = evalsFor(line).map((e) => ({ ...e, score: { cp: 25 } }));
+    const books = (theoryPlies?: number) => {
+      const r = reviewFromUpload(START_FEN, line, evals, { theoryPlies });
+      return 'review' in r ? r.review.moves.filter((m) => m.judgement.classification === 'book').length : -1;
+    };
+    expect(books()).toBe(14);
+    expect(books(line.length)).toBe(line.length);
+  });
 });

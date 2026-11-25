@@ -21,6 +21,10 @@ export const home = {
     body: 'Engine lines, evaluation bar and arrows for any position or PGN.',
     cta: 'Open analysis board',
   },
+  digDeep: {
+    title: 'Dig Deep',
+    body: 'Millions of games: see what is played from any position and how it turns out.',
+  },
   history: {
     title: 'Game history',
     body: 'Replay past games move by move. Share or import PGN.',

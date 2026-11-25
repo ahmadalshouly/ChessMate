@@ -99,6 +99,8 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `GOOGLE_CLIENT_IDS` | unset (Google sign-in off) | `fly.toml` or `fly secrets set` | Comma-separated Google OAuth client IDs (web, iOS, Android). See [sign-in-with-google-and-apple.md](sign-in-with-google-and-apple.md) |
 | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | unset (Twitch not checked) | `fly secrets set` | Streamers on Twitch show as live automatically, with viewers. Free app at dev.twitch.tv |
 | `YOUTUBE_API_KEY` | unset (live yes, viewers no) | `fly secrets set` | YouTube live title, viewers and start time (YouTube Data API v3 key) |
+| `LICHESS_TOKEN` | unset (Dig Deep's Lichess and Masters tabs off) | `fly secrets set` | Free Lichess personal API token (lichess.org/account/oauth/token, no scopes) for the opening explorer. The ChessMate tab works without it |
+| `LICHESS_EXPLORER_URL` | `https://explorer.lichess.ovh` | `fly.toml` | A self-hosted lila-openingexplorer instead of Lichess's (no token needed then) |
 | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | unset (Kick's site API, may refuse) | `fly secrets set` | Kick live status and viewers through Kick's public API |
 | `APPLE_CLIENT_IDS` | `com.chessmate.app` (+ `host.exp.Exponent` outside production) | `fly.toml` | Accepted Sign in with Apple audiences. Empty string turns Apple off |
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
