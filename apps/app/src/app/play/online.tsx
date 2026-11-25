@@ -36,7 +36,6 @@ import { useBoardSize } from '@/lib/useBoardSize';
 import { useGameChat } from '@/lib/useGameChat';
 import { usePlayBoard } from '@/lib/usePlayBoard';
 import { dirIcon, useT } from '@/i18n';
-import { PREPARE_DELAY_MS, prepareReview } from '@/features/engine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
@@ -90,15 +89,6 @@ export default function OnlinePlay() {
   const [hideResult, setHideResult] = useState(false);
   const gameId = view?.gameId;
   useEffect(() => setHideResult(false), [gameId]);
-  // Start grading the game on the device once it ends (after the celebration has
-  // had its moment), so Review opens with the moves ready.
-  const endReason = view?.outcome?.reason;
-  useEffect(() => {
-    if (!view || !endReason || endReason === 'aborted' || view.variant === 'secretQueen') return;
-    const moves = view.history.map((m) => m.uci);
-    const id = setTimeout(() => prepareReview(moves, { gameId: view.gameId }), PREPARE_DELAY_MS);
-    return () => clearTimeout(id);
-  }, [gameId, endReason]); // eslint-disable-line react-hooks/exhaustive-deps
   // Review is for signed-in players; once graded, the button shows the accuracy.
   const reviewEntry = useReviewEntry(view?.outcome ? { moves: view.history.map((m) => m.uci), gameId: view.gameId } : null);
 

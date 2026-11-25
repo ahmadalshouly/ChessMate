@@ -13,6 +13,7 @@ export const more = {
   tournaments: 'Turniere',
   watch: 'Zuschauen',
   puzzles: 'Puzzles',
+  immortals: 'Unsterbliche',
   friends: 'Freunde',
   news: 'Neuigkeiten',
   forum: 'Forum',

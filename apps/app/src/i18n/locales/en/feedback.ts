@@ -7,7 +7,7 @@ export const feedback = {
   undefended: 'Your {piece} on {square} is left undefended.',
   bad: '{san} is {cls}.{reason} Better was {best}.',
   masterpiece: '{san}!!! A Masterpiece: a queen or rook sacrifice that forces mate.',
-  brilliant: '{san}!! A sound sacrifice. The material comes back with interest.',
+  brilliant: '{san}!! A sacrifice that pays off: it leads to mate, wins the advantage or wins the material back.',
   great: '{san}! The only move that keeps the advantage. Everything else was clearly worse.',
   miss: '{san} misses a chance after your opponent\'s error. {best} would have punished it.',
 };

@@ -5,7 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { ApiError, apiRequest } from '@/lib/social/api';
 import { getSocialIdentity } from '@/lib/social/session';
 
-import { hashKey, keepReview, onReviewFinished, type ReviewRequest } from './localReview';
+import { hashKey, onReviewFinished, type ReviewRequest } from './localReview';
 
 /** Accuracy per side, 0–100. */
 export type Accuracy = { w: number; b: number };
@@ -104,32 +104,7 @@ export async function publishReview(gameId: string, evals: PositionEval[]): Prom
   }
 }
 
-/** Online games graded in the background when they ended: saved once grading finishes. */
-const publishOnFinish = new Map<string, string>();
-
-/** Saves this game's review on the server as soon as the device finishes grading it. */
-export function publishWhenReviewed(req: ReviewRequest, gameId: string) {
-  publishOnFinish.set(contentId(req), gameId);
-  while (publishOnFinish.size > 20) publishOnFinish.delete(publishOnFinish.keys().next().value!);
-}
-
-onReviewFinished((req, review, evals) => {
-  noteAccuracy(req, review.accuracy);
-  const id = contentId(req);
-  const gameId = publishOnFinish.get(id);
-  if (!gameId || !evals || !canUseReview()) return;
-  publishOnFinish.delete(id);
-  publishReview(gameId, evals).then(
-    (saved) => {
-      if (!saved) return;
-      keepReview(req, saved);
-      noteAccuracy(req, saved.accuracy);
-    },
-    () => {
-      // Offline: it is saved the next time the review is opened.
-    },
-  );
-});
+onReviewFinished((req, review) => noteAccuracy(req, review.accuracy));
 
 function subscribe(l: () => void) {
   listeners.add(l);

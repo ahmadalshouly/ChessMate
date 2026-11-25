@@ -33,6 +33,7 @@ export const MORE_SECTIONS: MoreSection[] = [
       { key: 'digDeep', label: 'more.digDeep', icon: 'compass-outline', href: '/dig-deep' },
       { key: 'tournaments', label: 'more.tournaments', icon: 'trophy-outline', href: '/tournaments' },
       { key: 'puzzles', label: 'more.puzzles', icon: 'extension-puzzle-outline', href: '/puzzles' },
+      { key: 'immortals', label: 'more.immortals', icon: 'infinite-outline', href: '/immortals' },
     ],
   },
   {

@@ -28,7 +28,7 @@ export function quickFeedback(ctx: MoveFeedbackFacts): string {
     case 'masterpiece':
       return `${ctx.movePlayed}!!! A Masterpiece: a queen or rook sacrifice that forces mate.`;
     case 'brilliant':
-      return `${ctx.movePlayed}!! A sound sacrifice. The material comes back with interest.`;
+      return `${ctx.movePlayed}!! A sacrifice that pays off: it leads to mate, wins the advantage or wins the material back.`;
     case 'great':
       return `${ctx.movePlayed}! The only move that keeps the advantage. Everything else was clearly worse.`;
     case 'miss':
