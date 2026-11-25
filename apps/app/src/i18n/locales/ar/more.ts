@@ -12,6 +12,7 @@ export const more = {
   tournaments: 'البطولات',
   watch: 'شاهد',
   puzzles: 'الألغاز',
+  immortals: 'الخالدون',
   friends: 'الأصدقاء',
   news: 'الأخبار',
   forum: 'المنتدى',

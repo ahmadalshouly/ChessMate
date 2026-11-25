@@ -32,6 +32,7 @@ export const MORE_SECTIONS: MoreSection[] = [
       { key: 'analysis', label: 'more.analysis', icon: 'analytics-outline', href: '/analysis' },
       { key: 'tournaments', label: 'more.tournaments', icon: 'trophy-outline', href: '/tournaments' },
       { key: 'puzzles', label: 'more.puzzles', icon: 'extension-puzzle-outline', href: '/puzzles' },
+      { key: 'immortals', label: 'more.immortals', icon: 'infinite-outline', href: '/immortals' },
     ],
   },
   {

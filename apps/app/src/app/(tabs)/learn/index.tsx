@@ -8,7 +8,7 @@ import { AdSpot } from '@/features/ads/AdSpot';
 import { useLessonCatalog } from '@/features/learn/catalog';
 import { lessonIcon, lessonPuzzleCount } from '@/features/learn/lessonView';
 import { useLessonProgress, type ProgressMap } from '@/features/learn/progress';
-import { useI18n, useT } from '@/i18n';
+import { dirIcon, useI18n, useT } from '@/i18n';
 import { Badge, Button, GlassView, Row, Screen, SectionHeader, Stack, Text, useAppTheme } from '@/ui';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -82,6 +82,20 @@ export default function Learn() {
           </View>
         </Stack>
       ))}
+
+      {/* The Immortals: famous games to replay, a natural next step after the lessons. */}
+      <GlassView padding="lg" radius="xl" style={{ gap: t.space.md }}>
+        <Row gap="md">
+          <Circle icon="infinite" />
+          <Stack gap="xxs" style={{ flex: 1, minWidth: 0 }}>
+            <Text variant="heading">{tr('immortals.learnCard.title')}</Text>
+            <Text variant="caption" tone="muted">
+              {tr('immortals.learnCard.body')}
+            </Text>
+          </Stack>
+        </Row>
+        <Button variant="secondary" title={tr('immortals.learnCard.open')} rightIcon={<Ionicons name={dirIcon('arrow-forward')} size={16} color={c.text} />} onPress={() => router.push('/immortals')} />
+      </GlassView>
 
       <GlassView flat padding="lg" radius="lg" elevation="none" style={{ gap: t.space.sm }}>
         <Text variant="overline" tone="muted">
