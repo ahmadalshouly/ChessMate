@@ -85,6 +85,17 @@ describe('engine analysis over the game socket', () => {
     a.close();
   });
 
+  it('turns away positions the engine must not see', async () => {
+    const a = await client('guest:Analyst');
+    const before = engine.searches.length;
+    // White to move while Black's king stands in check.
+    a.send({ t: 'analyze', id: 4, fen: '4k3/4Q3/8/8/8/8/8/4K3 w - - 0 1' });
+    const e = (await a.next((m) => m.t === 'error')) as Extract<ServerMessage, { t: 'error' }>;
+    expect(e.code).toBe('bad_request');
+    expect(engine.searches.length).toBe(before);
+    a.close();
+  });
+
   it('no longer grades game reviews on the server', async () => {
     const a = await client('guest:Reviewer');
     const before = engine.searches.length;

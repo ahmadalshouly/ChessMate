@@ -161,6 +161,7 @@ function RootStack() {
         <Stack.Screen name="(auth)/forgot-password" options={{ headerShown: false, title: tr('titles.resetPassword') }} />
         <Stack.Screen name="reset-password" options={{ headerShown: false, title: tr('auth.newPassword') }} />
         <Stack.Screen name="analysis" options={{ title: tr('titles.analysis') }} />
+        <Stack.Screen name="dig-deep" options={{ title: tr('titles.digDeep') }} />
         <Stack.Screen name="review" options={{ title: tr('titles.review') }} />
         <Stack.Screen name="news/index" options={{ title: tr('news.title') }} />
         <Stack.Screen name="news/[id]" options={{ title: tr('news.title') }} />

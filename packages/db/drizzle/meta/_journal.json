@@ -190,6 +190,13 @@
       "when": 1797750000000,
       "tag": "0026_online_bots",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1797900000000,
+      "tag": "0027_explorer",
+      "breakpoints": true
     }
   ]
 }

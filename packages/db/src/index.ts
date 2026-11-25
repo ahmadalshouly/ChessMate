@@ -20,3 +20,4 @@ export * from './repo/lessons';
 export * from './repo/campaigns';
 export * from './repo/ads';
 export * from './repo/bots';
+export * from './repo/explorer';

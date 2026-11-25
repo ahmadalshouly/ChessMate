@@ -17,6 +17,8 @@ const device = vi.hoisted(() => ({
   scores: new Map<number, number>(),
 }));
 const server = vi.hoisted(() => ({ calls: [] as string[][], fail: false }));
+/** Opening moves the masters' games call theory, as the server would answer (Dig Deep). */
+const theory = vi.hoisted(() => ({ plies: 0, asked: 0 }));
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
   default: { getItem: async () => null, setItem: async () => {}, multiRemove: async () => {} },
@@ -68,6 +70,14 @@ vi.mock('../src/features/engine/serverEngine', () => ({
     if (server.fail) throw new Error('offline');
     await new Promise((r) => setTimeout(r, 5));
     return fens.map((f) => ({ score: { cp: 0 }, bestMove: f.includes(' w ') ? 'g1f3' : 'g8f6', pv: [], depth: 12 }));
+  },
+}));
+
+vi.mock('../src/features/explorer/api', () => ({
+  fetchTheoryPlies: async () => {
+    theory.asked++;
+    await new Promise((r) => setTimeout(r, 5));
+    return theory.plies;
   },
 }));
 
@@ -125,6 +135,8 @@ beforeEach(() => {
   device.scores = new Map();
   server.calls = [];
   server.fail = false;
+  theory.plies = 0;
+  theory.asked = 0;
 });
 
 describe('game review fallback', () => {
@@ -151,6 +163,17 @@ describe('game review fallback', () => {
     // The quick pass's blunder was never shown.
     expect(r.shown.every((s) => s.classes[6] !== 'blunder')).toBe(true);
     expect(server.calls).toHaveLength(0);
+  });
+
+  it('grades masters theory as Book and does not search it deeper', async () => {
+    // A small slip on move 7 that the quick pass would grade below best, but the masters' games say all 8 moves are theory.
+    device.scores.set(7, 30);
+    theory.plies = 8;
+    const r = await review();
+    expect(theory.asked).toBe(1);
+    expect(r).toMatchObject({ where: 'device', graded: 8 });
+    expect(r.classes).toEqual(Array(8).fill('book'));
+    expect(device.deep).toEqual([]);
   });
 
   it('keeps the quick grades when the deep pass fails, without the server', async () => {

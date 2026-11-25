@@ -65,6 +65,8 @@ describe('review evaluation fallback', () => {
 
   it('rejects bad positions and oversized batches', async () => {
     expect((await post({ fens: ['not a fen'] }, 'dev:u_rev3:Reviewer')).status).toBe(400);
+    // Readable, but Black's king is attacked with White to move: never sent to the engine.
+    expect((await post({ fens: ['4k3/4Q3/8/8/8/8/8/4K3 w - - 0 1'] }, 'dev:u_rev3:Reviewer')).status).toBe(400);
     expect((await post({ fens: [] }, 'dev:u_rev3:Reviewer')).status).toBe(400);
     expect((await post({ fens: new Array(9).fill(START_FEN) }, 'dev:u_rev3:Reviewer')).status).toBe(400);
   });

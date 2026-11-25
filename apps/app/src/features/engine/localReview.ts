@@ -16,6 +16,7 @@ import {
   type PositionEval,
 } from '@chessmate/core';
 
+import { fetchTheoryPlies } from '../explorer/api';
 import { AbortError, localEngine } from './localEngine';
 import { evaluateOnServer, isTransient } from './serverEngine';
 
@@ -248,6 +249,11 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     return { done: quickDone + DEEP_COST * deepDone, total: total + DEEP_COST * (deepDone + (deepening ? left : 0)) };
   };
 
+  // Opening moves the masters' games call theory (Dig Deep) are graded Book. Asked
+  // once, while the engine works; grading waits for the answer (6 seconds at
+  // most: without one the named openings alone decide).
+  let theory: number | null = null;
+
   // Partial review, rebuilt at most every EMIT_MS: the graded prefix, shown up
   // to the first move that still waits for a deeper search.
   let prefix = 0;
@@ -259,7 +265,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   const regrade = (plies: number): GameReview => {
     // Move i is graded from positions i and i + 1.
     const keep = graded && { ...graded, moves: graded.moves.slice(0, Math.max(0, Math.min(graded.moves.length, staleFrom - 1))) };
-    const review = buildReview(initialFen, moves.slice(0, plies), evals.slice(0, plies + 1) as PositionEval[], keep);
+    const review = buildReview(initialFen, moves.slice(0, plies), evals.slice(0, plies + 1) as PositionEval[], keep, { theoryPlies: theory ?? 0 });
     graded = review;
     staleFrom = Infinity;
     dirty = false;
@@ -273,7 +279,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     if (signal.aborted) return;
     while (prefix < total && evals[prefix]) prefix++;
     const plies = Math.max(0, prefix - 1);
-    if (plies > 0 && dirty) {
+    if (plies > 0 && dirty && theory !== null) {
       try {
         // Grades only the moves new or changed since the last partial review.
         regrade(plies);
@@ -291,7 +297,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     shownBefore = shown;
     let review: GameReview | null = null;
     if (graded && shown === graded.moves.length) review = graded;
-    else if (graded && shown > 0) review = buildReview(initialFen, moves.slice(0, shown), evals.slice(0, shown + 1) as PositionEval[], graded);
+    else if (graded && shown > 0) review = buildReview(initialFen, moves.slice(0, shown), evals.slice(0, shown + 1) as PositionEval[], graded, { theoryPlies: theory ?? 0 });
     lastEmit = Date.now();
     emit({ review, ...work(), final: false, where });
   };
@@ -299,6 +305,11 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     if (timer) return;
     timer = setTimeout(flush, Math.max(0, EMIT_MS - (Date.now() - lastEmit)));
   };
+  const theoryReady = fetchTheoryPlies(moves, initialFen).then((n) => {
+    theory = n;
+    dirty = true;
+    schedule();
+  });
   flush();
 
   const common = { moves, signal, watched: () => job.listeners.size > 0 };
@@ -329,6 +340,9 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     }
     // Pass 2: again, deeper, around the moves that were not plainly good. The
     // device only: when it can't (or stops answering), the quick results stand.
+    // Book moves need no deeper look, so theory has to be known first.
+    await theoryReady;
+    if (signal.aborted) throw new AbortError();
     deepening &&= localEngine.usable;
     for (let round = 0; deepening && round < DEEP_ROUNDS; round++) {
       const todo = positionsToDeepen(regrade(moves.length), deep);
@@ -359,6 +373,8 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
     if (e instanceof AbortError) return;
     return emit({ ...job.last, final: true, error: e instanceof Error ? e.message : 'Engine error' });
   }
+  await theoryReady;
+  if (signal.aborted) return;
   if (timer) clearTimeout(timer);
   const all = evals as PositionEval[];
   const review = regrade(moves.length);

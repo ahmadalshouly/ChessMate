@@ -38,6 +38,7 @@ import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
 import { donateRoutes } from './payments/donate';
 import { footballLogoRoutes, footballLogosFromEnv } from './football/logos';
+import { ExplorerService, LichessExplorer, explorerRoutes } from './explorer';
 
 const port = Number(process.env.PORT ?? 8787);
 const production = process.env.NODE_ENV === 'production';
@@ -69,6 +70,13 @@ let lessonCatalog = builtinLessonCatalog;
 // startup so a restart never resets anyone to 1500.
 const ratingRepo = new MemoryRatingRepository();
 const ratings = new RatingService(ratingRepo);
+// Dig Deep (opening explorer): the Lichess databases through our own cache, plus ChessMate's own games.
+// LICHESS_EXPLORER_URL points at a self-hosted lila-openingexplorer instead of Lichess's own.
+const lichessExplorer = new LichessExplorer({
+  token: process.env.LICHESS_TOKEN || undefined,
+  origin: process.env.LICHESS_EXPLORER_URL || undefined,
+  log: (msg) => console.warn(msg),
+});
 // Profile pictures: object storage (Tigris, R2, S3) when configured, so they survive deploys; local disk otherwise.
 const blobs = blobStoreFromEnv(process.env, join(dirname(process.env.DATABASE_PATH ?? DEFAULT_PGLITE_DIR), 'uploads'));
 console.log(`Profile pictures: ${blobs.description}`);
@@ -111,6 +119,7 @@ async function start() {
   if (process.env.CHESSMATE_DB === 'off') {
     console.log('Database disabled (CHESSMATE_DB=off): accounts and games are not saved, friends are off');
     const { base, profileDeps } = services(new MemoryAuthStore());
+    base.http = [...(base.http ?? []), explorerRoutes(new ExplorerService({ lichess: lichessExplorer }))];
     const server = new ChessServer(base);
     profileDeps.online = (id) => server.isOnline(id);
     profileDeps.liveGame = (id) => server.liveGameOf(id);
@@ -123,12 +132,16 @@ async function start() {
   console.log(`Database ready (${db.kind}: ${db.location})${stale ? `, closed ${stale} unfinished game(s)` : ''}, ${stored} rating(s) loaded`);
   // Profiles and settings (privacy included) live in the database, so they survive restarts.
   const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db), await DbProfileStore.load(db.db), db.db);
+  const explorer = new ExplorerService({ db: db.db, lichess: lichessExplorer });
   base.http = [
     ...(base.http ?? []),
     donateRoutes(stripeFromEnv()),
+    explorerRoutes(explorer),
     gameRoutes(db.db, {
       viewerOf: (token) => auth.verifyAccessToken(token)?.userId ?? null,
       gamesHidden: async (id) => !((await profileStore.get(id))?.settings.privacy.showGames ?? DEFAULT_SETTINGS.privacy.showGames),
+      // Book grades in saved reviews also count masters theory, as the app's review does.
+      theoryPlies: (initialFen, moves) => explorer.theoryPlies(initialFen, moves),
     }),
   ];
   // Staff console: roles and closed accounts load now; ADMIN_USERNAMES promotes those accounts to admin.
@@ -136,6 +149,17 @@ async function start() {
   await admin.load((process.env.ADMIN_USERNAMES ?? '').split(','));
   profileDeps.titles = admin.titles;
   const persistence = new DbGamePersistence(db.db);
+  // Dig Deep's ChessMate collection: each finished game is counted once; older games are counted in the background.
+  persistence.afterFinish = (g) => explorer.recordGame(g);
+  setTimeout(
+    () =>
+      void explorer
+        .backfill()
+        .then((n) => n && console.log(`Dig Deep: counted ${n} earlier game(s) in the ChessMate collection`))
+        .catch((e) => console.warn('Dig Deep backfill failed (tries again on the next start):', e)),
+    30_000,
+  ).unref();
+  setInterval(() => void explorer.prune().catch((e) => console.warn('Dig Deep cache cleanup failed', e)), 24 * 3_600_000).unref();
   const store = await DbPlayerStore.load(db.db, persistence);
   const privacyOf = (id: string) => profileStore.get(id)?.settings.privacy ?? DEFAULT_SETTINGS.privacy;
   const messages = new MessageService({ db: db.db, privacyOf: (id) => privacyOf(id).messages, isStaff: (id) => isStaff(admin.roleOf(id)) });
@@ -242,6 +266,7 @@ server.listen().then((p) => {
   // ~20,700 bundled puzzles, loaded in the background on first start.
   void loadBundledPuzzles(puzzleStore).catch((e) => console.warn('bundled puzzles failed to load:', e instanceof Error ? e.message : e));
   console.log(`Engine analysis: ${engine} (starts on first request)`);
+  console.log(`Dig Deep: Lichess databases ${lichessExplorer.configured ? 'on' : 'off (set LICHESS_TOKEN, a free token from lichess.org/account/oauth/token)'}; ChessMate games on`);
   console.log(`Push notifications: Expo push service${process.env.EXPO_ACCESS_TOKEN ? ' with EXPO_ACCESS_TOKEN' : ''}. Delivery errors show in Admin → Notifications → Health`);
   const p2 = oauthConfigFromEnv();
   console.log(`Sign in with Google: ${p2.googleClientIds.length ? 'on' : 'off (set GOOGLE_CLIENT_IDS)'}; Sign in with Apple: ${p2.appleClientIds.length ? `on (${p2.appleClientIds.join(', ')})` : 'off'}`);

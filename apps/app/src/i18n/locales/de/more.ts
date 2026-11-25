@@ -9,6 +9,7 @@ export const more = {
   },
   learn: 'Lernen',
   analysis: 'Analysebrett',
+  digDeep: 'Dig Deep',
   tournaments: 'Turniere',
   watch: 'Zuschauen',
   puzzles: 'Puzzles',
