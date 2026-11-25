@@ -1,6 +1,6 @@
 import { ANALYSIS_LIMITS, Game, buildReview, terminalScore, terminalState, type GameReview, type PositionEval, type Score } from '@chessmate/core';
 
-/** Shallowest search accepted for a position in an uploaded review (the app searches depth 12). */
+/** Shallowest search accepted for a position in an uploaded review (the app searches depth 10, and 14 around moves that matter). */
 export const MIN_UPLOAD_DEPTH = 8;
 /** Moves of each engine line kept from an upload. */
 const MAX_PV = 12;

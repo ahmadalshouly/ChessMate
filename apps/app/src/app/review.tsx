@@ -481,7 +481,7 @@ export default function Review() {
                   })}
                 </View>
                 <Label muted size={12}>
-                  {graded.source === 'saved' ? tr('review.depthSaved', { n: review.depth }) : tr('review.depthDevice', { n: review.depth })}
+                  {tr(graded.source === 'saved' ? 'review.depthSaved' : 'review.depthDevice', { n: review.maxDepth ? `${review.depth}–${review.maxDepth}` : review.depth })}
                 </Label>
               </Card>
               )}
