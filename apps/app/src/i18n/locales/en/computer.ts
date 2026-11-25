@@ -1,6 +1,6 @@
 export const computer = {
   choose: 'Choose your opponent',
-  intro: 'Unrated practice. Takebacks are always allowed, and the engine review opens when the game ends.',
+  intro: 'Unrated practice, from your first game up to full engine strength (about 3500). Takebacks are always allowed, and the engine review opens when the game ends.',
   playAs: 'Play as',
   liveThreats: 'Live threat feedback',
   liveThreatsBody: 'Highlights pieces you could lose and what the computer is threatening.',
@@ -8,8 +8,17 @@ export const computer = {
   new: 'New',
   changeOpponent: 'Change opponent',
   threatFeedback: 'Threat feedback',
-  botA11y: '{name}, level {level}, about {rating}',
-  levelRating: 'Level {level} · ~{rating}',
+  botA11y: '{name}, {band}, about {rating}',
+  /** Under a bot's name: its rating and band, e.g. "~1650 · Club". */
+  bandRating: '~{rating} · {band}',
+  tileMeta: '~{rating} · {style}',
+  /** "~1650 · Club · Aggressive" */
+  detailMeta: '{line} · {style}',
+  featured: 'Featured',
+  online: 'Online',
+  onlineBotsOffline: 'More opponents, from streamers and creators, show up when you are online.',
+  visit: 'Visit {host}',
+  deviceFallback: 'This device can’t run Stockfish, so {name} plays at about {rating} here.',
   playBot: 'Play {name}',
   thinking: 'Thinking…',
   botToMove: 'To move',

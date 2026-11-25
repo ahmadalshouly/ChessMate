@@ -3,6 +3,8 @@ import type {
   AdPlacementInput,
   AdPlacementView,
   AdSpotState,
+  OnlineBotInput,
+  OnlineBotView,
   Campaign,
   CampaignAudience,
   CampaignInput,
@@ -56,6 +58,9 @@ export type AdPlacementForm = Partial<Omit<AdPlacementInput, 'startsAt' | 'endsA
   endsAt?: number;
   period?: string;
 };
+
+/** An online bot as the console's form sends it: `image` left out keeps the stored picture. */
+export type OnlineBotForm = OnlineBotInput;
 
 /** Admin live view of a tournament (see TournamentService.adminDetail on the server). */
 export interface AdminTournamentView extends TournamentDetail {
@@ -180,6 +185,11 @@ export function useAdminApi() {
       saveAdPlacement: (pid: string, p: AdPlacementForm) => post<{ placement: AdPlacementView }>(`/ads/${id(pid)}`, { ...p }).then((r) => r.placement),
       stopAdPlacement: (pid: string, stopped: boolean) => post<{ placement: AdPlacementView }>(`/ads/${id(pid)}/stop`, { stopped }).then((r) => r.placement),
       deleteAdPlacement: (pid: string) => post(`/ads/${id(pid)}/delete`),
+      bots: () => get<{ bots: OnlineBotView[] }>('/bots').then((r) => r.bots),
+      createBot: (b: OnlineBotForm) => post<{ bot: OnlineBotView }>('/bots', { ...b }).then((r) => r.bot),
+      saveBot: (bid: string, b: OnlineBotForm) => post<{ bot: OnlineBotView }>(`/bots/${id(bid)}`, { ...b }).then((r) => r.bot),
+      setBotFlags: (bid: string, flags: { enabled?: boolean; featured?: boolean }) => post<{ bot: OnlineBotView }>(`/bots/${id(bid)}/flags`, flags).then((r) => r.bot),
+      deleteBot: (bid: string) => post(`/bots/${id(bid)}/delete`),
       payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),
       reviewPayout: (pid: string, status: string, note: string) => post(`/payouts/${id(pid)}`, { status, note }),
       lessons: () => get<{ chapters: AdminLessonChapter[] }>('/lessons').then((r) => r.chapters),

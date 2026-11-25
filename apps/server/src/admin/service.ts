@@ -80,6 +80,7 @@ import type { MessageService } from '../messages/service';
 import { TournamentError, type TournamentService } from '../tournaments/service';
 import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
+import { BotError, type BotService } from '../bots/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
 import { closureEmail, fairPlayNotice, muteNotice, ratingRefundNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
 
@@ -165,6 +166,8 @@ export class AdminService {
   campaigns: CampaignService | null = null;
   /** Sponsored ad spots and placements (database only). */
   ads: AdService | null = null;
+  /** Online computer opponents (database only). */
+  bots: BotService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -772,6 +775,59 @@ export class AdminService {
       .placements.find((x) => x.id === id);
     const r = await this.adCall(() => this.adService().deletePlacement(id));
     await this.audit(actor, 'ads.delete', { type: 'system', id, name: p?.sponsor ?? id }, null, { spot: p?.spot });
+    return r;
+  }
+
+  // ---------------------------------------------------------------- online bots
+
+  private botService() {
+    if (!this.bots) throw new AdminError('unavailable', 'Online bots need the database');
+    return this.bots;
+  }
+
+  private async botCall<T>(fn: () => T | Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof BotError) throw new AdminError(e.status === 404 ? 'not_found' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  botConsole(actor: Actor) {
+    this.require(actor, 'bots.manage');
+    return this.botService().console();
+  }
+
+  async createBot(actor: Actor, input: unknown) {
+    this.require(actor, 'bots.manage');
+    const b = await this.botCall(() => this.botService().create(input, actor.username));
+    await this.audit(actor, 'bots.create', { type: 'system', id: b.id, name: b.name }, null, { rating: b.rating, style: b.style, enabled: b.enabled });
+    return b;
+  }
+
+  async updateBot(actor: Actor, id: string, input: unknown) {
+    this.require(actor, 'bots.manage');
+    const b = await this.botCall(() => this.botService().update(id, input));
+    await this.audit(actor, 'bots.edit', { type: 'system', id: b.id, name: b.name }, null, { rating: b.rating, style: b.style, enabled: b.enabled });
+    return b;
+  }
+
+  async setBotFlags(actor: Actor, id: string, input: { enabled?: unknown; featured?: unknown }) {
+    this.require(actor, 'bots.manage');
+    const b = await this.botCall(() => this.botService().setFlags(id, input));
+    const action = typeof input.enabled === 'boolean' ? (b.enabled ? 'bots.on' : 'bots.off') : b.featured ? 'bots.feature' : 'bots.unfeature';
+    await this.audit(actor, action, { type: 'system', id: b.id, name: b.name });
+    return b;
+  }
+
+  async deleteBot(actor: Actor, id: string) {
+    this.require(actor, 'bots.manage');
+    const b = this.botService()
+      .console()
+      .find((x) => x.id === id);
+    const r = await this.botCall(() => this.botService().remove(id));
+    await this.audit(actor, 'bots.delete', { type: 'system', id, name: b?.name ?? id }, null, b ? { games: b.games } : undefined);
     return r;
   }
 

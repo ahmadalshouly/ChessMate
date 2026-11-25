@@ -15,7 +15,7 @@
  * staff review it, ask for material, and then place it on a spot.
  */
 
-import { cleanImage } from './media';
+import { cleanImage, cleanWebLink } from './media';
 
 export const AD_SPOTS = [
   'home.top',
@@ -173,17 +173,8 @@ const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice
 
 /** An https link, http upgraded. Empty means "no link". */
 function cleanUrl(raw: unknown, field: string): Clean<string | null> {
-  const s = str(raw, AD_LIMITS.urlMax);
-  if (!s) return { value: null };
-  const withScheme = /^https?:\/\//i.test(s) ? s : `https://${s}`;
-  try {
-    const u = new URL(withScheme);
-    if (!u.hostname.includes('.')) throw new Error('no host');
-    if (u.protocol === 'http:') u.protocol = 'https:';
-    return { value: u.toString() };
-  } catch {
-    return { error: 'Enter a valid link, such as https://example.com', field };
-  }
+  const r = cleanWebLink(raw, field, AD_LIMITS.urlMax);
+  return 'error' in r ? { error: r.error, field } : r;
 }
 
 /**
