@@ -7,14 +7,17 @@ export interface MoveFeedbackFacts {
   movePlayed: string; // SAN
   bestMove: string; // SAN
   judgement: MoveJudgement;
-  insightAfter: PositionInsight; // from the mover's perspective
+  /**
+   * Tactics after the move, from the mover's perspective. Only an inaccuracy,
+   * mistake or blunder needs them (to say what the move allows), and finding
+   * them is slow, so it may be passed as a function that is called only then.
+   */
+  insightAfter: PositionInsight | (() => PositionInsight);
 }
 
 /** Deterministic one-line feedback for a move, shown in analysis and game review. */
 export function quickFeedback(ctx: MoveFeedbackFacts): string {
   const { classification } = ctx.judgement;
-  const top = ctx.insightAfter.threats[0];
-  const hang = ctx.insightAfter.hanging[0];
   switch (classification) {
     case 'best':
       return `${ctx.movePlayed} is the top engine choice.`;
@@ -23,7 +26,7 @@ export function quickFeedback(ctx: MoveFeedbackFacts): string {
     case 'book':
       return `${ctx.movePlayed} is a known opening move.`;
     case 'masterpiece':
-      return `${ctx.movePlayed}!!! A Masterpiece: the queen is offered and the engine backs it.`;
+      return `${ctx.movePlayed}!!! A Masterpiece: a queen or rook sacrifice that forces mate.`;
     case 'brilliant':
       return `${ctx.movePlayed}!! A sound sacrifice. The material comes back with interest.`;
     case 'great':
@@ -34,6 +37,9 @@ export function quickFeedback(ctx: MoveFeedbackFacts): string {
     case 'good':
       return `${ctx.movePlayed} is solid. ${ctx.bestMove} was slightly stronger.`;
     default: {
+      const insight = typeof ctx.insightAfter === 'function' ? ctx.insightAfter() : ctx.insightAfter;
+      const top = insight.threats[0];
+      const hang = insight.hanging[0];
       const reason = top
         ? ` It allows ${top.description}.`
         : hang

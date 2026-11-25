@@ -19,6 +19,7 @@ export * from './analysis';
 export * from './openings';
 export * from './archive';
 export * from './pgn';
+export * from './share';
 export * from './profile';
 export * from './puzzle';
 export * from './premove';

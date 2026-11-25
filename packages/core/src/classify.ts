@@ -23,21 +23,43 @@ export interface Sacrifice {
 const VALUE: Record<PieceType, number> = { ...PIECE_VALUES, k: 0 };
 
 /**
+ * Makes the side to move's cheapest legal capture on `square` (never en
+ * passant: the square holds the piece being taken) and returns it, or null
+ * when there is none. Finds the capturers with `attackers()` and tries them
+ * cheapest first: chess.js's verbose move list would build the SAN and two
+ * FENs of every legal move in the position just to pick one, which made
+ * grading a game's moves slow. Pieces of equal value are tried in board
+ * order, the same order the move list has.
+ */
+function makeCheapestCapture(chess: Chess, square: Square): Move | null {
+  const target = chess.get(square);
+  if (!target || target.color === chess.turn()) return null;
+  const capturers = (chess.attackers(square, chess.turn()) as Square[]).map((sq) => ({ sq, type: chess.get(sq)!.type })).sort((a, b) => VALUE[a.type] - VALUE[b.type]);
+  for (const c of capturers) {
+    try {
+      return chess.move({ from: c.sq, to: square, promotion: c.type === 'p' && (square[1] === '8' || square[1] === '1') ? 'q' : undefined });
+    } catch {
+      // Pinned, or a king stepping into check.
+    }
+  }
+  return null;
+}
+
+/** Material a capture wins: the piece taken, plus what a promotion adds. */
+const captureGain = (m: Move) => VALUE[m.captured!] + (m.promotion ? VALUE[m.promotion as PieceType] - 1 : 0);
+
+/**
  * Static exchange on `square` for the side to move: the material it can win
  * by starting a capture sequence there, always recapturing with the cheapest
  * legal piece and stopping when continuing would lose. Legal-move based, so
  * pinned pieces do not take part.
  */
 export function staticExchange(chess: Chess, square: Square): number {
-  const captures = (chess.moves({ verbose: true }) as Move[]).filter((m) => m.to === square && m.captured && !m.isEnPassant());
-  if (captures.length === 0) return 0;
-  captures.sort((a, b) => VALUE[a.piece] - VALUE[b.piece]);
-  const m = captures[0]!;
-  const gained = VALUE[m.captured!] + (m.promotion ? VALUE[m.promotion] - 1 : 0);
-  chess.move(m);
+  const m = makeCheapestCapture(chess, square);
+  if (!m) return 0;
   const reply = staticExchange(chess, square);
   chess.undo();
-  return Math.max(0, gained - reply);
+  return Math.max(0, captureGain(m) - reply);
 }
 
 /** Net material the opponent could win on each of the mover's pieces (not pawns or king), with the opponent to move. */
@@ -74,22 +96,33 @@ function looseBefore(fenBefore: string, mover: Color): Map<Square, number> {
  * as leaving a knight en prise while attacking the queen, is just a trade.
  */
 function immediateRecoup(chess: Chess, square: Square): number {
-  const captures = (chess.moves({ verbose: true }) as Move[]).filter((m) => m.to === square && m.captured && !m.isEnPassant());
-  if (captures.length === 0) return 0;
-  captures.sort((a, b) => VALUE[a.piece] - VALUE[b.piece]);
-  chess.move(captures[0]!);
+  if (!makeCheapestCapture(chess, square)) return 0;
+  // The mover's captures anywhere else. No en passant: the last move was a capture, not a double pawn step.
+  const mover = chess.turn();
   let best = 0;
-  for (const m of chess.moves({ verbose: true }) as Move[]) {
-    if (!m.captured || m.to === square) continue;
-    const gained = VALUE[m.captured] + (m.promotion ? VALUE[m.promotion] - 1 : 0);
-    chess.move(m);
-    const back = staticExchange(chess, m.to);
-    chess.undo();
-    best = Math.max(best, gained - back);
+  for (const to of ALL_SQUARES) {
+    const p = to === square ? null : chess.get(to);
+    if (!p || p.color === mover || p.type === 'k') continue;
+    for (const from of chess.attackers(to, mover) as Square[]) {
+      const promoting = chess.get(from)!.type === 'p' && (to[1] === '8' || to[1] === '1');
+      for (const promotion of promoting ? PROMOTIONS : [undefined]) {
+        let m: Move;
+        try {
+          m = chess.move({ from, to, promotion });
+        } catch {
+          break;
+        }
+        const back = staticExchange(chess, to);
+        chess.undo();
+        best = Math.max(best, captureGain(m) - back);
+      }
+    }
   }
   chess.undo();
   return best;
 }
+
+const PROMOTIONS = ['q', 'r', 'b', 'n'] as const;
 
 /**
  * Finds the material a move really offers: a piece the move puts (or leaves)
@@ -176,7 +209,6 @@ export function classifyMove(input: ClassifyInput): MoveJudgement {
     secondBestScore: input.secondBestScore,
     // Only searched for a move that could earn !! or !!! (most moves can't): it is slow.
     sacrifice: movedPiece ? () => findSacrifice(input.fenBefore, input.uci) : null,
-    movedPiece,
     isRecapture,
     previousLoss: input.previousLoss,
   });

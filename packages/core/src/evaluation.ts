@@ -5,8 +5,8 @@ export type Score = { cp: number; mate?: undefined } | { mate: number; cp?: unde
 
 /**
  * Move classes, strongest first:
- * - masterpiece (!!!): a queen sacrifice that leads to a forced mate.
- *   ChessMate's own top tier, above brilliant.
+ * - masterpiece (!!!): a queen or rook sacrifice that leads to a forced
+ *   mate. ChessMate's own top tier, above brilliant.
  * - brilliant (!!): a sound sacrifice; the best (or near best) move gives
  *   material away and the position stays good.
  * - great (!): the only good move; every alternative is clearly worse.
@@ -107,8 +107,8 @@ const MISS_LOSS = 0.1;
 /**
  * Judges a move by how much expected score the mover gave up compared with
  * the engine's best line, then upgrades strong moves (sacrifices, only moves)
- * and marks missed chances. The board facts (`sacrifice`, `movedPiece`,
- * `isRecapture`) come from `classifyMove`.
+ * and marks missed chances. The board facts (`sacrifice`, `isRecapture`)
+ * come from `classifyMove`.
  */
 export function judgeMove(params: {
   mover: Color;
@@ -125,7 +125,6 @@ export function judgeMove(params: {
    * could earn !! or !!!.
    */
   sacrifice?: { piece: PieceType; amount: number } | null | (() => { piece: PieceType; amount: number } | null);
-  movedPiece?: PieceType;
   isRecapture?: boolean;
   /** Loss of the opponent's previous move. */
   previousLoss?: number;
@@ -139,15 +138,17 @@ export function judgeMove(params: {
 
   const top = params.playedIsBest || loss < TOP_LOSS;
   const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING;
-  if (top && !easilyWinning) {
+  const mateFor = params.playedScore.mate !== undefined && (params.mover === 'w' ? params.playedScore.mate > 0 : params.playedScore.mate < 0);
+  // A sacrifice that forces mate may still be a Masterpiece from a won position:
+  // the search before the move just had not seen the mate yet.
+  if (top && (!easilyWinning || mateFor)) {
     const sac = after >= SOUND_AFTER ? (typeof params.sacrifice === 'function' ? params.sacrifice() : params.sacrifice) : null;
-    if (sac) {
-      // !!! (Masterpiece) is reserved for a queen sacrifice that leads to a forced mate.
-      // Any other sound sacrifice, queen or not, is !!.
-      const mateFor = params.playedScore.mate !== undefined && (params.mover === 'w' ? params.playedScore.mate > 0 : params.playedScore.mate < 0);
-      const masterpiece = params.movedPiece === 'q' && sac.piece === 'q' && mateFor;
-      return { classification: masterpiece ? 'masterpiece' : 'brilliant', loss, accuracy: 100 };
-    }
+    // !!! (Masterpiece): the queen or a rook is given up, whichever piece moved, and it forces mate.
+    if (sac && mateFor && (sac.piece === 'q' || sac.piece === 'r')) return { classification: 'masterpiece', loss, accuracy: 100 };
+    // !!: any other sound sacrifice, unless the mover was already winning easily.
+    if (sac && !easilyWinning) return { classification: 'brilliant', loss, accuracy: 100 };
+  }
+  if (top && !easilyWinning) {
     if (params.secondBestScore && !params.isRecapture && after >= SOUND_AFTER) {
       const second = expectedScoreFor(params.secondBestScore, params.mover);
       if (before - second >= ONLY_MOVE_GAP) return { classification: 'great', loss, accuracy: 100 };

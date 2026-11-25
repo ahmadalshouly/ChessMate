@@ -60,6 +60,8 @@ export const ADMIN_PERMISSIONS = [
   'notifications.send',
   /** Switch ad spots on and off, and place sponsors on them. Admins only. */
   'ads.manage',
+  /** Create, edit and remove online computer opponents (streamer and creator bots). Admins only. */
+  'bots.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -255,6 +257,44 @@ export interface AdminEngineReport {
   meanThinkMs: number;
   thinkCv: number;
   analyzedAt: number;
+  /**
+   * Whose engine produced the evaluations: this server's own Stockfish, or a
+   * moderator's device (see AdminFairPlayGame). Device evidence is checked and
+   * re-graded by the server, but it never opens a case on its own.
+   */
+  source?: 'server' | 'device';
+  /** Search depth per position, when the analysis recorded one. */
+  depth?: number;
+  /** The moderator whose device analysed it, for device analyses. */
+  by?: string;
+}
+
+/**
+ * A game a moderator's device can analyse for a case: everything the engine
+ * and the correlation maths need, so the device never has to ask for more.
+ */
+export interface AdminFairPlayGame {
+  gameId: string;
+  initialFen: string;
+  /** UCI moves of the finished game. */
+  moves: string[];
+  /** Think time per ply in ms, aligned with `moves` (0 where it was not recorded). */
+  thinkMs: number[];
+  white: { id: string; name: string; rating: number };
+  black: { id: string; name: string; rating: number };
+  timeCategory: string;
+  rated: boolean;
+  /** "1-0", "0-1", "1/2-1/2" or "*". */
+  result: string;
+  endedAt: number;
+  /** True when this game already has an engine report for the player of the case. */
+  analyzed: boolean;
+  /**
+   * Moves the analysis could measure for that player, once analysed. A game
+   * can be analysed and still measure nothing: the opening plies, forced moves
+   * and already-decided positions are all skipped.
+   */
+  measuredMoves: number | null;
 }
 
 export interface AdminFairPlayAssessment {

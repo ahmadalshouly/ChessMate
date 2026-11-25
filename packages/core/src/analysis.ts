@@ -174,8 +174,10 @@ export interface GameReview {
   moves: ReviewedMove[];
   accuracy: Record<Color, number>;
   counts: Record<Color, Record<MoveClass, number>>;
-  /** Engine depth used for the review. */
+  /** Engine depth used for the review: the shallowest search behind any graded move. */
   depth: number;
+  /** The deepest search behind any graded move, when deeper than `depth` (some moves were searched again deeper). */
+  maxDepth?: number;
 }
 
 
@@ -184,7 +186,7 @@ export interface GameReview {
  * `evals[i]` is the analysis of the position before move i; `evals[moves.length]`
  * is the final position.
  *
- * `previous` is an earlier review of the start of the same game (a review
+ * `previous` is an earlier review of the same game, or of its start (a review
  * being filled in as moves are graded). Each move's grade depends only on the
  * moves and results up to it, so the moves it already graded with the same
  * engine results are kept as they are and only the rest are graded. Grading a
@@ -203,6 +205,7 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
   } as GameReview['counts'];
   const acc: Record<Color, number[]> = { w: [], b: [] };
   let depth = Infinity;
+  let maxDepth = 0;
   // Moves stay theory while every position so far lies on a known opening line.
   const theory = bookTimeline(moves, initialFen);
   // Still in theory after the kept moves only if every one of them was a theory move.
@@ -212,7 +215,10 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     counts[m.color][m.judgement.classification]++;
     acc[m.color].push(m.judgement.accuracy);
   }
-  for (let i = 0; i < kept.length; i++) depth = Math.min(depth, evals[i]!.depth || depth);
+  for (let i = 0; i < kept.length; i++) {
+    depth = Math.min(depth, evals[i]!.depth || depth);
+    maxDepth = Math.max(maxDepth, evals[i]!.depth);
+  }
 
   moves.forEach((uci, i) => {
     if (i < kept.length) return;
@@ -220,7 +226,8 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     const after = evals[i + 1]!;
     const fenBefore = game.fen;
     const mover = game.turn;
-    const legalMoveCount = game.legalMoves().length;
+    // SAN strings, not verbose moves: chess.js builds two FENs and the SAN of every verbose move.
+    const legalMoveCount = game.raw.moves().length;
     const played = game.move(uci);
     inBook = inBook && theory[i]!;
     if (!played) throw new Error(`Illegal move in review: ${uci}`);
@@ -244,9 +251,8 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     previousLoss = judgement.loss;
     // A book move the engine calls a mistake takes the game out of theory for good.
     if (judgement.classification !== 'book') inBook = false;
-    const bestLine = pvToSan(fenBefore, before.pv.length ? before.pv : [bestMove]);
+    const bestLine = pvToSan(fenBefore, before.pv.length ? before.pv.slice(0, BEST_LINE_PLIES) : [bestMove]);
     const bestSan = bestLine[0] ?? played.san;
-    const insightAfter = analyzePosition(fenAfter, mover);
     reviewed.push({
       ply: i + 1,
       color: mover,
@@ -260,11 +266,12 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
       bestSan,
       bestLine,
       judgement,
-      feedback: quickFeedback({ movePlayed: played.san, bestMove: bestSan, judgement, insightAfter }),
+      feedback: quickFeedback({ movePlayed: played.san, bestMove: bestSan, judgement, insightAfter: () => analyzePosition(fenAfter, mover) }),
     });
     counts[mover][judgement.classification]++;
     acc[mover].push(judgement.accuracy);
     depth = Math.min(depth, before.depth || depth);
+    maxDepth = Math.max(maxDepth, before.depth);
   });
 
   return {
@@ -273,18 +280,23 @@ export function buildReview(initialFen: string, moves: string[], evals: Position
     accuracy: { w: gameAccuracy(acc.w), b: gameAccuracy(acc.b) },
     counts,
     depth: Number.isFinite(depth) ? depth : 0,
+    ...(Number.isFinite(depth) && maxDepth > depth ? { maxDepth } : {}),
   };
 }
+
+/** Moves of the engine's line kept (in SAN) on each reviewed move: the review shows six. Each costs chess.js a full legal-move generation. */
+const BEST_LINE_PLIES = 8;
 
 const sameScore = (a: Score, b: Score) => a.cp === b.cp && a.mate === b.mate;
 
 /** The moves of `previous` that grade the same with these moves and engine results. */
 function reusableMoves(previous: GameReview, initialFen: string, moves: string[], evals: PositionEval[]): ReviewedMove[] {
-  if (previous.moves.length > moves.length || previous.initialFen !== new Game(initialFen).fen) return [];
+  if (previous.initialFen !== new Game(initialFen).fen) return [];
   let n = 0;
   for (const m of previous.moves) {
     const i = m.ply - 1;
-    if (i !== n || m.uci !== moves[i]) break;
+    // `previous` may run past these moves (a shorter prefix of it is wanted): its start is still good.
+    if (i >= moves.length || i !== n || m.uci !== moves[i]) break;
     const before = evals[i]!;
     const after = evals[i + 1]!;
     if (!sameScore(m.scoreBefore, before.score) || !sameScore(m.scoreAfter, after.score) || m.bestMove !== (before.bestMove ?? m.uci)) break;

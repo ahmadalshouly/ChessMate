@@ -3,6 +3,8 @@ import type {
   AdPlacementInput,
   AdPlacementView,
   AdSpotState,
+  OnlineBotInput,
+  OnlineBotView,
   Campaign,
   CampaignAudience,
   CampaignInput,
@@ -10,8 +12,10 @@ import type {
   PushHealth,
   AdminAuditEntry,
   AdminDashboard,
+  AdminEngineReport,
   AdminFairPlayCase,
   AdminFairPlayFile,
+  AdminFairPlayGame,
   AdminGameDetail,
   AdminGameSummary,
   AdminLesson,
@@ -54,6 +58,9 @@ export type AdPlacementForm = Partial<Omit<AdPlacementInput, 'startsAt' | 'endsA
   endsAt?: number;
   period?: string;
 };
+
+/** An online bot as the console's form sends it: `image` left out keeps the stored picture. */
+export type OnlineBotForm = OnlineBotInput;
 
 /** Admin live view of a tournament (see TournamentService.adminDetail on the server). */
 export interface AdminTournamentView extends TournamentDetail {
@@ -126,6 +133,14 @@ export function useAdminApi() {
       openCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/open`, { note }),
       dismissCase: (playerId: string, note: string) => post(`/fairplay/${id(playerId)}/dismiss`, { note }),
       banFairPlay: (playerId: string, note: string) => post<{ refunds: { playerId: string; points: number }[] }>(`/fairplay/${id(playerId)}/ban`, { note }),
+      /** Give the opponents of a case's last `games` rated games their points back. */
+      refundFairPlay: (playerId: string, games: number, note: string) =>
+        post<{ refunds: { playerId: string; points: number }[]; players: number }>(`/fairplay/${id(playerId)}/refund`, { games, note }),
+      /** Recent rated games of a case that a moderator's device can analyse. */
+      fairPlayGames: (playerId: string, limit?: number) => get<{ games: AdminFairPlayGame[] }>(`/fairplay/${id(playerId)}/games${qs({ limit })}`).then((r) => r.games),
+      /** Engine results from this device for one of those games; the server checks and grades them. */
+      submitFairPlayAnalysis: (playerId: string, gameId: string, depth: number, evals: unknown[]) =>
+        post<{ reports: AdminEngineReport[] }>(`/fairplay/${id(playerId)}/analysis`, { gameId, depth, evals }),
       games: (player?: string, before?: number) => get<{ games: AdminGameSummary[] }>(`/games${qs({ player, before })}`).then((r) => r.games),
       game: (gameId: string) => get<{ game: AdminGameDetail }>(`/games/${id(gameId)}`).then((r) => r.game),
       abortGame: (gameId: string, reason: string) => post(`/games/${id(gameId)}/abort`, { reason }),
@@ -170,6 +185,11 @@ export function useAdminApi() {
       saveAdPlacement: (pid: string, p: AdPlacementForm) => post<{ placement: AdPlacementView }>(`/ads/${id(pid)}`, { ...p }).then((r) => r.placement),
       stopAdPlacement: (pid: string, stopped: boolean) => post<{ placement: AdPlacementView }>(`/ads/${id(pid)}/stop`, { stopped }).then((r) => r.placement),
       deleteAdPlacement: (pid: string) => post(`/ads/${id(pid)}/delete`),
+      bots: () => get<{ bots: OnlineBotView[] }>('/bots').then((r) => r.bots),
+      createBot: (b: OnlineBotForm) => post<{ bot: OnlineBotView }>('/bots', { ...b }).then((r) => r.bot),
+      saveBot: (bid: string, b: OnlineBotForm) => post<{ bot: OnlineBotView }>(`/bots/${id(bid)}`, { ...b }).then((r) => r.bot),
+      setBotFlags: (bid: string, flags: { enabled?: boolean; featured?: boolean }) => post<{ bot: OnlineBotView }>(`/bots/${id(bid)}/flags`, flags).then((r) => r.bot),
+      deleteBot: (bid: string) => post(`/bots/${id(bid)}/delete`),
       payouts: () => get<{ requests: PayoutRequestView[] }>('/payouts').then((r) => r.requests),
       reviewPayout: (pid: string, status: string, note: string) => post(`/payouts/${id(pid)}`, { status, note }),
       lessons: () => get<{ chapters: AdminLessonChapter[] }>('/lessons').then((r) => r.chapters),

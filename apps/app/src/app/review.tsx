@@ -1,5 +1,19 @@
-import { Game, START_FEN, evalBarFraction, parseUci, positionKey, type MoveClass, type PositionAnalysis, type ReviewedMove, type Square } from '@chessmate/core';
-import { router, useLocalSearchParams } from 'expo-router';
+import {
+  Game,
+  START_FEN,
+  asGameResult,
+  evalBarFraction,
+  gameReviewPath,
+  linePgn,
+  parseUci,
+  positionKey,
+  reviewPath,
+  type MoveClass,
+  type PositionAnalysis,
+  type ReviewedMove,
+  type Square,
+} from '@chessmate/core';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/ui/primitives';
@@ -21,6 +35,8 @@ import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useAuth } from '@/lib/auth';
 import { analyzeLocally, serverGameId, useGameReview } from '@/features/engine';
 import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
+import { vsTitle } from '@/features/share/gameShares';
 
 const EVAL_BAR = 20;
 /** Classes where the played move needs no "better move" arrow. */
@@ -40,7 +56,7 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
  */
 export default function Review() {
   const tr = useT();
-  const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string }>();
+  const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string; result?: string }>();
   const signedIn = useAuth().status === 'signedIn';
   const t = useTheme();
   const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 140 });
@@ -481,7 +497,7 @@ export default function Review() {
                   })}
                 </View>
                 <Label muted size={12}>
-                  {graded.source === 'saved' ? tr('review.depthSaved', { n: review.depth }) : tr('review.depthDevice', { n: review.depth })}
+                  {tr(graded.source === 'saved' ? 'review.depthSaved' : 'review.depthDevice', { n: review.maxDepth ? `${review.depth}–${review.maxDepth}` : review.depth })}
                 </Label>
               </Card>
               )}
@@ -519,8 +535,19 @@ export default function Review() {
     </>
   );
 
+  // Online games link to the server's review; any other game carries its moves.
+  const result = asGameResult(params.result) ?? '*';
+  const share: GameShare = {
+    title: params.white && params.black ? vsTitle(params.white, params.black) : tr('titles.review'),
+    link: request.gameId
+      ? gameReviewPath(request.gameId)
+      : reviewPath({ moves: request.moves, initialFen: request.initialFen, white: params.white, black: params.black, result, orientation: params.orientation === 'b' ? 'b' : 'w' }),
+    pgn: () => linePgn({ moves: request.moves, initialFen: request.initialFen, white: params.white, black: params.black, result, tags: request.gameId ? { Event: 'ChessMate online game' } : undefined }),
+  };
+
   return (
     <Screen>
+      <Stack.Screen options={{ headerRight: () => <ShareGameButton share={share} /> }} />
       {wide ? (
         // Web and tablets: a big board with the controls under it, the review beside it.
         <View style={styles.wide} onLayout={onFill}>

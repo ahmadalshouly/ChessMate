@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Game, formatClock, formatScore, type Color, type EventGameDetail, type EventGamePlayer, type Square } from '@chessmate/core';
+import { Game, broadcastGamePath, formatClock, formatScore, linePgn, type Color, type EventGameDetail, type EventGamePlayer, type Square } from '@chessmate/core';
 import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -18,6 +18,8 @@ import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useWideBoard } from '@/lib/useWideBoard';
 import { usePolled, watchApi } from '@/lib/watchApi';
 import { Button, GlassView, Row, Screen, Skeleton, Stack, Text, useAppTheme } from '@/ui';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
+import { vsTitle } from '@/features/share/gameShares';
 
 /** One broadcast game: follows the live position, or step through the moves. */
 export default function BroadcastGameScreen() {
@@ -149,7 +151,7 @@ export default function BroadcastGameScreen() {
             onPress={() =>
               router.push({
                 pathname: '/review',
-                params: { moves: g.moves.join(','), initialFen: g.initialFen, white: g.white.name, black: g.black.name, orientation: orientation },
+                params: { moves: g.moves.join(','), initialFen: g.initialFen, white: g.white.name, black: g.black.name, orientation: orientation, result: g.result },
               })
             }
           />
@@ -184,7 +186,7 @@ export default function BroadcastGameScreen() {
 
   return (
     <Screen scroll width="full">
-      <RouterStack.Screen options={{ title: `${g.white.name} – ${g.black.name}` }} />
+      <RouterStack.Screen options={{ title: `${g.white.name} – ${g.black.name}`, headerRight: () => <ShareGameButton share={broadcastShare(g)} /> }} />
       {wide ? (
         <Row gap="xl" align="flex-start" justify="center">
           {board}
@@ -201,6 +203,21 @@ export default function BroadcastGameScreen() {
 }
 
 const EVAL_W = 14;
+
+/** A broadcast game: its own page, and the PGN with the event's tags (broadcasts already show the engine live). */
+function broadcastShare(g: EventGameDetail): GameShare {
+  const tags: Record<string, string> = { Event: g.eventName, Round: g.roundName || '-', Board: String(g.board) };
+  if (g.white.title) tags.WhiteTitle = g.white.title;
+  if (g.black.title) tags.BlackTitle = g.black.title;
+  if (g.white.federation) tags.WhiteFed = g.white.federation;
+  if (g.black.federation) tags.BlackFed = g.black.federation;
+  return {
+    title: vsTitle(g.white.name, g.black.name),
+    live: g.status === 'live',
+    link: broadcastGamePath(g.id),
+    pgn: () => linePgn({ moves: g.moves, initialFen: g.initialFen, white: g.white.name, black: g.black.name, whiteRating: g.white.rating, blackRating: g.black.rating, result: g.result, tags }),
+  };
+}
 
 /** A UCI move in this position as SAN ("Nf3"), or the UCI text if it cannot be played. */
 function sanOf(fen: string, uci: string): string {

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { AD_PERIODS, AD_SPOTS, AD_SPOT_INFO, isAdSpot, isLive, placementStatus, validateAdPlacement } from '../src/ads';
+import { AD_PERIODS, AD_SPOTS, AD_SPOT_INFO, AD_SPOT_KEY, isAdSpot, isLive, placementStatus, validateAdPlacement } from '../src/ads';
 import { validateSponsorApplication } from '../src/tournaments';
 
 const NOW = Date.UTC(2026, 0, 10);
-const ok = { spot: 'home.feed', sponsor: 'Acme', title: 'Sponsor of the week', period: 'week' };
+const ok = { spot: 'home.top', sponsor: 'Acme', title: 'Sponsor of the week', period: 'week' };
 
 describe('ad spots', () => {
   it('describes every spot exactly once', () => {
@@ -13,8 +13,16 @@ describe('ad spots', () => {
     expect(Object.keys(AD_SPOT_INFO).sort()).toEqual([...AD_SPOTS].sort());
   });
 
+  it('gives every spot a dot-free translation-key segment', () => {
+    // A spot id has dots; a dictionary key segment must not, or the translator
+    // reads it as a path and never finds the string.
+    expect(Object.keys(AD_SPOT_KEY).sort()).toEqual([...AD_SPOTS].sort());
+    for (const s of AD_SPOTS) expect(AD_SPOT_KEY[s]).not.toContain('.');
+    expect(new Set(Object.values(AD_SPOT_KEY)).size).toBe(AD_SPOTS.length);
+  });
+
   it('only accepts spots it knows', () => {
-    expect(isAdSpot('home.feed')).toBe(true);
+    expect(isAdSpot('home.top')).toBe(true);
     expect(isAdSpot('home.banner')).toBe(false);
     expect(isAdSpot(null)).toBe(false);
   });
@@ -63,7 +71,7 @@ describe('validateAdPlacement', () => {
   });
 
   it('needs a period or an end date', () => {
-    expect(validateAdPlacement({ spot: 'home.feed', sponsor: 'Acme', title: 'Hello' }, NOW)).toMatchObject({ field: 'endsAt' });
+    expect(validateAdPlacement({ spot: 'home.top', sponsor: 'Acme', title: 'Hello' }, NOW)).toMatchObject({ field: 'endsAt' });
   });
 
   it('rejects an end before the start, and a run that is far too long', () => {
@@ -112,9 +120,9 @@ describe('sponsor applications carry a spot preference', () => {
   const base = { name: 'Dana Reed', email: 'dana@acme.example', message: 'We would like to sponsor the home screen.' };
 
   it('keeps a spot it knows', () => {
-    const r = validateSponsorApplication({ ...base, spot: 'home.feed' });
+    const r = validateSponsorApplication({ ...base, spot: 'home.top' });
     if (!('value' in r)) throw new Error(r.error);
-    expect(r.value.spot).toBe('home.feed');
+    expect(r.value.spot).toBe('home.top');
   });
 
   it('treats a missing or unknown spot as no preference', () => {

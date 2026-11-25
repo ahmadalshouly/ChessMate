@@ -14,6 +14,8 @@ export interface LocalSearchOptions {
   history?: { start: string; moves: string[] };
   /** Which engine should search it when it can (see farmSource.ts): consecutive positions on one engine reuse its work. */
   lane?: number;
+  /** Play at Stockfish's strength limit (UCI_Elo) rather than full strength: a computer opponent's move. */
+  elo?: number;
   signal?: AbortSignal;
 }
 
@@ -56,6 +58,8 @@ class LocalEngine {
   private nextId = 1;
   private failures = 0;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Callers that need the engines kept running between searches (a game against the computer). */
+  private holds = 0;
 
   /** False once the engine has failed on this device (or never could run). */
   get usable(): boolean {
@@ -83,6 +87,7 @@ class LocalEngine {
             multipv: opts.multipv,
             movetime: opts.movetimeMs,
             urgent: opts.urgent,
+            ...(opts.elo ? { elo: opts.elo } : {}),
           });
           opts.signal?.addEventListener('abort', () => this.transport?.send({ t: 'cancel', id }), { once: true });
         },
@@ -96,6 +101,23 @@ class LocalEngine {
     if (!this.usable) throw new Error('On-device engine unavailable');
     this.touch();
     return (await this.start()).size;
+  }
+
+  /**
+   * Keeps the engines running between searches until the returned function is
+   * called, so a player who thinks for a few minutes against the computer does
+   * not wait for the engines to start again. Starting is still on first use.
+   */
+  hold(): () => void {
+    this.holds++;
+    this.touch();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.holds--;
+      this.touch();
+    };
   }
 
   /** Starts the engines now (for example when a game ends), so the first search doesn't wait. */
@@ -163,7 +185,7 @@ class LocalEngine {
   private touch() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
-      if (this.pending.size > 0) this.touch();
+      if (this.pending.size > 0 || this.holds > 0) this.touch();
       else this.shutdown();
     }, IDLE_MS);
   }

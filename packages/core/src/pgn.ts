@@ -95,6 +95,61 @@ export function gameToPgn(g: ArchivedGame): string {
   return `${header}\n\n${pgnMovetext(g.moves, g.initialFen, g.result)}\n`;
 }
 
+/** A game or line the archive does not hold: a live game, a broadcast, an analysis line. */
+export interface PgnLine {
+  /** Moves in UCI ("e2e4"). */
+  moves: readonly string[];
+  initialFen?: string;
+  white?: string;
+  black?: string;
+  whiteRating?: number | null;
+  blackRating?: number | null;
+  /** "*" while the game is still going (or for an analysis line). */
+  result?: GameResult;
+  reason?: GameEndReason | null;
+  timeControl?: TimeControl | null;
+  /** When it was played (epoch ms); now when missing. */
+  date?: number;
+  /** Event, Site, Round and any other tags to write. */
+  tags?: Record<string, string>;
+}
+
+/** Full PGN for a line of moves, with whatever is known about who played it. */
+export function linePgn(l: PgnLine): string {
+  const at = l.date ?? Date.now();
+  return gameToPgn(
+    withDerivedFields({
+      id: '',
+      source: 'practice',
+      white: l.white || '?',
+      black: l.black || '?',
+      whiteRating: l.whiteRating ?? null,
+      blackRating: l.blackRating ?? null,
+      whiteDelta: null,
+      blackDelta: null,
+      myColor: null,
+      timeControl: l.timeControl ?? null,
+      category: null,
+      rated: false,
+      result: l.result ?? '*',
+      reason: l.reason ?? null,
+      initialFen: l.initialFen || START_FEN,
+      moves: [...l.moves],
+      startedAt: at,
+      endedAt: at,
+      eco: null,
+      opening: null,
+      // Unknown unless the caller says (the archive's practice-board default would be wrong here).
+      tags: { Event: '?', ...l.tags },
+    }),
+  );
+}
+
+/** A PGN result tag value, or null for anything else. */
+export function asGameResult(v: unknown): GameResult | null {
+  return RESULTS.includes(v as GameResult) ? (v as GameResult) : null;
+}
+
 /** Several games in one PGN file. */
 export function gamesToPgn(games: readonly ArchivedGame[]): string {
   return games.map(gameToPgn).join('\n');

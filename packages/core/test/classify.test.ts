@@ -6,11 +6,24 @@ import { Game, START_FEN, bookTimeline, buildReview, classifyMove, findSacrifice
 const SMOTHER = '5r1k/6pp/7N/3Q4/8/8/6PP/6K1 w - - 0 1';
 // A knight offered to the g6 pawn on f5.
 const KNIGHT_OFFER = '6k1/5p2/6p1/8/3N4/8/8/6K1 w - - 0 1';
+// 1. Rxh7+! Kxh7 2. Qh5#. The rook is given for a pawn; the bishop on c4 covers g8.
+const ROOK_SAC = 'r6k/6pp/8/8/2B5/7R/5PPP/3Q2K1 w - - 0 1';
 
 describe('sacrifice detection', () => {
   it('counts the exchange on a square', () => {
     const c = new Chess('6k1/5p2/6p1/5N2/8/8/8/6K1 b - - 0 1');
     expect(staticExchange(c, 'f5')).toBe(3);
+  });
+
+  it('leaves pinned pieces out of the exchange', () => {
+    // The e6 pawn could take the knight, but it is pinned to its king by the rook.
+    expect(staticExchange(new Chess('4k3/8/4p3/5N2/8/8/8/4R1K1 b - - 0 1'), 'f5')).toBe(0);
+    expect(staticExchange(new Chess('4k3/8/4p3/5N2/8/8/8/R5K1 b - - 0 1'), 'f5')).toBe(3);
+  });
+
+  it('counts a capture that promotes as the piece taken plus the promotion', () => {
+    // gxh8=Q wins the rook and turns a pawn into a queen.
+    expect(staticExchange(new Chess('k6r/6P1/8/8/8/8/8/6K1 w - - 0 1'), 'h8')).toBe(5 + 9 - 1);
   });
 
   it('sees a piece offered to a pawn', () => {
@@ -54,6 +67,39 @@ describe('classifyMove', () => {
   it('gives !!! to a queen sacrifice that forces mate', () => {
     const j = classifyMove({ fenBefore: SMOTHER, uci: 'd5g8', bestMove: 'd5g8', bestScore: { mate: 2 }, playedScore: { mate: 2 } });
     expect(j.classification).toBe('masterpiece');
+  });
+
+  it('gives !!! to a rook sacrifice that forces mate', () => {
+    expect(findSacrifice(ROOK_SAC, 'h3h7')).toMatchObject({ square: 'h7', piece: 'r', amount: 4 });
+    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { mate: 2 }, playedScore: { mate: 2 } });
+    expect(j.classification).toBe('masterpiece');
+  });
+
+  it('gives !!! to a rook sacrifice by Black that forces mate', () => {
+    const fen = '3q2k1/5ppp/7r/2b5/8/8/6PP/R6K b - - 0 1'; // ...Rxh2+ Kxh2 Qh4#
+    const j = classifyMove({ fenBefore: fen, uci: 'h6h2', bestMove: 'h6h2', bestScore: { mate: -2 }, playedScore: { mate: -2 } });
+    expect(j.classification).toBe('masterpiece');
+  });
+
+  it('gives !!! even when the search before the sacrifice had not seen the mate yet', () => {
+    // Before the move the engine only saw "+7", which on its own counts as winning easily.
+    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { cp: 700 }, playedScore: { mate: 2 } });
+    expect(j.classification).toBe('masterpiece');
+  });
+
+  it('gives !! (not !!!) to a sound rook sacrifice that does not force mate', () => {
+    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { cp: 300 }, playedScore: { cp: 300 } });
+    expect(j.classification).toBe('brilliant');
+  });
+
+  it('gives !! (not !!!) to a minor-piece sacrifice that forces mate', () => {
+    const j = classifyMove({ fenBefore: KNIGHT_OFFER, uci: 'd4f5', bestMove: 'd4f5', bestScore: { mate: 5 }, playedScore: { mate: 5 } });
+    expect(j.classification).toBe('brilliant');
+  });
+
+  it('gives no sacrifice badge to a minor piece given up for mate when already winning easily', () => {
+    const j = classifyMove({ fenBefore: KNIGHT_OFFER, uci: 'd4f5', bestMove: 'd4f5', bestScore: { cp: 900 }, playedScore: { mate: 5 } });
+    expect(j.classification).toBe('best');
   });
 
   it('gives !! (not !!!) to a sound queen sacrifice that does not force mate', () => {

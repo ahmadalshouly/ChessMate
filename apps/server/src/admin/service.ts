@@ -1,5 +1,6 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  DEFAULT_RATING,
   MESSAGE_MAX,
   ROLE_TAG_LABELS,
   STAFF_THREAD,
@@ -18,6 +19,7 @@ import {
   type AdminDashboard,
   type AdminFairPlayCase,
   type AdminFairPlayFile,
+  type AdminFairPlayGame,
   type AdminGameDetail,
   type AdminGameSummary,
   type AdminMe,
@@ -53,6 +55,7 @@ import {
   listClosedUsers,
   listRecentGames,
   listStaff,
+  listUserGames,
   listWarnings,
   reopenUserAccount,
   setUserRole,
@@ -67,6 +70,7 @@ import {
 import type { AuthService } from '../auth/service';
 import { validateUsername, AuthError } from '../auth/service';
 import type { FairPlayCase, FairPlayService } from '../fairplay';
+import { MIN_DEVICE_DEPTH, evalsFromDevice, parseDepth } from '../fairplay';
 import type { GameRoom } from '../gameRoom';
 import type { Moderation, Report } from '../moderation';
 import type { NotificationService } from '../notifications';
@@ -76,8 +80,9 @@ import type { MessageService } from '../messages/service';
 import { TournamentError, type TournamentService } from '../tournaments/service';
 import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
+import { BotError, type BotService } from '../bots/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
-import { closureEmail, fairPlayNotice, muteNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
+import { closureEmail, fairPlayNotice, muteNotice, ratingRefundNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
 
 export type AdminErrorCode = 'unauthorized' | 'forbidden' | 'not_found' | 'invalid_input' | 'conflict' | 'unavailable';
 
@@ -161,6 +166,8 @@ export class AdminService {
   campaigns: CampaignService | null = null;
   /** Sponsored ad spots and placements (database only). */
   ads: AdService | null = null;
+  /** Online computer opponents (database only). */
+  bots: BotService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -771,6 +778,59 @@ export class AdminService {
     return r;
   }
 
+  // ---------------------------------------------------------------- online bots
+
+  private botService() {
+    if (!this.bots) throw new AdminError('unavailable', 'Online bots need the database');
+    return this.bots;
+  }
+
+  private async botCall<T>(fn: () => T | Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof BotError) throw new AdminError(e.status === 404 ? 'not_found' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  botConsole(actor: Actor) {
+    this.require(actor, 'bots.manage');
+    return this.botService().console();
+  }
+
+  async createBot(actor: Actor, input: unknown) {
+    this.require(actor, 'bots.manage');
+    const b = await this.botCall(() => this.botService().create(input, actor.username));
+    await this.audit(actor, 'bots.create', { type: 'system', id: b.id, name: b.name }, null, { rating: b.rating, style: b.style, enabled: b.enabled });
+    return b;
+  }
+
+  async updateBot(actor: Actor, id: string, input: unknown) {
+    this.require(actor, 'bots.manage');
+    const b = await this.botCall(() => this.botService().update(id, input));
+    await this.audit(actor, 'bots.edit', { type: 'system', id: b.id, name: b.name }, null, { rating: b.rating, style: b.style, enabled: b.enabled });
+    return b;
+  }
+
+  async setBotFlags(actor: Actor, id: string, input: { enabled?: unknown; featured?: unknown }) {
+    this.require(actor, 'bots.manage');
+    const b = await this.botCall(() => this.botService().setFlags(id, input));
+    const action = typeof input.enabled === 'boolean' ? (b.enabled ? 'bots.on' : 'bots.off') : b.featured ? 'bots.feature' : 'bots.unfeature';
+    await this.audit(actor, action, { type: 'system', id: b.id, name: b.name });
+    return b;
+  }
+
+  async deleteBot(actor: Actor, id: string) {
+    this.require(actor, 'bots.manage');
+    const b = this.botService()
+      .console()
+      .find((x) => x.id === id);
+    const r = await this.botCall(() => this.botService().remove(id));
+    await this.audit(actor, 'bots.delete', { type: 'system', id, name: b?.name ?? id }, null, b ? { games: b.games } : undefined);
+    return r;
+  }
+
   payoutRequests(actor: Actor) {
     this.require(actor, 'tournaments.manage');
     return this.tournamentService().payoutRequests();
@@ -1256,6 +1316,114 @@ export class AdminService {
     const names = await this.usernames([playerId]);
     await this.audit(actor, 'fairplay.dismiss', { type: 'case', id: playerId, name: names.get(playerId) ?? playerId }, note, { score: c.score });
     return { case: this.caseView(c, names.get(playerId) ?? playerId) };
+  }
+
+  /**
+   * The games a moderator's device can analyse for this case: the player's
+   * most recent rated games, newest first, long enough to be worth engine
+   * time. Each carries the moves, the think times the server measured and the
+   * ratings at the time, so the device needs nothing else.
+   */
+  async fairPlayGames(actor: Actor, playerId: string, limit = 10): Promise<AdminFairPlayGame[]> {
+    this.require(actor, 'fairplay.review');
+    const t = this.b.fairPlay.thresholds;
+    // Which of these games already produced evidence for *this* player. A game
+    // can be analysed and still leave no report (too few measurable moves), so
+    // this is the honest "already analysed" mark, not "already sent".
+    const reports = new Map(this.b.fairPlay.store.reportsFor(playerId, t.window).map((r) => [r.gameId, r]));
+    const rows = await listUserGames(this.db, playerId, { limit: Math.min(Math.max(limit, 1), 50) });
+    const out: AdminFairPlayGame[] = [];
+    for (const row of rows) {
+      // Every finished game between two accounts is offered: the moderator
+      // decides what is worth engine time, not a length or rating rule.
+      if (!row.whiteUserId || !row.blackUserId || row.plyCount < 2) continue;
+      const g = await getGame(this.db, row.id);
+      if (!g?.whiteUserId || !g.blackUserId || g.moves.length < 2) continue;
+      const report = reports.get(g.id);
+      out.push({
+        gameId: g.id,
+        initialFen: g.initialFen,
+        moves: g.moves.map((m) => m.uci),
+        thinkMs: g.moves.map((m) => Math.max(0, m.spentMs ?? 0)),
+        white: { id: g.whiteUserId, name: g.whiteName, rating: Math.round(g.whiteRatingBefore ?? DEFAULT_RATING.rating) },
+        black: { id: g.blackUserId, name: g.blackName, rating: Math.round(g.blackRatingBefore ?? DEFAULT_RATING.rating) },
+        timeCategory: g.timeCategory,
+        rated: g.rated,
+        result: g.result,
+        endedAt: (g.endedAt ?? g.startedAt).getTime(),
+        analyzed: !!report,
+        /** Moves the analysis could measure, once it is analysed. */
+        measuredMoves: report?.moves ?? null,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Takes the engine results a moderator's device produced for one of those
+   * games. The server re-walks the game, checks every evaluation against it
+   * and computes the accuracy, match rate and z-scores itself, so only raw
+   * engine output crosses the wire. The reports are marked `device` and the
+   * run is written to the audit log with the moderator's name.
+   */
+  async submitFairPlayAnalysis(actor: Actor, playerId: string, input: { gameId?: unknown; depth?: unknown; evals?: unknown }) {
+    this.require(actor, 'fairplay.review');
+    const gameId = text(input.gameId, 64);
+    if (!gameId) throw new AdminError('invalid_input', 'Which game?');
+    const depth = parseDepth(input.depth);
+    if (depth === null) throw new AdminError('invalid_input', `Search depth must be ${MIN_DEVICE_DEPTH} or more`);
+    const row = await getGame(this.db, gameId);
+    if (!row) throw new AdminError('not_found', 'No such game');
+    if (row.whiteUserId !== playerId && row.blackUserId !== playerId) throw new AdminError('invalid_input', 'This player did not play that game');
+    const moves = row.moves.map((m) => m.uci);
+    const parsed = evalsFromDevice(row.initialFen, moves, input.evals);
+    if ('error' in parsed) throw new AdminError('invalid_input', parsed.error);
+    const reports = this.b.fairPlay.recordAnalysis(
+      {
+        gameId: row.id,
+        initialFen: row.initialFen,
+        moves,
+        thinkMs: row.moves.map((m) => Math.max(0, m.spentMs ?? 0)),
+        white: { id: row.whiteUserId ?? `guest:${row.id}:w`, rating: Math.round(row.whiteRatingBefore ?? DEFAULT_RATING.rating) },
+        black: { id: row.blackUserId ?? `guest:${row.id}:b`, rating: Math.round(row.blackRatingBefore ?? DEFAULT_RATING.rating) },
+        endedAt: (row.endedAt ?? row.startedAt).getTime(),
+      },
+      parsed.evals,
+      { source: 'device', depth, by: actor.username },
+    );
+    this.b.fairPlay.store.audit({ at: this.now(), playerId, action: 'analyzed', by: actor.username, note: `${gameId} on a moderator device, depth ${depth}` });
+    await this.audit(actor, 'fairplay.analyze', { type: 'case', id: playerId, name: playerId }, `game ${gameId}`, { gameId, depth });
+    return { reports: reports.filter((r) => r.playerId === playerId) };
+  }
+
+  /**
+   * Gives the opponents of this account's last `games` rated games back the
+   * rating they lost to it, and tells each of them, without closing the
+   * account and without naming it to them. The moderator chooses how far back
+   * it reaches; a game already refunded is never refunded twice.
+   */
+  async refundFairPlayOpponents(actor: Actor, playerId: string, input: { games?: unknown; note?: unknown }) {
+    this.require(actor, 'fairplay.ban');
+    const count = Math.min(50, Math.max(1, Math.round(typeof input.games === 'number' ? input.games : 10)));
+    const u = await this.user(playerId);
+    const note = text(input.note, 2000);
+    const refunds = this.b.fairPlay.refundRecent(playerId, actor.username, count);
+
+    // One message per opponent, however many of their games were put right.
+    const byPlayer = new Map<string, { points: number; games: number }>();
+    for (const r of refunds) {
+      const e = byPlayer.get(r.playerId) ?? { points: 0, games: 0 };
+      byPlayer.set(r.playerId, { points: e.points + r.points, games: e.games + 1 });
+    }
+    for (const [id, e] of byPlayer) {
+      await this.tell(id, ratingRefundNotice(e.points, e.games), { points: e.points, games: e.games }, actor.id);
+    }
+    await this.audit(actor, 'fairplay.refund', { type: 'case', id: playerId, name: u.username }, note, {
+      games: count,
+      refunded: refunds.length,
+      players: byPlayer.size,
+    });
+    return { refunds, players: byPlayer.size };
   }
 
   // ---------------------------------------------------------------- games

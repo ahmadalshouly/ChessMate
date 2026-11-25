@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 // Pure modules only: no React Native imports, so this runs in Node.
+import { AD_SPOTS, AD_SPOT_KEY } from '@chessmate/core';
+
 import { interpolate, pluralCategory, resolve, type Lang } from '../src/i18n/core';
 import { ar } from '../src/i18n/locales/ar';
 import { de } from '../src/i18n/locales/de';
@@ -45,6 +47,39 @@ describe('resolve', () => {
   });
   it('falls back to the key when nothing has it', () => {
     expect(resolve('de', dicts, 'nope.missing')).toBe('nope.missing');
+  });
+});
+
+/** Every object key in a dictionary, at any depth. */
+function keySegments(node: Node, out: string[] = []): string[] {
+  if (typeof node === 'string' || isPlural(node)) return out;
+  for (const [k, v] of Object.entries(node)) {
+    out.push(k);
+    keySegments(v, out);
+  }
+  return out;
+}
+
+describe('dictionary keys', () => {
+  // `resolve` reads a dotted key as a path, so a key with a dot in it can never
+  // be looked up: `ads.spot.home.feed` goes looking for home → feed. The type
+  // checker does not catch it, because KeyPath happily joins such a key with a
+  // dot and the result is a valid-looking TKey. This test is the only guard.
+  for (const lang of ['en', 'ar', 'de'] as Lang[]) {
+    it(`${lang} has no key containing a dot`, () => {
+      expect(keySegments(dicts[lang] as Node).filter((k) => k.includes('.'))).toEqual([]);
+    });
+  }
+
+  // Each ad spot's id has a dot, so the dictionaries key them by AD_SPOT_KEY instead.
+  it('every ad spot has a name and a description in all three languages', () => {
+    for (const spot of AD_SPOTS) {
+      const seg = AD_SPOT_KEY[spot];
+      for (const lang of ['en', 'ar', 'de'] as Lang[]) {
+        expect(resolve(lang, dicts, `ads.spot.${seg}`), `ads.spot.${seg} (${lang})`).not.toBe(`ads.spot.${seg}`);
+        expect(resolve(lang, dicts, `admin.ads.spotWhere.${seg}`), `admin.ads.spotWhere.${seg} (${lang})`).not.toBe(`admin.ads.spotWhere.${seg}`);
+      }
+    }
   });
 });
 

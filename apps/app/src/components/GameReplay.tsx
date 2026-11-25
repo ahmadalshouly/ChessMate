@@ -13,9 +13,11 @@ import { ActionBar } from '@/components/game/ActionBar';
 import { deleteGame } from '@/lib/archive';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { useWideBoard } from '@/lib/useWideBoard';
-import { canDownload, copyText, downloadPgn, pgnFileName, sharePgn } from '@/lib/share';
+import { canDownload, copyText, downloadPgn, pgnFileName } from '@/lib/share';
 import { serverGameId } from '@/features/engine';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
+import { ShareGameButton, ShareGameSheet } from '@/features/share/ShareGame';
+import { archivedGameShare } from '@/features/share/gameShares';
 
 
 function resultLine(g: ArchivedGame): string {
@@ -50,7 +52,9 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
   const [autoplay, setAutoplay] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const pgn = useMemo(() => gameToPgn(game), [game]);
+  const share = useMemo(() => archivedGameShare(game), [game]);
   const onlineId = game.source === 'online' ? serverGameId(game.id) : undefined;
   // A reviewed game shows its accuracy where the Review button was.
   const reviewEntry = useReviewEntry({ moves: game.moves, initialFen: game.initialFen, gameId: onlineId });
@@ -115,11 +119,6 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
     return out;
   }, [history.length, startsWithBlack, firstMoveNo]);
 
-  const share = async () => {
-    const ok = await sharePgn(pgn, tr('games.vsPlayers', { white: game.white, black: game.black }));
-    if (Platform.OS === 'web' && ok) setNotice(tr('games.replay.pgnCopied'));
-  };
-
   const Move = ({ p }: { p: number | null }) => {
     if (p === null) return <Text style={[styles.move, { color: t.muted }]}>…</Text>;
     const active = p === ply;
@@ -139,7 +138,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: tr('games.vsPlayers', { white: game.white, black: game.black }) }} />
+      <Stack.Screen options={{ title: tr('games.vsPlayers', { white: game.white, black: game.black }), headerRight: () => <ShareGameButton share={share} /> }} />
       <ScrollView contentContainerStyle={styles.page}>
         <View style={[styles.layout, wide ? { flexWrap: 'nowrap', alignItems: 'flex-start' } : { maxWidth: Math.max(size, 360) * 2 + 16 }]}>
           <View style={{ width: size, gap: 8 }}>
@@ -229,7 +228,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
               <Label bold>{tr('games.replay.share')}</Label>
               <View style={styles.actions}>
                 <View style={styles.flex}>
-                  <Button title={Platform.OS === 'web' ? tr('games.replay.shareCopyPgn') : tr('games.replay.sharePgn')} onPress={share} />
+                  <Button title={tr('share.button')} onPress={() => setSharing(true)} />
                 </View>
                 {canDownload && (
                   <View style={styles.flex}>
@@ -237,13 +236,11 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
                   </View>
                 )}
               </View>
-              {Platform.OS === 'web' && (
-                <Button
-                  variant="secondary"
-                  title={tr('games.replay.copyFen')}
-                  onPress={async () => setNotice((await copyText(fen)) ? tr('games.replay.fenCopied') : tr('games.replay.copyUnavailable'))}
-                />
-              )}
+              <Button
+                variant="secondary"
+                title={tr('games.replay.copyFen')}
+                onPress={async () => setNotice((await copyText(fen)) ? tr('games.replay.fenCopied') : tr('games.replay.copyUnavailable'))}
+              />
               {notice && <Label muted>{notice}</Label>}
               <Label muted>{tr('games.replay.played', { date: formatDate(game.endedAt) })}</Label>
               {history.length > 0 && (
@@ -253,7 +250,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
                     reviewEntry.press(() =>
                       router.push({
                         pathname: '/review',
-                        params: { gameId: onlineId, moves: game.moves.join(','), initialFen: game.initialFen, orientation, white: game.white, black: game.black },
+                        params: { gameId: onlineId, moves: game.moves.join(','), initialFen: game.initialFen, orientation, white: game.white, black: game.black, result: game.result },
                       }),
                     )
                   }
@@ -272,6 +269,7 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
           </View>
         </View>
       </ScrollView>
+      <ShareGameSheet visible={sharing} onClose={() => setSharing(false)} share={share} />
     </Screen>
   );
 }

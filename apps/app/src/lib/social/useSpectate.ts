@@ -9,6 +9,7 @@ import {
   type GameOutcome,
   type PlayedMove,
   type PlayerInfo,
+  type TimeControl,
 } from '@chessmate/core';
 import { useEffect, useRef, useState } from 'react';
 
@@ -27,6 +28,10 @@ export interface SpectateState {
   clockOffset: number;
   outcome: GameOutcome | null;
   spectators: number;
+  timeControl: TimeControl | null;
+  rated: boolean;
+  /** Secret Queen: the moves cannot be replayed with standard rules (no PGN, no replay). */
+  secretQueen: boolean;
 }
 
 /** Read-only mirror of a live game. Guests can watch too. */
@@ -42,6 +47,9 @@ export function useSpectate(gameId: string) {
     clockOffset: 0,
     outcome: null,
     spectators: 0,
+    timeControl: null,
+    rated: false,
+    secretQueen: false,
   });
   const game = useRef(new Game());
   const secret = useRef(false);
@@ -89,6 +97,9 @@ export function useSpectate(gameId: string) {
             outcome: s.outcome,
             fen: game.current.fen,
             history,
+            timeControl: s.timeControl,
+            rated: s.rated,
+            secretQueen: secret.current,
           }));
         }
         case 'moved': {

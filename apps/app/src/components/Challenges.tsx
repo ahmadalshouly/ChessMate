@@ -15,7 +15,8 @@ import { Text, TextInput } from '@/ui/primitives';
 
 import { Button, Label } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
-import { challengeLink, copyText, shareLink } from '@/lib/links';
+import { challengeLink, shareLink } from '@/lib/links';
+import { copyText } from '@/lib/share';
 import { translate, useT, type TKey } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { Segmented as SegmentedControl } from '@/components/play/Controls';

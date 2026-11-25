@@ -13,7 +13,7 @@ export const home: Messages<typeof en> = {
   },
   computer: {
     title: 'Gegen den Computer',
-    body: 'Acht Gegner vom Anfänger bis zum Experten. Tipps und Zurücknehmen, funktioniert offline.',
+    body: 'Über zwanzig Gegner vom Anfänger bis zur Übermacht (etwa 3500). Zurücknehmen erlaubt, funktioniert offline.',
   },
   lessons: {
     title: 'Lektionen',

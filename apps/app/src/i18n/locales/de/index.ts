@@ -40,6 +40,7 @@ import { chessTitle } from './chessTitle';
 import { watch } from './watch';
 import { tournaments } from './tournaments';
 import { qr } from './qr';
+import { share } from './share';
 import { messages } from './messages';
 import { secretQueen } from './secretQueen';
 import { h2h } from './h2h';
@@ -54,4 +55,4 @@ import { cookies } from './cookies';
 import { football } from './football';
 import { pushAdmin } from './pushAdmin';
 
-export const de: Messages<typeof en> = { ads, pushAdmin, cookies, football, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };
+export const de: Messages<typeof en> = { share, ads, pushAdmin, cookies, football, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, admin, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };

@@ -6,9 +6,15 @@ import { stepProgress, type ProgressStep } from '../src/features/engine/smoothPr
 const device = vi.hoisted(() => ({
   usable: true,
   mode: 'answer' as 'answer' | 'fail' | 'silent',
+  /** How deep searches (the second pass) behave, when not like the quick ones. */
+  deepMode: null as null | 'fail' | 'silent',
   searched: 0,
   lanes: new Set<number>(),
   histories: [] as number[],
+  /** Moves before each position searched deep. */
+  deep: [] as number[],
+  /** Score (side to move) the engine gives, by number of moves before the position; 10 otherwise. */
+  scores: new Map<number, number>(),
 }));
 const server = vi.hoisted(() => ({ calls: [] as string[][], fail: false }));
 
@@ -32,17 +38,23 @@ vi.mock('../src/features/engine/localEngine', () => {
         if (!device.usable) throw new Error('unavailable');
         return 3;
       },
-      search: (fen: string, o: { signal?: AbortSignal; lane?: number; history?: { start: string; moves: string[] } }) => {
+      search: (fen: string, o: { depth: number; signal?: AbortSignal; lane?: number; history?: { start: string; moves: string[] } }) => {
+        const isDeep = o.depth > 10;
+        const ply = o.history?.moves.length ?? -1;
         device.searched++;
         device.lanes.add(o.lane ?? -1);
-        if (o.history) device.histories.push(o.history.moves.length);
-        if (device.mode === 'fail') return Promise.reject(new Error('Engine stopped'));
+        if (isDeep) device.deep.push(ply);
+        else device.histories.push(ply);
+        const mode = isDeep && device.deepMode ? device.deepMode : device.mode;
+        if (mode === 'fail') return Promise.reject(new Error('Engine stopped'));
         return new Promise((resolve, reject) => {
           o.signal?.addEventListener('abort', () => reject(new AbortError()), { once: true });
-          if (device.mode === 'silent') return;
+          if (mode === 'silent') return;
           setTimeout(() => {
             const best = fen.includes(' w ') ? 'g1f3' : 'g8f6';
-            resolve({ lines: new Map([[1, { depth: 12, multipv: 1, score: { cp: 10 }, pv: [best] }]]), bestMove: best });
+            // The deep search sees the position as equal: the quick one's verdict was wrong.
+            const cp = isDeep ? 10 : (device.scores.get(ply) ?? 10);
+            resolve({ lines: new Map([[1, { depth: o.depth, multipv: 1, score: { cp }, pv: [best] }]]), bestMove: best });
           }, 5);
         });
       },
@@ -63,16 +75,40 @@ const MOVES = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5', 'a7a6'];
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 let n = 0;
 
+const ENDINGS = [
+  ['b5a4', 'g8f6'],
+  ['b5c4', 'g8f6'],
+  ['b5e2', 'g8f6'],
+  ['b5d3', 'g8f6'],
+  ['b5f1', 'g8f6'],
+  ['b5a4', 'b7b5'],
+  ['b5c4', 'b7b5'],
+  ['b5e2', 'd7d6'],
+  ['b5d3', 'd7d6'],
+  ['b5f1', 'd7d6'],
+];
+
 /** Runs a review to the end (a different game each time, so nothing is cached). */
 async function review() {
   const { reviewLocally } = await import('../src/features/engine/localReview');
   // Change the game each run: append a different legal move pair so no cache answers it.
-  const moves = [...MOVES, ...[['b5a4', 'g8f6'], ['b5c4', 'g8f6'], ['b5e2', 'g8f6'], ['b5d3', 'g8f6'], ['b5f1', 'g8f6']][n++ % 5]!];
-  return new Promise<{ where?: string; error?: string; graded: number }>((resolve) => {
+  const moves = [...MOVES, ...ENDINGS[n++ % ENDINGS.length]!];
+  const shown: { moves: number; classes: string[] }[] = [];
+  return new Promise<{ where?: string; error?: string; graded: number; classes: string[]; maxDepth?: number; shown: typeof shown }>((resolve) => {
     const stop = reviewLocally({ moves, initialFen: START }, (s) => {
-      if (!s.final) return;
+      if (!s.final) {
+        if (s.review) shown.push({ moves: s.review.moves.length, classes: s.review.moves.map((m) => m.judgement.classification) });
+        return;
+      }
       stop();
-      resolve({ where: s.where, error: s.error, graded: s.review?.moves.length ?? 0 });
+      resolve({
+        where: s.where,
+        error: s.error,
+        graded: s.review?.moves.length ?? 0,
+        classes: s.review?.moves.map((m) => m.judgement.classification) ?? [],
+        maxDepth: s.review?.maxDepth,
+        shown,
+      });
     });
   });
 }
@@ -81,9 +117,12 @@ beforeEach(() => {
   vi.useRealTimers();
   device.usable = true;
   device.mode = 'answer';
+  device.deepMode = null;
   device.searched = 0;
   device.lanes = new Set();
   device.histories = [];
+  device.deep = [];
+  device.scores = new Map();
   server.calls = [];
   server.fail = false;
 });
@@ -97,6 +136,41 @@ describe('game review fallback', () => {
     expect([...device.lanes].sort()).toEqual([0, 1, 2]);
     expect(device.histories.sort((x, y) => x - y)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
+
+  it('searches again deeper around the moves the quick pass did not call best', async () => {
+    // The quick pass thinks White's 7th move (the bishop retreat) hands Black a big advantage.
+    // (Positions after the game's common opening come from the session's cache, so the change is past them.)
+    device.scores.set(7, 300);
+    const r = await review();
+    expect(r).toMatchObject({ where: 'device', graded: 8, maxDepth: 14 });
+    // The positions around that move are searched deep; the opening's are not.
+    expect(device.deep).toEqual(expect.arrayContaining([6, 7]));
+    expect(device.deep).not.toContain(0);
+    // The deep results stand: the retreat is no blunder.
+    expect(r.classes[6]).not.toBe('blunder');
+    // The quick pass's blunder was never shown.
+    expect(r.shown.every((s) => s.classes[6] !== 'blunder')).toBe(true);
+    expect(server.calls).toHaveLength(0);
+  });
+
+  it('keeps the quick grades when the deep pass fails, without the server', async () => {
+    device.scores.set(7, 300);
+    device.deepMode = 'fail';
+    const r = await review();
+    expect(r).toMatchObject({ where: 'device', graded: 8 });
+    expect(r.error).toBeUndefined();
+    expect(r.classes[6]).toBe('blunder');
+    expect(server.calls).toHaveLength(0);
+  });
+
+  it('gives up deepening when the deep pass goes quiet while watched', async () => {
+    device.scores.set(7, 300);
+    device.deepMode = 'silent';
+    const r = await review();
+    expect(r).toMatchObject({ where: 'device', graded: 8 });
+    expect(r.classes[6]).toBe('blunder');
+    expect(server.calls).toHaveLength(0);
+  }, 30_000);
 
   it("uses the server when the device can't run the engine", async () => {
     device.usable = false;

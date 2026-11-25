@@ -1,8 +1,52 @@
-import { START_FEN, timeCategory, type ArchivedGame, type GameOutcome, type PlayedMove } from '@chessmate/core';
+import { START_FEN, gameToPgn, timeCategory, type ArchivedGame, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
 import { useEffect, useRef } from 'react';
 
 import { saveGame } from './archive';
 import type { GameView } from './playClient';
+
+/** What an archive entry needs from a finished online game, as a player (GameView) or a spectator sees it. */
+export type FinishedOnlineGame = Pick<GameView, 'gameId' | 'white' | 'black' | 'timeControl' | 'rated' | 'history' | 'ratingChange'> & {
+  outcome: GameOutcome;
+  /** Your side, or null when watching. */
+  you: Color | null;
+};
+
+/** Archive entry for a finished online game; also what its PGN is built from. */
+export function onlineGameEntry(g: FinishedOnlineGame, startedAt: number, endedAt: number): ArchivedGame {
+  const { outcome, white, black, timeControl } = g;
+  const delta = (c: Color) => {
+    const rc = g.ratingChange?.[c];
+    return rc ? Math.round(rc.after.rating) - Math.round(rc.before.rating) : null;
+  };
+  return {
+    id: `on_${g.gameId}`,
+    source: 'online',
+    white: white.name,
+    black: black.name,
+    whiteRating: white.rating == null ? null : Math.round(white.rating),
+    blackRating: black.rating == null ? null : Math.round(black.rating),
+    whiteDelta: delta('w'),
+    blackDelta: delta('b'),
+    myColor: g.you,
+    timeControl,
+    category: timeCategory(timeControl),
+    rated: g.rated,
+    result: outcome.result,
+    reason: outcome.reason,
+    initialFen: START_FEN,
+    moves: g.history.map((m) => m.uci),
+    startedAt,
+    endedAt,
+    eco: null,
+    opening: null,
+  };
+}
+
+/** PGN of a finished online game, dated now (when it is shared, just after it ended). */
+export function onlineGamePgn(g: FinishedOnlineGame): string {
+  const now = Date.now();
+  return gameToPgn(onlineGameEntry(g, now, now));
+}
 
 /** Saves a finished online game to the on-device archive, once. */
 export function useRecordOnlineGame(view: GameView | null) {
@@ -14,36 +58,10 @@ export function useRecordOnlineGame(view: GameView | null) {
   }, [gameId]);
   useEffect(() => {
     if (!view?.outcome || saved.current === view.gameId) return;
-    const { outcome, white, black, timeControl } = view;
     // Secret Queen games cannot be replayed with standard rules, so they stay out of the archive.
-    if (outcome.reason === 'aborted' || view.variant === 'secretQueen') return;
+    if (view.outcome.reason === 'aborted' || view.variant === 'secretQueen') return;
     saved.current = view.gameId;
-    const delta = (c: 'w' | 'b') => {
-      const rc = view.ratingChange?.[c];
-      return rc ? Math.round(rc.after.rating) - Math.round(rc.before.rating) : null;
-    };
-    void saveGame({
-      id: `on_${view.gameId}`,
-      source: 'online',
-      white: white.name,
-      black: black.name,
-      whiteRating: white.rating == null ? null : Math.round(white.rating),
-      blackRating: black.rating == null ? null : Math.round(black.rating),
-      whiteDelta: delta('w'),
-      blackDelta: delta('b'),
-      myColor: view.you,
-      timeControl,
-      category: timeCategory(timeControl),
-      rated: view.rated,
-      result: outcome.result,
-      reason: outcome.reason,
-      initialFen: START_FEN,
-      moves: view.history.map((m) => m.uci),
-      startedAt: startedAt.current,
-      endedAt: Date.now(),
-      eco: null,
-      opening: null,
-    });
+    void saveGame(onlineGameEntry({ ...view, outcome: view.outcome }, startedAt.current, Date.now()));
   }, [view]);
 }
 

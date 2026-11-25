@@ -4,7 +4,7 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AD_SPOTS, type AdSpotId } from '@chessmate/core';
+import { AD_SPOTS, AD_SPOT_KEY, type AdSpotId } from '@chessmate/core';
 
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { useT } from '@/i18n';
@@ -82,7 +82,7 @@ export default function SponsorApply() {
                         { borderColor: on ? t.colors.accent : t.colors.border, backgroundColor: on ? t.colors.accent : 'transparent', opacity: pressed ? 0.8 : 1 },
                       ]}>
                       <Text variant="caption" color={on ? t.colors.onAccent : t.colors.text}>
-                        {s ? tr(`ads.spot.${s}`) : tr('ads.apply.spotAny')}
+                        {s ? tr(`ads.spot.${AD_SPOT_KEY[s]}`) : tr('ads.apply.spotAny')}
                       </Text>
                     </Pressable>
                   );

@@ -73,22 +73,22 @@ export function AdSpot({
         {tappable ? <Ionicons name={dirIcon('chevron-forward')} size={14} color={t.colors.muted} style={styles.chevron} /> : null}
       </View>
     ) : (
-      <GlassView radius="lg" padding="md" flat style={[styles.box, { borderColor: t.colors.border }]}>
-        <View style={[styles.inner, { gap: t.space.md, flexDirection: form === 'wide' ? 'row' : 'column', alignItems: form === 'wide' ? 'center' : 'flex-start' }]}>
+      <GlassView radius="xl" padding="lg" flat style={[styles.box, { borderColor: t.colors.border }]}>
+        <View style={[form === 'wide' ? styles.innerWide : styles.innerCard, { gap: t.space.lg }]}>
           {image && (
             <View style={[styles.imageBox, form === 'wide' ? styles.imageWide : styles.imageCard, { borderColor: t.colors.border }]}>
               <Image source={{ uri: image }} style={styles.image} resizeMode="contain" accessibilityIgnoresInvertColors />
             </View>
           )}
-          <View style={[styles.textBox, { gap: 2 }]}>
+          <View style={[styles.textBox, { gap: 4 }]}>
             <Text variant="overline" tone="tertiary">
               {tr('ads.sponsored')}
             </Text>
-            <Text variant="label" numberOfLines={2}>
+            <Text variant="heading" numberOfLines={2}>
               {ad.title}
             </Text>
             {ad.body ? (
-              <Text variant="caption" tone="muted" numberOfLines={3}>
+              <Text variant="body" tone="muted" numberOfLines={3}>
                 {ad.body}
               </Text>
             ) : null}
@@ -96,7 +96,7 @@ export function AdSpot({
               {ad.sponsor}
             </Text>
           </View>
-          {tappable ? <Ionicons name={dirIcon('chevron-forward')} size={18} color={t.colors.muted} style={styles.chevron} /> : null}
+          {tappable ? <Ionicons name={dirIcon('chevron-forward')} size={22} color={t.colors.muted} style={styles.chevron} /> : null}
         </View>
       </GlassView>
     );
@@ -124,12 +124,15 @@ export function AdSpot({
 
 const styles = StyleSheet.create({
   box: { borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  inner: { minWidth: 0 },
+  // The minimum heights are what make a sponsor read as a banner rather than
+  // as one more list row, which is what they are paying for.
+  innerWide: { flexDirection: 'row', alignItems: 'center', minHeight: 96, minWidth: 0 },
+  innerCard: { flexDirection: 'column', alignItems: 'flex-start', minHeight: 132, minWidth: 0 },
   textBox: { flexShrink: 1, flexGrow: 1, minWidth: 0 },
   // A white plate behind the logo, so logos made for light backgrounds still read in dark mode.
-  imageBox: { backgroundColor: '#fff', borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', padding: 6, flexShrink: 0 },
-  imageWide: { width: 96, height: 56 },
-  imageCard: { width: 132, height: 48, alignSelf: 'flex-start' },
+  imageBox: { backgroundColor: '#fff', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', padding: 8, flexShrink: 0 },
+  imageWide: { width: 132, height: 80 },
+  imageCard: { width: 196, height: 72, alignSelf: 'flex-start' },
   image: { width: '100%', height: '100%' },
   chevron: { flexShrink: 0 },
   compact: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 6 },

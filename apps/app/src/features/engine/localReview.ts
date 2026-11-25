@@ -11,6 +11,7 @@ import {
   terminalState,
   type EngineLine,
   type GameReview,
+  type MoveClass,
   type PositionAnalysis,
   type PositionEval,
 } from '@chessmate/core';
@@ -19,22 +20,41 @@ import { AbortError, localEngine } from './localEngine';
 import { evaluateOnServer, isTransient } from './serverEngine';
 
 /**
- * Per-position search for reviews on the device: depth 12 with two lines (the
- * second spots only moves), each engine walking a stretch of the game
- * backwards with the game's moves (see gradePositions). Measured with the
- * app's own engine page in Chromium on four games (304 positions), against
- * Stockfish's full network at depth 20: evaluations off by ~61 centipawns on
- * average instead of ~77, the engine's best move matched 69% of the time
- * instead of 65%, and about 15% less time than searching the same depth in
- * game order without history. Depth 13 is closer still (~56) but takes about
- * 1.7 times as long. The time cap stops one sharp position stalling a review.
+ * Reviews on the device search in two passes. First every position quickly
+ * (depth 10, two lines: the second spots only moves). Then the positions
+ * around every move the quick pass did not call best, excellent, book or
+ * forced are searched again deeper (depth 14): those are the grades a quick
+ * search gets wrong, and the ones a player reads. Each engine walks a stretch
+ * of the positions backwards with the game's moves (see gradePositions).
+ *
+ * Measured on 40 test games between Stockfish players of club strength
+ * (3,590 positions) against Stockfish 16 at depth 20, with this lite engine
+ * on one desktop core: the old single pass at depth 12 found 68% of the
+ * blunders, put 78.5% of moves in the same grade group (best to excellent,
+ * good, inaccuracy, mistake, blunder or miss) and was off by 1.0 accuracy
+ * points per player. These two passes find 85% of the blunders, agree on
+ * 81.4% and are off by 0.85, nearly what depth 14 everywhere gives, for
+ * about 2.3 times the old search time (depth 14 everywhere: 3.6 times). The
+ * deep pass takes about half the positions. The time caps stop one sharp
+ * position stalling a review.
  */
-export const LOCAL_REVIEW = { depth: 12, multipv: 2, movetimeMs: 1500 } as const;
+export const LOCAL_REVIEW = { depth: 10, multipv: 2, movetimeMs: 1500 } as const;
+export const DEEP_REVIEW = { depth: 14, multipv: 2, movetimeMs: 4000 } as const;
+/** A device that can't run its engine gets one pass from the server's (a native Stockfish, quicker per depth). */
+const SERVER_REVIEW = { depth: 12, movetimeMs: 1500 } as const;
+/** Grades from the quick pass that are checked again with deeper searches. */
+const DEEPEN: ReadonlySet<MoveClass> = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'good', 'inaccuracy', 'mistake', 'miss', 'blunder']);
+/** Deeper searches can turn a neighbouring move into one worth deepening too: at most this many rounds. */
+const DEEP_ROUNDS = 3;
+/** About how many quick searches one deep search costs (measured: ~10x), for the progress bar only. */
+const DEEP_COST = 10;
+/** Share of positions the deep pass usually takes, used for the progress bar until the quick pass is done. */
+const DEEP_SHARE_GUESS = 0.5;
 
 export interface ReviewSnapshot {
   /** Graded so far: the moves from the start up to the first one still being searched. */
   review: GameReview | null;
-  /** Positions searched / in the game. */
+  /** Work done / to do, counted in quick searches (a deep one counts as several). */
   done: number;
   total: number;
   final: boolean;
@@ -90,7 +110,7 @@ const EMIT_MS = 250;
 
 /** Content key: the same start position and moves give the same review. */
 export function reviewKey(initialFen: string, moves: string[]): string {
-  return `${LOCAL_REVIEW.depth}|${initialFen}|${moves.join(' ')}`;
+  return `${LOCAL_REVIEW.depth}-${DEEP_REVIEW.depth}|${initialFen}|${moves.join(' ')}`;
 }
 
 /** Short stable id for storage keys (FNV-1a, two seeds). */
@@ -206,37 +226,74 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   if (saved) return emit({ review: saved.review, evals: saved.evals, done: total, total, final: true, cached: true });
 
   const evals: (PositionEval | undefined)[] = new Array(total);
-  let done = 0;
+  /** Positions searched deep in this review, or needing no search (finished positions, deep results from earlier). */
+  const deep = new Set<number>();
   fens.forEach((fen, i) => {
     const term = terminalState(fen);
     const known = term ? { score: terminalScore(fen, term), pv: [], depth: 0 } : evalCache.get(positionKey(fen));
-    if (known) {
-      evals[i] = known;
-      done++;
-    }
+    if (!known) return;
+    evals[i] = known;
+    if (term || known.depth >= DEEP_REVIEW.depth) deep.add(i);
   });
   let where: ReviewSnapshot['where'] = localEngine.usable ? 'device' : 'server';
+  // Progress, in quick searches: one per position, plus DEEP_COST per deep search.
+  let quickDone = evals.reduce((n, e) => (e ? n + 1 : n), 0);
+  let deepDone = 0;
+  /** Deep searches still to come; null until the quick pass has said which (then estimated). */
+  let deepLeft: number | null = null;
+  /** False once no deeper searches will come (device engine gone or stalled): every graded move is then final. */
+  let deepening = localEngine.usable;
+  const work = () => {
+    const left = deepLeft ?? Math.ceil(DEEP_SHARE_GUESS * (total - deep.size));
+    return { done: quickDone + DEEP_COST * deepDone, total: total + DEEP_COST * (deepDone + (deepening ? left : 0)) };
+  };
 
-  // Partial review of the graded prefix, rebuilt at most every EMIT_MS.
+  // Partial review, rebuilt at most every EMIT_MS: the graded prefix, shown up
+  // to the first move that still waits for a deeper search.
   let prefix = 0;
+  let graded: GameReview | null = null;
+  let dirty = true;
+  /** Lowest position whose result changed since `graded` was built: its moves are graded again. */
+  let staleFrom = Infinity;
+  /** Grades `plies` moves, keeping the grades from `graded` that no changed result touches. */
+  const regrade = (plies: number): GameReview => {
+    // Move i is graded from positions i and i + 1.
+    const keep = graded && { ...graded, moves: graded.moves.slice(0, Math.max(0, Math.min(graded.moves.length, staleFrom - 1))) };
+    const review = buildReview(initialFen, moves.slice(0, plies), evals.slice(0, plies + 1) as PositionEval[], keep);
+    graded = review;
+    staleFrom = Infinity;
+    dirty = false;
+    return review;
+  };
   let timer: ReturnType<typeof setTimeout> | null = null;
   let lastEmit = 0;
+  let shownBefore = 0;
   const flush = () => {
     timer = null;
     if (signal.aborted) return;
     while (prefix < total && evals[prefix]) prefix++;
     const plies = Math.max(0, prefix - 1);
-    let review: GameReview | null = job.last.review;
-    if (plies > 0 && plies !== review?.moves.length) {
+    if (plies > 0 && dirty) {
       try {
-        // Grades only the moves added since the last partial review.
-        review = buildReview(initialFen, moves.slice(0, plies), evals.slice(0, plies + 1) as PositionEval[], review);
+        // Grades only the moves new or changed since the last partial review.
+        regrade(plies);
       } catch {
         // Keep the previous partial result.
       }
     }
+    let shown = 0;
+    for (const m of graded?.moves ?? []) {
+      if (deepening && DEEPEN.has(m.judgement.classification) && !(deep.has(m.ply - 1) && deep.has(m.ply))) break;
+      shown++;
+    }
+    // Never fewer moves than already shown (a deep result can make a shown move worth a deeper look too).
+    shown = Math.min(graded?.moves.length ?? 0, Math.max(shown, shownBefore));
+    shownBefore = shown;
+    let review: GameReview | null = null;
+    if (graded && shown === graded.moves.length) review = graded;
+    else if (graded && shown > 0) review = buildReview(initialFen, moves.slice(0, shown), evals.slice(0, shown + 1) as PositionEval[], graded);
     lastEmit = Date.now();
-    emit({ review, done, total, final: false, where });
+    emit({ review, ...work(), final: false, where });
   };
   const schedule = () => {
     if (timer) return;
@@ -244,22 +301,56 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   };
   flush();
 
+  const common = { moves, signal, watched: () => job.listeners.size > 0 };
   try {
-    if (done < total) {
-      await gradePositions(fens, evals, {
-        moves,
-        signal,
-        watched: () => job.listeners.size > 0,
+    // Pass 1: every position, quickly (the server's engine takes over if the device's can't).
+    const quick = fens.map((_, i) => i).filter((i) => !evals[i]);
+    if (quick.length) {
+      await gradePositions(fens, quick, {
+        ...common,
+        search: LOCAL_REVIEW,
+        server: SERVER_REVIEW,
         onEval: (i, ev) => {
+          evals[i] = ev;
+          if (ev.depth >= DEEP_REVIEW.depth) deep.add(i);
           cacheEval(fens[i]!, ev);
-          done++;
+          quickDone++;
+          staleFrom = Math.min(staleFrom, i);
+          dirty = true;
           schedule();
         },
         onServer: () => {
+          // The device's engine failed or stalled: no deep pass after this one.
           where = 'server';
+          deepening = false;
           schedule();
         },
       });
+    }
+    // Pass 2: again, deeper, around the moves that were not plainly good. The
+    // device only: when it can't (or stops answering), the quick results stand.
+    deepening &&= localEngine.usable;
+    for (let round = 0; deepening && round < DEEP_ROUNDS; round++) {
+      const todo = positionsToDeepen(regrade(moves.length), deep);
+      deepLeft = todo.length;
+      if (!todo.length) break;
+      schedule();
+      const finished = await gradePositions(fens, todo, {
+        ...common,
+        search: DEEP_REVIEW,
+        server: null,
+        onEval: (i, ev) => {
+          evals[i] = ev;
+          deep.add(i);
+          cacheEval(fens[i]!, ev);
+          deepDone++;
+          deepLeft = Math.max(0, (deepLeft ?? 1) - 1);
+          staleFrom = Math.min(staleFrom, i);
+          dirty = true;
+          schedule();
+        },
+      });
+      if (!finished) deepening = false;
     }
   } catch (e) {
     if (timer) clearTimeout(timer);
@@ -270,11 +361,12 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   }
   if (timer) clearTimeout(timer);
   const all = evals as PositionEval[];
-  const review = buildReview(initialFen, moves, all, job.last.review);
+  const review = regrade(moves.length);
+  const { done } = work();
   const entry = { review, evals: all };
   remember(job.key, entry);
   void save(job.key, entry);
-  emit({ review, evals: all, done: total, total, final: true, where });
+  emit({ review, evals: all, done, total: done, final: true, where });
   finishedListeners.forEach((l) => l(req, review, all));
 }
 
@@ -289,28 +381,49 @@ const SERVER_WORKERS = 3;
 /** Failed server requests in a row before the server is given up on. */
 const SERVER_RETRIES = 3;
 
+/** Positions to search deep: both positions of every move with a grade in DEEPEN, unless already searched deep. */
+function positionsToDeepen(review: GameReview, deep: ReadonlySet<number>): number[] {
+  const out = new Set<number>();
+  for (const m of review.moves) {
+    if (!DEEPEN.has(m.judgement.classification)) continue;
+    for (const i of [m.ply - 1, m.ply]) if (!deep.has(i)) out.add(i);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+interface GradeOptions {
+  moves: string[];
+  signal: AbortSignal;
+  watched: () => boolean;
+  /** How the device's engine searches each position. */
+  search: { depth: number; multipv: number; movetimeMs: number };
+  /** How the server's engine searches, when it may take over; null: the device only. */
+  server: { depth: number; movetimeMs: number } | null;
+  onEval: (i: number, ev: PositionEval) => void;
+  onServer?: () => void;
+}
+
 /**
- * Fills every missing entry of `evals`. The device's engine takes all the
- * positions first. The server's engine takes over the ones still left when
- * the device can't run its engine, when it fails, or (while someone is
- * watching the review) when it stops producing results for a few seconds;
- * then both work at once and whichever answers a position first wins, so the
- * review keeps moving instead of hanging. Rejects only when neither can go on.
+ * Searches the positions `todo` (indices into `fens`), calling `onEval` for
+ * each result. The device's engine takes them all first. When the server may
+ * help, its engine takes over the ones still left when the device can't run
+ * its engine, when it fails, or (while someone is watching the review) when it
+ * stops producing results for a few seconds; then both work at once and
+ * whichever answers a position first wins, so the review keeps moving instead
+ * of hanging. Rejects only when neither can go on. Without the server, a
+ * failed or (watched) silent device engine ends the search early instead:
+ * resolves false, with some positions left unanswered.
  */
-function gradePositions(
-  fens: string[],
-  evals: (PositionEval | undefined)[],
-  o: { moves: string[]; signal: AbortSignal; watched: () => boolean; onEval: (i: number, ev: PositionEval) => void; onServer: () => void },
-): Promise<void> {
-  const total = fens.length;
-  return new Promise<void>((resolve, reject) => {
+function gradePositions(fens: string[], todo: number[], o: GradeOptions): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
     let settled = false;
-    let left = evals.reduce((n, e) => (e ? n - 1 : n), total);
+    let left = todo.length;
+    const got = new Set<number>();
     let lastResult = Date.now();
     let gotResult = false;
     let localDead = !localEngine.usable;
     let serverOn = false;
-    let serverDead = false;
+    let serverDead = !o.server;
     let serverWorkers = 0;
     let lastError: unknown = null;
     /** Device searches per position, cancelled once the server answers that position. */
@@ -328,6 +441,7 @@ function gradePositions(
     const fail = () => {
       if (settled) return;
       cleanup();
+      if (!o.server) return resolve(false);
       reject(lastError instanceof Error ? lastError : new Error('Engine error'));
     };
     const onAbort = () => {
@@ -336,8 +450,8 @@ function gradePositions(
       reject(new AbortError());
     };
     const settle = (i: number, ev: PositionEval) => {
-      if (settled || evals[i]) return;
-      evals[i] = ev;
+      if (settled || got.has(i)) return;
+      got.add(i);
       lastResult = Date.now();
       gotResult = true;
       local.get(i)?.abort();
@@ -345,17 +459,20 @@ function gradePositions(
       o.onEval(i, ev);
       if (--left === 0) {
         cleanup();
-        resolve();
+        resolve(true);
       }
     };
 
     // The server: a few small requests at a time, in game order.
     const nextBatch = () => {
       const out: number[] = [];
-      for (let i = 0; i < total && out.length < SERVER_BATCH; i++) if (!evals[i] && !taken.has(i)) out.push(i);
+      for (const i of todo) {
+        if (out.length >= SERVER_BATCH) break;
+        if (!got.has(i) && !taken.has(i)) out.push(i);
+      }
       return out;
     };
-    const serverWorker = async () => {
+    const serverWorker = async (spec: NonNullable<GradeOptions['server']>) => {
       serverWorkers++;
       let failures = 0;
       while (!settled) {
@@ -365,7 +482,7 @@ function gradePositions(
         try {
           const res = await evaluateOnServer(
             batch.map((i) => fens[i]!),
-            { depth: LOCAL_REVIEW.depth, movetimeMs: LOCAL_REVIEW.movetimeMs },
+            spec,
           );
           failures = 0;
           batch.forEach((i, k) => settle(i, res[k]!));
@@ -383,12 +500,13 @@ function gradePositions(
     };
     const startServer = () => {
       if (serverOn || settled) return;
+      if (!o.server) return fail();
       serverOn = true;
-      o.onServer();
-      for (let k = 0; k < SERVER_WORKERS; k++) void serverWorker();
+      o.onServer?.();
+      for (let k = 0; k < SERVER_WORKERS; k++) void serverWorker(o.server);
     };
 
-    // The device: every position goes to its engine queue at once, in game order.
+    // The device: every position goes to its engine queue at once.
     const localFailed = (e: unknown) => {
       if (settled || e instanceof AbortError || localDead) return;
       localDead = true;
@@ -404,12 +522,11 @@ function gradePositions(
         return localFailed(e);
       }
       if (settled) return;
-      // Each engine takes one stretch of the game and walks it backwards: every
-      // search then starts from what the engine just learned about the position
-      // after it (its hash table), which makes the same depth noticeably more
-      // accurate. The engines also get the moves that led to each position, so
-      // they see repetitions.
-      const todo = fens.map((_, i) => i).filter((i) => !evals[i]);
+      // Each engine takes one stretch of the positions and walks it backwards:
+      // every search then starts from what the engine just learned about the
+      // position after it (its hash table), which makes the same depth
+      // noticeably more accurate. The engines also get the moves that led to
+      // each position, so they see repetitions.
       const per = Math.ceil(todo.length / lanes);
       for (let lane = 0; lane < lanes; lane++) {
         for (const i of todo.slice(lane * per, (lane + 1) * per).reverse()) {
@@ -417,7 +534,7 @@ function gradePositions(
           const ctrl = new AbortController();
           local.set(i, ctrl);
           localEngine
-            .search(fen, { ...LOCAL_REVIEW, signal: ctrl.signal, lane, history: { start: fens[0]!, moves: o.moves.slice(0, i) } })
+            .search(fen, { ...o.search, signal: ctrl.signal, lane, history: { start: fens[0]!, moves: o.moves.slice(0, i) } })
             .then((res) => settle(i, positionEvalFrom(fen, res.lines.get(1) ?? null, res.bestMove ?? undefined, res.lines.get(2) ?? null)), localFailed);
         }
       }
@@ -431,6 +548,10 @@ function gradePositions(
 
     if (o.signal.aborted) return onAbort();
     o.signal.addEventListener('abort', onAbort, { once: true });
+    if (!todo.length) {
+      cleanup();
+      return resolve(true);
+    }
     if (localDead) startServer();
     else void startLocal();
   });
@@ -464,6 +585,9 @@ export async function analyzeLocally(fen: string, o: { depth: number; signal?: A
 
 function cacheEval(fen: string, ev: PositionEval) {
   const k = positionKey(fen);
+  const had = evalCache.get(k);
+  // Keep the deeper result.
+  if (had && had.depth > ev.depth) ev = had;
   evalCache.delete(k);
   evalCache.set(k, ev);
   if (evalCache.size > MAX_EVALS) evalCache.delete(evalCache.keys().next().value!);

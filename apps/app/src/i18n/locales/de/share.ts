@@ -1,0 +1,16 @@
+export const share = {
+  button: 'Partie teilen',
+  title: 'Partie teilen',
+  copyPgn: 'PGN kopieren',
+  copyPgnBody: 'Die Züge, bereit zum Einfügen in jede Schach-App',
+  pgnAfterGame: 'Kann kopiert werden, sobald die Partie vorbei ist',
+  noPgnSecretQueen: 'Partien mit geheimer Dame haben keine PGN: Bauern, die wie Damen zogen, passen nicht hinein',
+  shareLink: 'Link teilen',
+  copyLink: 'Link kopieren',
+  pgnCopied: 'PGN kopiert',
+  linkCopied: 'Link kopiert',
+  failed: 'Die Partie konnte nicht geteilt werden',
+  copyByHand: 'Kopieren ist hier blockiert. Markiere den Text unten und kopiere ihn.',
+  message: '{title} auf ChessMate',
+  messageLive: '{title} live auf ChessMate ansehen',
+};

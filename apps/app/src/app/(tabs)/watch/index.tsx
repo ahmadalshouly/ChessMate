@@ -54,6 +54,7 @@ export default function WatchScreen() {
   return (
     <Screen scroll width="wide" scrollProps={{ refreshControl: <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} /> }}>
       <RouterStack.Screen options={{ title: tr('watch.screenTitle') }} />
+      <AdSpot spot="watch.home" />
 
       {me?.isAdmin || me?.canReviewStreamers ? (
         <Row gap="sm" wrap>
@@ -120,8 +121,6 @@ export default function WatchScreen() {
           </Text>
         )}
       </Stack>
-
-      <AdSpot spot="watch.home" />
 
       {/* Events */}
       {!data && events.loading && <Skeleton height={120} radius="lg" />}

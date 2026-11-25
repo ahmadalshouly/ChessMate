@@ -1,5 +1,5 @@
-import { Game, START_FEN, type Color, type PlayedMove } from '@chessmate/core';
-import { router } from 'expo-router';
+import { Game, START_FEN, analysisPath, gameToPgn, type Color, type PlayedMove } from '@chessmate/core';
+import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Board } from '@/components/Board';
@@ -20,6 +20,7 @@ import { saveGame } from '@/lib/archive';
 import { practiceGame } from '@/lib/recordGame';
 import { dirIcon, useT } from '@/i18n';
 import { colorLabel } from '@/i18n/chess';
+import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 
 /**
  * Pass-and-play practice board. Runs fully on device so it works offline.
@@ -73,7 +74,14 @@ export default function LocalPlay() {
     sync();
   };
   const reviewEntry = useReviewEntry(outcome ? { moves: history.map((m) => m.uci) } : null);
-  const openReview = () => reviewEntry.press(() => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w' } }));
+  const openReview = () =>
+    reviewEntry.press(() => router.push({ pathname: '/review', params: { moves: history.map((m) => m.uci).join(','), orientation: flip ? 'b' : 'w', result: outcome?.result } }));
+  // Not kept on the server: the link carries the moves to the analysis board.
+  const share: GameShare = {
+    title: tr('titles.practice'),
+    link: analysisPath({ moves: history.map((m) => m.uci) }),
+    pgn: () => gameToPgn(practiceGame(session.current.id, history, outcome, session.current.startedAt)),
+  };
 
   const orientation: Color = flip ? 'b' : 'w';
   const top: Color = orientation === 'w' ? 'b' : 'w';
@@ -108,6 +116,7 @@ export default function LocalPlay() {
 
   return (
     <Screen>
+      <Stack.Screen options={{ headerRight: () => <ShareGameButton share={share} /> }} />
       <GameLayout
         top={card(top)}
         bottom={card(orientation)}

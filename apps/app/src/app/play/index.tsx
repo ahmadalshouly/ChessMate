@@ -86,6 +86,8 @@ export default function Lobby() {
 
   const setup = (
     <View style={{ gap: t.space.xl }}>
+      <AdSpot spot="play.lobby" />
+
       {/* Time control */}
       <View style={{ gap: t.space.md }}>
         <SectionHeader index={1} title={tr('play.lobby.timeControl')} />
@@ -194,8 +196,6 @@ export default function Lobby() {
           </OptionRow>
         </GlassView>
       </View>
-
-      <AdSpot spot="play.lobby" />
 
       {wide && <ActionPanel tcLabel={tcLabel} category={category} rated={rated} canStart={canStart} canCreate={canCreate} onPlay={play} onCreate={create} />}
     </View>

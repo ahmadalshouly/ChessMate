@@ -1,9 +1,18 @@
 import { DEFAULT_RATING, timeCategory, type TimeControl } from '@chessmate/core';
 import type { PlayerStore } from '../players';
-import { DEFAULT_THRESHOLDS, assessPlayer, evaluateGame, reportsFromEvals, type FairPlayThresholds, type GameForAnalysis } from './analysis';
-import type { Analyzer } from './engine';
+import {
+  DEFAULT_THRESHOLDS,
+  assessPlayer,
+  evaluateGame,
+  reportsFromEvals,
+  type FairPlayThresholds,
+  type GameForAnalysis,
+  type ReportOrigin,
+  type SideReport,
+} from './analysis';
+import type { Analyzer, PositionEval } from './engine';
 import { JobQueue } from './jobQueue';
-import { MemoryFairPlayStore, type FairPlayBan, type FairPlayCase, type FairPlayStore, type RatingRefund } from './store';
+import { MemoryFairPlayStore, type FairPlayBan, type FairPlayCase, type FairPlayStore, type RatedGameEntry, type RatingRefund } from './store';
 
 export interface FairPlayOptions {
   store?: FairPlayStore;
@@ -93,9 +102,7 @@ export class FairPlayService {
 
   private async analyze(g: FinishedGame) {
     const evals = await evaluateGame(g, this.opts.analyzer!);
-    const reports = reportsFromEvals(g, evals, this.thresholds, this.now());
-    this.store.addReports(reports);
-    for (const r of reports) this.reassess(r.playerId);
+    this.recordAnalysis(g, evals, { source: 'server' });
   }
 
   /** Recomputes a player's assessment and opens, updates or reopens their case. */
@@ -142,6 +149,21 @@ export class FairPlayService {
       reports: this.store.reportsFor(playerId, this.thresholds.window),
       audit: this.store.auditFor(playerId),
     };
+  }
+
+  /**
+   * Records an analysis of one game that ran somewhere other than this
+   * server's own engine: today, a moderator's device (see the admin API). The
+   * evaluations have already been checked against the stored game; the
+   * correlation maths, the reports and the reassessment are the same code the
+   * server's own engine goes through, and the reports carry `source: 'device'`
+   * so the evidence is never mistaken for the server's.
+   */
+  recordAnalysis(g: GameForAnalysis, evals: PositionEval[], origin: ReportOrigin & { source: 'server' | 'device' }): SideReport[] {
+    const reports = reportsFromEvals(g, evals, this.thresholds, this.now(), origin);
+    this.store.addReports(reports);
+    for (const r of reports) this.reassess(r.playerId);
+    return reports;
   }
 
   /** Opens a case by hand, e.g. from a player report or a moderator's hunch. */
@@ -197,9 +219,24 @@ export class FairPlayService {
     return true;
   }
 
+  /**
+   * Gives opponents back the rating they lost to this account in its last
+   * `count` rated games, without closing it. A moderator does this when a
+   * case is clear enough to put the points right but they are still deciding
+   * about the account, and chooses how far back it goes.
+   */
+  refundRecent(cheaterId: string, by: string, count: number): RatingRefund[] {
+    const recent = [...this.store.ratedGamesOf(cheaterId, 0)].sort((a, b) => b.endedAt - a.endedAt).slice(0, Math.max(0, count));
+    return this.refundGames(cheaterId, recent, by);
+  }
+
   private refundOpponents(cheaterId: string, since: number): RatingRefund[] {
+    return this.refundGames(cheaterId, this.store.ratedGamesOf(cheaterId, since), 'system');
+  }
+
+  private refundGames(cheaterId: string, games: RatedGameEntry[], by: string): RatingRefund[] {
     const refunds: RatingRefund[] = [];
-    for (const g of this.store.ratedGamesOf(cheaterId, since)) {
+    for (const g of games) {
       if (g.refunded) continue;
       const opp = g.white.id === cheaterId ? g.black : g.white;
       if (opp.delta >= 0) continue;
@@ -214,7 +251,7 @@ export class FairPlayService {
       }
       this.store.markRefunded(g.gameId);
       refunds.push({ gameId: g.gameId, playerId: opp.id, category: g.category, points });
-      this.store.audit({ at: this.now(), playerId: opp.id, action: 'refunded', by: 'system', note: `+${points} (${g.category}) from game ${g.gameId} vs ${cheaterId}` });
+      this.store.audit({ at: this.now(), playerId: opp.id, action: 'refunded', by, note: `+${points} (${g.category}) from game ${g.gameId} vs ${cheaterId}` });
     }
     return refunds;
   }

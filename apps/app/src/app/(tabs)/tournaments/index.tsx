@@ -49,6 +49,7 @@ export default function Tournaments() {
 
   return (
     <Page>
+      <AdSpot spot="tournaments.list" />
       <View style={{ gap: t.space.sm }}>
         <Text variant="display">{tr('tournaments.title')}</Text>
         <Text tone="muted" style={{ maxWidth: 560 }}>
@@ -66,7 +67,6 @@ export default function Tournaments() {
           <Text tone="muted">{tr('tournaments.noneBody')}</Text>
         </GlassView>
       )}
-      <AdSpot spot="tournaments.list" />
       {live.length > 0 && <Section title={tr('tournaments.live')} items={live} now={now} />}
       {upcoming.length > 0 && <Section title={tr('tournaments.upcoming')} items={upcoming} now={now} />}
       {past.length > 0 && <Section title={tr('tournaments.past')} items={past} now={now} />}
