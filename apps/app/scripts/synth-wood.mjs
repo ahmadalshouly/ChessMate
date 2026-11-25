@@ -18,6 +18,19 @@ import { fileURLToPath } from 'node:url';
 const RATE = 44100;
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'sounds');
 
+/**
+ * Every file lasts at least this long: the sound itself, then digital silence.
+ *
+ * Android's player (ExoPlayer) writes a sound into the phone's audio output buffer while it
+ * waits, paused, for play(). That buffer holds 0.25-0.75 s depending on the phone. A file
+ * short enough to fit in it whole reaches its end before play() is ever called, and the
+ * player then counts it as already played: play() makes no sound. That is how the move
+ * and illegal-move sounds (0.3 s) were silent on Android while capture and check (0.35 s)
+ * played. A file longer than any such buffer cannot reach its end while paused.
+ * test/soundFiles.test.ts holds every file to this.
+ */
+const MIN_SECONDS = 1;
+
 /** Seeded random numbers, so every run writes byte-identical files. */
 let seed = 20261122;
 const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -166,7 +179,9 @@ function finish(x, peak) {
   return y;
 }
 
-function wav(name, samples) {
+function wav(name, sound) {
+  const samples = new Float64Array(Math.max(sound.length, Math.round(MIN_SECONDS * RATE)));
+  samples.set(sound);
   const data = Buffer.alloc(samples.length * 2);
   samples.forEach((v, i) => data.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(v * 32767))), i * 2));
   const header = Buffer.alloc(44);
