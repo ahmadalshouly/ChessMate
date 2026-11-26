@@ -14,8 +14,11 @@ const { existsSync } = require('node:fs') as { existsSync(path: string): boolean
  *    starts. The app uses it to find `pnpm dev:server` when the bundle comes
  *    through `expo start --tunnel` (then Expo's own host is a tunnel name, not
  *    the laptop). Left out of EAS builds.
- * 2. Sign in with Apple and Google: the Apple capability, and the app's bundle
- *    ID as a URL scheme so Google can redirect back to installed builds.
+ * 2. Sign in with Apple and Google: the Apple capability, the app's bundle ID
+ *    as a URL scheme, and Google's native sign-in SDK. On iOS that SDK needs
+ *    the iOS client ID reversed (com.googleusercontent.apps.…) as a URL scheme,
+ *    taken from EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID; Android needs nothing here.
+ *    See docs/sign-in-with-google-and-apple.md.
  *
  * 3. Push on Android: Expo sends Android push through Firebase Cloud Messaging,
  *    and the app needs the Firebase project's google-services.json to get a
@@ -51,12 +54,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   if (process.env.EAS_BUILD_PLATFORM === 'android' && !googleServicesFile) {
     console.warn('No google-services.json (EAS variable GOOGLE_SERVICES_JSON): this Android build cannot receive push notifications. See docs/PUSH_NOTIFICATIONS.md');
   }
+  const googleIos = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
+  const googleIosScheme = googleIos ? `com.googleusercontent.apps.${googleIos.replace(/\.apps\.googleusercontent\.com$/, '')}` : undefined;
+  if (process.env.EAS_BUILD_PLATFORM === 'ios' && !googleIosScheme) {
+    console.warn('No EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: this iOS build has no Google sign-in. See docs/sign-in-with-google-and-apple.md');
+  }
   return {
     ...base,
     scheme: [...new Set([...scheme, bundleId])],
     ios: { ...base.ios, usesAppleSignIn: true },
     android: { ...base.android, ...(googleServicesFile ? { googleServicesFile } : null) },
-    plugins: [...(base.plugins ?? []), 'expo-apple-authentication'],
+    plugins: [
+      ...(base.plugins ?? []),
+      'expo-apple-authentication',
+      ...(googleIosScheme ? [['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosScheme }] as [string, unknown]] : []),
+    ],
     extra: {
       ...base.extra,
       ...(process.env.EAS_BUILD ? null : { devServerHost: process.env.EXPO_PUBLIC_DEV_SERVER_HOST || lanAddress() }),

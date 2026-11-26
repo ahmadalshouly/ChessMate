@@ -103,6 +103,7 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `LICHESS_EXPLORER_URL` | `https://explorer.lichess.ovh` | `fly.toml` | A self-hosted lila-openingexplorer instead of Lichess's (no token needed then) |
 | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | unset (Kick's site API, may refuse) | `fly secrets set` | Kick live status and viewers through Kick's public API |
 | `APPLE_CLIENT_IDS` | `com.chessmate.app` (+ `host.exp.Exponent` outside production) | `fly.toml` | Accepted Sign in with Apple audiences. Empty string turns Apple off |
+| `APPLE_SERVICES_ID` | unset (Apple on the web off) | `fly.toml` | The Services ID behind Sign in with Apple on the web, e.g. `com.chessmate.web`; added to the Apple audiences |
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
 | `DATABASE_PATH` | `.data/pglite` (image: `/data/pglite`) | rarely needed | PGlite data directory when `DATABASE_URL` is unset |
 | `DATABASE_POOL_MAX` | driver default | `fly.toml` | Max Postgres connections |
@@ -138,6 +139,8 @@ Anything secret goes in `fly secrets set`, never in `fly.toml` or git.
 | `GOOGLE_SERVICES_JSON` | `./google-services.json` if present | EAS file variable with the Firebase `google-services.json`; Android builds need it for push ([PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md)) |
 | `EXPO_PUBLIC_SERVER_URL` | variable | `ci.yml`, `deploy.yml` | Server URL baked into web builds |
 | `CLOUDFLARE_PAGES_PROJECT` | variable | `deploy.yml` | Pages project name (default `chessmate`) |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | variable | `deploy.yml` | Google web client ID baked into the web build (Google button on the web) |
+| `EXPO_PUBLIC_APPLE_SERVICES_ID` | variable | `deploy.yml` | Apple Services ID baked into the web build (Apple button on the web) |
 
 Set them under repo Settings → Secrets and variables → Actions.
 

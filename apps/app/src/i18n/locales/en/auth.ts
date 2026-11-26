@@ -96,6 +96,8 @@ export const auth = {
     notConfigured: '{provider} sign-in isn\'t set up on the server yet.',
     failed: '{provider} sign-in didn\'t work. Please try again.',
     google: 'Continue with Google',
+    apple: 'Continue with Apple',
+    googleSetup: 'Google sign-in isn\'t set up for this build yet (the app\'s fingerprint is missing in Google Cloud).',
     expoGo: 'Google sign-in can\'t run inside Expo Go. Try it on the web version (press w in Expo) or in an installed build.',
   },
 };

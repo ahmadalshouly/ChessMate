@@ -126,9 +126,12 @@ const list = (v: string | undefined) => (v ?? '').split(',').map((s) => s.trim()
  * APPLE_CLIENT_IDS: comma-separated Apple audiences, default the app's bundle ID. Outside
  * production Expo Go's bundle ID (host.exp.Exponent) is accepted too, because tokens
  * minted inside Expo Go carry that audience.
+ * APPLE_SERVICES_ID: the Services ID used by Sign in with Apple on the web (its tokens
+ * carry that audience); added to the Apple audiences when set.
  */
 export function oauthConfigFromEnv(env = process.env): OAuthConfig {
   const apple = env.APPLE_CLIENT_IDS !== undefined ? list(env.APPLE_CLIENT_IDS) : ['com.chessmate.app'];
+  for (const id of list(env.APPLE_SERVICES_ID)) if (!apple.includes(id)) apple.push(id);
   if (env.NODE_ENV !== 'production' && apple.length && !apple.includes('host.exp.Exponent')) apple.push('host.exp.Exponent');
   return { googleClientIds: list(env.GOOGLE_CLIENT_IDS), appleClientIds: apple };
 }
