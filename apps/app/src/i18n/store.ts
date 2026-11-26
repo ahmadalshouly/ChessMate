@@ -22,6 +22,8 @@ export function deviceLanguage(): Lang {
   try {
     for (const l of getLocales()) {
       const code = (l.languageCode ?? l.languageTag.split('-')[0] ?? '').toLowerCase();
+      // Our Chinese is Simplified: Traditional-script devices (Taiwan, Hong Kong, Macau) skip it.
+      if (code === 'zh' && /hant|-tw|-hk|-mo/i.test(l.languageTag)) continue;
       if ((LANGS as readonly string[]).includes(code)) return code as Lang;
     }
   } catch {

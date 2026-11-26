@@ -1,0 +1,16 @@
+export const share = {
+  button: '対局を共有',
+  title: '対局を共有',
+  copyPgn: 'PGNをコピー',
+  copyPgnBody: 'どのチェスアプリにも貼り付けられる指し手',
+  pgnAfterGame: '対局終了後にコピーできます',
+  noPgnSecretQueen: 'シークレットクイーンの対局にはPGNがありません：クイーンのように動いたポーンがPGNを壊すためです',
+  shareLink: 'リンクを共有',
+  copyLink: 'リンクをコピー',
+  pgnCopied: 'PGNをコピーしました',
+  linkCopied: 'リンクをコピーしました',
+  failed: '対局を共有できませんでした',
+  copyByHand: 'ここではコピーがブロックされています。下のテキストを選択してコピーしてください。',
+  message: 'ChessMateの{title}',
+  messageLive: 'ChessMateで{title}をライブ観戦',
+};

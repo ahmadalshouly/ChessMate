@@ -3,13 +3,24 @@ import { describe, expect, it } from 'vitest';
 // Pure modules only: no React Native imports, so this runs in Node.
 import { AD_SPOTS, AD_SPOT_KEY } from '@chessmate/core';
 
-import { interpolate, pluralCategory, resolve, type Lang } from '../src/i18n/core';
+import { LANGS, STAFF_NAMESPACES, interpolate, pluralCategory, resolve, type Lang } from '../src/i18n/core';
 import { ar } from '../src/i18n/locales/ar';
 import { de } from '../src/i18n/locales/de';
 import { en } from '../src/i18n/locales/en';
+import { es } from '../src/i18n/locales/es';
+import { fr } from '../src/i18n/locales/fr';
+import { pt } from '../src/i18n/locales/pt';
+import { ru } from '../src/i18n/locales/ru';
+import { tr } from '../src/i18n/locales/tr';
+import { id } from '../src/i18n/locales/id';
+import { hi } from '../src/i18n/locales/hi';
+import { zh } from '../src/i18n/locales/zh';
+import { ja } from '../src/i18n/locales/ja';
+import { ko } from '../src/i18n/locales/ko';
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
-const dicts = { en, ar, de };
+const dicts = { en, ar, de, es, fr, pt, ru, tr, id, hi, zh, ja, ko };
+const OTHERS = LANGS.filter((l) => l !== 'en');
 
 type Node = string | { [k: string]: Node };
 const PLURAL = new Set(['zero', 'one', 'two', 'few', 'many', 'other']);
@@ -35,6 +46,15 @@ describe('plural rules', () => {
     expect([0, 1, 2, 3, 10, 11, 99, 100, 103, 111].map((n) => pluralCategory('ar', n))).toEqual([
       'zero', 'one', 'two', 'few', 'few', 'many', 'many', 'other', 'few', 'many',
     ]);
+  });
+  it('uses one/few/many for Russian', () => {
+    expect([1, 2, 4, 5, 11, 12, 21, 22, 25, 111, 1.5].map((n) => pluralCategory('ru', n))).toEqual([
+      'one', 'few', 'few', 'many', 'many', 'many', 'one', 'few', 'many', 'many', 'other',
+    ]);
+  });
+  it('treats 0 as singular in French, Portuguese and Hindi, and has no plural in CJK and Indonesian', () => {
+    for (const l of ['fr', 'pt', 'hi'] as Lang[]) expect([0, 1, 2].map((n) => pluralCategory(l, n))).toEqual(['one', 'one', 'other']);
+    for (const l of ['zh', 'ja', 'ko', 'id'] as Lang[]) expect([0, 1, 2].map((n) => pluralCategory(l, n))).toEqual(['other', 'other', 'other']);
   });
 });
 
@@ -65,17 +85,17 @@ describe('dictionary keys', () => {
   // be looked up: `ads.spot.home.feed` goes looking for home → feed. The type
   // checker does not catch it, because KeyPath happily joins such a key with a
   // dot and the result is a valid-looking TKey. This test is the only guard.
-  for (const lang of ['en', 'ar', 'de'] as Lang[]) {
+  for (const lang of LANGS) {
     it(`${lang} has no key containing a dot`, () => {
       expect(keySegments(dicts[lang] as Node).filter((k) => k.includes('.'))).toEqual([]);
     });
   }
 
   // Each ad spot's id has a dot, so the dictionaries key them by AD_SPOT_KEY instead.
-  it('every ad spot has a name and a description in all three languages', () => {
+  it('every ad spot has a name and a description in every language', () => {
     for (const spot of AD_SPOTS) {
       const seg = AD_SPOT_KEY[spot];
-      for (const lang of ['en', 'ar', 'de'] as Lang[]) {
+      for (const lang of LANGS) {
         expect(resolve(lang, dicts, `ads.spot.${seg}`), `ads.spot.${seg} (${lang})`).not.toBe(`ads.spot.${seg}`);
         expect(resolve(lang, dicts, `admin.ads.spotWhere.${seg}`), `admin.ads.spotWhere.${seg} (${lang})`).not.toBe(`admin.ads.spotWhere.${seg}`);
       }
@@ -83,11 +103,15 @@ describe('dictionary keys', () => {
   });
 });
 
+/** Languages that translate the staff console too; the rest show it in English. */
+const WITH_STAFF: ReadonlySet<Lang> = new Set(['en', 'ar', 'de']);
+const playerOnly = (n: Node) => Object.fromEntries(Object.entries(n).filter(([k]) => !(STAFF_NAMESPACES as readonly string[]).includes(k))) as Node;
+
 describe('dictionaries', () => {
-  const base = leaves(en as Node);
-  for (const lang of ['ar', 'de'] as Lang[]) {
+  for (const lang of OTHERS) {
+    const base = leaves(WITH_STAFF.has(lang) ? (en as Node) : playerOnly(en as Node));
     const other = leaves(dicts[lang] as Node);
-    it(`${lang} has exactly the English keys`, () => {
+    it(`${lang} has exactly the English keys${WITH_STAFF.has(lang) ? '' : ' (staff console excepted)'}`, () => {
       expect([...other.keys()].sort()).toEqual([...base.keys()].sort());
     });
     it(`${lang} keeps every placeholder`, () => {
@@ -101,5 +125,22 @@ describe('dictionaries', () => {
       }
       expect(problems).toEqual([]);
     });
+    // A plural needs every form its language uses (Russian: one, few, many).
+    const forms: Partial<Record<Lang, string[]>> = { ru: ['one', 'few', 'many', 'other'] };
+    if (forms[lang]) {
+      it(`${lang} plurals have all their forms`, () => {
+        const missing: string[] = [];
+        const walk = (n: Node, path: string) => {
+          if (typeof n === 'string') return;
+          if (isPlural(n)) {
+            for (const f of forms[lang]!) if (!(f in n)) missing.push(`${path}: ${f}`);
+            return;
+          }
+          for (const [k, v] of Object.entries(n)) walk(v, path ? `${path}.${k}` : k);
+        };
+        walk(dicts[lang] as Node, '');
+        expect(missing).toEqual([]);
+      });
+    }
   }
 });

@@ -1,0 +1,16 @@
+export const share = {
+  button: 'Oyunu paylaş',
+  title: 'Oyunu paylaş',
+  copyPgn: 'PGN’i kopyala',
+  copyPgnBody: 'Hamleler, herhangi bir satranç uygulamasına yapıştırmaya hazır',
+  pgnAfterGame: 'Oyun bitince kopyalamaya hazır',
+  noPgnSecretQueen: 'Gizli Vezir oyunlarının PGN’i yok: vezir gibi hareket eden piyonlar onu bozar',
+  shareLink: 'Bağlantıyı paylaş',
+  copyLink: 'Bağlantıyı kopyala',
+  pgnCopied: 'PGN kopyalandı',
+  linkCopied: 'Bağlantı kopyalandı',
+  failed: 'Oyun paylaşılamadı',
+  copyByHand: 'Kopyalama burada engelli. Aşağıdaki metni seçip kopyala.',
+  message: 'ChessMate’te {title}',
+  messageLive: '{title} oyununu ChessMate’te canlı izle',
+};

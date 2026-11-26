@@ -2,6 +2,7 @@ import { loadAsync, useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import { Platform, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
 
+import { SYSTEM_FONT_LANGS } from '@/i18n/core';
 import { i18nStore } from '@/i18n/store';
 
 /**
@@ -116,21 +117,28 @@ const cache = new Map<string, TextStyle>();
  * In Arabic, Sans and Display become IBM Plex Sans Arabic of the same weight, and letter
  * spacing is cleared (any tracking breaks the joins between Arabic letters). Counting text
  * uses Plex Arabic too; its Latin digits keep numbers readable.
+ *
+ * In Russian, Hindi, Chinese, Japanese and Korean (scripts our trimmed faces don't have),
+ * Sans, Display and labels use the platform's font for that script at the same weight, with
+ * letter spacing cleared. Counting text keeps Inter, so clocks and ratings look the same.
  */
 export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextStyle> {
   const flat = (StyleSheet.flatten(style) ?? {}) as TextStyle;
-  const arabic = i18nStore.get().lang === 'ar';
+  const lang = i18nStore.get().lang;
+  const arabic = lang === 'ar';
+  const systemScript = SYSTEM_FONT_LANGS.has(lang);
+  const swap = arabic || systemScript;
   let fam = flat.fontFamily;
   let weightStyle = flat.fontWeight;
   if (fam && OURS.has(fam)) {
     // One of ours. An explicit weight on top (e.g. a bold caption) picks that weight of the same family.
     const plainWeight = flat.fontWeight === undefined || flat.fontWeight === 'normal';
-    if (plainWeight && !arabic) return [style, NEUTRAL_WEIGHT];
+    if (plainWeight && !swap) return [style, NEUTRAL_WEIGHT];
     const ownWeight = /_(\d)00/.exec(fam)?.[1];
     // The italic slogan face has no other weights: keep it as it is.
-    if (fam === families.displayItalic && !arabic) return [style, NEUTRAL_WEIGHT];
+    if (fam === families.displayItalic && !swap) return [style, NEUTRAL_WEIGHT];
     // Cinzel labels: an explicit weight picks that weight of Cinzel.
-    if (fam.startsWith('Cinzel') && !arabic) {
+    if (fam.startsWith('Cinzel') && !swap) {
       const w = Math.min(700, Math.max(500, weightOf(flat.fontWeight))) as 500 | 600 | 700;
       return [style, { fontFamily: families.label[w], fontWeight: 'normal' }];
     }
@@ -140,6 +148,7 @@ export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
   const weight = weightOf(weightStyle);
   const italic = flat.fontStyle === 'italic';
   const mono = !!fam && fam !== 'display' && fam !== 'sans' && (fam === 'mono' || MONO_HINT.test(fam));
+  if (systemScript && !mono) return [style, systemFont(weight)];
   let family: FontFamilyName;
   if (mono && !arabic) family = MONO[weight] ?? 'Inter_400Regular';
   else if (arabic) family = arabicFor(weight);
@@ -161,6 +170,22 @@ export function resolveFontStyle(style: StyleProp<TextStyle>): StyleProp<TextSty
 }
 
 const WEB_RTL: TextStyle = { writingDirection: 'rtl' };
+
+/** The platform's UI font, which covers Cyrillic, Devanagari, Chinese, Japanese and Korean. */
+const SYSTEM_FAMILY = Platform.select({
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif',
+});
+const systemCache = new Map<number, TextStyle>();
+function systemFont(weight: number): TextStyle {
+  let patch = systemCache.get(weight);
+  if (!patch) {
+    patch = { fontFamily: SYSTEM_FAMILY, fontWeight: String(weight) as TextStyle['fontWeight'], letterSpacing: 0 };
+    systemCache.set(weight, patch);
+  }
+  return patch;
+}
 
 const BASE_FONTS = Platform.OS === 'web' ? FONT_FILES : { ...FONT_FILES, ...ARABIC_FONT_FILES };
 

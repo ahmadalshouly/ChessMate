@@ -1,10 +1,9 @@
 import { type FriendRequestAudience, type MyProfile, type SettingsPatch, type Visibility } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/ui/primitives';
-import { rimShadow } from '@/ui';
 
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
@@ -18,7 +17,8 @@ import { deepReviewSupported, setReviewSettings, useReviewSettings } from '@/fea
 import { BoardCustomizer } from '@/features/board/BoardCustomizer';
 import { CookiePreferences } from '@/features/privacy/CookiePreferences';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
-import { LANGS, LANGUAGE_NAMES, deviceLanguage, needsRestartFor, setLanguagePreference, useI18n, type LanguagePreference, type TKey } from '@/i18n';
+import { useI18n, type TKey } from '@/i18n';
+import { LanguagePicker } from '@/components/i18n/LanguagePicker';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
 const VOLUME: { value: string; label: TKey }[] = [
@@ -298,43 +298,12 @@ function ReviewSection() {
   );
 }
 
-/** Language picker: follow the device, or pick one. Arabic switches the layout to right-to-left. */
+/** Language dropdown: follow the device, or pick one. Arabic switches the layout to right-to-left. */
 function LanguageSection() {
-  const t = useTheme();
-  const { tr, preference } = useI18n();
-  const [busy, setBusy] = useState(false);
-  const choices: LanguagePreference[] = ['system', ...LANGS];
-  const pick = (p: LanguagePreference) => {
-    if (p === preference || busy) return;
-    setBusy(true);
-    setLanguagePreference(p).finally(() => setBusy(false));
-  };
+  const { tr } = useI18n();
   return (
     <Section title={tr('settings.language.title')}>
-      <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
-        {choices.map((p) => {
-          const on = p === preference;
-          const name = p === 'system' ? tr('settings.language.system', { language: LANGUAGE_NAMES[deviceLanguage()] }) : LANGUAGE_NAMES[p];
-          const restart = !on && needsRestartFor(p);
-          return (
-            <Pressable
-              key={p}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: on, disabled: busy }}
-              // Each language name is announced in its own language.
-              accessibilityLanguage={p === 'system' ? undefined : p}
-              disabled={busy}
-              onPress={() => pick(p)}
-              style={[styles.themeRow, { backgroundColor: on ? t.glassSelected : 'transparent' }, on && rimShadow(t, 'bright')]}>
-              <View style={[styles.radio, { borderColor: on ? t.text : t.border }]}>{on && <View style={[styles.radioDot, { backgroundColor: t.text }]} />}</View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontWeight: on ? '700' : '400', fontSize: 15 }}>{name}</Text>
-                {restart && <Text style={{ color: t.muted, fontSize: 12 }}>{tr('settings.language.restart')}</Text>}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
+      <LanguagePicker />
     </Section>
   );
 }
@@ -438,8 +407,5 @@ function DeleteAccount() {
 const styles = StyleSheet.create({
   page: { padding: 16, alignItems: 'center' },
   inner: { width: '100%', maxWidth: MAX_CONTENT_WIDTH, gap: 16 },
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 10 },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  radioDot: { width: 10, height: 10, borderRadius: 5 },
   label: { fontSize: 13, fontWeight: '600', marginTop: 4 },
 });

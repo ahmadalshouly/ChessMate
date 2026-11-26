@@ -1,0 +1,21 @@
+export const messages = {
+  title: 'मैसेज',
+  subtitle: 'खिलाड़ियों से बातचीत और ChessMate टीम के मैसेज।',
+  new: 'नया मैसेज',
+  loadFailed: 'मैसेज लोड नहीं हो सके',
+  sendFailed: 'मैसेज नहीं भेजा जा सका',
+  emptyTitle: 'अभी कोई मैसेज नहीं',
+  emptyBody: 'बातचीत शुरू करने के लिए किसी दोस्त की प्रोफ़ाइल खोलो और मैसेज पर टैप करो।',
+  team: 'ChessMate टीम',
+  you: 'तुम',
+  unread: {
+    one: '{count} बिना पढ़ा मैसेज',
+    other: '{count} बिना पढ़े मैसेज',
+  },
+  startConversation: '{name} को हैलो बोलो।',
+  announcement: 'घोषणा',
+  teamReadOnly: 'ChessMate टीम तुमसे इसी तरह संपर्क करती है। यहाँ जवाब नहीं दिया जा सकता।',
+  cannotSend: 'तुम इस खिलाड़ी को मैसेज नहीं भेज सकते।',
+  placeholder: 'मैसेज लिखो',
+  send: 'भेजो',
+};

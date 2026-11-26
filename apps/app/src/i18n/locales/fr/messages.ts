@@ -1,0 +1,21 @@
+export const messages = {
+  title: 'Messages',
+  subtitle: 'Conversations avec les joueurs et messages de l’équipe ChessMate.',
+  new: 'Nouveau message',
+  loadFailed: 'Impossible de charger les messages',
+  sendFailed: 'Impossible d’envoyer le message',
+  emptyTitle: 'Pas encore de messages',
+  emptyBody: 'Ouvre le profil d’un ami et touche Message pour lancer une conversation.',
+  team: 'Équipe ChessMate',
+  you: 'Toi',
+  unread: {
+    one: '{count} message non lu',
+    other: '{count} messages non lus',
+  },
+  startConversation: 'Dis bonjour à {name}.',
+  announcement: 'Annonce',
+  teamReadOnly: 'C’est par ici que l’équipe ChessMate te contacte. Impossible de répondre ici.',
+  cannotSend: 'Tu ne peux pas envoyer de message à ce joueur.',
+  placeholder: 'Écris un message',
+  send: 'Envoyer',
+};
