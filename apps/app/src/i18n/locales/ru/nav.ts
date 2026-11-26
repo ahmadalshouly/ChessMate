@@ -1,0 +1,15 @@
+export const nav = {
+  play: 'Играть',
+  learn: 'Обучение',
+  learnTitle: 'Обучение',
+  social: 'Общение',
+  tournaments: 'Турниры',
+  profile: 'Профиль',
+  unrated: 'Без рейтинга',
+  signInToSave: 'Войди, чтобы сохранять партии',
+  openProfile: 'Открыть профиль',
+  puzzles: 'Задачи',
+  watch: 'Смотреть',
+  elo: 'ELO',
+  section: 'Навигация',
+};

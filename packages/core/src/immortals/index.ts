@@ -7,10 +7,11 @@ import type { AppPath } from '../share';
 import type { Color } from '../types';
 import { IMMORTAL_GAMES } from './games';
 import { IMMORTAL_PLAYERS } from './players';
-import type { ImmortalGame, ImmortalMoment, ImmortalPlayer } from './types';
+import { IMMORTAL_THUMBS } from './thumbs';
+import type { ImmortalGame, ImmortalMoment, ImmortalPlayer, ImmortalThumb } from './types';
 
 export * from './types';
-export { IMMORTAL_GAMES, IMMORTAL_PLAYERS };
+export { IMMORTAL_GAMES, IMMORTAL_PLAYERS, IMMORTAL_THUMBS };
 
 /*
  * Immortals: legendary players and the famous games they are remembered for.
@@ -113,6 +114,25 @@ export function immortalMoments(game: ImmortalGame): ResolvedMoment[] {
 export function immortalKeyPly(game: ImmortalGame): number {
   const line = immortalLine(game);
   return immortalMoments(game)[0]?.ply ?? line.uci.length;
+}
+
+/** Works the key position out from the score: what scripts/build-immortal-thumbs.ts writes to thumbs.ts. */
+export function computeImmortalThumb(game: ImmortalGame): ImmortalThumb {
+  const line = immortalLine(game);
+  const ply = immortalKeyPly(game);
+  const fen = line.fens[ply]!;
+  const chess = new Chess(fen);
+  const check = chess.inCheck() ? (chess.findPiece({ type: 'k', color: chess.turn() })[0] ?? null) : null;
+  return { ply, fen, last: ply > 0 ? line.uci[ply - 1]! : null, check, orientation: immortalOrientation(game) };
+}
+
+/**
+ * The key position a game is shown by in a list. Read from the generated table,
+ * so a page of thumbnails never replays a score; a game missing from it (just
+ * added, table not rebuilt yet) is worked out instead.
+ */
+export function immortalThumb(game: ImmortalGame): ImmortalThumb {
+  return IMMORTAL_THUMBS[game.id] ?? computeImmortalThumb(game);
 }
 
 function pgnTag(name: string, value: string) {

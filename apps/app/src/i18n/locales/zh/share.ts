@@ -1,0 +1,16 @@
+export const share = {
+  button: '分享对局',
+  title: '分享对局',
+  copyPgn: '复制 PGN',
+  copyPgnBody: '对局着法，可直接粘贴到任何国际象棋应用',
+  pgnAfterGame: '对局结束后即可复制',
+  noPgnSecretQueen: '秘密皇后对局没有 PGN：像后一样走的兵会破坏它',
+  shareLink: '分享链接',
+  copyLink: '复制链接',
+  pgnCopied: 'PGN 已复制',
+  linkCopied: '链接已复制',
+  failed: '无法分享对局',
+  copyByHand: '此处无法复制。请选中下方文字手动复制。',
+  message: 'ChessMate 上的 {title}',
+  messageLive: '在 ChessMate 上实时观看 {title}',
+};

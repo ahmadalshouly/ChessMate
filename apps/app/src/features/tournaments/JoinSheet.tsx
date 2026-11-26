@@ -47,7 +47,7 @@ export function JoinSheet({
       title={tr('tournaments.rules.title', { name: tournament.name })}
       actions={
         <>
-          <Button variant="ghost" title={tr('admin.common.cancel')} onPress={onClose} />
+          <Button variant="ghost" title={tr('common.cancel')} onPress={onClose} />
           <Button title={fee ? tr('tournaments.payAndJoin', { fee }) : tr('tournaments.join')} disabled={!accepted || busy} loading={busy} onPress={onAccept} />
         </>
       }>

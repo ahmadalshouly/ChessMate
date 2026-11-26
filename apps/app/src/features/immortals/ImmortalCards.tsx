@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   immortalGamesOf,
-  immortalKeyPly,
   immortalLine,
   immortalOutcome,
   immortalOrientation,
+  immortalThumb,
   immortalYear,
   type ImmortalGame,
   type ImmortalPlayer,
@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Board } from '@/components/Board';
+import { BoardThumb } from '@/components/Board';
 import { checkSquareOf } from '@/lib/useBoardInteraction';
 import { dirIcon, useT } from '@/i18n';
 import { Avatar, Badge, GlassView, Row, Stack, Text, useAppTheme } from '@/ui';
@@ -38,25 +38,31 @@ export function placeLine(g: ImmortalGame): string {
   return `${g.site} · ${immortalYear(g)}`;
 }
 
-/** A position from the game, small and silent. */
-export const GameThumb = memo(function GameThumb({ game, size, ply }: { game: ImmortalGame; size: number; ply?: number }) {
-  const line = immortalLine(game);
-  const at = Math.max(0, Math.min(line.uci.length, ply ?? immortalKeyPly(game)));
-  const fen = line.fens[at]!;
-  const last = at > 0 ? line.uci[at - 1]! : null;
-  return (
-    <Board
-      fen={fen}
-      orientation={immortalOrientation(game)}
-      size={size}
-      lastMove={last ? { from: last.slice(0, 2) as Square, to: last.slice(2, 4) as Square } : null}
-      checkSquare={checkSquareOf(fen)}
-      sound={false}
-      drawable={false}
-      hideCoordinates
-    />
-  );
+/**
+ * A position from the game, small and still: its key position from the
+ * precomputed table, or the position at `ply` when one is passed. With
+ * `ready` false it is an empty square of the same size, so a list can paint
+ * its text first and fill the boards in just after (see useRevealCount).
+ */
+export const GameThumb = memo(function GameThumb({ game, size, ply, ready = true }: { game: ImmortalGame; size: number; ply?: number; ready?: boolean }) {
+  const { colors } = useAppTheme();
+  if (!ready) return <View style={{ width: size, height: size, backgroundColor: colors.surfaceSunken }} />;
+  const view = thumbView(game, ply);
+  return <BoardThumb fen={view.fen} orientation={view.orientation} size={size} lastMove={view.lastMove} checkSquare={view.check} />;
 });
+
+/** The position a thumbnail shows: the precomputed key position, or the one at `ply`. */
+function thumbView(game: ImmortalGame, ply: number | undefined) {
+  const toMove = (uci: string | null) => (uci ? { from: uci.slice(0, 2) as Square, to: uci.slice(2, 4) as Square } : null);
+  if (ply === undefined) {
+    const t = immortalThumb(game);
+    return { fen: t.fen, orientation: t.orientation, lastMove: toMove(t.last), check: t.check };
+  }
+  const line = immortalLine(game);
+  const at = Math.max(0, Math.min(line.uci.length, ply));
+  const fen = line.fens[at]!;
+  return { fen, orientation: immortalOrientation(game), lastMove: toMove(at > 0 ? line.uci[at - 1]! : null), check: checkSquareOf(fen) };
+}
 
 /** A legend in the grid: initials, name, tagline, years and how many games. */
 export function LegendCard({ player, wide }: { player: ImmortalPlayer; wide: boolean }) {
@@ -95,9 +101,10 @@ export function LegendCard({ player, wide }: { player: ImmortalPlayer; wide: boo
 
 /**
  * A famous game in a list: its key position, name, players and place. Pass
- * `forPlayer` on a legend's page to show how it went for them.
+ * `forPlayer` on a legend's page to show how it went for them, and
+ * `boardReady` false to hold its board back for a moment.
  */
-export function GameCard({ game, wide, forPlayer }: { game: ImmortalGame; wide: boolean; forPlayer?: string }) {
+export function GameCard({ game, wide, forPlayer, boardReady = true }: { game: ImmortalGame; wide: boolean; forPlayer?: string; boardReady?: boolean }) {
   const t = useAppTheme();
   const c = t.colors;
   const tr = useT();
@@ -110,7 +117,7 @@ export function GameCard({ game, wide, forPlayer }: { game: ImmortalGame; wide: 
           {pressed && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfacePressed }]} />}
           <Row gap="md" align="flex-start">
             <View style={{ borderRadius: 8, overflow: 'hidden' }} pointerEvents="none">
-              <GameThumb game={game} size={thumb} />
+              <GameThumb game={game} size={thumb} ready={boardReady} />
             </View>
             <Stack gap="xs" style={{ flex: 1, minWidth: 0 }}>
               <Text variant="heading" numberOfLines={2}>

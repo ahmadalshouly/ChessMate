@@ -1,0 +1,21 @@
+export const messages = {
+  title: 'Mesajlar',
+  subtitle: 'Oyuncularla sohbetler ve ChessMate ekibinden mesajlar.',
+  new: 'Yeni mesaj',
+  loadFailed: 'Mesajlar yüklenemedi',
+  sendFailed: 'Mesaj gönderilemedi',
+  emptyTitle: 'Henüz mesaj yok',
+  emptyBody: 'Sohbet başlatmak için bir arkadaşının profilini aç ve Mesaj’a dokun.',
+  team: 'ChessMate ekibi',
+  you: 'Sen',
+  unread: {
+    one: '{count} okunmamış mesaj',
+    other: '{count} okunmamış mesaj',
+  },
+  startConversation: '{name} adlı oyuncuya merhaba de.',
+  announcement: 'Duyuru',
+  teamReadOnly: 'ChessMate ekibi sana buradan ulaşır. Buradan yanıt verilemez.',
+  cannotSend: 'Bu oyuncuya mesaj gönderemezsin.',
+  placeholder: 'Bir mesaj yaz',
+  send: 'Gönder',
+};

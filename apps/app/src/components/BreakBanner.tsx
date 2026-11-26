@@ -18,25 +18,27 @@ export function formatCountdown(ms: number): string {
 }
 
 /**
- * The current break (null when play is allowed), ticking once a second while
- * one is running. Nothing ticks without a break: this sits on Home and the play
- * screens, and a clock re-rendering them ten times a second kept phones warm.
+ * The current break (null when play is allowed), counting down once a second. The clock only
+ * runs during a break: this sits on the home and play screens, and a clock ticking there all the
+ * time kept the phone awake for nothing. A break starts as a change in the habits store (server
+ * or device lock), which re-renders through useHabits and starts the countdown.
  */
 export function usePlayLock(): { until: number | null; left: number } {
-  const { habits, deviceLock } = useHabits();
-  const lockAt = Math.max(habits?.lockedUntil ?? 0, deviceLock ?? 0);
+  const h = useHabits();
+  const lockUntil = Math.max(h.habits?.lockedUntil ?? 0, h.deviceLock ?? 0);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!lockAt) return;
-    // Stops on the first tick past the end, so a lock that already ended ticks once.
+    const first = Date.now();
+    setNow(first);
+    if (lockUntil <= first) return;
     const id = setInterval(() => {
       const t = Date.now();
       setNow(t);
-      if (t >= lockAt) clearInterval(id);
+      if (t >= lockUntil) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
-  }, [lockAt]);
-  const until = lockAt > now ? lockAt : null;
+  }, [lockUntil]);
+  const until = lockUntil > now ? lockUntil : null;
   return { until, left: until ? until - now : 0 };
 }
 

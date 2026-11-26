@@ -1,0 +1,15 @@
+export const nav = {
+  play: 'Main',
+  learn: 'Belajar',
+  learnTitle: 'Belajar',
+  social: 'Sosial',
+  tournaments: 'Turnamen',
+  profile: 'Profil',
+  unrated: 'Tanpa rating',
+  signInToSave: 'Masuk untuk menyimpan permainan',
+  openProfile: 'Buka profil',
+  puzzles: 'Teka-teki',
+  watch: 'Tonton',
+  elo: 'ELO',
+  section: 'Navigasi',
+};

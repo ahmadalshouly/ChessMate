@@ -1,0 +1,20 @@
+export const messages = {
+  title: '消息',
+  subtitle: '与棋手的对话，以及来自 ChessMate 团队的消息。',
+  new: '新消息',
+  loadFailed: '无法加载消息',
+  sendFailed: '无法发送消息',
+  emptyTitle: '还没有消息',
+  emptyBody: '打开好友的资料页，点按“消息”即可开始对话。',
+  team: 'ChessMate 团队',
+  you: '你',
+  unread: {
+    other: '{count} 条未读消息',
+  },
+  startConversation: '和 {name} 打个招呼吧。',
+  announcement: '公告',
+  teamReadOnly: 'ChessMate 团队通过这里联系你，此处无法回复。',
+  cannotSend: '你无法给这位棋手发消息。',
+  placeholder: '写消息',
+  send: '发送',
+};

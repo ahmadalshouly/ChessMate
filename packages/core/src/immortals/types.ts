@@ -1,4 +1,4 @@
-import type { GameResult } from '../types';
+import type { Color, GameResult, Square } from '../types';
 
 /** What a game is remembered for; the Immortals page filters by these. */
 export type ImmortalTheme = 'sacrifice' | 'attack' | 'kingHunt' | 'strategy' | 'titleMatch' | 'prodigy';
@@ -56,4 +56,17 @@ export interface ImmortalGame {
   /** The story of the game, a few short paragraphs. */
   story: string[];
   moments: ImmortalMoment[];
+}
+
+/** The position a famous game is shown by in a list, worked out ahead of time (see thumbs.ts). */
+export interface ImmortalThumb {
+  /** Ply of the position: fens[ply] in the game's line. */
+  ply: number;
+  fen: string;
+  /** The move that led to it in UCI, or null at the start. */
+  last: string | null;
+  /** The square of a king in check, to tint it. */
+  check: Square | null;
+  /** The side the board is seen from. */
+  orientation: Color;
 }

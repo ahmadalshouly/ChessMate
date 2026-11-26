@@ -101,10 +101,17 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
     return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfaceSolid, borderRadius: radius }, rimShadow(c)]} />;
   }
 
-  // iOS 26: every glass surface is Apple's native Liquid Glass, content panels included, so cards
-  // refract and light up like the system's own. Long lists pass `flat` to stay on a plain tint,
-  // and the board never sits on glass.
-  if (nativeLiquidGlass && !flat) {
+  // iPhone: content panels (cards) draw as a tint, rim and sheen without a live blur, the way
+  // Android always has. Every live glass or blur view re-samples what is behind it each time
+  // anything on screen changes; a page holds a dozen cards, and running one per card kept the
+  // GPU busy and the phone hot while the app simply sat open. The backdrop behind cards is a soft
+  // gradient, so the blur barely showed there. Chrome (header, tab bar, menus, sheets, controls)
+  // floats over moving content and keeps the real material.
+  const plain = flat || (Platform.OS === 'ios' && kind === 'panel');
+
+  // iOS 26: chrome and controls are Apple's native Liquid Glass, so they refract and light up
+  // like the system's own. The board never sits on glass.
+  if (nativeLiquidGlass && !plain) {
     return (
       <NativeGlass
         pointerEvents="none"
@@ -121,7 +128,7 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
   const sheenColors = dark ? (['rgba(255,255,255,0.07)', 'rgba(255,255,255,0)'] as const) : (['rgba(255,255,255,0.75)', 'rgba(255,255,255,0)'] as const);
   return (
     <>
-      {!flat && Platform.OS === 'ios' && <BlurView intensity={intensity} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+      {!plain && Platform.OS === 'ios' && <BlurView intensity={intensity} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
       {!flat && Platform.OS === 'web' && <View pointerEvents="none" style={[StyleSheet.absoluteFill, webBackdrop(intensity)]} />}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} />
       {sheen && <LinearGradient pointerEvents="none" colors={sheenColors} locations={[0, 1]} style={[styles.sheen, { borderTopLeftRadius: radius, borderTopRightRadius: radius }]} />}
