@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { SERVER_URL } from '@/lib/config';
+import { freshSocialToken } from '@/lib/social/session';
 
 /** HTTP base of the game server, derived from its WebSocket URL (ws://host:8787/ws -> http://host:8787). */
 export const API_BASE = SERVER_URL.replace(/^ws(s?):\/\//, 'http$1://').replace(/\/ws\/?$/, '');
@@ -17,6 +18,8 @@ export interface LeaderboardEntry {
   username: string;
   displayName: string;
   country: string | null;
+  /** Rank among ranked players of the same country; null without a country or while provisional. */
+  countryRank: number | null;
   rating: number;
   provisional: boolean;
   games: number;
@@ -107,8 +110,13 @@ export function useServerStats(intervalMs = 15_000) {
 
 const PAGE = 50;
 
-/** Loads a leaderboard with "load more" paging. Reloads when the query changes. */
-export function useLeaderboard(q: { category: TimeCategory; scope: LeaderboardScope; country?: string | null }, token?: string | null) {
+/**
+ * Loads a leaderboard with "load more" paging. Reloads when the query or the
+ * signed-in account changes. `signedInAs` names the signed-in account (or
+ * null when signed out); each request asks for a fresh token so an expired
+ * access token is refreshed first.
+ */
+export function useLeaderboard(q: { category: TimeCategory; scope: LeaderboardScope; country?: string | null }, signedInAs?: string | null) {
   const [page, setPage] = useState<LeaderboardPage | null>(null);
   const [error, setError] = useState<{ status: number; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,6 +127,8 @@ export function useLeaderboard(q: { category: TimeCategory; scope: LeaderboardSc
       const id = ++req.current;
       setLoading(true);
       try {
+        const token = signedInAs ? await freshSocialToken() : null;
+        if (id !== req.current) return;
         const next = await fetchLeaderboard({ ...q, limit: PAGE, offset }, token);
         if (id !== req.current) return;
         setError(null);
@@ -132,7 +142,7 @@ export function useLeaderboard(q: { category: TimeCategory; scope: LeaderboardSc
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q.category, q.scope, q.country, token],
+    [q.category, q.scope, q.country, signedInAs],
   );
 
   useEffect(() => {

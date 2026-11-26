@@ -1,4 +1,4 @@
-import { friendships, openDb, ratings, users, type DbHandle } from '@chessmate/db';
+import { friendships, openDb, ratings, userProfiles, users, type DbHandle } from '@chessmate/db';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DbLeaderboardSource, LeaderboardError, Leaderboards, MemoryLeaderboardSource } from '../src/leaderboard';
@@ -82,6 +82,39 @@ describe('Leaderboards (Postgres)', () => {
     await expect(boards.get({ category: 'blitz', scope: 'friends' })).rejects.toThrow(/Sign in/);
   });
 
+  it('gives each player their rank within their country', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'global' });
+    expect(p.entries.map((e) => [e.userId, e.country, e.countryRank])).toEqual([
+      ['ana', 'US', 1],
+      ['ben', 'US', 2],
+      ['cai', 'DE', 1],
+      ['dee', 'DE', 2],
+    ]);
+    const de = await boards.get({ category: 'blitz', scope: 'country', country: 'DE', viewerId: 'dee' });
+    expect(de.you).toMatchObject({ userId: 'dee', countryRank: 2 });
+  });
+
+  it('takes country ranks on a friends board from the real country boards', async () => {
+    const p = await boards.get({ category: 'blitz', scope: 'friends', viewerId: 'dee' });
+    // eve is provisional, so she is not on the US board; dee is 2nd in DE, behind cai who is not a friend.
+    expect(p.entries.map((e) => [e.userId, e.countryRank])).toEqual([
+      ['eve', null],
+      ['ana', 1],
+      ['dee', 2],
+    ]);
+    expect(p.you).toMatchObject({ userId: 'dee', countryRank: 2 });
+  });
+
+  it('uses the country and name set on the profile', async () => {
+    await h.db.insert(users).values({ id: 'hal', username: 'hal', country: null });
+    await h.db.insert(ratings).values({ userId: 'hal', category: 'bullet', rating: 1400, rd: 60, volatility: 0.06, games: 9, wins: 3, losses: 3, draws: 3, peak: 1400 });
+    await h.db.insert(userProfiles).values({ userId: 'hal', displayName: 'Hal 9000', country: 'de', avatar: {}, settings: {} });
+    const fresh = new Leaderboards(new DbLeaderboardSource(h.db)); // the shared board caches pages for 15 s
+    const p = await fresh.get({ category: 'bullet', scope: 'global' });
+    expect(p.entries.find((e) => e.userId === 'hal')).toMatchObject({ displayName: 'Hal 9000', country: 'DE', countryRank: 1 });
+    expect((await fresh.get({ category: 'bullet', scope: 'country', viewerId: 'hal' })).country).toBe('DE');
+  });
+
   it('rejects unknown categories and clamps limits', async () => {
     await expect(boards.get({ category: 'nope' as never, scope: 'global' })).rejects.toThrow(/category/);
     expect((await boards.get({ category: 'blitz', scope: 'global', limit: 10_000 })).entries).toHaveLength(4);
@@ -122,6 +155,20 @@ describe('HTTP API', () => {
     const body = await res.json();
     expect(body.you.userId).toBe('dee');
     expect(body.entries).toHaveLength(3);
+  });
+
+  it('accepts account access tokens for the friends board', async () => {
+    const auth = { verifyAccessToken: (t: string) => (t === 'jwt-for-dee' ? { userId: 'dee' } : null) };
+    const signedIn = new ChessServer({ port: 0, leaderboards: boards, auth: auth as never });
+    const url = `http://localhost:${await signedIn.listen()}`;
+    try {
+      const res = await fetch(`${url}/api/leaderboard?category=blitz&scope=friends`, { headers: { authorization: 'Bearer jwt-for-dee' } });
+      expect(res.status).toBe(200);
+      expect((await res.json()).you.userId).toBe('dee');
+      expect((await fetch(`${url}/api/leaderboard?scope=friends`, { headers: { authorization: 'Bearer nope' } })).status).toBe(401);
+    } finally {
+      signedIn.close();
+    }
   });
 
   it('returns 401 for a friends board without sign-in and 400 for bad input', async () => {

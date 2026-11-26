@@ -254,7 +254,8 @@ export class ChessServer {
       stats: () => this.stats(),
       featured: () => this.featuredGame(),
       featuredList: (limit) => this.featuredGames(limit),
-      viewerFor: opts.viewerFor ?? devViewerId,
+      // Signed-in players send their account access token; dev "dev:<id>:<name>" tokens still work outside production.
+      viewerFor: opts.viewerFor ?? ((token) => (token && opts.auth?.verifyAccessToken(token)?.userId) || devViewerId(token)),
     };
     this.moderation = opts.moderation ?? new Moderation(undefined, this.now);
     this.limits = { ...DEFAULT_RATE_LIMITS, ...opts.rateLimits };
