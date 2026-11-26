@@ -1,0 +1,15 @@
+export const nav = {
+  play: '下棋',
+  learn: '学习',
+  learnTitle: '学习',
+  social: '社交',
+  tournaments: '锦标赛',
+  profile: '个人资料',
+  unrated: '无等级分',
+  signInToSave: '登录后即可保存对局',
+  openProfile: '打开个人资料',
+  puzzles: '谜题',
+  watch: '观战',
+  elo: 'ELO',
+  section: '导航',
+};

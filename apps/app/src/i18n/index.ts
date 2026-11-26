@@ -4,23 +4,82 @@ import { hasMessage, resolve, type KeyPath, type Lang, type Params } from './cor
 import { ar } from './locales/ar';
 import { de } from './locales/de';
 import { en } from './locales/en';
+import { es } from './locales/es';
+import { fr } from './locales/fr';
+import { pt } from './locales/pt';
+import { ru } from './locales/ru';
+import { tr } from './locales/tr';
+import { id } from './locales/id';
+import { hi } from './locales/hi';
+import { zh } from './locales/zh';
+import { ja } from './locales/ja';
+import { ko } from './locales/ko';
 import { i18nStore, isRTL } from './store';
 
-export { LANGS, type Lang } from './core';
+export { LANGS, SYSTEM_FONT_LANGS, type Lang } from './core';
 export { deviceLanguage, initI18n, needsRestartFor, refreshSystemLanguage, setLanguagePreference, type LanguagePreference } from './store';
 
-const dicts = { en, ar, de };
+const dicts = { en, ar, de, es, fr, pt, ru, tr, id, hi, zh, ja, ko };
 
 /** Every translation key, e.g. `'settings.language.title'`. */
 export type TKey = KeyPath<typeof en>;
 export type TFunction = (key: TKey, params?: Params) => string;
 
 /** Language names in their own language, for the picker. */
-export const LANGUAGE_NAMES: Record<Lang, string> = { en: 'English', ar: 'العربية', de: 'Deutsch' };
+export const LANGUAGE_NAMES: Record<Lang, string> = {
+  en: 'English',
+  ar: 'العربية',
+  de: 'Deutsch',
+  es: 'Español',
+  fr: 'Français',
+  pt: 'Português',
+  ru: 'Русский',
+  tr: 'Türkçe',
+  id: 'Bahasa Indonesia',
+  hi: 'हिन्दी',
+  zh: '简体中文',
+  ja: '日本語',
+  ko: '한국어',
+};
 
-/** BCP 47 tag for Intl/Date formatting. Arabic keeps Western digits, as ratings and clocks use them. */
+/** Country whose flag stands for each language in the picker. */
+export const LANGUAGE_FLAG_COUNTRY: Record<Lang, string> = {
+  en: 'GB',
+  ar: 'SA',
+  de: 'DE',
+  es: 'ES',
+  fr: 'FR',
+  pt: 'BR',
+  ru: 'RU',
+  tr: 'TR',
+  id: 'ID',
+  hi: 'IN',
+  zh: 'CN',
+  ja: 'JP',
+  ko: 'KR',
+};
+
+/**
+ * BCP 47 tag for Intl/Date formatting. Arabic and Hindi keep Western digits, as ratings
+ * and clocks use them.
+ */
+const LOCALE_TAGS: Record<Lang, string> = {
+  en: 'en-US',
+  ar: 'ar-u-nu-latn',
+  de: 'de-DE',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  pt: 'pt-BR',
+  ru: 'ru-RU',
+  tr: 'tr-TR',
+  id: 'id-ID',
+  hi: 'hi-IN-u-nu-latn',
+  zh: 'zh-CN',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+};
 export function localeTag(lang: Lang = i18nStore.get().lang): string {
-  return lang === 'ar' ? 'ar-u-nu-latn' : lang === 'de' ? 'de-DE' : 'en-US';
+  return LOCALE_TAGS[lang];
 }
 
 /** Translate outside React (module code, callbacks). Prefer `useT()` in components so they re-render. */

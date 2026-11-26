@@ -1,0 +1,20 @@
+export const messages = {
+  title: 'メッセージ',
+  subtitle: 'プレイヤーとの会話とChessMateチームからのメッセージ。',
+  new: '新しいメッセージ',
+  loadFailed: 'メッセージを読み込めませんでした',
+  sendFailed: 'メッセージを送信できませんでした',
+  emptyTitle: 'まだメッセージはありません',
+  emptyBody: 'フレンドのプロフィールを開いて「メッセージ」をタップすると会話を始められます。',
+  team: 'ChessMateチーム',
+  you: 'あなた',
+  unread: {
+    other: '未読メッセージ{count}件',
+  },
+  startConversation: '{name}さんにあいさつしましょう。',
+  announcement: 'お知らせ',
+  teamReadOnly: 'ChessMateチームからの連絡用です。ここでは返信できません。',
+  cannotSend: 'このプレイヤーにはメッセージを送れません。',
+  placeholder: 'メッセージを書く',
+  send: '送信',
+};

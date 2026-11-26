@@ -1,0 +1,16 @@
+export const share = {
+  button: 'Share game',
+  title: 'Share game',
+  copyPgn: 'Copy PGN',
+  copyPgnBody: 'The moves, ready to paste into any chess app',
+  pgnAfterGame: 'Ready to copy once the game ends',
+  noPgnSecretQueen: 'Secret Queen games have no PGN: pawns that moved like queens break it',
+  shareLink: 'Share link',
+  copyLink: 'Copy link',
+  pgnCopied: 'PGN copied',
+  linkCopied: 'Link copied',
+  failed: 'Could not share the game',
+  copyByHand: 'Copying is blocked here. Select the text below and copy it.',
+  message: '{title} on ChessMate',
+  messageLive: 'Watch {title} live on ChessMate',
+};

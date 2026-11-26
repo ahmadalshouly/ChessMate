@@ -1,0 +1,15 @@
+export const nav = {
+  play: 'खेलें',
+  learn: 'सीखें',
+  learnTitle: 'सीखें',
+  social: 'सोशल',
+  tournaments: 'टूर्नामेंट',
+  profile: 'प्रोफ़ाइल',
+  unrated: 'अनरेटेड',
+  signInToSave: 'बाज़ियाँ सेव करने के लिए साइन इन करो',
+  openProfile: 'प्रोफ़ाइल खोलो',
+  puzzles: 'पहेलियाँ',
+  watch: 'देखें',
+  elo: 'ELO',
+  section: 'नेविगेट करें',
+};

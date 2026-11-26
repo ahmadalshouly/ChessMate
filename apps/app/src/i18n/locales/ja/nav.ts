@@ -1,0 +1,15 @@
+export const nav = {
+  play: '対局',
+  learn: '学ぶ',
+  learnTitle: '学ぶ',
+  social: 'ソーシャル',
+  tournaments: 'トーナメント',
+  profile: 'プロフィール',
+  unrated: 'レートなし',
+  signInToSave: 'ログインして対局を保存',
+  openProfile: 'プロフィールを開く',
+  puzzles: 'パズル',
+  watch: '観戦',
+  elo: 'ELO',
+  section: 'ナビゲーション',
+};

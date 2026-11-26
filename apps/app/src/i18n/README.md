@@ -1,6 +1,18 @@
-# Languages (English, Arabic, German)
+# Languages
 
-Every piece of text a player sees comes from a dictionary. English is the source of truth; Arabic and German must have exactly the same keys, which `pnpm typecheck` and `pnpm test` enforce (placeholders included).
+Every piece of text a player sees comes from a dictionary. English is the source of truth; every other language must have exactly the same keys, which `pnpm typecheck` and `pnpm test` enforce (placeholders included).
+
+Shipped: English, Arabic (right-to-left), German, Spanish, French, Portuguese (Brazil), Russian, Turkish, Indonesian, Hindi, Chinese (Simplified), Japanese and Korean.
+
+- The staff console (`admin`, `pushAdmin` namespaces) is translated in English, Arabic and German only. The other languages leave those namespaces out (`PlayerMessages` in `core.ts`) and staff pages fall back to English.
+- Settings and the welcome screen pick a language with `LanguagePicker` (`src/components/i18n/`): a dropdown with each language's flag (`LANGUAGE_FLAG_COUNTRY`) and native name (`LANGUAGE_NAMES`).
+
+## Adding a language
+
+1. Add its code to `Lang` and `LANGS` in `core.ts`, its plural rule to `pluralCategory`, and, for a script Inter doesn't cover, to `SYSTEM_FONT_LANGS`.
+2. Add its name, flag country and locale tag in `index.ts`, and its dictionary to `dicts` there and in `test/i18n.test.ts`.
+3. Copy `locales/en/` to `locales/<code>/`, translate, and type the index as `PlayerMessages<typeof en>` (without `admin.ts` and `pushAdmin.ts`).
+4. Regenerate `countries.ts` with Node's `Intl.DisplayNames`.
 
 ```
 src/i18n/
@@ -10,13 +22,13 @@ src/i18n/
   chess.ts           chess vocabulary built at runtime (pieces, threats, move feedback, board themes)
   serverMessages.ts  maps English server errors to keys
   notifications.ts   maps server notification text to keys
-  locales/{en,ar,de}/<feature>.ts
+  locales/<lang>/<feature>.ts
 ```
 
 ## Adding text to a screen
 
 1. Add the English string to the feature file in `locales/en/` (for example `locales/en/play.ts`). Create a new file for a new feature and add it to `locales/en/index.ts`.
-2. Add the same key to `locales/ar/` and `locales/de/`. The type checker tells you which keys are missing. If you can't translate yet, copy the English: it still type-checks, and it is easy to find later.
+2. Add the same key to every other language folder (`admin`/`pushAdmin` keys only to `ar/` and `de/`). The type checker tells you which keys are missing. If you can't translate yet, copy the English: it still type-checks, and it is easy to find later.
 3. Use it:
 
 ```tsx
@@ -28,10 +40,10 @@ const tr = useT(); // `tr`, because `t` is the theme in most screens
 ```
 
 - **Parameters:** `{name}` in the string, `tr('key', { name })`.
-- **Plurals:** use an object, `{ one: '{count} move', other: '{count} moves' }`, and pass `count`. Arabic can add `zero`, `two`, `few` and `many`; German uses `one` and `other`.
+- **Plurals:** use an object, `{ one: '{count} move', other: '{count} moves' }`, and pass `count`. Arabic can add `zero`, `two`, `few` and `many`; Russian needs `one`, `few`, `many` and `other`; Chinese, Japanese, Korean and Indonesian use only `other`; the rest use `one` and `other`.
 - **Outside components** (callbacks, module helpers): `translate('key')`. It does not re-render on a language change, so prefer `useT()` in components.
 - **Ids from data** (puzzle themes, report reasons): `translateOr(\`puzzleThemes.themes.${id}\`, fallback)`.
-- **Dates and numbers:** `formatDate`, `formatDateTime`, `formatNumber`, `formatAgo` from `@/i18n`. Arabic keeps Western digits (ratings and clocks read better that way).
+- **Dates and numbers:** `formatDate`, `formatDateTime`, `formatNumber`, `formatAgo` from `@/i18n`. Arabic and Hindi keep Western digits (ratings and clocks read better that way).
 - Don't build sentences from pieces (`'You ' + verb`): word order differs. Make one string with parameters.
 - Brand names, move notation (Nf3, e4), FEN and PGN stay as they are.
 
@@ -44,7 +56,7 @@ const tr = useT(); // `tr`, because `t` is the theme in most screens
 
 ## Fonts
 
-Montserrat and Geist have no Arabic letters. In Arabic, `@/ui/primitives` and `<Text variant>` swap Sans and Display for **IBM Plex Sans Arabic** at the same weight and clear letter spacing (tracking breaks Arabic joins). Geist Mono stays for clocks and ratings. Nothing to do per screen: use the `Text` from `@/ui` or `@/ui/primitives` and it works.
+Montserrat and Geist have no Arabic letters. In Arabic, `@/ui/primitives` and `<Text variant>` swap Sans and Display for **IBM Plex Sans Arabic** at the same weight and clear letter spacing (tracking breaks Arabic joins). Geist Mono stays for clocks and ratings. In Russian, Hindi, Chinese, Japanese and Korean (scripts the bundled faces, trimmed to Latin, don't have), Sans, Display and labels use the platform's system font at the same weight, with letter spacing cleared; clocks and ratings keep Inter. Nothing to do per screen: use the `Text` from `@/ui` or `@/ui/primitives` and it works.
 
 ## Not translated (on purpose)
 

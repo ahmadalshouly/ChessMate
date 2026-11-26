@@ -1,0 +1,15 @@
+export const nav = {
+  play: 'Play',
+  learn: 'Learn',
+  learnTitle: 'Learn',
+  social: 'Social',
+  tournaments: 'Tournaments',
+  profile: 'Profile',
+  unrated: 'Unrated',
+  signInToSave: 'Sign in to save games',
+  openProfile: 'Open profile',
+  puzzles: 'Puzzles',
+  watch: 'Watch',
+  elo: 'ELO',
+  section: 'Navigate',
+};

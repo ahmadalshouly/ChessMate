@@ -1,0 +1,16 @@
+export const share = {
+  button: 'बाज़ी शेयर करो',
+  title: 'बाज़ी शेयर करो',
+  copyPgn: 'PGN कॉपी करो',
+  copyPgnBody: 'चालें, किसी भी चेस ऐप में पेस्ट करने के लिए तैयार',
+  pgnAfterGame: 'बाज़ी ख़त्म होते ही कॉपी के लिए तैयार',
+  noPgnSecretQueen: 'Secret Queen बाज़ियों का PGN नहीं होता: वज़ीर की तरह चले प्यादे उसे तोड़ देते हैं',
+  shareLink: 'लिंक शेयर करो',
+  copyLink: 'लिंक कॉपी करो',
+  pgnCopied: 'PGN कॉपी हो गया',
+  linkCopied: 'लिंक कॉपी हो गया',
+  failed: 'बाज़ी शेयर नहीं हो सकी',
+  copyByHand: 'यहाँ कॉपी करना ब्लॉक है। नीचे का टेक्स्ट चुनकर कॉपी करो।',
+  message: 'ChessMate पर {title}',
+  messageLive: 'ChessMate पर {title} लाइव देखो',
+};

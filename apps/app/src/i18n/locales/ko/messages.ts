@@ -1,0 +1,21 @@
+export const messages = {
+  title: 'Messages',
+  subtitle: 'Conversations with players and messages from the ChessMate team.',
+  new: 'New message',
+  loadFailed: 'Could not load messages',
+  sendFailed: 'Could not send the message',
+  emptyTitle: 'No messages yet',
+  emptyBody: 'Open a friend’s profile and tap Message to start a conversation.',
+  team: 'ChessMate team',
+  you: 'You',
+  unread: {
+    one: '{count} unread message',
+    other: '{count} unread messages',
+  },
+  startConversation: 'Say hello to {name}.',
+  announcement: 'Announcement',
+  teamReadOnly: 'This is how the ChessMate team reaches you. Replies are not possible here.',
+  cannotSend: 'You cannot message this player.',
+  placeholder: 'Write a message',
+  send: 'Send',
+};
