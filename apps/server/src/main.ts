@@ -30,6 +30,7 @@ import { LiveChecker, liveCheckConfigFromEnv } from './watch/live';
 import { BroadcastAnalyzer } from './watch/analysis';
 import { BroadcastSync } from './watch/sync';
 import { PlayHabitsService } from './habits/service';
+import { CollectionsService } from './collections/service';
 import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { AdService } from './ads/service';
@@ -229,6 +230,7 @@ async function start() {
     community,
     habits,
     awards,
+    collections: new CollectionsService({ db: db.db }),
     streamers,
     events,
     broadcastSync,

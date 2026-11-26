@@ -32,14 +32,26 @@ export async function getReviewForGame(db: Database, gameId: string): Promise<Ga
 }
 
 /**
- * Saves the review of an online game unless it already has one, and returns
- * the review that is now saved for it (the earlier one when two arrive together).
+ * Saves the review of an online game, and returns the review that is now
+ * saved for it. A game keeps its first review unless a later one searched
+ * deeper (its shallowest search is deeper, as a Deep review's is): that one
+ * replaces it. When two arrive together, the earlier one stays.
  */
 export async function saveReviewForGame(db: Database, gameId: string, review: GameReview): Promise<GameReview> {
   const existing = await getReviewForGame(db, gameId);
-  if (existing) return existing;
-  await saveGameReview(db, gameReviewKey(gameId), review, gameId);
+  if (!existing) {
+    await saveGameReview(db, gameReviewKey(gameId), review, gameId);
+  } else if (deeperReview(review, existing)) {
+    await db.update(gameReviews).set({ review }).where(eq(gameReviews.gameId, gameId));
+  } else {
+    return existing;
+  }
   return (await getReviewForGame(db, gameId)) ?? review;
+}
+
+/** True when `a` searched deeper than `b`: its shallowest search is deeper. */
+export function deeperReview(a: Pick<GameReview, 'depth'>, b: Pick<GameReview, 'depth'>): boolean {
+  return a.depth > b.depth;
 }
 
 /** Accuracy per side of the reviewed games among `gameIds` (games without a review are left out). */

@@ -21,3 +21,4 @@ export * from './repo/campaigns';
 export * from './repo/ads';
 export * from './repo/bots';
 export * from './repo/explorer';
+export * from './repo/collections';

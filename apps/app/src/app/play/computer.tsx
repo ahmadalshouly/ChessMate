@@ -1,5 +1,5 @@
-import { Game, START_FEN, analysisPath, linePgn, type BotBandId, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
-import { Stack, router } from 'expo-router';
+import { Game, START_FEN, analysisPath, fenProblem, linePgn, type BotBandId, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -49,6 +49,19 @@ type ColorChoice = 'w' | 'random' | 'b';
 interface Setup {
   bot: Opponent;
   color: Color;
+  /** Where the game starts: the usual position, or one set up on the analysis board. */
+  startFen: string;
+}
+
+/** The position to start from, when the analysis board sent one the computer can play from; else the usual start. */
+function startFrom(fen?: string): string {
+  if (!fen || fenProblem(fen)) return START_FEN;
+  try {
+    const g = new Game(fen);
+    return g.boardOutcome() ? START_FEN : g.fen;
+  } catch {
+    return START_FEN;
+  }
 }
 
 /** The last opponent and colour picked, so "change opponent" opens where the player left off. */
@@ -63,6 +76,8 @@ const FALLBACK_RATING = 2200;
  */
 export default function PlayComputer() {
   const tr = useT();
+  const params = useLocalSearchParams<{ fen?: string }>();
+  const startFen = useMemo(() => startFrom(params.fen), [params.fen]);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [round, setRound] = useState(0);
   // The player's play limit covers games against the computer too.
@@ -83,7 +98,7 @@ export default function PlayComputer() {
           <BreakBanner />
         </ScrollView>
       ) : (
-        <BotPicker onStart={begin} />
+        <BotPicker startFen={startFen} onStart={begin} />
       )}
     </Screen>
   );
@@ -91,7 +106,7 @@ export default function PlayComputer() {
 
 // ------------------------------------------------------------------ picker
 
-function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
+function BotPicker({ startFen, onStart }: { startFen: string; onStart: (s: Setup) => void }) {
   const t = useTheme();
   const tr = useT();
   const user = useCurrentUser();
@@ -102,11 +117,16 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const featured = useMemo(() => online.bots.filter((b) => b.featured).map(onlineOpponent), [online.bots]);
   const fallback = defaultOpponent(user.status === 'signedIn' ? user.rating : null);
   const [botId, setBotId] = useState(lastChoice?.id ?? fallback.id);
-  const [color, setColor] = useState<ColorChoice>(lastChoice?.color ?? 'w');
+  const custom = startFen !== START_FEN;
+  // From a set-up position the player most likely wants the side to move.
+  const [color, setColor] = useState<ColorChoice>(custom ? (startFen.split(' ')[1] === 'b' ? 'b' : 'w') : (lastChoice?.color ?? 'w'));
   // A remembered online bot that is gone (switched off, or offline now) falls back quietly.
   const bot = all.find((b) => b.id === botId) ?? fallback;
   const [band, setBand] = useState<BotBandId>(bot.band);
   const shown = groups.find((g) => g.band.id === band)?.opponents ?? [];
+  const bandInfo = groups.find((g) => g.band.id === band)?.band;
+  // Known already this session: the strong bots will play weaker on this device.
+  const weakerHere = !localEngine.usable && usesStockfish(bot) && bot.rating > FALLBACK_RATING;
 
   const choose = (b: Opponent) => {
     setBotId(b.id);
@@ -115,7 +135,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const start = () => {
     lastChoice = { id: bot.id, color };
     const c: Color = color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : color;
-    onStart({ bot, color: c });
+    onStart({ bot, color: c, startFen });
   };
   const visit = (url: string) => void Linking.openURL(url).catch(() => {});
 
@@ -126,43 +146,52 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
           {tr('computer.choose')}
         </Label>
         <Label muted>{tr('computer.intro')}</Label>
+        {custom && <Label>{tr('computer.fromPosition')}</Label>}
 
         {featured.length > 0 && (
           <View style={{ gap: 8 }}>
             <Text style={[styles.overline, { color: t.muted }]}>{tr('computer.featured')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.featuredRow}>
+            <View style={styles.botGrid}>
               {featured.map((b) => {
                 const active = b.id === bot.id;
                 return (
-                  <Pressable
-                    key={b.id}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={tr('computer.botA11y', { name: b.name, band: tr(`bots.bands.${b.band}`), rating: b.rating })}
-                    onPress={() => choose(b)}
-                    style={({ pressed }) => [
-                      styles.featuredCard,
-                      { backgroundColor: active ? t.accent : t.surface, borderColor: active ? t.accent : t.glassBorder, opacity: pressed ? 0.85 : 1 },
-                      rimShadow(t, active ? 'bright' : 'soft'),
-                    ]}>
-                    <BotAvatar bot={b} size={64} inverted={active} />
-                    <Text numberOfLines={1} style={[styles.botName, { color: active ? t.onAccent : t.text }]}>
-                      {b.name}
-                    </Text>
-                    {b.tag ? <Badge label={tr(`chessTitle.roleTags.${b.tag}`)} tone={active ? 'outline' : 'solid'} /> : null}
-                    <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>{ratingLine(b)}</Text>
-                  </Pressable>
+                  <View key={b.id} style={styles.botCell}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={tr('computer.botA11y', { name: b.name, band: tr(`bots.bands.${b.band}`), rating: b.rating })}
+                      onPress={() => choose(b)}
+                      style={({ pressed }) => [
+                        styles.featuredCard,
+                        { backgroundColor: active ? t.accent : t.surface, borderColor: active ? t.accent : t.glassBorder, opacity: pressed ? 0.85 : 1 },
+                        rimShadow(t, active ? 'bright' : 'soft'),
+                      ]}>
+                      <BotAvatar bot={b} size={64} inverted={active} />
+                      <Text numberOfLines={1} style={[styles.botName, { color: active ? t.onAccent : t.text }]}>
+                        {b.name}
+                      </Text>
+                      {b.tag ? <Badge label={tr(`chessTitle.roleTags.${b.tag}`)} tone={active ? 'outline' : 'solid'} /> : null}
+                      <Text style={[styles.botMeta, { color: active ? t.onAccent : t.muted }]}>{ratingLine(b)}</Text>
+                    </Pressable>
+                  </View>
                 );
               })}
-            </ScrollView>
+            </View>
           </View>
         )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bands}>
-          {groups.map((g) => (
-            <Chip key={g.band.id} label={`${tr(`bots.bands.${g.band.id}`)} · ${g.band.min}–${g.band.max}`} selected={g.band.id === band} onPress={() => setBand(g.band.id)} />
-          ))}
-        </ScrollView>
+        <View style={{ gap: 6 }}>
+          <View style={styles.bands}>
+            {groups.map((g) => (
+              <Chip key={g.band.id} label={tr(`bots.bands.${g.band.id}`)} selected={g.band.id === band} onPress={() => setBand(g.band.id)} />
+            ))}
+          </View>
+          {bandInfo ? (
+            <Text style={[styles.botMeta, { color: t.muted }]}>
+              {tr('computer.bandRange', { band: tr(`bots.bands.${bandInfo.id}`), min: bandInfo.min, max: bandInfo.max })}
+            </Text>
+          ) : null}
+        </View>
         {online.status === 'offline' && (
           <Text style={[styles.botMeta, { color: t.muted }]}>{tr('computer.onlineBotsOffline')}</Text>
         )}
@@ -218,6 +247,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
           </View>
           {botTagline(bot) ? <Label>{botTagline(bot)}</Label> : null}
           <Label muted>{tr(`bots.styleHint.${bot.style}`)}</Label>
+          {weakerHere ? <Label muted>{tr('computer.deviceFallback', { name: bot.name, rating: FALLBACK_RATING })}</Label> : null}
           {bot.url ? (
             <Pressable accessibilityRole="link" onPress={() => visit(bot.url!)} style={({ pressed }) => [styles.visit, { borderColor: t.glassBorder, opacity: pressed ? 0.7 : 1 }]}>
               <Text style={[styles.botMeta, { color: t.text, fontWeight: '700' }]}>{tr('computer.visit', { host: hostOf(bot.url) })}</Text>
@@ -268,8 +298,8 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const tr = useT();
   const user = useCurrentUser();
   const win = useWindowDimensions();
-  const { bot, color: me } = setup;
-  const game = useRef(new Game());
+  const { bot, color: me, startFen } = setup;
+  const game = useRef(new Game(startFen));
   const [view, setView] = useState<GameView>(() => ({ fen: game.current.fen, history: [] }));
   const [flip, setFlip] = useState(me === 'b');
   const [resigned, setResigned] = useState(false);
@@ -285,15 +315,16 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   /** Incremented to cancel a pending bot move (takeback, new game). */
   const epoch = useRef(0);
   const toast = useToast();
-  /** Said once per game when this device plays the bot without Stockfish. */
+  /** True once this device has played the bot without Stockfish: weaker than its rating, and the card says so. */
+  const [reduced, setReduced] = useState(false);
   const warned = useRef(false);
 
   const sync = () => setView({ fen: game.current.fen, history: game.current.history() });
 
   const snapshot = useMemo(() => new Game(view.fen), [view.fen]);
   const boardOutcome = useMemo<GameOutcome | null>(
-    () => (view.history.length ? Game.fromUciMoves(view.history.map((m) => m.uci)).boardOutcome() : null),
-    [view.history],
+    () => (view.history.length ? Game.fromUciMoves(view.history.map((m) => m.uci), startFen).boardOutcome() : null),
+    [view.history, startFen],
   );
   const outcome: GameOutcome | null = boardOutcome ?? (resigned ? { result: me === 'w' ? '0-1' : '1-0', reason: 'resignation', winner: me === 'w' ? 'b' : 'w' } : null);
   const myTurn = snapshot.turn === me && !outcome;
@@ -316,11 +347,12 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     const id = setTimeout(() => {
       if (token !== epoch.current) return;
       const started = Date.now();
-      botMove(bot, moves, { signal: abort.signal }).then(
+      botMove(bot, moves, { signal: abort.signal, startFen }).then(
         (m) => {
           if (token !== epoch.current) return;
           if (m.source === 'fallback' && !warned.current && bot.rating > FALLBACK_RATING) {
             warned.current = true;
+            setReduced(true);
             toast.show({ title: tr('computer.deviceFallback', { name: bot.name, rating: FALLBACK_RATING }) });
           }
           // Keep a natural rhythm: no bot answers instantly.
@@ -374,11 +406,13 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     const online = onlineBotId(bot);
     if (online && view.history.length >= 2) reportOnlineBotResult(online, outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss');
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
-  const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci) } : null);
+  const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci), initialFen: startFen } : null);
 
   // Takeback: return to the last position where it was the player's turn.
   const plyCount = view.history.length;
-  const canTakeback = plyCount > 0 && !(plyCount === 1 && me === 'b');
+  // When the computer moved first there is no earlier turn of the player's to go back to.
+  const computerFirst = startFen.split(' ')[1] !== me;
+  const canTakeback = plyCount > 0 && !(plyCount === 1 && computerFirst);
   const takeback = () => {
     epoch.current++;
     setThinking(false);
@@ -399,7 +433,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const rematch = () => onRematch({ ...setup, color: me === 'w' ? 'b' : 'w' });
 
   const shownMove = nav.shown > 0 ? view.history[nav.shown - 1] : undefined;
-  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START_FEN);
+  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? startFen);
   const verdict = outcome ? resultText(outcome, me) : null;
   const botColor: Color = me === 'w' ? 'b' : 'w';
   const orientation: Color = flip ? 'b' : 'w';
@@ -412,6 +446,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
         pathname: '/review',
         params: {
           moves: view.history.map((m) => m.uci).join(','),
+          initialFen: startFen,
           orientation: me,
           white: me === 'w' ? user.displayName : bot.name,
           black: me === 'b' ? user.displayName : bot.name,
@@ -424,7 +459,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     <PlayerCard
       player={{ id: `bot_${bot.id}`, name: bot.name, rating: bot.rating, provisional: false }}
       avatar={<BotAvatar bot={bot} size={36} />}
-      subtitle={ratingLine(bot)}
+      subtitle={reduced ? tr('computer.reducedLine', { line: ratingLine(bot), rating: FALLBACK_RATING }) : ratingLine(bot)}
       status={thinking ? tr('computer.thinking') : null}
       active={!outcome && snapshot.turn === botColor}
       pressable={false}
@@ -465,10 +500,11 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const moves = view.history.map((m) => m.uci);
   const share: GameShare = {
     title: vsTitle(whiteName, blackName),
-    link: analysisPath({ moves }),
+    link: analysisPath({ moves, initialFen: startFen }),
     pgn: () =>
       linePgn({
         moves,
+        initialFen: startFen,
         white: whiteName,
         black: blackName,
         whiteRating: me === 'w' ? null : bot.rating,
@@ -615,9 +651,8 @@ const styles = StyleSheet.create({
   tileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: 6 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   overline: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
-  featuredRow: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
-  featuredCard: { width: 150, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'center' },
-  bands: { gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
+  featuredCard: { borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, padding: 12, gap: 6, alignItems: 'center' },
+  bands: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   visit: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   segmented: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3 },
   segment: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },

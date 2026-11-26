@@ -1538,3 +1538,47 @@ export const explorerCache = pgTable(
 );
 
 export type ExplorerMoveRow = typeof explorerMoves.$inferSelect;
+
+// ---------------------------------------------------------------- game collections
+
+/** A player's named list of games. Private until `isPublic` puts it on their profile. */
+export const gameCollections = pgTable(
+  'game_collections',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    isPublic: boolean('is_public').notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('game_collections_user_idx').on(t.userId, t.updatedAt)],
+);
+
+/**
+ * A game in a collection: the link the Share button builds (path and query)
+ * and, when the game allowed it, its PGN. `linkKey` keeps a game in a
+ * collection once (collectionLinkKey in core).
+ */
+export const gameCollectionItems = pgTable(
+  'game_collection_items',
+  {
+    id: id(),
+    collectionId: text('collection_id')
+      .notNull()
+      .references(() => gameCollections.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    linkPath: text('link_path').notNull(),
+    linkQuery: jsonb('link_query').$type<Record<string, string>>(),
+    linkKey: text('link_key').notNull(),
+    pgn: text('pgn'),
+    addedAt: createdAt(),
+  },
+  (t) => [uniqueIndex('game_collection_items_link_uq').on(t.collectionId, t.linkKey), index('game_collection_items_added_idx').on(t.collectionId, t.addedAt)],
+);
+
+export type GameCollectionRow = typeof gameCollections.$inferSelect;
+export type GameCollectionItemRow = typeof gameCollectionItems.$inferSelect;

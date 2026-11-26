@@ -1,5 +1,5 @@
 import { Chess, type Move } from 'chess.js';
-import { judgeMove, type MoveJudgement, type Score } from './evaluation';
+import { judgeMove, type MoveJudgement, type SacrificeFacts, type Score } from './evaluation';
 import { parseUci } from './game';
 import { ALL_SQUARES, PIECE_VALUES, type Color, type PieceType, type Square } from './types';
 
@@ -12,12 +12,9 @@ import { ALL_SQUARES, PIECE_VALUES, type Color, type PieceType, type Square } fr
  */
 
 /** Material the mover offers with a move, from a static exchange estimate. */
-export interface Sacrifice {
+export interface Sacrifice extends SacrificeFacts {
   /** Square of the piece left to be taken. */
   square: Square;
-  piece: PieceType;
-  /** Net material the opponent can win, in pawns (after the mover's capture, if any). */
-  amount: number;
 }
 
 const VALUE: Record<PieceType, number> = { ...PIECE_VALUES, k: 0 };
@@ -92,8 +89,9 @@ function looseBefore(fenBefore: string, mover: Color): Map<Square, number> {
 /**
  * Material the mover wins straight back after the opponent takes on `square`:
  * the best capture elsewhere on the board (captures on `square` itself are
- * already part of the exchange). A "sacrifice" that is recouped at once, such
- * as leaving a knight en prise while attacking the queen, is just a trade.
+ * already part of the exchange). An offer that is recouped at once, such as
+ * leaving a knight en prise while attacking the queen, is a piece that can't
+ * really be taken (see `Sacrifice.trap`).
  */
 function immediateRecoup(chess: Chess, square: Square): number {
   if (!makeCheapestCapture(chess, square)) return 0;
@@ -182,14 +180,24 @@ export function winsMaterialBack(fenBefore: string, uci: string, line: readonly 
   return false;
 }
 
+/** Prefers a real offer to a piece that can't be taken, and both to material lost anyway. */
+const offerRank = (s: SacrificeFacts) => (s.lostAnyway ? 0 : s.trap ? 1 : 2);
+
 /**
  * Finds the material a move really offers: a piece the move puts (or leaves)
- * where the opponent can take it for profit. To count, the offer must be new
- * (a piece that was already loose before the move, and that no move could
- * have saved, is not a sacrifice), worth
- * at least a minor piece net of what the move captured, and not won straight
- * back by an obvious capture after the opponent takes. Returns the biggest
- * such offer, or null when the move is not a sacrifice.
+ * where the opponent can take it for profit, worth at least a minor piece net
+ * of what the move captured. A capture that gives the piece for what it took
+ * and a pawn counts too, when the piece is worth at least two more than what
+ * it took: a rook for a minor piece and a pawn, or a minor piece for two
+ * pawns. Two kinds of offer are marked rather than dropped, for `judgeMove`
+ * to weigh:
+ * - `trap`: the opponent can't really take it, because the mover wins as much
+ *   straight back with an obvious capture (a knight left en prise while the
+ *   move attacks the queen).
+ * - `lostAnyway`: the piece was already loose and no other move would have
+ *   saved it, so leaving it is no choice.
+ * Returns the best offer (a real one first, then a trap, then material lost
+ * anyway; the biggest within each), or null when the move offers nothing.
  */
 export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null {
   const chess = new Chess(fenBefore);
@@ -209,8 +217,11 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
   let best: Sacrifice | null = null;
   for (const [sq, won] of looseMaterial(chess, mover)) {
     const p = chess.get(sq)!;
-    const amount = won - gained;
+    let amount = won - gained;
+    // A piece lost for what it took and a pawn (the exchange for a pawn, a piece for two pawns) is still a sacrifice.
+    if (amount === 1 && sq === played.to && played.captured && VALUE[p.type] - VALUE[played.captured] >= 2) amount = 2;
     if (amount < 2) continue;
+    const offer: Sacrifice = { square: sq, piece: p.type, amount };
     before ??= looseBefore(fenBefore, mover);
     const already = before.get(sq === played.to ? played.from : sq) ?? 0;
     if (amount - already < 2) {
@@ -218,11 +229,13 @@ export function findSacrifice(fenBefore: string, uci: string): Sacrifice | null 
       // move would have kept the material (Fischer's 17...Be6!! leaves the queen
       // that Bc5 attacked); a piece that was lost whatever the mover did is not.
       unavoidable ??= unavoidableLoss(fenBefore, uci);
-      if (amount - unavoidable < 2) continue;
+      if (amount - unavoidable < 2) offer.lostAnyway = true;
     }
-    if (amount - immediateRecoup(chess, sq) < 2) continue;
-    if (!best || amount > best.amount || (amount === best.amount && VALUE[p.type] > VALUE[best.piece])) {
-      best = { square: sq, piece: p.type, amount };
+    if (amount - immediateRecoup(chess, sq) < 2) offer.trap = true;
+    const rank = offerRank(offer);
+    const bestRank = best ? offerRank(best) : -1;
+    if (!best || rank > bestRank || (rank === bestRank && (amount > best.amount || (amount === best.amount && VALUE[p.type] > VALUE[best.piece])))) {
+      best = offer;
     }
   }
   return best;

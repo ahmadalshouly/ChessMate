@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,7 +14,7 @@ import { Logo } from './Logo';
  * Top bar of the app shell. On phones it carries the logo mark and section title;
  * next to the sidebar it is a quiet row with the section title and actions.
  */
-export function AppHeader({ title, withSidebar }: { title: string; withSidebar: boolean }) {
+export function AppHeader({ title, withSidebar, actions }: { title: string; withSidebar: boolean; /** The screen's own buttons, before the usual ones (next to the sidebar only). */ actions?: ReactNode }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -23,7 +24,10 @@ export function AppHeader({ title, withSidebar }: { title: string; withSidebar: 
         <Text style={[styles.wideTitle, { color: t.text }]} accessibilityRole="header">
           {title}
         </Text>
-        <HeaderActions />
+        <View style={styles.actions}>
+          {actions}
+          <HeaderActions />
+        </View>
       </View>
     );
   }
@@ -49,6 +53,7 @@ export function AppHeader({ title, withSidebar }: { title: string; withSidebar: 
 
 const styles = StyleSheet.create({
   bar: { paddingBottom: 8, paddingHorizontal: 16 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   capsule: { height: 46, paddingStart: 8, paddingEnd: 6, justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   left: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 1 },

@@ -258,6 +258,7 @@ export default function OnlinePlay() {
           title: vsTitle(players.w.name, players.b.name),
           live: !over,
           link: over ? gamePath(view.gameId) : watchPath(view.gameId),
+          keepLink: gamePath(view.gameId),
           pgn: over ? () => onlineGamePgn({ ...view, outcome: view.outcome! }) : null,
           pgnNote: secretQueen ? tr('share.noPgnSecretQueen') : undefined,
         };

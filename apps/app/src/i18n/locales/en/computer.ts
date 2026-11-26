@@ -1,6 +1,7 @@
 export const computer = {
   choose: 'Choose your opponent',
   intro: 'Unrated practice, from your first game up to full engine strength (about 3500). Takebacks are always allowed, and the engine review opens when the game ends.',
+  fromPosition: 'You’ll start from the position you set up on the analysis board.',
   playAs: 'Play as',
   liveThreats: 'Live threat feedback',
   liveThreatsBody: 'Highlights pieces you could lose and what the computer is threatening.',
@@ -11,6 +12,8 @@ export const computer = {
   botA11y: '{name}, {band}, about {rating}',
   /** Under a bot's name: its rating and band, e.g. "~1650 · Club". */
   bandRating: '~{rating} · {band}',
+  bandRange: '{band}: rated {min} to {max}',
+  reducedLine: '{line} · about {rating} on this device',
   tileMeta: '~{rating} · {style}',
   /** "~1650 · Club · Aggressive" */
   detailMeta: '{line} · {style}',

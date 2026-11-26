@@ -215,7 +215,7 @@ function broadcastShare(g: EventGameDetail): GameShare {
     title: vsTitle(g.white.name, g.black.name),
     live: g.status === 'live',
     link: broadcastGamePath(g.id),
-    pgn: () => linePgn({ moves: g.moves, initialFen: g.initialFen, white: g.white.name, black: g.black.name, whiteRating: g.white.rating, blackRating: g.black.rating, result: g.result, tags }),
+    pgn: () => linePgn({ moves: g.moves, clocks: g.clocks, initialFen: g.initialFen, white: g.white.name, black: g.black.name, whiteRating: g.white.rating, blackRating: g.black.rating, result: g.result, tags }),
   };
 }
 

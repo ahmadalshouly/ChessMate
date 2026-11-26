@@ -45,6 +45,8 @@ export interface ReviewProgressProps {
   latest?: ReviewedMove;
   /** Whose engine is grading: this device's (default) or the server's. */
   where?: 'device' | 'server' | null;
+  /** Replaces the "Reviewing your game" heading while grading (a Deep review). */
+  title?: string;
 }
 
 /**
@@ -54,7 +56,7 @@ export interface ReviewProgressProps {
  * move ticking in with its badge. Monochrome, like the rest of the app; only
  * the move badges carry colour.
  */
-export function ReviewProgress({ done, total, checking, finished, tookMs, latest, where }: ReviewProgressProps) {
+export function ReviewProgress({ done, total, checking, finished, tookMs, latest, where, title }: ReviewProgressProps) {
   const tr = useT();
   const t = useAppTheme();
   const c = t.colors;
@@ -102,7 +104,7 @@ export function ReviewProgress({ done, total, checking, finished, tookMs, latest
       <View style={styles.head}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text variant="overline" tone="muted">
-            {checking ? tr('review.progressCard.checking') : finished ? tr('review.progressCard.ready') : tr('review.progressCard.title')}
+            {checking ? tr('review.progressCard.checking') : finished ? tr('review.progressCard.ready') : (title ?? tr('review.progressCard.title'))}
           </Text>
           <Text variant="heading" numberOfLines={1}>
             {finished

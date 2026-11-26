@@ -21,6 +21,7 @@ export * from './explorer';
 export * from './archive';
 export * from './pgn';
 export * from './share';
+export * from './collections';
 export * from './profile';
 export * from './puzzle';
 export * from './premove';

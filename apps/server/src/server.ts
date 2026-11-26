@@ -49,6 +49,8 @@ import type { BroadcastAnalyzer } from './watch/analysis';
 import type { BroadcastSync } from './watch/sync';
 import { AwardsService, gameFacts } from './awards/service';
 import { habitsRoutes } from './habits/http';
+import { collectionsRoutes } from './collections/http';
+import { CollectionsService } from './collections/service';
 import { reviewEvalRoutes } from './engine/reviewHttp';
 import { PlayHabitsService } from './habits/service';
 import type { CommunityService } from './community/service';
@@ -143,6 +145,8 @@ export interface ServerOptions {
   /** Play limits and streaks. In memory when not given. */
   habits?: PlayHabitsService;
   awards?: AwardsService;
+  /** Game collections. In memory when not given. */
+  collections?: CollectionsService;
 }
 
 /** How often a seeking player hears about their widening rating window. */
@@ -355,6 +359,7 @@ export class ChessServer {
     );
     this.habits = opts.habits ?? new PlayHabitsService();
     routes.push(habitsRoutes(this.habits, opts.resolveUser ?? devResolveUser, (id, until) => this.startBreak(id, until)));
+    routes.push(collectionsRoutes(opts.collections ?? new CollectionsService(), opts.resolveUser ?? devResolveUser));
     if (opts.community) {
       routes.push(communityRoutes(opts.community, opts.resolveUser ?? devResolveUser));
       opts.community.attach({

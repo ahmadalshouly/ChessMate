@@ -20,6 +20,8 @@ interface PublicGame {
   rated: boolean;
   initialFen: string;
   moves: string[];
+  /** The mover's clock after each move (ms); missing from older servers. */
+  clocks?: (number | null)[];
   result: string;
   endReason: string | null;
   startedAt: number;
@@ -47,6 +49,7 @@ function toArchived(g: PublicGame, side: Color | null): ArchivedGame {
     reason: (g.endReason as GameEndReason | null) ?? null,
     initialFen: g.initialFen,
     moves: g.moves,
+    ...(g.clocks?.some((c) => c != null) ? { clocks: g.clocks } : {}),
     startedAt: g.startedAt,
     endedAt: g.endedAt ?? g.startedAt,
     eco: null,

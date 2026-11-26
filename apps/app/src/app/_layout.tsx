@@ -175,6 +175,8 @@ function RootStack() {
         <Stack.Screen name="fair-play" options={{ title: tr('pages.fairPlay.title') }} />
         <Stack.Screen name="play-limits" options={{ title: tr('limits.title') }} />
         <Stack.Screen name="awards" options={{ title: tr('awards.title') }} />
+        <Stack.Screen name="collections/index" options={{ title: tr('collections.mine') }} />
+        <Stack.Screen name="collections/[id]" options={{ title: tr('collections.title') }} />
         <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
         {/* Staff console: its own layout (side rail on wide screens). */}
         <Stack.Screen name="admin" options={{ headerShown: false, title: tr('admin.title') }} />

@@ -1,6 +1,6 @@
 import { ANALYSIS_LIMITS, Game, buildReview, terminalScore, terminalState, type GameReview, type PositionEval, type Score } from '@chessmate/core';
 
-/** Shallowest search accepted for a position in an uploaded review (the app searches depth 10, and 14 around moves that matter). */
+/** Shallowest search accepted for a position in an uploaded review (the app searches depth 10, and 14 around moves that matter; 18 and 20 for a Deep review). */
 export const MIN_UPLOAD_DEPTH = 8;
 /** Moves of each engine line kept from an upload. */
 const MAX_PV = 12;
@@ -52,6 +52,17 @@ export function reviewFromUpload(
   } catch {
     return { error: 'Invalid evaluations' };
   }
+}
+
+/** The shallowest search depth in an upload (0 when there is none), to tell whether it can be deeper than a saved review before grading it. */
+export function uploadDepth(raw: unknown): number {
+  if (!Array.isArray(raw)) return 0;
+  let min = Infinity;
+  for (const v of raw) {
+    const d = v && typeof v === 'object' ? (v as Record<string, unknown>).depth : undefined;
+    if (typeof d === 'number' && d > 0) min = Math.min(min, d);
+  }
+  return Number.isFinite(min) ? min : 0;
 }
 
 function parseEval(fen: string, v: unknown): PositionEval | null {

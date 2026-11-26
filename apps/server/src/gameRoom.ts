@@ -50,6 +50,8 @@ export class GameRoom {
   readonly frenzy: Record<Color, boolean> = { w: false, b: false };
   /** Server-measured think time per ply (ms), for fair-play timing analysis. */
   readonly thinkMs: number[] = [];
+  /** The mover's clock right after each move (increment included), for [%clk] in the PGN. */
+  readonly moveClocks: number[] = [];
   private lastMoveAt: number;
   /** Rejected move attempts per color (illegal, wrong turn, stale). */
   readonly rejectedMoves: Record<Color, number> = { w: 0, b: 0 };
@@ -147,6 +149,7 @@ export class GameRoom {
       }
     }
     this.thinkMs.push(Math.max(0, now - this.lastMoveAt));
+    this.moveClocks.push(Math.max(0, Math.round(this.clock.remainingMs[color])));
     this.lastMoveAt = now;
     this.drawOfferBy = this.drawOfferBy === color ? this.drawOfferBy : null;
     this.events.onMove(this, played);
@@ -259,6 +262,7 @@ export class GameRoom {
       rated: this.rated,
       initialFen: this.initialFen,
       moves: this.game.uciHistory(),
+      clocks: [...this.moveClocks],
       clock: this.clock,
       serverNow: now,
       drawOfferBy: this.drawOfferBy,

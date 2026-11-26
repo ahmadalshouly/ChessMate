@@ -1,5 +1,5 @@
 export { EngineHost } from './EngineHost';
-export { analyzeLocally, canReviewLocally, LOCAL_REVIEW } from './localReview';
+export { analyzeLocally, canReviewLocally, isDeepReview, LOCAL_REVIEW, REVIEW_PLANS, type ReviewMode } from './localReview';
 export { useGameReview, type GameReviewState } from './useGameReview';
 export { accuracyOf, canUseReview, serverGameId, useReviewAccuracy, type Accuracy } from './savedReviews';
 

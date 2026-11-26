@@ -56,41 +56,50 @@ describe('sacrifice detection is strict', () => {
     expect(findSacrifice('6k1/7P/8/8/8/8/8/6K1 w - - 0 1', 'h7h8q')).toBeNull();
   });
 
-  it('does not count a desperado capture by a piece that was lost anyway', () => {
+  it('marks a desperado capture by a piece that was lost anyway', () => {
     // The knight on a8 is trapped (b6 and c7 are covered) and attacked by the rook; Nxb6 just takes a pawn for it.
-    expect(findSacrifice('Nr4k1/p7/1p6/4b3/8/8/8/6K1 w - - 0 1', 'a8b6')).toBeNull();
+    const fen = 'Nr4k1/p7/1p6/4b3/8/8/8/6K1 w - - 0 1';
+    expect(findSacrifice(fen, 'a8b6')).toMatchObject({ piece: 'n', lostAnyway: true });
+    const j = classifyMove({ fenBefore: fen, uci: 'a8b6', bestMove: 'a8b6', bestScore: { cp: 150 }, playedScore: { cp: 150 } });
+    expect(j.classification).toBe('best');
   });
 
-  it('does not count an offer that is won straight back', () => {
+  it('marks an offer that is won straight back as a piece that cannot be taken', () => {
     // Nf5 uncovers the rook on the queen: gxf5 Rxd7 wins far more than the knight.
-    const fen = '6k1/3q1p2/6p1/8/3N4/8/8/3RK3 w - - 0 1';
-    expect(findSacrifice(fen, 'd4f5')).toBeNull();
-    const j = classifyMove({ fenBefore: fen, uci: 'd4f5', bestMove: 'd4f5', bestScore: { cp: 0 }, playedScore: { cp: 0 } });
-    expect(j.classification).not.toBe('brilliant');
+    expect(findSacrifice('6k1/3q1p2/6p1/8/3N4/8/8/3RK3 w - - 0 1', 'd4f5')).toMatchObject({ square: 'f5', piece: 'n', trap: true });
+  });
+
+  it('counts a rook given for a minor piece and a pawn (the exchange)', () => {
+    // Rxd6 exd6 Bxd6: the rook goes for the knight and a pawn.
+    expect(findSacrifice('6k1/4p3/3n4/8/5B2/8/8/3R2K1 w - - 0 1', 'd1d6')).toEqual({ square: 'd6', piece: 'r', amount: 2 });
+    // Without the bishop it is the rook for the knight.
+    expect(findSacrifice('6k1/4p3/3n4/8/8/8/8/3R2K1 w - - 0 1', 'd1d6')).toEqual({ square: 'd6', piece: 'r', amount: 2 });
+    // A bishop for two pawns: Bxe6 fxe6 Qxe6+.
+    expect(findSacrifice('6k1/5p2/4p3/8/2B5/8/4Q3/6K1 w - - 0 1', 'c4e6')).toEqual({ square: 'e6', piece: 'b', amount: 2 });
   });
 });
 
 describe('classifyMove', () => {
   it('gives !!! to a queen sacrifice that forces mate', () => {
-    const j = classifyMove({ fenBefore: SMOTHER, uci: 'd5g8', bestMove: 'd5g8', bestScore: { mate: 2 }, playedScore: { mate: 2 } });
+    const j = classifyMove({ fenBefore: SMOTHER, uci: 'd5g8', bestMove: 'd5g8', bestScore: { mate: 2 }, playedScore: { mate: 1 } });
     expect(j.classification).toBe('masterpiece');
   });
 
   it('gives !!! to a rook sacrifice that forces mate', () => {
     expect(findSacrifice(ROOK_SAC, 'h3h7')).toMatchObject({ square: 'h7', piece: 'r', amount: 4 });
-    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { mate: 2 }, playedScore: { mate: 2 } });
+    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { mate: 2 }, playedScore: { mate: 1 } });
     expect(j.classification).toBe('masterpiece');
   });
 
   it('gives !!! to a rook sacrifice by Black that forces mate', () => {
     const fen = '3q2k1/5ppp/7r/2b5/8/8/6PP/R6K b - - 0 1'; // ...Rxh2+ Kxh2 Qh4#
-    const j = classifyMove({ fenBefore: fen, uci: 'h6h2', bestMove: 'h6h2', bestScore: { mate: -2 }, playedScore: { mate: -2 } });
+    const j = classifyMove({ fenBefore: fen, uci: 'h6h2', bestMove: 'h6h2', bestScore: { mate: -2 }, playedScore: { mate: -1 } });
     expect(j.classification).toBe('masterpiece');
   });
 
   it('gives !!! even when the search before the sacrifice had not seen the mate yet', () => {
     // Before the move the engine only saw "+7", which on its own counts as winning easily.
-    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { cp: 700 }, playedScore: { mate: 2 } });
+    const j = classifyMove({ fenBefore: ROOK_SAC, uci: 'h3h7', bestMove: 'h3h7', bestScore: { cp: 700 }, playedScore: { mate: 1 } });
     expect(j.classification).toBe('masterpiece');
   });
 
@@ -145,6 +154,53 @@ describe('classifyMove', () => {
     const fen = '5rk1/8/8/5N2/8/3Q4/8/6K1 w - - 0 1';
     expect(findSacrifice(fen, 'd3d4')).toMatchObject({ square: 'f5', piece: 'n', amount: 3 });
     const j = classifyMove({ fenBefore: fen, uci: 'd3d4', bestMove: 'd3d4', bestScore: { cp: 160 }, playedScore: { cp: 160 } });
+    expect(j.classification).toBe('brilliant');
+  });
+
+  it('gives !! for leaving a piece hanging to play the best move', () => {
+    // 15...Nc6!! leaves the rook on a8 to the bishop, but Bxa8 Nxd4 wins the queen; every other move loses.
+    const fen = 'rn2k2r/pB1bbppp/5n2/8/2pQ4/6P1/P3PP1P/1N3RK1 b kq - 0 15';
+    const base = { fenBefore: fen, uci: 'b8c6', bestMove: 'b8c6', secondBestScore: { cp: 393 } } as const;
+    expect(classifyMove({ ...base, bestScore: { cp: -187 }, playedScore: { cp: -207 } }).classification).toBe('brilliant');
+    // When it only keeps the balance it is the best move, not a brilliant one.
+    expect(classifyMove({ ...base, bestScore: { cp: -20 }, playedScore: { cp: -20 } }).classification).not.toBe('brilliant');
+  });
+
+  it('gives !! for a piece offered that cannot be taken, once it gives the advantage', () => {
+    // Nf5 uncovers the rook on the queen: gxf5 Rxd7.
+    const fen = '6k1/3q1p2/6p1/8/3N4/8/8/3RK3 w - - 0 1';
+    const base = { fenBefore: fen, uci: 'd4f5', bestMove: 'd4f5' } as const;
+    expect(classifyMove({ ...base, bestScore: { cp: 150 }, playedScore: { cp: 150 } }).classification).toBe('brilliant');
+    // Its material always "comes back", so at an equal score it is not special.
+    const line = ['g6f5', 'd1d7'];
+    expect(classifyMove({ ...base, bestScore: { cp: 0 }, playedScore: { cp: 0 }, playedLine: line }).classification).toBe('best');
+  });
+
+  it('gives !! for an exchange sacrifice that gives the advantage', () => {
+    const j = classifyMove({ fenBefore: '6k1/4p3/3n4/8/5B2/8/8/3R2K1 w - - 0 1', uci: 'd1d6', bestMove: 'd1d6', bestScore: { cp: 160 }, playedScore: { cp: 150 } });
+    expect(j.classification).toBe('brilliant');
+  });
+
+  it('gives !! for a mate that lets go a piece which was lost anyway', () => {
+    // Rd2+! Kxe4 Nd6#: the king takes the knight it was attacking, and walks into mate.
+    const fen = '2r5/8/8/pNp1r2p/4NppP/1P1k4/2R2K2/8 w - - 0 43';
+    expect(findSacrifice(fen, 'c2d2')).toMatchObject({ square: 'e4', piece: 'n', lostAnyway: true });
+    const base = { fenBefore: fen, uci: 'c2d2', bestMove: 'c2d2' } as const;
+    expect(classifyMove({ ...base, bestScore: { mate: 2 }, playedScore: { mate: 1 } }).classification).toBe('brilliant');
+    // Without a mate, giving up what was lost anyway is no sacrifice.
+    expect(classifyMove({ ...base, bestScore: { cp: 300 }, playedScore: { cp: 300 } }).classification).toBe('best');
+  });
+
+  it('gives no sacrifice badge for turning a mate in one into a longer one', () => {
+    // Qg8# was there; Qf6+ gives up the bishop and mates a move later.
+    const fen = '5B1k/5Q1B/7p/1ppp4/3P4/4P1P1/5P1K/4R3 w - - 0 30';
+    const j = classifyMove({ fenBefore: fen, uci: 'f7f6', bestMove: 'f7g8', bestScore: { mate: 1 }, secondBestScore: { mate: 1 }, playedScore: { mate: 1 } });
+    expect(j.classification).toBe('best');
+  });
+
+  it('gives !! to a sacrifice in a won position when it is the only easy win', () => {
+    // The engine's second choice is only +1: the sacrifice is a combination, not one of many winning moves.
+    const j = classifyMove({ fenBefore: KNIGHT_OFFER, uci: 'd4f5', bestMove: 'd4f5', bestScore: { cp: 700 }, secondBestScore: { cp: 100 }, playedScore: { cp: 700 } });
     expect(j.classification).toBe('brilliant');
   });
 

@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,11 +19,16 @@ import { Avatar } from './Avatar';
 import { Glass, floatShadow } from './Glass';
 import { SIGN_IN_HREF } from './HeaderActions';
 import { Logo } from './Logo';
-import { NavItem } from './NavItem';
+import { NavItem, NavLink } from './NavItem';
 
-/** Left navigation for wide screens (desktop web, tablets in landscape): a flush glass rail. */
-export function Sidebar() {
+/**
+ * Left navigation for wide screens (desktop web, tablets in landscape): a flush glass rail.
+ * `standalone` is for screens outside the tab navigator (see SidebarFrame): sections become
+ * plain links, and the screen's own entry in the lower list shows as the current one.
+ */
+export function Sidebar({ standalone = false }: { standalone?: boolean }) {
   const t = useTheme();
+  const path = usePathname();
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const tr = useT();
@@ -39,7 +44,7 @@ export function Sidebar() {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View accessibilityRole="tablist" style={styles.nav}>
           {TABS.map((tab, i) => (
-            <NavItem key={tab.name} tab={tab} variant="side" index={i} />
+            standalone ? <NavLink key={tab.name} tab={tab} index={i} /> : <NavItem key={tab.name} tab={tab} variant="side" index={i} />
           ))}
         </View>
         {/* Everything else from the phone's More menu, minus what is already above. */}
@@ -49,18 +54,26 @@ export function Sidebar() {
           return (
             <View key={section.title} style={{ marginTop: 16 }}>
               <Text style={[styles.section, { color: t.textTertiary }]}>{tr(section.title)}</Text>
-              {items.map((it) => (
+              {items.map((it) => {
+                const current = typeof it.href === 'string' && it.href === path;
+                return (
                 <Pressable
                   key={it.key}
                   accessibilityRole="link"
+                  accessibilityState={{ selected: current }}
                   disabled={it.soon}
                   onPress={() => it.href && router.navigate(it.href)}
-                  style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [styles.extra, hovered && !it.soon && { backgroundColor: t.surfaceSunken }, it.soon && { opacity: 0.5 }]}>
-                  <Ionicons name={it.icon} size={16} color={t.muted} />
-                  <Text style={[styles.extraText, { color: t.muted }]}>{tr(it.label)}</Text>
+                  style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
+                    styles.extra,
+                    current ? { backgroundColor: t.glassSelected } : hovered && !it.soon && { backgroundColor: t.surfaceSunken },
+                    it.soon && { opacity: 0.5 },
+                  ]}>
+                  <Ionicons name={it.icon} size={16} color={current ? t.text : t.muted} />
+                  <Text style={[styles.extraText, { color: current ? t.text : t.muted }]}>{tr(it.label)}</Text>
                   {it.soon && <Text style={[styles.soon, { color: t.textTertiary }]}>{tr('more.soon')}</Text>}
                 </Pressable>
-              ))}
+                );
+              })}
             </View>
           );
         })}

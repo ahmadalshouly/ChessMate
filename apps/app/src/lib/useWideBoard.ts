@@ -12,16 +12,30 @@ export const WIDE_BOARD_MIN = 900;
  *
  * - `panel`: width of the side panel on wide screens.
  * - `reserve`: height kept free besides the board (header, controls under it).
- * - `sidebar`: true on screens inside the tab shell, which shows a ~250px
- *   navigation sidebar on wide screens.
+ * - `sidebar`: true on screens inside the tab shell (or a SidebarFrame), which
+ *   shows a ~250px navigation sidebar on wide screens.
+ * - `gutter`: room left beside the board on phones.
  */
-export function useWideBoard({ panel = 400, reserve = 150, phoneReserve = 300, sidebar = false }: { panel?: number; reserve?: number; phoneReserve?: number; sidebar?: boolean } = {}) {
+export function useWideBoard({
+  panel = 400,
+  reserve = 150,
+  phoneReserve = 300,
+  sidebar = false,
+  gutter = 24,
+}: {
+  panel?: number;
+  reserve?: number;
+  phoneReserve?: number;
+  sidebar?: boolean;
+  /** Room left beside the board on phones. */
+  gutter?: number;
+} = {}) {
   const { width, height } = useWindowDimensions();
   const content = sidebar && width >= 960 ? width - 250 : width;
   const wide = content >= WIDE_BOARD_MIN;
   // The panel gives way on narrower windows (down to 320px) so the board gets the room.
   const side = wide ? Math.max(320, Math.min(panel, Math.round(content * 0.3))) : panel;
-  const raw = wide ? Math.min(height - reserve, content - side - 56, 1200) : Math.min(content - 24, height - phoneReserve, 640);
+  const raw = wide ? Math.min(height - reserve, content - side - 56, 1200) : Math.min(content - gutter, height - phoneReserve, 640);
   return { wide, size: Math.max(240, Math.floor(raw / 8) * 8), panel: side };
 }
 
