@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { useSettingsSync } from '@/features/account/settingsStore';
 import { REVIEW_PLANS } from '@/features/engine';
 import { downloadFullEngine, removeFullEngine, useFullEngine } from '@/features/engine/fullEngine';
-import { setReviewSettings, useReviewSettings } from '@/features/engine/reviewSettings';
+import { deepReviewSupported, setReviewSettings, useReviewSettings } from '@/features/engine/reviewSettings';
 import { BoardCustomizer } from '@/features/board/BoardCustomizer';
 import { CookiePreferences } from '@/features/privacy/CookiePreferences';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
@@ -239,8 +239,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 const depthRange = (mode: keyof typeof REVIEW_PLANS) => `${REVIEW_PLANS[mode].quick.depth}–${REVIEW_PLANS[mode].deep.depth}`;
 
 /**
- * How deep game reviews search, and (web on computers) which Stockfish runs:
- * kept on the device, not the account, since a phone and a computer differ.
+ * How deep game reviews search, and which Stockfish runs: kept on the device,
+ * not the account, since a phone and a computer differ. Both are for the web
+ * on computers only, so phones don't show this section.
  */
 function ReviewSection() {
   const t = useTheme();
@@ -253,6 +254,7 @@ function ReviewSection() {
     void downloadFullEngine().then((ok) => ok && setReviewSettings({ engine: 'full' }));
   };
   const offerFull = full.state !== 'unavailable' && full.state !== 'checking';
+  if (!deepReviewSupported()) return null;
   return (
     <Section title={tr(offerFull ? 'settings.review.titleEngine' : 'settings.review.title')}>
       <Text style={[styles.label, { color: t.muted }]}>{tr('settings.review.depth')}</Text>

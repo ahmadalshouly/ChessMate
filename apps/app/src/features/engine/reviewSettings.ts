@@ -59,6 +59,19 @@ export function setReviewSettings(patch: Partial<ReviewSettings>) {
   }
 }
 
+/**
+ * Deep reviews are for computers only: on a phone (the app, or a browser on a
+ * touch screen) a review takes several minutes, drains the battery and heats
+ * the phone, so phones always get the standard review.
+ */
+export function deepReviewSupported(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  return !window.matchMedia?.('(pointer: coarse)').matches;
+}
+
+/** How deep reviews search on this device: the setting, on a computer; standard on a phone. */
+export const reviewModeHere = (s: ReviewSettings): ReviewMode => (deepReviewSupported() ? s.mode : 'standard');
+
 /** The current choices, outside React. */
 export const reviewSettings = (): ReviewSettings => current;
 

@@ -35,7 +35,7 @@ import { moveFeedback } from '@/lib/feedback';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useAuth } from '@/lib/auth';
 import { REVIEW_PLANS, analyzeLocally, canReviewLocally, isDeepReview, serverGameId, useGameReview, type ReviewMode } from '@/features/engine';
-import { useReviewSettings } from '@/features/engine/reviewSettings';
+import { deepReviewSupported, reviewModeHere, useReviewSettings } from '@/features/engine/reviewSettings';
 import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 import { vsTitle } from '@/features/share/gameShares';
@@ -71,8 +71,8 @@ export default function Review() {
   // Play: steps through the game a move at a time, pieces sliding as if it were being played.
   const [autoplay, setAutoplay] = useState(false);
   const [flip, setFlip] = useState(params.orientation === 'b');
-  // How deep to search: the setting, or Deep once asked for on this game.
-  const defaultMode = useReviewSettings().mode;
+  // How deep to search: the setting, or Deep once asked for on this game (computers only, see deepReviewSupported).
+  const defaultMode = reviewModeHere(useReviewSettings());
   const [deepAsked, setDeepAsked] = useState(false);
   const mode: ReviewMode = deepAsked ? 'deep' : defaultMode;
   const request = useMemo(
@@ -95,7 +95,7 @@ export default function Review() {
   const final = keepShallow || graded.final;
   const moves = review?.moves ?? [];
   const deepRange = `${REVIEW_PLANS.deep.quick.depth}–${REVIEW_PLANS.deep.deep.depth}`;
-  const canDeepen = final && !keepShallow && !!review && mode !== 'deep' && !isDeepReview(review) && canReviewLocally();
+  const canDeepen = final && !keepShallow && !!review && mode !== 'deep' && !isDeepReview(review) && canReviewLocally() && deepReviewSupported();
 
   // The reviewing card stays a moment after grading ends, to show it is done
   // (not for a review that opens finished, from this device or saved).
