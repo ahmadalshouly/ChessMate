@@ -1,5 +1,5 @@
-import { Game, START_FEN, analysisPath, linePgn, type BotBandId, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
-import { Stack, router } from 'expo-router';
+import { Game, START_FEN, analysisPath, fenProblem, linePgn, type BotBandId, type Color, type GameOutcome, type PlayedMove } from '@chessmate/core';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -49,6 +49,19 @@ type ColorChoice = 'w' | 'random' | 'b';
 interface Setup {
   bot: Opponent;
   color: Color;
+  /** Where the game starts: the usual position, or one set up on the analysis board. */
+  startFen: string;
+}
+
+/** The position to start from, when the analysis board sent one the computer can play from; else the usual start. */
+function startFrom(fen?: string): string {
+  if (!fen || fenProblem(fen)) return START_FEN;
+  try {
+    const g = new Game(fen);
+    return g.boardOutcome() ? START_FEN : g.fen;
+  } catch {
+    return START_FEN;
+  }
 }
 
 /** The last opponent and colour picked, so "change opponent" opens where the player left off. */
@@ -63,6 +76,8 @@ const FALLBACK_RATING = 2200;
  */
 export default function PlayComputer() {
   const tr = useT();
+  const params = useLocalSearchParams<{ fen?: string }>();
+  const startFen = useMemo(() => startFrom(params.fen), [params.fen]);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [round, setRound] = useState(0);
   // The player's play limit covers games against the computer too.
@@ -83,7 +98,7 @@ export default function PlayComputer() {
           <BreakBanner />
         </ScrollView>
       ) : (
-        <BotPicker onStart={begin} />
+        <BotPicker startFen={startFen} onStart={begin} />
       )}
     </Screen>
   );
@@ -91,7 +106,7 @@ export default function PlayComputer() {
 
 // ------------------------------------------------------------------ picker
 
-function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
+function BotPicker({ startFen, onStart }: { startFen: string; onStart: (s: Setup) => void }) {
   const t = useTheme();
   const tr = useT();
   const user = useCurrentUser();
@@ -102,7 +117,9 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const featured = useMemo(() => online.bots.filter((b) => b.featured).map(onlineOpponent), [online.bots]);
   const fallback = defaultOpponent(user.status === 'signedIn' ? user.rating : null);
   const [botId, setBotId] = useState(lastChoice?.id ?? fallback.id);
-  const [color, setColor] = useState<ColorChoice>(lastChoice?.color ?? 'w');
+  const custom = startFen !== START_FEN;
+  // From a set-up position the player most likely wants the side to move.
+  const [color, setColor] = useState<ColorChoice>(custom ? (startFen.split(' ')[1] === 'b' ? 'b' : 'w') : (lastChoice?.color ?? 'w'));
   // A remembered online bot that is gone (switched off, or offline now) falls back quietly.
   const bot = all.find((b) => b.id === botId) ?? fallback;
   const [band, setBand] = useState<BotBandId>(bot.band);
@@ -118,7 +135,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
   const start = () => {
     lastChoice = { id: bot.id, color };
     const c: Color = color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : color;
-    onStart({ bot, color: c });
+    onStart({ bot, color: c, startFen });
   };
   const visit = (url: string) => void Linking.openURL(url).catch(() => {});
 
@@ -129,6 +146,7 @@ function BotPicker({ onStart }: { onStart: (s: Setup) => void }) {
           {tr('computer.choose')}
         </Label>
         <Label muted>{tr('computer.intro')}</Label>
+        {custom && <Label>{tr('computer.fromPosition')}</Label>}
 
         {featured.length > 0 && (
           <View style={{ gap: 8 }}>
@@ -280,8 +298,8 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const tr = useT();
   const user = useCurrentUser();
   const win = useWindowDimensions();
-  const { bot, color: me } = setup;
-  const game = useRef(new Game());
+  const { bot, color: me, startFen } = setup;
+  const game = useRef(new Game(startFen));
   const [view, setView] = useState<GameView>(() => ({ fen: game.current.fen, history: [] }));
   const [flip, setFlip] = useState(me === 'b');
   const [resigned, setResigned] = useState(false);
@@ -305,8 +323,8 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
 
   const snapshot = useMemo(() => new Game(view.fen), [view.fen]);
   const boardOutcome = useMemo<GameOutcome | null>(
-    () => (view.history.length ? Game.fromUciMoves(view.history.map((m) => m.uci)).boardOutcome() : null),
-    [view.history],
+    () => (view.history.length ? Game.fromUciMoves(view.history.map((m) => m.uci), startFen).boardOutcome() : null),
+    [view.history, startFen],
   );
   const outcome: GameOutcome | null = boardOutcome ?? (resigned ? { result: me === 'w' ? '0-1' : '1-0', reason: 'resignation', winner: me === 'w' ? 'b' : 'w' } : null);
   const myTurn = snapshot.turn === me && !outcome;
@@ -329,7 +347,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     const id = setTimeout(() => {
       if (token !== epoch.current) return;
       const started = Date.now();
-      botMove(bot, moves, { signal: abort.signal }).then(
+      botMove(bot, moves, { signal: abort.signal, startFen }).then(
         (m) => {
           if (token !== epoch.current) return;
           if (m.source === 'fallback' && !warned.current && bot.rating > FALLBACK_RATING) {
@@ -388,11 +406,13 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
     const online = onlineBotId(bot);
     if (online && view.history.length >= 2) reportOnlineBotResult(online, outcome.winner === null ? 'draw' : outcome.winner === me ? 'win' : 'loss');
   }, [outcome?.reason]); // eslint-disable-line react-hooks/exhaustive-deps
-  const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci) } : null);
+  const reviewEntry = useReviewEntry(outcome ? { moves: view.history.map((m) => m.uci), initialFen: startFen } : null);
 
   // Takeback: return to the last position where it was the player's turn.
   const plyCount = view.history.length;
-  const canTakeback = plyCount > 0 && !(plyCount === 1 && me === 'b');
+  // When the computer moved first there is no earlier turn of the player's to go back to.
+  const computerFirst = startFen.split(' ')[1] !== me;
+  const canTakeback = plyCount > 0 && !(plyCount === 1 && computerFirst);
   const takeback = () => {
     epoch.current++;
     setThinking(false);
@@ -413,7 +433,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const rematch = () => onRematch({ ...setup, color: me === 'w' ? 'b' : 'w' });
 
   const shownMove = nav.shown > 0 ? view.history[nav.shown - 1] : undefined;
-  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? START_FEN);
+  const boardFen = nav.live ? view.fen : (shownMove?.fenAfter ?? startFen);
   const verdict = outcome ? resultText(outcome, me) : null;
   const botColor: Color = me === 'w' ? 'b' : 'w';
   const orientation: Color = flip ? 'b' : 'w';
@@ -426,6 +446,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
         pathname: '/review',
         params: {
           moves: view.history.map((m) => m.uci).join(','),
+          initialFen: startFen,
           orientation: me,
           white: me === 'w' ? user.displayName : bot.name,
           black: me === 'b' ? user.displayName : bot.name,
@@ -479,10 +500,11 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const moves = view.history.map((m) => m.uci);
   const share: GameShare = {
     title: vsTitle(whiteName, blackName),
-    link: analysisPath({ moves }),
+    link: analysisPath({ moves, initialFen: startFen }),
     pgn: () =>
       linePgn({
         moves,
+        initialFen: startFen,
         white: whiteName,
         black: blackName,
         whiteRating: me === 'w' ? null : bot.rating,

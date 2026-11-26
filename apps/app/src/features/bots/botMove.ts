@@ -21,29 +21,31 @@ export interface BotMoveResult {
 const yieldToPaint = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 /**
- * Picks a computer opponent's move for the game so far (UCI moves from the
- * starting position). Everything runs on the player's device, so games
- * against the computer work offline and cost the server nothing.
+ * Picks a computer opponent's move for the game so far (UCI moves from
+ * `startFen`, the usual start unless the game began from a set-up position).
+ * Everything runs on the player's device, so games against the computer work
+ * offline and cost the server nothing.
  *
  * Rejects with AbortError when `signal` fires (a takeback, or the game was left).
  */
-export async function botMove(bot: Pick<BotPersona, 'rating' | 'style'>, moves: string[], o: { signal?: AbortSignal } = {}): Promise<BotMoveResult> {
-  const book = bookMove(bot, { moves });
+export async function botMove(bot: Pick<BotPersona, 'rating' | 'style'>, moves: string[], o: { signal?: AbortSignal; startFen?: string } = {}): Promise<BotMoveResult> {
+  const startFen = o.startFen ?? START_FEN;
+  const book = bookMove(bot, { moves, startFen });
   if (book) return { uci: book, source: 'book' };
 
   const plan = botEngine(bot.rating);
   if (plan.kind === 'stockfish' && localEngine.usable) {
     try {
-      const r = await localEngine.search(START_FEN, {
+      const r = await localEngine.search(startFen, {
         depth: plan.depth,
         multipv: 1,
         movetimeMs: plan.movetimeMs,
         ...(plan.elo ? { elo: plan.elo } : {}),
         urgent: true,
-        history: { start: START_FEN, moves },
+        history: { start: startFen, moves },
         signal: o.signal,
       });
-      if (r.bestMove && Game.fromUciMoves(moves).isLegal(r.bestMove)) return { uci: r.bestMove, source: 'stockfish' };
+      if (r.bestMove && Game.fromUciMoves(moves, startFen).isLegal(r.bestMove)) return { uci: r.bestMove, source: 'stockfish' };
     } catch (e) {
       if (e instanceof AbortError) throw e;
       // The engine failed on this device: the small search takes over below.
@@ -53,7 +55,7 @@ export async function botMove(bot: Pick<BotPersona, 'rating' | 'style'>, moves: 
   if (o.signal?.aborted) throw new AbortError();
   await yieldToPaint();
   if (o.signal?.aborted) throw new AbortError();
-  return { uci: chooseBotMove(bot, { moves }).uci, source: plan.kind === 'core' ? 'core' : 'fallback' };
+  return { uci: chooseBotMove(bot, { moves, startFen }).uci, source: plan.kind === 'core' ? 'core' : 'fallback' };
 }
 
 /** True when this bot is played by Stockfish, so the screen can start the engine early. */

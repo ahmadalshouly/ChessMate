@@ -1,6 +1,7 @@
 export const computer = {
   choose: 'Choose your opponent',
   intro: 'Unrated practice, from your first game up to full engine strength (about 3500). Takebacks are always allowed, and the engine review opens when the game ends.',
+  fromPosition: 'You’ll start from the position you set up on the analysis board.',
   playAs: 'Play as',
   liveThreats: 'Live threat feedback',
   liveThreatsBody: 'Highlights pieces you could lose and what the computer is threatening.',
