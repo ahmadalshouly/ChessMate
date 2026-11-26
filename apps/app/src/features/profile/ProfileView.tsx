@@ -20,6 +20,7 @@ import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { ProfileActions } from './ProfileActions';
 import { HeadToHeadCard } from '@/components/HeadToHead';
 import { AwardsSummary } from '@/features/awards/AwardsSummary';
+import { ProfileCollections } from '@/features/collections/ProfileCollections';
 import { ProfileStreamer } from '@/features/watch/ProfileStreamer';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAccuracy } from '@/features/engine/useReviewEntry';
@@ -157,6 +158,8 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
       <ProfileStreamer userId={profile.id} />
 
       <AwardsSummary username={profile.username} isMe={profile.isMe} />
+
+      <ProfileCollections userId={profile.id} username={profile.username} name={profile.displayName} isMe={profile.isMe} />
 
       <Stack gap="sm">
         <SectionHeader title={tr('profile.ratings')} />

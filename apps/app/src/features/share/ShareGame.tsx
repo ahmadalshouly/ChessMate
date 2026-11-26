@@ -8,6 +8,8 @@ import { Glass, floatShadow } from '@/components/shell/Glass';
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { appLink, shareLink, sharesWithSheet } from '@/lib/links';
+import { CollectionPicker } from '@/features/collections/CollectionPicker';
+import type { CollectableGame } from '@/lib/collectionsApi';
 import { copyText } from '@/lib/share';
 import { Button, ListGroup, ListRow, Modal, Text, fonts, useAppTheme, useToast } from '@/ui';
 import { PressableScale } from '@/ui/components/liquid';
@@ -24,6 +26,8 @@ export interface GameShare {
   pgn: (() => string) | null;
   /** Why there is no PGN, when it is not "until the game ends". */
   pgnNote?: string;
+  /** Where a copy kept in a collection opens, when not `link` (a live game is kept as its finished page). */
+  keepLink?: AppPath;
 }
 
 /**
@@ -57,8 +61,11 @@ export function ShareGameSheet({ visible, onClose, share }: { visible: boolean; 
   const c = useAppTheme().colors;
   // Shown when the browser blocks the clipboard (a page on plain http): the text to copy by hand.
   const [byHand, setByHand] = useState<string | null>(null);
+  // "Add to collection" swaps the sheet's content rather than stacking a second sheet on it.
+  const [collecting, setCollecting] = useState<CollectableGame | null>(null);
   const close = () => {
     setByHand(null);
+    setCollecting(null);
     onClose();
   };
   // Built only while open: the header re-renders with every clock tick.
@@ -92,6 +99,30 @@ export function ShareGameSheet({ visible, onClose, share }: { visible: boolean; 
     else if (r === 'failed') setByHand(url);
   };
 
+  const collect = () => {
+    let pgn: string | null = null;
+    try {
+      pgn = share.pgn ? share.pgn() : null;
+    } catch {
+      // Kept without its PGN: the link still opens the game.
+    }
+    setCollecting({ title: share.title, link: share.keepLink ?? share.link, pgn });
+  };
+
+  if (collecting) {
+    return (
+      <Modal
+        visible={visible}
+        onClose={close}
+        title={tr('collections.addTitle')}
+        description={share.title}
+        presentation="sheet"
+        actions={<Button variant="ghost" title={tr('common.back')} onPress={() => setCollecting(null)} />}>
+        <CollectionPicker game={collecting} onDone={close} />
+      </Modal>
+    );
+  }
+
   return (
     <Modal visible={visible} onClose={close} title={tr('share.title')} presentation="sheet" actions={<Button variant="ghost" title={tr('common.close')} onPress={close} />}>
       <ListGroup>
@@ -108,6 +139,7 @@ export function ShareGameSheet({ visible, onClose, share }: { visible: boolean; 
           subtitle={url || undefined}
           onPress={() => void sendLink()}
         />
+        <ListRow left={<RowIcon name="folder-star-outline" />} title={tr('collections.addTitle')} subtitle={tr('collections.addBody')} onPress={collect} chevron />
       </ListGroup>
       {byHand !== null && (
         <View style={{ gap: 8 }}>
