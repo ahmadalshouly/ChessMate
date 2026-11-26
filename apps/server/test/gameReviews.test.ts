@@ -99,9 +99,12 @@ describe('saved game reviews', () => {
     const first = await call('POST', '/api/games/g1/review', 'u_white', { evals: evalsFor(moves), accuracy: { w: 100, b: 100 } });
     expect(first.status).toBe(200);
     expect(first.body.review!.moves.map((m) => m.uci)).toEqual(moves);
-    // A second upload does not replace it.
-    const second = await call('POST', '/api/games/g1/review', 'u_black', { evals: evalsFor(moves, 20) });
-    expect(second.body.review!.depth).toBe(first.body.review!.depth);
+    // A second upload as deep (or shallower) does not replace it.
+    const second = await call('POST', '/api/games/g1/review', 'u_black', { evals: evalsFor(moves, 12) });
+    expect(second.body.review).toEqual(first.body.review);
+    const shallower = evalsFor(moves, 20);
+    shallower[2] = { ...shallower[2]!, depth: 10 };
+    expect((await call('POST', '/api/games/g1/review', 'u_black', { evals: shallower })).body.review).toEqual(first.body.review);
     // Anyone signed in reads the saved one.
     const seen = await call('GET', '/api/games/g1/review', 'u_other');
     expect(seen.body.review!.accuracy).toEqual(first.body.review!.accuracy);
@@ -109,6 +112,20 @@ describe('saved game reviews', () => {
     // The profile's recent games carry the accuracy too.
     const [row] = await dbGamesOf(h.db)('u_black', 5);
     expect(row!.accuracy).toEqual(first.body.review!.accuracy);
+  });
+
+  it('replaces the saved review with one that searched deeper (a Deep review)', async () => {
+    const deep = evalsFor(moves, 18);
+    deep[3] = { ...deep[3]!, depth: 20 };
+    const r = await call('POST', '/api/games/g1/review', 'u_black', { evals: deep });
+    expect(r.status).toBe(200);
+    expect(r.body.review).toMatchObject({ depth: 18, maxDepth: 20 });
+    expect((await call('GET', '/api/games/g1/review', 'u_other')).body.review).toMatchObject({ depth: 18, maxDepth: 20 });
+    // Still only the players, and still only deeper ones.
+    expect((await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves, 24) })).status).toBe(403);
+    expect((await call('POST', '/api/games/g1/review', 'u_white', { evals: evalsFor(moves, 18) })).body.review).toMatchObject({ depth: 18, maxDepth: 20 });
+    // Invalid evaluations are still refused, deeper or not.
+    expect((await call('POST', '/api/games/g1/review', 'u_white', { evals: evalsFor(moves, 22).slice(1) })).status).toBe(400);
   });
 });
 

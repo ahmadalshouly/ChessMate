@@ -46,6 +46,11 @@ export const review: Messages<typeof en> = {
   noEngine: 'Dieses Gerät kann die Engine nicht ausführen, und für diese Partie gibt es noch keine gespeicherte Analyse.',
   engineFailed: 'Weder dein Gerät noch der ChessMate-Server konnte diese Partie gerade bewerten. Prüfe deine Verbindung und versuch es noch einmal.',
   depthSaved: 'Engine-Tiefe {n} · gespeicherte Analyse',
+  deep: {
+    button: 'Tiefe Analyse · Tiefe {n}',
+    hint: 'Rechnet jeden Zug tiefer, für etwas genauere Bewertungen. Dauert etwa 6-mal so lange und braucht mehr Akku.',
+    title: 'Tiefe Analyse',
+  },
   progressCard: {
     title: 'Deine Partie wird analysiert',
     checking: 'Partieanalyse',

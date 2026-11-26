@@ -1,6 +1,7 @@
 import { parseInfoLine, type UciInfo } from '@chessmate/core';
 
 import type { FarmOut } from './engineTypes';
+import { onReviewSettings, reviewSettings } from './reviewSettings';
 import { openTransport, transportSupported, type EngineTransport } from './transport';
 
 export interface LocalSearchOptions {
@@ -60,6 +61,8 @@ class LocalEngine {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Callers that need the engines kept running between searches (a game against the computer). */
   private holds = 0;
+  /** Another engine build was picked: restart with it as soon as nothing is searching. */
+  private reloadWhenIdle = false;
 
   /** False once the engine has failed on this device (or never could run). */
   get usable(): boolean {
@@ -117,7 +120,20 @@ class LocalEngine {
       released = true;
       this.holds--;
       this.touch();
+      this.reloadIfIdle();
     };
+  }
+
+  /** Restarts the engines with the build picked in Settings: now when idle, else once the searches in hand are done. */
+  reload(): void {
+    this.reloadWhenIdle = true;
+    this.reloadIfIdle();
+  }
+
+  private reloadIfIdle() {
+    if (!this.reloadWhenIdle || this.pending.size > 0 || this.holds > 0) return;
+    this.reloadWhenIdle = false;
+    this.shutdown();
   }
 
   /** Starts the engines now (for example when a game ends), so the first search doesn't wait. */
@@ -164,12 +180,14 @@ class LocalEngine {
     }
     p.resolve({ lines, bestMove: m.best });
     this.touch();
+    this.reloadIfIdle();
   }
 
   private settleAbort(id: number) {
     const p = this.pending.get(id);
     this.pending.delete(id);
     p?.reject(new AbortError());
+    this.reloadIfIdle();
   }
 
   private failAll(err: Error) {
@@ -200,3 +218,12 @@ class LocalEngine {
 }
 
 export const localEngine = new LocalEngine();
+
+// The engine build picked in Settings (lite or full) applies from the next start.
+let build = reviewSettings().engine;
+onReviewSettings(() => {
+  const next = reviewSettings().engine;
+  if (next === build) return;
+  build = next;
+  localEngine.reload();
+});

@@ -13,6 +13,8 @@ const device = vi.hoisted(() => ({
   histories: [] as number[],
   /** Moves before each position searched deep. */
   deep: [] as number[],
+  /** Depth of every search asked for. */
+  depths: [] as number[],
   /** Score (side to move) the engine gives, by number of moves before the position; 10 otherwise. */
   scores: new Map<number, number>(),
 }));
@@ -41,9 +43,11 @@ vi.mock('../src/features/engine/localEngine', () => {
         return 3;
       },
       search: (fen: string, o: { depth: number; signal?: AbortSignal; lane?: number; history?: { start: string; moves: string[] } }) => {
-        const isDeep = o.depth > 10;
+        // The second pass: depth 14, or 20 in a Deep review (whose first pass is 18).
+        const isDeep = o.depth === 14 || o.depth === 20;
         const ply = o.history?.moves.length ?? -1;
         device.searched++;
+        device.depths.push(o.depth);
         device.lanes.add(o.lane ?? -1);
         if (isDeep) device.deep.push(ply);
         else device.histories.push(ply);
@@ -99,13 +103,13 @@ const ENDINGS = [
 ];
 
 /** Runs a review to the end (a different game each time, so nothing is cached). */
-async function review() {
+async function review(mode?: 'standard' | 'deep', ending?: string[]) {
   const { reviewLocally } = await import('../src/features/engine/localReview');
   // Change the game each run: append a different legal move pair so no cache answers it.
-  const moves = [...MOVES, ...ENDINGS[n++ % ENDINGS.length]!];
+  const moves = [...MOVES, ...(ending ?? ENDINGS[n++ % ENDINGS.length]!)];
   const shown: { moves: number; classes: string[] }[] = [];
-  return new Promise<{ where?: string; error?: string; graded: number; classes: string[]; maxDepth?: number; shown: typeof shown }>((resolve) => {
-    const stop = reviewLocally({ moves, initialFen: START }, (s) => {
+  return new Promise<{ where?: string; error?: string; graded: number; classes: string[]; depth?: number; maxDepth?: number; cached?: boolean; shown: typeof shown }>((resolve) => {
+    const stop = reviewLocally({ moves, initialFen: START, mode }, (s) => {
       if (!s.final) {
         if (s.review) shown.push({ moves: s.review.moves.length, classes: s.review.moves.map((m) => m.judgement.classification) });
         return;
@@ -116,7 +120,9 @@ async function review() {
         error: s.error,
         graded: s.review?.moves.length ?? 0,
         classes: s.review?.moves.map((m) => m.judgement.classification) ?? [],
+        depth: s.review?.depth,
         maxDepth: s.review?.maxDepth,
+        cached: s.cached,
         shown,
       });
     });
@@ -132,6 +138,7 @@ beforeEach(() => {
   device.lanes = new Set();
   device.histories = [];
   device.deep = [];
+  device.depths = [];
   device.scores = new Map();
   server.calls = [];
   server.fail = false;
@@ -163,6 +170,35 @@ describe('game review fallback', () => {
     // The quick pass's blunder was never shown.
     expect(r.shown.every((s) => s.classes[6] !== 'blunder')).toBe(true);
     expect(server.calls).toHaveLength(0);
+  });
+
+  it('searches every position to depth 18, and 20 around the moves that matter, in a Deep review', async () => {
+    device.scores.set(7, 300);
+    // A move no other test plays, so no earlier deep result answers it.
+    const r = await review('deep', ['d2d3', 'g8f6']);
+    expect(r).toMatchObject({ where: 'device', graded: 8, depth: 18, maxDepth: 20 });
+    // Standard results from earlier reviews are not reused: every position is searched again.
+    expect(device.depths.filter((d) => d === 18)).toHaveLength(9);
+    expect(device.depths.every((d) => d === 18 || d === 20)).toBe(true);
+    expect(device.deep).toEqual(expect.arrayContaining([6, 7]));
+    expect(r.classes[6]).not.toBe('blunder');
+  });
+
+  it('answers a standard review from a Deep one already made on this device', async () => {
+    const { reviewLocally } = await import('../src/features/engine/localReview');
+    const moves = [...MOVES, 'c2c3', 'g8f6', 'd2d4'];
+    const run = (mode?: 'standard' | 'deep') =>
+      new Promise<{ depth?: number; cached?: boolean }>((resolve) => {
+        const stop = reviewLocally({ moves, initialFen: START, mode }, (s) => {
+          if (!s.final) return;
+          stop();
+          resolve({ depth: s.review?.depth, cached: s.cached });
+        });
+      });
+    expect(await run('deep')).toMatchObject({ depth: 18 });
+    const searched = device.searched;
+    expect(await run()).toEqual({ depth: 18, cached: true });
+    expect(device.searched).toBe(searched);
   });
 
   it('grades masters theory as Book and does not search it deeper', async () => {
