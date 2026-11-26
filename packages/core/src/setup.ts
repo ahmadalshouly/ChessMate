@@ -33,6 +33,9 @@ export type SetupProblem = 'whiteKing' | 'blackKing' | 'pawnsOnEdge' | 'tooManyP
 
 export const EMPTY_BOARD_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
+/** Most pieces the engine can evaluate at once (NNUE holds 32). */
+export const MAX_ENGINE_PIECES = 32;
+
 const PIECE_CHARS = 'pnbrqk';
 const NO_CASTLING: Record<CastlingRight, boolean> = { K: false, Q: false, k: false, q: false };
 const ALL_CASTLING: Record<CastlingRight, boolean> = { K: true, Q: true, k: true, q: true };
@@ -177,10 +180,11 @@ export function movePiece(s: Setup, from: Square, to: Square): Setup {
 }
 
 /**
- * What stops a setup being analysed, or null when it is a legal position:
- * one king each, no pawns on the first or last rank, at most 16 pieces and 8
- * pawns a side, and the side that just moved not left in check. The engine
- * must never see a position that breaks these (it can crash on one).
+ * What stops the engine looking at a setup, or null when it can: one king
+ * each, no pawns on the first or last rank, at most 32 pieces in all (the
+ * engine's evaluation holds no more), and the side that just moved not left in
+ * check. The editor itself places anything anywhere, all 64 squares if you
+ * like; Stockfish must never see a position that breaks these (it can crash).
  */
 export function setupProblem(s: Setup): SetupProblem | null {
   const count = { w: { all: 0, k: 0, p: 0 }, b: { all: 0, k: 0, p: 0 } };
@@ -199,7 +203,7 @@ export function setupProblem(s: Setup): SetupProblem | null {
   if (count.w.k !== 1) return 'whiteKing';
   if (count.b.k !== 1) return 'blackKing';
   if (pawnOnEdge) return 'pawnsOnEdge';
-  if (count.w.all > 16 || count.b.all > 16 || count.w.p > 8 || count.b.p > 8) return 'tooManyPieces';
+  if (count.w.all + count.b.all > MAX_ENGINE_PIECES) return 'tooManyPieces';
   const fen = setupFen(s);
   if (!validateFen(fen).ok) return 'invalid';
   // The side that just moved can't be in check: hand the move over and ask.
@@ -210,6 +214,15 @@ export function setupProblem(s: Setup): SetupProblem | null {
     return 'invalid';
   }
   return null;
+}
+
+/**
+ * Whether the rules engine can play moves from this FEN (one king each, no
+ * pawns on the back ranks). A board set up without that can still be shown,
+ * just not played or analysed.
+ */
+export function fenPlayable(fen: string): boolean {
+  return validateFen(fen).ok;
 }
 
 /** `setupProblem` for a FEN string; 'invalid' when it can't be read at all. */

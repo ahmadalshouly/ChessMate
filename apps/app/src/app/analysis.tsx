@@ -5,6 +5,9 @@ import {
   importPosition,
   bookTimeline,
   parseSetupFen,
+  fenPlayable,
+  fenProblem,
+  setupFen,
   linePgn,
   parseUci,
   type PositionAnalysis,
@@ -78,7 +81,10 @@ export default function Analysis() {
   const [fillH, onFill] = useFillHeight();
   const engine = useEngine();
 
-  const history = useMemo(() => Game.fromUciMoves(line, start).history(), [line, start]);
+  // A position set up in the editor may break the rules (no kings, all 64 squares full): it is
+  // shown as it is, with no moves and no engine.
+  const playable = useMemo(() => fenPlayable(start), [start]);
+  const history = useMemo(() => (playable ? Game.fromUciMoves(line, start).history() : []), [playable, line, start]);
   const fen = cursor === 0 ? start : history[cursor - 1]!.fenAfter;
   const last = cursor > 0 ? history[cursor - 1] : undefined;
   const orientation = flip ? 'b' : 'w';
@@ -99,15 +105,19 @@ export default function Analysis() {
     }
     return true;
   };
-  const interaction = useBoardInteraction(fen, () => true, play);
+  const interaction = useBoardInteraction(playable ? fen : START_FEN, () => true, play);
+  // Why the engine can't look at this position (it would crash on it), if it can't.
+  const engineProblem = useMemo(() => fenProblem(fen), [fen]);
+  // The computer plays from here only when the engine may see the position and there is a move to make.
+  const canPlayFromHere = useMemo(() => !engineProblem && !new Game(fen).boardOutcome(), [fen, engineProblem]);
 
   // Ask the engine about every position we land on (debounced while stepping through moves).
   const { analyze, stop } = engine;
   useEffect(() => {
-    if (!engineOn || editing) return stop();
+    if (!engineOn || editing || engineProblem) return stop();
     const id = setTimeout(() => analyze(fen, multipv, { depth: settings.depth, movetimeMs: settings.seconds * 1000 }), 120);
     return () => clearTimeout(id);
-  }, [fen, engineOn, editing, multipv, settings.depth, settings.seconds, analyze, stop]);
+  }, [fen, engineOn, editing, engineProblem, multipv, settings.depth, settings.seconds, analyze, stop]);
 
   // Arrow keys step through the line on web.
   useEffect(() => {
@@ -130,12 +140,12 @@ export default function Analysis() {
     setRecorded(latest);
     if (latest && (latest.terminal || (latest.depth >= GRADE_DEPTH && latest.lines[0]))) setSeen((prev) => remember(prev, latest));
   }
-  const theory = useMemo(() => bookTimeline(line, start), [line, start]);
+  const theory = useMemo(() => (playable ? bookTimeline(line, start) : []), [playable, line, start]);
   const allGrades = useMemo(() => gradeLine(start, history, seen, theory), [start, history, seen, theory]);
   const grades = settings.grades ? allGrades : [];
   const lastGrade = cursor > 0 ? grades[cursor - 1] : undefined;
 
-  const analysis = engineOn && engine.state.analysis?.fen === new Game(fen).fen ? engine.state.analysis : null;
+  const analysis = engineOn && !engineProblem && engine.state.analysis?.fen === new Game(fen).fen ? engine.state.analysis : null;
   const top = analysis?.lines[0];
   const arrows: Arrow[] = (analysis?.lines ?? [])
     .slice(0, 3)
@@ -205,9 +215,9 @@ export default function Analysis() {
             targets={interaction.targets}
             lastMove={last ? { from: last.from, to: last.to } : null}
             lastMoveColor={engineOn && last && lastGrade ? moveClassTint(lastGrade.classification) : null}
-            checkSquare={checkSquareOf(fen)}
-            onSquarePress={interaction.onSquarePress}
-            {...interaction.dragProps}
+            checkSquare={playable ? checkSquareOf(fen) : null}
+            onSquarePress={playable ? interaction.onSquarePress : undefined}
+            {...(playable ? interaction.dragProps : {})}
           />
           {engineOn && settings.arrows && <BoardArrows arrows={arrows} size={size} orientation={orientation} />}
           {engineOn && last && lastGrade && <BoardMoveBadge square={last.to} cls={lastGrade.classification} size={size} orientation={orientation} />}
@@ -285,7 +295,7 @@ export default function Analysis() {
           <Card>
             <View style={styles.row}>
               <Label bold size={18}>
-                {analysis?.terminal ? terminalText(analysis.terminal) : top ? formatEval(top.score) : engineOn ? '…' : tr('analysis.engineOff')}
+                {analysis?.terminal ? terminalText(analysis.terminal) : top ? formatEval(top.score) : engineOn && !engineProblem ? '…' : tr('analysis.engineOff')}
               </Label>
               {!!analysis?.depth && <Label muted>{tr('analysis.depthOf', { n: analysis.depth, max: settings.depth })}</Label>}
               <View style={styles.toggle}>
@@ -309,6 +319,8 @@ export default function Analysis() {
                 <Label>{tr('review.moveIs', { move: last.san, cls: MOVE_CLASS[lastGrade.classification].phrase })}</Label>
               </View>
             )}
+            {engineProblem && <Label muted>{tr(`analysis.setup.problem.${engineProblem}`)}</Label>}
+            {!playable && <Label muted>{tr('analysis.setup.noMoves')}</Label>}
             {locked && <Label muted>{tr('analysis.locked')}</Label>}
             {unavailable && <Label muted>{serverText(engine.state.error?.message)}</Label>}
             {!engine.state.connected && engineOn && <Label muted>{tr('analysis.connecting')}</Label>}
@@ -347,6 +359,18 @@ export default function Analysis() {
             <View style={styles.row}>
               <Button variant="secondary" title={showImport ? tr('common.close') : tr('analysis.import')} onPress={() => setShowImport((s) => !s)} />
               <Button variant="secondary" title={tr('analysis.setup.title')} onPress={() => setEditFrom(fen)} />
+              <Button
+                variant="secondary"
+                title={tr('analysis.playComputer')}
+                disabled={!canPlayFromHere}
+                onPress={() => router.push({ pathname: '/play/computer', params: { fen } })}
+              />
+              <Button
+                variant="secondary"
+                title={tr('analysis.openingBook')}
+                disabled={!playable}
+                onPress={() => router.push({ pathname: '/dig-deep', params: { moves: line.join(','), fen: start, ply: String(cursor) } })}
+              />
               {line.length > 0 && (
                 <Button
                   variant="secondary"
@@ -417,7 +441,9 @@ function validFen(fen?: string): string | null {
   try {
     return new Game(fen).fen;
   } catch {
-    return null;
+    // A position set up in the editor that can't be played (no kings, 64 queens) still opens, to look at.
+    const s = parseSetupFen(fen);
+    return s ? setupFen(s) : null;
   }
 }
 

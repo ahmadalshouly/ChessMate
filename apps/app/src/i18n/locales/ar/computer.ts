@@ -4,6 +4,7 @@ import type { computer as en } from '../en/computer';
 export const computer: Messages<typeof en> = {
   choose: 'اختر خصمك',
   intro: 'تدريب غير مصنّف، من مباراتك الأولى حتى كامل قوة المحرك (نحو 3500). التراجع مسموح دائمًا، ومراجعة المحرك متاحة بعد انتهاء المباراة.',
+  fromPosition: 'ستبدأ من الوضعية التي جهّزتها على لوحة التحليل.',
   playAs: 'العب بـ',
   liveThreats: 'ملاحظات التهديد المباشرة',
   liveThreatsBody: 'يبرز القطع التي قد تخسرها وما يهدد به الكمبيوتر.',

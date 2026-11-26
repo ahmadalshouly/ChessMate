@@ -4,6 +4,7 @@ import type { computer as en } from '../en/computer';
 export const computer: Messages<typeof en> = {
   choose: 'Wähle deinen Gegner',
   intro: 'Ungewertetes Training, von der ersten Partie bis zur vollen Engine-Stärke (etwa 3500). Zurücknehmen ist immer erlaubt, die Engine-Analyse gibt es nach der Partie.',
+  fromPosition: 'Du beginnst mit der Stellung, die du auf dem Analysebrett aufgebaut hast.',
   playAs: 'Spielen als',
   liveThreats: 'Live-Drohungshinweise',
   liveThreatsBody: 'Zeigt Figuren, die du verlieren könntest, und was der Computer droht.',

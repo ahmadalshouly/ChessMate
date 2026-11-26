@@ -7,6 +7,7 @@ import {
   castlingAllowed,
   emptySetup,
   fenBoard,
+  fenPlayable,
   fenProblem,
   movePiece,
   parseSetupFen,
@@ -109,11 +110,18 @@ describe('setupProblem', () => {
     expect(problem('4k3/8/8/8/8/8/8/p3K3 w - - 0 1')).toBe('pawnsOnEdge');
   });
 
-  it('refuses more than 16 pieces or 8 pawns a side', () => {
-    expect(problem('4k3/8/8/8/8/PPPPPPPP/PPPPPPPP/4K3 w - - 0 1')).toBe('tooManyPieces');
-    expect(problem('4k3/8/8/8/8/1N6/PPPPPPPP/QQQQKQQQ w - - 0 1')).toBe('tooManyPieces');
-    // Exactly 16 (eight pawns, seven promoted queens and the king) is fine.
-    expect(problem('4k3/8/8/8/8/8/PPPPPPPP/QQQQKQQQ w - - 0 1')).toBeNull();
+  it('keeps the engine to 32 pieces, however they are split', () => {
+    // 33 pieces: too many for the engine.
+    expect(problem('4k3/pppppppp/8/8/8/NNNNNNNN/PPPPPPPP/QQQQKQQQ w - - 0 1')).toBe('tooManyPieces');
+    // Nine pawns and 17 pieces for White is fine: the editor allows anything, the engine only counts.
+    expect(problem('4k3/8/8/8/P7/8/PPPPPPPP/QQQQKQQQ w - - 0 1')).toBeNull();
+  });
+
+  it('reads a board with all 64 squares filled', () => {
+    const full = parseSetupFen('qqqqqqqq/qqqqqqqq/qqqqqqqq/qqqqqqqq/QQQQQQQQ/QQQQQQQQ/QQQQQQQQ/QQQQQQQQ w - - 0 1')!;
+    expect(Object.keys(full.board)).toHaveLength(64);
+    expect(setupProblem(full)).toBe('whiteKing');
+    expect(fenPlayable(setupFen(full))).toBe(false);
   });
 
   it('refuses a position where the side that just moved is in check', () => {
