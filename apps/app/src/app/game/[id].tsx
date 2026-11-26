@@ -3,7 +3,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { GameReplay } from '@/components/GameReplay';
+import { GameReplay, reviewPlayers } from '@/components/GameReplay';
 import { Screen } from '@/components/ui';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
@@ -27,6 +27,9 @@ interface PublicGame {
   startedAt: number;
   endedAt: number | null;
 }
+
+/** The sides that are ChessMate accounts (guests have no user id). */
+const accountsOf = (g: PublicGame) => `${g.white.userId ? 'w' : ''}${g.black.userId ? 'b' : ''}`;
 
 const delta = (p: PublicGame['white']) => (p.ratingBefore !== null && p.ratingAfter !== null ? p.ratingAfter - p.ratingBefore : null);
 
@@ -79,7 +82,7 @@ export default function OnlineGameScreen() {
         if (review === '1' && g.moves.length > 0) {
           router.replace({
             pathname: '/review',
-            params: { gameId: g.id, moves: g.moves.join(','), initialFen: g.initialFen, orientation: g.myColor ?? 'w', white: g.white, black: g.black, result: g.result },
+            params: { gameId: g.id, moves: g.moves.join(','), initialFen: g.initialFen, orientation: g.myColor ?? 'w', ...reviewPlayers(g, accountsOf(r.game)), result: g.result },
           });
           return;
         }

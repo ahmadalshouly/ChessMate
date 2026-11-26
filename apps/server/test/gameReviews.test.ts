@@ -82,7 +82,7 @@ describe('saved game reviews', () => {
     expect((await call('GET', '/api/games/g1')).body.game!.accuracy).toBeNull();
   });
 
-  it('only lets the players save the review', async () => {
+  it('only lets the players save a standard review', async () => {
     const r = await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves) });
     expect(r.status).toBe(403);
   });
@@ -121,11 +121,26 @@ describe('saved game reviews', () => {
     expect(r.status).toBe(200);
     expect(r.body.review).toMatchObject({ depth: 18, maxDepth: 20 });
     expect((await call('GET', '/api/games/g1/review', 'u_other')).body.review).toMatchObject({ depth: 18, maxDepth: 20 });
-    // Still only the players, and still only deeper ones.
-    expect((await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves, 24) })).status).toBe(403);
+    // Still only deeper ones.
     expect((await call('POST', '/api/games/g1/review', 'u_white', { evals: evalsFor(moves, 18) })).body.review).toMatchObject({ depth: 18, maxDepth: 20 });
+    // Someone who did not play the game cannot save a standard review over it.
+    expect((await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves, 14) })).status).toBe(403);
     // Invalid evaluations are still refused, deeper or not.
     expect((await call('POST', '/api/games/g1/review', 'u_white', { evals: evalsFor(moves, 22).slice(1) })).status).toBe(400);
+  });
+
+  it('lets anyone signed in replace it with a deeper Deep review, not only the players', async () => {
+    // As deep as the saved one: kept.
+    const same = await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves, 18) });
+    expect(same.status).toBe(200);
+    expect(same.body.review).toMatchObject({ depth: 18, maxDepth: 20 });
+    // Deeper: replaces it for everyone.
+    const deeper = await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves, 24) });
+    expect(deeper.status).toBe(200);
+    expect(deeper.body.review).toMatchObject({ depth: 24 });
+    expect((await call('GET', '/api/games/g1/review', 'u_white')).body.review).toMatchObject({ depth: 24 });
+    // Invalid evaluations are refused from anyone.
+    expect((await call('POST', '/api/games/g1/review', 'u_other', { evals: evalsFor(moves, 30).slice(1) })).status).toBe(400);
   });
 });
 

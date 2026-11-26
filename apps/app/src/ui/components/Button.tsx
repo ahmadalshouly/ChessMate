@@ -7,7 +7,10 @@ import { GlassView } from './Glass';
 import { PressableScale } from './liquid';
 import { Text } from './Text';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'review';
+
+/** The Review button's fill: black in both themes, so it stands out from every other button. */
+export const REVIEW_BLACK = '#0B0B0D';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps {
@@ -18,6 +21,8 @@ export interface ButtonProps {
    * - secondary: glass. Most actions.
    * - ghost: text only, for tertiary actions and links.
    * - danger: destructive (resign, delete account).
+   * - review: black in light and dark themes, white text. Only for opening a
+   *   game review (see ReviewButton, which adds the "!!" badge).
    */
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -53,7 +58,7 @@ export function Button({
   const t = useAppTheme();
   const c = t.colors;
   const s = SIZES[size];
-  const fg = variant === 'primary' ? c.onAccent : variant === 'danger' ? c.onDanger : c.text;
+  const fg = variant === 'primary' ? c.onAccent : variant === 'danger' ? c.onDanger : variant === 'review' ? '#FFFFFF' : c.text;
   const inactive = disabled || loading;
 
   const content = (
@@ -85,14 +90,16 @@ export function Button({
             </GlassView>
           );
         }
-        const solid = variant === 'primary' || variant === 'danger';
-        const bg = variant === 'primary' ? c.accent : variant === 'danger' ? c.danger : pressed ? c.surfacePressed : 'transparent';
+        const solid = variant === 'primary' || variant === 'danger' || variant === 'review';
+        const bg = variant === 'primary' ? c.accent : variant === 'danger' ? c.danger : variant === 'review' ? REVIEW_BLACK : pressed ? c.surfacePressed : 'transparent';
+        // A black button on a dark page needs a light edge to show where it ends.
+        const reviewEdge = variant === 'review' && c.scheme === 'dark' ? { borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' } : null;
         return (
-          <View style={[{ borderRadius: s.radius, backgroundColor: bg, overflow: 'hidden' }, solid && t.shadows.md, pressStyle]}>
+          <View style={[{ borderRadius: s.radius, backgroundColor: bg, overflow: 'hidden' }, solid && t.shadows.md, reviewEdge, pressStyle]}>
             {/* Solid buttons are glass too: a lit top half and a specular rim over the fill. */}
-            {solid && <LinearGradient pointerEvents="none" colors={c.scheme === 'light' || variant === 'danger' ? ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0)']} style={styles.shine} />}
+            {solid && <LinearGradient pointerEvents="none" colors={c.scheme === 'light' || variant === 'danger' || variant === 'review' ? ['rgba(255,255,255,0.2)', 'rgba(255,255,255,0)'] : ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0)']} style={styles.shine} />}
             {solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: s.radius }, solidRim(variant === 'primary' && c.scheme === 'dark')]} />}
-            {pressed && solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scheme === 'light' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]} />}
+            {pressed && solid && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.scheme === 'light' || variant === 'review' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }]} />}
             {content}
           </View>
         );

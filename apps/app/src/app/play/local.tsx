@@ -2,11 +2,12 @@ import { Game, START_FEN, analysisPath, gameToPgn, type Color, type PlayedMove }
 import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { ReviewPill } from '@/components/ReviewButton';
 import { Board } from '@/components/Board';
 import type { GameAction } from '@/components/game/ActionBar';
 import { GameLayout } from '@/components/game/GameLayout';
 import { MoveStrip } from '@/components/game/MoveStrip';
-import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
+import { ConfirmPanel, BoardNotice, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { reasonText } from '@/components/play/GameOverCard';
@@ -100,7 +101,7 @@ export default function LocalPlay() {
   const actions: GameAction[] = [
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
-      ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview }
+      ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), review: true, onPress: openReview }
       : { key: 'undo', icon: 'undo-variant', label: tr('practice.undo'), onPress: () => toggle('undo'), active: panel === 'undo', disabled: history.length === 0 },
     { key: 'flip', icon: 'swap-vertical', label: tr('game.action.flip'), onPress: () => setFlip((f) => !f) },
     { key: 'back', icon: dirIcon('chevron-left'), label: tr('game.action.back'), onPress: nav.back, disabled: !nav.canBack, repeat: true },
@@ -138,7 +139,7 @@ export default function LocalPlay() {
         notices={
           nav.live && outcome ? (
             <BoardNotice icon="trophy-outline" text={`${outcome.result} · ${reasonText(outcome.reason)}`} strong>
-              <NoticeButton icon="chart-box-outline" label={reviewEntry.label ?? tr('game.action.review')} onPress={openReview} primary />
+              <ReviewPill label={reviewEntry.label ?? tr('game.action.review')} onPress={openReview} height={32} />
             </BoardNotice>
           ) : null
         }

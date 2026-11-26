@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useGameLock } from '@/lib/useGameLock';
+import { ReviewPill } from '@/components/ReviewButton';
 import { ResultPopup } from '@/components/play/ResultPopup';
 import { BreakBanner, usePlayLock } from '@/components/BreakBanner';
 import { currentPlayLock, reportComputerGame } from '@/lib/habits';
@@ -450,6 +451,9 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
           orientation: me,
           white: me === 'w' ? user.displayName : bot.name,
           black: me === 'b' ? user.displayName : bot.name,
+          [botColor === 'w' ? 'whiteRating' : 'blackRating']: String(bot.rating),
+          bot: botColor,
+          accounts: user.status === 'signedIn' ? me : '',
           result: outcome?.result,
         },
       });
@@ -478,7 +482,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
   const actions: GameAction[] = [
     { key: 'more', icon: 'dots-horizontal', label: tr('game.action.more'), onPress: () => toggle('more'), active: panel === 'more' },
     outcome
-      ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), onPress: openReview, disabled: plyCount === 0 }
+      ? { key: 'review', icon: 'chart-box-outline', label: tr('game.action.review'), review: true, onPress: openReview, disabled: plyCount === 0 }
       : { key: 'takeback', icon: 'undo-variant', label: tr('game.action.takeback'), onPress: () => toggle('takeback'), active: panel === 'takeback', disabled: !canTakeback },
     outcome
       ? { key: 'rematch', icon: 'refresh', label: tr('game.action.rematch'), onPress: () => toggle('rematch'), active: panel === 'rematch' }
@@ -574,7 +578,7 @@ function ComputerGame({ setup, onExit, onRematch }: { setup: Setup; onExit: () =
             onClose={() => setHideResult(true)}>
             {plyCount > 0 && (
               <View style={styles.resultButtons}>
-                <NoticeButton icon="chart-box-outline" label={reviewEntry.label ?? tr('play.over.reviewGame')} onPress={openReview} primary wide />
+                <ReviewPill label={reviewEntry.label ?? tr('play.over.reviewGame')} onPress={openReview} flex />
               </View>
             )}
             <View style={styles.resultButtons}>

@@ -17,6 +17,7 @@ import { Stack as RouterStack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 
+import { ReviewButton } from '@/components/ReviewButton';
 import { Board } from '@/components/Board';
 import { ActionBar } from '@/components/game/ActionBar';
 import { useReviewEntry } from '@/features/engine/useReviewEntry';
@@ -223,8 +224,8 @@ export function ImmortalReplay({ game, initialPly }: { game: ImmortalGame; initi
           leftIcon={<Ionicons name="analytics-outline" size={16} color={c.onAccent} />}
           onPress={() => router.push(pathWithQuery(analysisPath({ moves: line.uci, ply })) as never)}
         />
-        <Button
-          variant="secondary"
+        <ReviewButton
+          fullWidth
           title={reviewEntry.label ?? tr('analysis.review')}
           onPress={() =>
             reviewEntry.press(() =>
