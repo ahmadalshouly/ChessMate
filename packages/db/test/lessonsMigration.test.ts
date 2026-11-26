@@ -9,6 +9,10 @@ async function tables(db: ReturnType<typeof openDb>['db']): Promise<string[]> {
   return r.rows.map((x) => x.table_name);
 }
 
+// Each test boots an in-memory Postgres (PGlite) and runs every migration twice, which can take
+// longer than vitest's 5 s default on a busy CI runner.
+const PGLITE_TIMEOUT = 30_000;
+
 describe('lessons migration on existing databases', () => {
   // A development database that ran an unmerged branch's 0021 has its last migration at 0021's old time;
   // Drizzle skips anything not later than that, so the lessons migration must come after it.
@@ -22,7 +26,7 @@ describe('lessons migration on existing databases', () => {
     await h.migrate();
     expect(await tables(h.db)).toEqual(expect.arrayContaining(['lessons', 'lesson_chapters']));
     await h.close();
-  });
+  }, PGLITE_TIMEOUT);
 
   // A database that already ran the first version of the lessons migration runs it again; it must not fail.
   it('runs again on a database that already has the lesson tables', async () => {
@@ -33,5 +37,5 @@ describe('lessons migration on existing databases', () => {
     await expect(h.migrate()).resolves.toBeUndefined();
     expect(await tables(h.db)).toEqual(expect.arrayContaining(['lessons', 'lesson_chapters']));
     await h.close();
-  });
+  }, PGLITE_TIMEOUT);
 });
