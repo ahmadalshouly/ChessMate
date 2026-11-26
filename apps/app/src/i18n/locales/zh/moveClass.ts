@@ -1,51 +1,51 @@
 export const moveClass = {
   best: {
-    phrase: 'the best move',
-    label: 'Best Move',
+    phrase: '最佳着法',
+    label: '最佳',
   },
   excellent: {
-    label: 'Excellent',
-    phrase: 'excellent',
+    label: '极佳',
+    phrase: '极佳的一步',
   },
   good: {
-    label: 'Good',
-    phrase: 'good',
+    label: '不错',
+    phrase: '不错的一步',
   },
   book: {
-    phrase: 'a theory move',
-    label: 'Theory',
-    symbol: 'Theory',
+    phrase: '定式着法',
+    label: '定式',
+    symbol: '定式',
   },
   forced: {
-    label: 'Forced',
-    phrase: 'forced',
+    label: '唯一着',
+    phrase: '唯一着',
   },
   inaccuracy: {
-    label: 'Inaccuracy',
-    phrase: 'an inaccuracy',
+    label: '欠准',
+    phrase: '欠准的一步',
   },
   mistake: {
-    label: 'Mistake',
-    phrase: 'a mistake',
+    label: '错着',
+    phrase: '错着',
   },
   blunder: {
-    label: 'Blunder',
-    phrase: 'a blunder',
+    label: '败着',
+    phrase: '败着',
   },
   masterpiece: {
-    label: 'Masterpiece',
-    phrase: 'a Masterpiece',
+    label: '杰作',
+    phrase: '杰作',
   },
   brilliant: {
-    label: 'Brilliant',
-    phrase: 'brilliant',
+    label: '妙着',
+    phrase: '妙着',
   },
   great: {
-    label: 'Great',
-    phrase: 'a great move',
+    label: '好棋',
+    phrase: '好棋',
   },
   miss: {
-    label: 'Missed Chance',
-    phrase: 'a missed chance',
+    label: '错失',
+    phrase: '错失良机',
   },
 };

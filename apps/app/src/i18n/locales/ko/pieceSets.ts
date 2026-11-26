@@ -1,62 +1,62 @@
 export const pieceSets = {
   classic: {
-    name: 'Classic',
-    note: 'Tournament style',
+    name: '클래식',
+    note: '토너먼트 스타일',
   },
   glass: {
-    name: 'Glass',
-    note: 'Our signature',
+    name: '글래스',
+    note: 'ChessMate 대표 디자인',
   },
   spatial: {
-    name: 'Spatial',
-    note: 'Sculpted, airy',
+    name: '스페이셜',
+    note: '입체적이고 가벼운',
   },
   celtic: {
-    name: 'Celtic',
-    note: 'Carved',
+    name: '켈틱',
+    note: '조각한 느낌',
   },
   fantasy: {
-    name: 'Fantasy',
-    note: 'Ornate',
+    name: '판타지',
+    note: '화려한 장식',
   },
   bold: {
-    name: 'Bold',
-    note: 'Graphic, modern',
+    name: '볼드',
+    note: '그래픽, 모던',
   },
   caramel: {
-    name: 'Caramel',
-    note: 'Warm, friendly',
+    name: '캐러멜',
+    note: '따뜻하고 친근한',
   },
   shapes: {
-    name: 'Shapes',
-    note: 'Abstract, for fun',
+    name: '도형',
+    note: '추상적, 재미로',
   },
   cburnett: {
     name: 'Cburnett',
-    note: 'The familiar online look',
+    note: '익숙한 온라인 스타일',
   },
   firi: {
     name: 'Firi',
-    note: 'Clean, rounded',
+    note: '깔끔하고 둥근',
   },
   skulls: {
-    name: 'Skulls',
-    note: 'Spooky',
+    name: '해골',
+    note: '으스스한',
   },
   eyes: {
-    name: 'Eyes',
-    note: 'Wide-eyed, playful',
+    name: '눈',
+    note: '눈이 동그란, 장난스러운',
   },
   cats: {
-    name: 'Cats',
-    note: 'Purr-fectly silly',
+    name: '고양이',
+    note: '냥냥 귀여운',
   },
   kaneo: {
     name: 'Kaneo',
-    note: 'Smooth, modern',
+    note: '매끄럽고 모던한',
   },
   moonlight: {
-    name: 'Moonlight',
-    note: 'Navy and moon yellow',
+    name: '달빛',
+    note: '남색과 달빛 노랑',
   },
 };

@@ -1,62 +1,62 @@
 export const pieceSets = {
   classic: {
-    name: 'Classic',
-    note: 'Tournament style',
+    name: 'Classique',
+    note: 'Style tournoi',
   },
   glass: {
-    name: 'Glass',
-    note: 'Our signature',
+    name: 'Verre',
+    note: 'Notre signature',
   },
   spatial: {
     name: 'Spatial',
-    note: 'Sculpted, airy',
+    note: 'Sculpté, aérien',
   },
   celtic: {
-    name: 'Celtic',
-    note: 'Carved',
+    name: 'Celtique',
+    note: 'Gravé',
   },
   fantasy: {
-    name: 'Fantasy',
-    note: 'Ornate',
+    name: 'Fantaisie',
+    note: 'Orné',
   },
   bold: {
-    name: 'Bold',
-    note: 'Graphic, modern',
+    name: 'Audacieux',
+    note: 'Graphique, moderne',
   },
   caramel: {
     name: 'Caramel',
-    note: 'Warm, friendly',
+    note: 'Chaleureux, sympa',
   },
   shapes: {
-    name: 'Shapes',
-    note: 'Abstract, for fun',
+    name: 'Formes',
+    note: 'Abstrait, pour le fun',
   },
   cburnett: {
     name: 'Cburnett',
-    note: 'The familiar online look',
+    note: 'Le look en ligne familier',
   },
   firi: {
     name: 'Firi',
-    note: 'Clean, rounded',
+    note: 'Épuré, arrondi',
   },
   skulls: {
-    name: 'Skulls',
-    note: 'Spooky',
+    name: 'Crânes',
+    note: 'Effrayant',
   },
   eyes: {
-    name: 'Eyes',
-    note: 'Wide-eyed, playful',
+    name: 'Yeux',
+    note: 'Grands yeux, ludique',
   },
   cats: {
-    name: 'Cats',
-    note: 'Purr-fectly silly',
+    name: 'Chats',
+    note: 'Ronronnement rigolo',
   },
   kaneo: {
     name: 'Kaneo',
-    note: 'Smooth, modern',
+    note: 'Fluide, moderne',
   },
   moonlight: {
-    name: 'Moonlight',
-    note: 'Navy and moon yellow',
+    name: 'Clair de lune',
+    note: 'Bleu marine et jaune lune',
   },
 };

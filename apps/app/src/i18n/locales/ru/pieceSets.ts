@@ -1,62 +1,62 @@
 export const pieceSets = {
   classic: {
-    name: 'Classic',
-    note: 'Tournament style',
+    name: 'Классика',
+    note: 'Турнирный стиль',
   },
   glass: {
-    name: 'Glass',
-    note: 'Our signature',
+    name: 'Стекло',
+    note: 'Наш фирменный',
   },
   spatial: {
-    name: 'Spatial',
-    note: 'Sculpted, airy',
+    name: 'Объём',
+    note: 'Скульптурный, лёгкий',
   },
   celtic: {
-    name: 'Celtic',
-    note: 'Carved',
+    name: 'Кельтский',
+    note: 'Резной',
   },
   fantasy: {
-    name: 'Fantasy',
-    note: 'Ornate',
+    name: 'Фэнтези',
+    note: 'Узорчатый',
   },
   bold: {
-    name: 'Bold',
-    note: 'Graphic, modern',
+    name: 'Яркий',
+    note: 'Графичный, современный',
   },
   caramel: {
-    name: 'Caramel',
-    note: 'Warm, friendly',
+    name: 'Карамель',
+    note: 'Тёплый, дружелюбный',
   },
   shapes: {
-    name: 'Shapes',
-    note: 'Abstract, for fun',
+    name: 'Фигуры',
+    note: 'Абстрактный, для веселья',
   },
   cburnett: {
     name: 'Cburnett',
-    note: 'The familiar online look',
+    note: 'Привычный онлайн-вид',
   },
   firi: {
     name: 'Firi',
-    note: 'Clean, rounded',
+    note: 'Чистый, округлый',
   },
   skulls: {
-    name: 'Skulls',
-    note: 'Spooky',
+    name: 'Черепа',
+    note: 'Жутковатый',
   },
   eyes: {
-    name: 'Eyes',
-    note: 'Wide-eyed, playful',
+    name: 'Глаза',
+    note: 'Глазастый, игривый',
   },
   cats: {
-    name: 'Cats',
-    note: 'Purr-fectly silly',
+    name: 'Коты',
+    note: 'Мур-рчательно забавный',
   },
   kaneo: {
     name: 'Kaneo',
-    note: 'Smooth, modern',
+    note: 'Плавный, современный',
   },
   moonlight: {
-    name: 'Moonlight',
-    note: 'Navy and moon yellow',
+    name: 'Лунный свет',
+    note: 'Тёмно-синий и лунно-жёлтый',
   },
 };

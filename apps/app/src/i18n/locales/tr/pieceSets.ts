@@ -1,62 +1,62 @@
 export const pieceSets = {
   classic: {
-    name: 'Classic',
-    note: 'Tournament style',
+    name: 'Klasik',
+    note: 'Turnuva tarzı',
   },
   glass: {
-    name: 'Glass',
-    note: 'Our signature',
+    name: 'Cam',
+    note: 'İmzamız',
   },
   spatial: {
-    name: 'Spatial',
-    note: 'Sculpted, airy',
+    name: 'Uzaysal',
+    note: 'Yontulmuş, ferah',
   },
   celtic: {
-    name: 'Celtic',
-    note: 'Carved',
+    name: 'Kelt',
+    note: 'Oymalı',
   },
   fantasy: {
-    name: 'Fantasy',
-    note: 'Ornate',
+    name: 'Fantastik',
+    note: 'Süslü',
   },
   bold: {
-    name: 'Bold',
-    note: 'Graphic, modern',
+    name: 'Kalın',
+    note: 'Grafik, modern',
   },
   caramel: {
-    name: 'Caramel',
-    note: 'Warm, friendly',
+    name: 'Karamel',
+    note: 'Sıcak, samimi',
   },
   shapes: {
-    name: 'Shapes',
-    note: 'Abstract, for fun',
+    name: 'Şekiller',
+    note: 'Soyut, eğlencesine',
   },
   cburnett: {
     name: 'Cburnett',
-    note: 'The familiar online look',
+    note: 'Tanıdık çevrimiçi görünüm',
   },
   firi: {
     name: 'Firi',
-    note: 'Clean, rounded',
+    note: 'Sade, yuvarlak',
   },
   skulls: {
-    name: 'Skulls',
-    note: 'Spooky',
+    name: 'Kafatasları',
+    note: 'Ürkütücü',
   },
   eyes: {
-    name: 'Eyes',
-    note: 'Wide-eyed, playful',
+    name: 'Gözler',
+    note: 'Kocaman gözlü, oyunbaz',
   },
   cats: {
-    name: 'Cats',
-    note: 'Purr-fectly silly',
+    name: 'Kediler',
+    note: 'Miyavlı ve şapşal',
   },
   kaneo: {
     name: 'Kaneo',
-    note: 'Smooth, modern',
+    note: 'Akıcı, modern',
   },
   moonlight: {
-    name: 'Moonlight',
-    note: 'Navy and moon yellow',
+    name: 'Ay Işığı',
+    note: 'Lacivert ve ay sarısı',
   },
 };

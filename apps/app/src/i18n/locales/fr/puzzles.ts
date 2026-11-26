@@ -1,5 +1,5 @@
 export const puzzles = {
-  hintLook: 'Regarde ton {piece} en {square}.',
+  hintLook: 'Regarde ta pièce en {square} ({piece}).',
   hintPlay: 'Joue {san}.',
   solution: 'Solution',
   hintsCount: 'Les indices et les mauvais coups comptent comme un échec pour ton classement Elo de problèmes.',

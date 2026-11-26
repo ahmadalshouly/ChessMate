@@ -1,9 +1,9 @@
 export const practice = {
-  undo: 'Undo',
-  threats: 'Threats',
-  review: 'Review',
-  hanging: '{color}\'s {piece} on {square} can be won',
-  threatens: 'Opponent threatens {threat}',
-  updateSaved: 'Update saved game',
-  save: 'Save to history',
+  undo: 'Geri al',
+  threats: 'Tehditler',
+  review: 'İncele',
+  hanging: '{color} tarafın {square} karesindeki {piece} kazanılabilir',
+  threatens: 'Rakip tehdidi: {threat}',
+  updateSaved: 'Kayıtlı oyunu güncelle',
+  save: 'Geçmişe kaydet',
 };

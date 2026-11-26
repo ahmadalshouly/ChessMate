@@ -1,5 +1,5 @@
 export const puzzles = {
-  hintLook: 'Посмотри на {piece} на {square}.',
+  hintLook: 'Обрати внимание: {piece} на {square}.',
   hintPlay: 'Сыграй {san}.',
   solution: 'Решение',
   hintsCount: 'Подсказки и неверные ходы считаются промахом для рейтинга задач.',

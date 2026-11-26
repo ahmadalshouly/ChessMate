@@ -25,7 +25,7 @@ export const auth = {
     engineBody: 'Her oyundan sonra değerlendirme, doğruluk ve en iyi varyant.',
     learn: 'Oynarken öğren',
     learnBody: 'Ücretsiz dersler, ayrıca oynarken sade bir dille tehditler ve hamle geri bildirimi.',
-    tagline: 'Oyna · Öğren · Gelişe',
+    tagline: 'Oyna · Öğren · İlerle',
     createAccount: 'Ücretsiz hesap oluştur',
     guestNote: 'Misafirler puansız oyun oynayabilir ve alıştırma tahtasını kullanabilir. Puan ve geçmiş için hesap gerekir.',
   },

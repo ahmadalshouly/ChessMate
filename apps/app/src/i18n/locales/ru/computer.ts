@@ -39,7 +39,7 @@ export const computer = {
   },
   hints: { one: '{count} подсказка', few: '{count} подсказки', many: '{count} подсказок', other: '{count} подсказки' },
   hintText: 'Подсказка: здесь сильнее всего выглядит {san}.',
-  hanging: 'Твоего {piece} на {square} можно выиграть',
+  hanging: 'Можно выиграть твою фигуру: {piece} на {square}',
   threatens: '{name} угрожает: {threat}',
   chance: 'Шанс: {threat}',
   flip: 'Перевернуть',

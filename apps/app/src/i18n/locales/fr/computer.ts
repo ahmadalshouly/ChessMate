@@ -34,7 +34,7 @@ export const computer = {
   takebacks: { one: '{count} reprise', other: '{count} reprises' },
   hints: { one: '{count} indice', other: '{count} indices' },
   hintText: 'Indice : {san} semble le plus fort ici.',
-  hanging: 'Ton {piece} en {square} peut être pris',
+  hanging: 'Ta pièce en {square} ({piece}) est en prise',
   threatens: '{name} menace {threat}',
   chance: 'Opportunité : {threat}',
   flip: 'Retourner',
