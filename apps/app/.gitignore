@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Full engine parts for local testing (scripts/full-engine.mjs public)
+/public/engine/full/

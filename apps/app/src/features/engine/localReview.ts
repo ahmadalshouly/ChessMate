@@ -41,14 +41,46 @@ import { evaluateOnServer, isTransient } from './serverEngine';
  */
 export const LOCAL_REVIEW = { depth: 10, multipv: 2, movetimeMs: 1500 } as const;
 export const DEEP_REVIEW = { depth: 14, multipv: 2, movetimeMs: 4000 } as const;
+
+/**
+ * How deep a review searches. Standard (above) is the default. Deep, on
+ * request, searches every position to depth 18 and the positions around the
+ * moves that matter to depth 20, with longer time caps so phones reach those
+ * depths too. Measured on 4 test games (221 moves) against Stockfish 16 at
+ * depth 24, this lite engine on one laptop core put 74% of moves in the same
+ * grade group at depth 10, 83% at 14, 87% at 18 and 84% at 20 (depth 18 took
+ * 1.4 s a position, 20 took 2.9 s), and every setting from depth 14 up found
+ * every blunder: Deep is a little more accurate, for about 6 times the time.
+ */
+export type ReviewMode = 'standard' | 'deep';
+interface Search {
+  depth: number;
+  multipv: number;
+  movetimeMs: number;
+}
+interface ReviewPlan {
+  quick: Search;
+  deep: Search;
+  /** About how many quick searches one deep search costs, for the progress bar only. */
+  deepCost: number;
+  /** Results kept from earlier searches this session stand in for the first pass from this depth up. */
+  reuseFrom: number;
+}
+export const REVIEW_PLANS: Record<ReviewMode, ReviewPlan> = {
+  standard: { quick: LOCAL_REVIEW, deep: DEEP_REVIEW, deepCost: 10, reuseFrom: 0 },
+  // Time caps can stop a search a little short of its depth: anything deeper than a standard review counts.
+  deep: { quick: { depth: 18, multipv: 2, movetimeMs: 12_000 }, deep: { depth: 20, multipv: 2, movetimeMs: 20_000 }, deepCost: 2, reuseFrom: DEEP_REVIEW.depth + 1 },
+};
+/** True for a review that searched every position deeper than a standard review ever does: a Deep one. */
+export function isDeepReview(review: Pick<GameReview, 'depth'>): boolean {
+  return review.depth > DEEP_REVIEW.depth;
+}
 /** A device that can't run its engine gets one pass from the server's (a native Stockfish, quicker per depth). */
 const SERVER_REVIEW = { depth: 12, movetimeMs: 1500 } as const;
 /** Grades from the quick pass that are checked again with deeper searches. */
 const DEEPEN: ReadonlySet<MoveClass> = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'good', 'inaccuracy', 'mistake', 'miss', 'blunder']);
 /** Deeper searches can turn a neighbouring move into one worth deepening too: at most this many rounds. */
 const DEEP_ROUNDS = 3;
-/** About how many quick searches one deep search costs (measured: ~10x), for the progress bar only. */
-const DEEP_COST = 10;
 /** Share of positions the deep pass usually takes, used for the progress bar until the quick pass is done. */
 const DEEP_SHARE_GUESS = 0.5;
 
@@ -71,6 +103,8 @@ export interface ReviewSnapshot {
 export interface ReviewRequest {
   moves: string[];
   initialFen: string;
+  /** How deep to search; standard when left out. */
+  mode?: ReviewMode;
 }
 
 type Listener = (s: ReviewSnapshot) => void;
@@ -107,9 +141,16 @@ const MAX_STORED = 20;
 /** Partial results are rebuilt at most this often while moves come in. */
 const EMIT_MS = 250;
 
-/** Content key: the same start position and moves give the same review. */
-export function reviewKey(initialFen: string, moves: string[]): string {
-  return `${LOCAL_REVIEW.depth}-${DEEP_REVIEW.depth}|${initialFen}|${moves.join(' ')}`;
+/** Content key: the same start position, moves and search depths give the same review. */
+export function reviewKey(initialFen: string, moves: string[], mode: ReviewMode = 'standard'): string {
+  const plan = REVIEW_PLANS[mode];
+  return `${plan.quick.depth}-${plan.deep.depth}|${initialFen}|${moves.join(' ')}`;
+}
+
+/** Keys of the reviews that answer a request: a Deep review answers a standard request too. */
+function answeringKeys(req: ReviewRequest): string[] {
+  const deep = reviewKey(req.initialFen, req.moves, 'deep');
+  return req.mode === 'deep' ? [deep] : [deep, reviewKey(req.initialFen, req.moves)];
 }
 
 /** Short stable id for storage keys (FNV-1a, two seeds). */
@@ -129,27 +170,32 @@ export function canReviewLocally(): boolean {
   return localEngine.usable;
 }
 
-/** A finished review already on this device (memory, then storage), with its engine results when kept. */
+/** A finished review already on this device (memory, then storage), with its engine results when kept. A Deep one is preferred. */
 export async function storedReview(req: ReviewRequest): Promise<Finished | null> {
-  const key = reviewKey(req.initialFen, req.moves);
-  const hit = finished.get(key);
-  if (hit) return hit;
-  try {
-    const raw = await AsyncStorage.getItem(STORE_PREFIX + hashKey(key));
-    if (!raw) return null;
-    const saved = JSON.parse(raw) as { key: string; review: GameReview; evals?: PositionEval[] };
-    if (saved.key !== key) return null;
-    const entry = { review: saved.review, evals: saved.evals };
-    remember(key, entry);
-    return entry;
-  } catch {
-    return null;
+  const keys = answeringKeys(req);
+  for (const key of keys) {
+    const hit = finished.get(key);
+    if (hit) return hit;
   }
+  for (const key of keys) {
+    try {
+      const raw = await AsyncStorage.getItem(STORE_PREFIX + hashKey(key));
+      if (!raw) continue;
+      const saved = JSON.parse(raw) as { key: string; review: GameReview; evals?: PositionEval[] };
+      if (saved.key !== key) continue;
+      const entry = { review: saved.review, evals: saved.evals };
+      remember(key, entry);
+      return entry;
+    } catch {
+      // Unreadable: try the next one.
+    }
+  }
+  return null;
 }
 
 /** Keeps a review saved on the server on this device too, so it opens without a request next time. */
 export function keepReview(req: ReviewRequest, review: GameReview) {
-  const key = reviewKey(req.initialFen, req.moves);
+  const key = reviewKey(req.initialFen, req.moves, isDeepReview(review) ? 'deep' : 'standard');
   const entry = { review, evals: finished.get(key)?.evals };
   remember(key, entry);
   void save(key, entry);
@@ -173,7 +219,7 @@ export function reviewLocally(req: ReviewRequest, listener: Listener): () => voi
 }
 
 function ensureJob(req: ReviewRequest): Job {
-  const key = reviewKey(req.initialFen, req.moves);
+  const key = reviewKey(req.initialFen, req.moves, req.mode);
   const running = jobs.get(key);
   if (running && !running.ctrl.signal.aborted) return running;
   const job: Job = {
@@ -195,6 +241,7 @@ function ensureJob(req: ReviewRequest): Job {
 
 async function run(req: ReviewRequest, job: Job, emit: Listener) {
   const { moves, initialFen } = req;
+  const plan = REVIEW_PLANS[req.mode ?? 'standard'];
   const total = moves.length + 1;
   const signal = job.ctrl.signal;
   let fens: string[];
@@ -220,12 +267,13 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   fens.forEach((fen, i) => {
     const term = terminalState(fen);
     const known = term ? { score: terminalScore(fen, term), pv: [], depth: 0 } : evalCache.get(positionKey(fen));
-    if (!known) return;
+    // Results from earlier searches count when about as deep as this review's first pass.
+    if (!known || (!term && known.depth < plan.reuseFrom)) return;
     evals[i] = known;
-    if (term || known.depth >= DEEP_REVIEW.depth) deep.add(i);
+    if (term || known.depth >= plan.deep.depth) deep.add(i);
   });
   let where: ReviewSnapshot['where'] = localEngine.usable ? 'device' : 'server';
-  // Progress, in quick searches: one per position, plus DEEP_COST per deep search.
+  // Progress, in quick searches: one per position, plus the plan's deepCost per deep search.
   let quickDone = evals.reduce((n, e) => (e ? n + 1 : n), 0);
   let deepDone = 0;
   /** Deep searches still to come; null until the quick pass has said which (then estimated). */
@@ -234,7 +282,7 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   let deepening = localEngine.usable;
   const work = () => {
     const left = deepLeft ?? Math.ceil(DEEP_SHARE_GUESS * (total - deep.size));
-    return { done: quickDone + DEEP_COST * deepDone, total: total + DEEP_COST * (deepDone + (deepening ? left : 0)) };
+    return { done: quickDone + plan.deepCost * deepDone, total: total + plan.deepCost * (deepDone + (deepening ? left : 0)) };
   };
 
   // Opening moves the masters' games call theory (Dig Deep) are graded Book. Asked
@@ -300,18 +348,18 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   });
   flush();
 
-  const common = { moves, signal, watched: () => job.listeners.size > 0 };
+  const common = { moves, signal, watched: () => job.listeners.size > 0, stallMs: stallFor(plan.quick) };
   try {
     // Pass 1: every position, quickly (the server's engine takes over if the device's can't).
     const quick = fens.map((_, i) => i).filter((i) => !evals[i]);
     if (quick.length) {
       await gradePositions(fens, quick, {
         ...common,
-        search: LOCAL_REVIEW,
+        search: plan.quick,
         server: SERVER_REVIEW,
         onEval: (i, ev) => {
           evals[i] = ev;
-          if (ev.depth >= DEEP_REVIEW.depth) deep.add(i);
+          if (ev.depth >= plan.deep.depth) deep.add(i);
           cacheEval(fens[i]!, ev);
           quickDone++;
           staleFrom = Math.min(staleFrom, i);
@@ -339,7 +387,8 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
       schedule();
       const finished = await gradePositions(fens, todo, {
         ...common,
-        search: DEEP_REVIEW,
+        stallMs: stallFor(plan.deep),
+        search: plan.deep,
         server: null,
         onEval: (i, ev) => {
           evals[i] = ev;
@@ -368,16 +417,19 @@ async function run(req: ReviewRequest, job: Job, emit: Listener) {
   const review = regrade(moves.length);
   const { done } = work();
   const entry = { review, evals: all };
-  remember(job.key, entry);
-  void save(job.key, entry);
+  // Kept as deep as it came out (a Deep review the server had to finish is a standard one).
+  const key = reviewKey(initialFen, moves, isDeepReview(review) ? 'deep' : 'standard');
+  remember(key, entry);
+  void save(key, entry);
   emit({ review, evals: all, done, total: done, final: true, where });
   finishedListeners.forEach((l) => l(req, review, all));
 }
 
 /** The device's engines get this long to give a first result (they start up first) before the server joins in. */
 const BOOT_GRACE_MS = 15_000;
-/** No new result for this long while positions are left: the server joins in. */
+/** No new result for this long while positions are left: the server joins in (longer for searches allowed more time). */
 const STALL_MS = 10_000;
+const stallFor = (search: Search) => Math.max(STALL_MS, search.movetimeMs + 5_000);
 /** Positions per server request: small, so progress moves a step at a time. */
 const SERVER_BATCH = 2;
 /** Server requests running at once for one review. */
@@ -399,8 +451,10 @@ interface GradeOptions {
   moves: string[];
   signal: AbortSignal;
   watched: () => boolean;
+  /** No result for this long (while watched): the device's engine counts as stalled. */
+  stallMs: number;
   /** How the device's engine searches each position. */
-  search: { depth: number; multipv: number; movetimeMs: number };
+  search: Search;
   /** How the server's engine searches, when it may take over; null: the device only. */
   server: { depth: number; movetimeMs: number } | null;
   onEval: (i: number, ev: PositionEval) => void;
@@ -547,7 +601,7 @@ function gradePositions(fens: string[], todo: number[], o: GradeOptions): Promis
     // Watches for a device engine that has gone quiet.
     const watch = setInterval(() => {
       if (settled || serverOn || localDead || !o.watched()) return;
-      if (Date.now() - lastResult > (gotResult ? STALL_MS : BOOT_GRACE_MS)) startServer();
+      if (Date.now() - lastResult > (gotResult ? o.stallMs : Math.max(BOOT_GRACE_MS, o.stallMs))) startServer();
     }, 500);
 
     if (o.signal.aborted) return onAbort();

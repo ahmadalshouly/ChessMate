@@ -12,6 +12,9 @@ import { ApiError } from '@/features/account/api';
 import { useAccountSession } from '@/features/account/session';
 import { useAuth } from '@/lib/auth';
 import { useSettingsSync } from '@/features/account/settingsStore';
+import { REVIEW_PLANS } from '@/features/engine';
+import { downloadFullEngine, removeFullEngine, useFullEngine } from '@/features/engine/fullEngine';
+import { setReviewSettings, useReviewSettings } from '@/features/engine/reviewSettings';
 import { BoardCustomizer } from '@/features/board/BoardCustomizer';
 import { CookiePreferences } from '@/features/privacy/CookiePreferences';
 import { Divider, Field, Row, Segmented, SectionTitle, ToggleRow } from '@/features/profile/controls';
@@ -135,6 +138,8 @@ export function SettingsScreen() {
             <ToggleRow title={tr('settings.gameplay.confirmResign')} value={s.gameplay.confirmResign} onChange={(v) => set({ gameplay: { confirmResign: v } })} />
           </Section>
 
+          <ReviewSection />
+
           <Section title={tr('settings.notifications.title')}>
             <ToggleRow title={tr('settings.notifications.gameFound')} detail={tr('settings.notifications.gameFoundDetail')} value={s.notifications.gameStart} onChange={(v) => set({ notifications: { gameStart: v } })} />
             <ToggleRow title={tr('settings.notifications.yourTurn')} detail={tr('settings.notifications.yourTurnDetail')} value={s.notifications.yourTurn} onChange={(v) => set({ notifications: { yourTurn: v } })} />
@@ -228,6 +233,66 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <SectionTitle>{title}</SectionTitle>
       {children}
     </Card>
+  );
+}
+
+const depthRange = (mode: keyof typeof REVIEW_PLANS) => `${REVIEW_PLANS[mode].quick.depth}–${REVIEW_PLANS[mode].deep.depth}`;
+
+/**
+ * How deep game reviews search, and (web on computers) which Stockfish runs:
+ * kept on the device, not the account, since a phone and a computer differ.
+ */
+function ReviewSection() {
+  const t = useTheme();
+  const { tr } = useI18n();
+  const { mode, engine } = useReviewSettings();
+  const full = useFullEngine();
+  const mb = 'bytes' in full ? Math.round(full.bytes / 1e6) : 0;
+  const pickEngine = (v: 'lite' | 'full') => {
+    if (v === 'lite' || full.state === 'ready') return setReviewSettings({ engine: v });
+    void downloadFullEngine().then((ok) => ok && setReviewSettings({ engine: 'full' }));
+  };
+  const offerFull = full.state !== 'unavailable' && full.state !== 'checking';
+  return (
+    <Section title={tr(offerFull ? 'settings.review.titleEngine' : 'settings.review.title')}>
+      <Text style={[styles.label, { color: t.muted }]}>{tr('settings.review.depth')}</Text>
+      <Segmented
+        value={mode}
+        options={[
+          { value: 'standard', label: tr('settings.review.standard') },
+          { value: 'deep', label: tr('settings.review.deep') },
+        ]}
+        onChange={(v) => setReviewSettings({ mode: v })}
+      />
+      <Text style={{ color: t.muted, fontSize: 13 }}>
+        {tr(mode === 'deep' ? 'settings.review.deepDetail' : 'settings.review.standardDetail', { n: depthRange(mode) })}
+      </Text>
+      {offerFull && (
+        <>
+          <Text style={[styles.label, { color: t.muted }]}>{tr('settings.review.engine')}</Text>
+          <Segmented
+            value={full.state === 'downloading' || (engine === 'full' && full.state === 'ready') ? 'full' : 'lite'}
+            options={[
+              { value: 'lite', label: tr('settings.review.lite') },
+              { value: 'full', label: tr('settings.review.full') },
+            ]}
+            onChange={pickEngine}
+          />
+          <Text style={{ color: t.muted, fontSize: 13 }}>
+            {full.state === 'downloading'
+              ? tr('settings.review.downloading', { pct: Math.floor((100 * full.done) / Math.max(1, full.bytes)) })
+              : full.state === 'error'
+                ? tr('settings.review.failed', { error: full.message })
+                : engine === 'full' && full.state === 'ready'
+                  ? tr('settings.review.fullDetail', { mb })
+                  : tr('settings.review.liteDetail', { mb })}
+          </Text>
+          {engine !== 'full' && full.state === 'ready' && (
+            <Button variant="secondary" title={tr('settings.review.remove', { mb })} onPress={() => void removeFullEngine()} />
+          )}
+        </>
+      )}
+    </Section>
   );
 }
 

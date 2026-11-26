@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { playClient } from '@/lib/playClient';
 
-import { keepReview, reviewLocally, type ReviewSnapshot } from './localReview';
+import { isDeepReview, keepReview, reviewLocally, type ReviewMode, type ReviewSnapshot } from './localReview';
 import { fetchSavedReview, noteAccuracy, publishReview } from './savedReviews';
 
 export interface ReviewRequestParams {
@@ -11,6 +11,8 @@ export interface ReviewRequestParams {
   initialFen: string;
   /** Server id of an online game: its review is saved and shared. */
   gameId?: string;
+  /** How deep to search: standard, or Deep (on request). */
+  mode?: ReviewMode;
 }
 
 export type ReviewErrorCode = 'engine_locked' | 'no_engine' | 'engine_failed';
@@ -39,11 +41,13 @@ export interface GameReviewState {
  * that are left (see localReview.ts), so a review always finishes.
  *
  * 1. An online game that already has a saved review opens that review (from
- *    any account), without grading again.
+ *    any account), without grading again. A Deep request takes only a Deep
+ *    saved review.
  * 2. Otherwise this device grades it, moves streaming in from the first one.
- *    A game reviewed before, or prepared when it ended, opens finished.
+ *    A game reviewed on this device before opens finished.
  * 3. When it finishes, an online game's review is saved for everyone (the
- *    server accepts it from the two players only).
+ *    server accepts it from the two players only, and a later one only when
+ *    it searched deeper).
  *
  * Pass `enabled: false` (signed out) to do nothing.
  */
@@ -89,11 +93,13 @@ export function useGameReview(request: ReviewRequestParams, enabled = true): Gam
         setLocal(snap);
         if (!snap.final || !snap.review) return;
         finish(snap.review);
-        // First review of an online game: save it so nobody grades it again.
+        // First (or deeper) review of an online game: save it so nobody grades it again.
         if (gameId && snap.evals) {
+          const mine = snap.review;
           publishReview(gameId, snap.evals).then(
             (s) => {
-              if (!active || !s) return;
+              // The server keeps the review it already had when that one is as deep: shown only then.
+              if (!active || !s || s.depth < mine.depth) return;
               keepReview(request, s);
               noteAccuracy(request, s.accuracy);
               setSaved(s);
@@ -117,7 +123,8 @@ export function useGameReview(request: ReviewRequestParams, enabled = true): Gam
         (s) => {
           if (!active) return;
           setChecking(false);
-          if (!s) return;
+          // A Deep request grades again unless the saved review is Deep too.
+          if (!s || (request.mode === 'deep' && !isDeepReview(s))) return;
           haveSaved = true;
           stopLocal?.();
           stopLocal = null;

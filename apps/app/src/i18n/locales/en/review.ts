@@ -43,6 +43,11 @@ export const review = {
   noEngine: 'This device can’t run the engine, and this game has no saved review yet.',
   engineFailed: 'Neither your device nor the ChessMate server could grade this game right now. Check your connection and try again.',
   depthSaved: 'Engine depth {n} · saved review',
+  deep: {
+    button: 'Deep review · depth {n}',
+    hint: 'Searches every move deeper for slightly more accurate grades. Takes about 6 times as long and uses more battery.',
+    title: 'Deep review',
+  },
   progressCard: {
     title: 'Reviewing your game',
     checking: 'Game review',

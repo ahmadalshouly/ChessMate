@@ -8,6 +8,7 @@ import {
   parseUci,
   positionKey,
   reviewPath,
+  type GameReview,
   type MoveClass,
   type PositionAnalysis,
   type ReviewedMove,
@@ -33,7 +34,8 @@ import { GRADE_DEPTH, gradeLine, remember } from '@/features/analysis/grading';
 import { moveFeedback } from '@/lib/feedback';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { useAuth } from '@/lib/auth';
-import { analyzeLocally, serverGameId, useGameReview } from '@/features/engine';
+import { REVIEW_PLANS, analyzeLocally, canReviewLocally, isDeepReview, serverGameId, useGameReview, type ReviewMode } from '@/features/engine';
+import { useReviewSettings } from '@/features/engine/reviewSettings';
 import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 import { vsTitle } from '@/features/share/gameShares';
@@ -69,33 +71,51 @@ export default function Review() {
   // Play: steps through the game a move at a time, pieces sliding as if it were being played.
   const [autoplay, setAutoplay] = useState(false);
   const [flip, setFlip] = useState(params.orientation === 'b');
+  // How deep to search: the setting, or Deep once asked for on this game.
+  const defaultMode = useReviewSettings().mode;
+  const [deepAsked, setDeepAsked] = useState(false);
+  const mode: ReviewMode = deepAsked ? 'deep' : defaultMode;
   const request = useMemo(
     () => ({
       moves: (params.moves ?? '').split(',').filter(Boolean),
       initialFen: params.initialFen || START_FEN,
       gameId: params.gameId ? serverGameId(params.gameId) : undefined,
+      mode,
     }),
-    [params.moves, params.initialFen, params.gameId],
+    [params.moves, params.initialFen, params.gameId, mode],
   );
 
   const graded = useGameReview(request, signedIn);
+  // While a Deep review is graded, the review it replaces stays on screen.
+  const [shallow, setShallow] = useState<{ review: GameReview; saved: boolean } | null>(null);
+  const keepShallow = !!shallow && !graded.final;
+  const upgrading = keepShallow && !graded.error;
   // While grading, `review` holds the moves graded so far (from the first one on).
-  const review = graded.review;
-  const final = graded.final;
+  const review = keepShallow ? shallow.review : graded.review;
+  const final = keepShallow || graded.final;
   const moves = review?.moves ?? [];
+  const deepRange = `${REVIEW_PLANS.deep.quick.depth}–${REVIEW_PLANS.deep.deep.depth}`;
+  const canDeepen = final && !keepShallow && !!review && mode !== 'deep' && !isDeepReview(review) && canReviewLocally();
 
   // The reviewing card stays a moment after grading ends, to show it is done
   // (not for a review that opens finished, from this device or saved).
   const [sawGrading, setSawGrading] = useState(false);
   const [doneShown, setDoneShown] = useState(false);
-  if (!final && !sawGrading && graded.progress && graded.progress.done < graded.progress.total) setSawGrading(true);
-  const lingering = final && sawGrading && !doneShown;
+  const askDeep = () => {
+    if (!review) return;
+    setShallow({ review, saved: graded.source === 'saved' });
+    setSawGrading(false);
+    setDoneShown(false);
+    setDeepAsked(true);
+  };
+  if ((!final || upgrading) && !sawGrading && graded.progress && graded.progress.done < graded.progress.total) setSawGrading(true);
+  const lingering = final && !upgrading && sawGrading && !doneShown;
   useEffect(() => {
     if (!lingering) return;
     const id = setTimeout(() => setDoneShown(true), 1600);
     return () => clearTimeout(id);
   }, [lingering]);
-  const showProgress = !final || lingering;
+  const showProgress = !final || upgrading || lingering;
 
   // While the engine works, the board plays the game through move by move,
   // so there is something to watch instead of a bare progress bar.
@@ -365,10 +385,11 @@ export default function Review() {
               done={progress?.done ?? 0}
               total={progress?.total ?? request.moves.length + 1}
               checking={graded.checking && !progress?.done}
-              finished={final}
+              finished={final && !upgrading}
               tookMs={graded.tookMs}
-              latest={moves[moves.length - 1]}
+              latest={upgrading ? graded.review?.moves[graded.review.moves.length - 1] : moves[moves.length - 1]}
               where={graded.where}
+              title={mode === 'deep' ? `${tr('review.deep.title')} · ${deepRange}` : undefined}
             />
           ) : null}
           {review && branch && (
@@ -497,8 +518,16 @@ export default function Review() {
                   })}
                 </View>
                 <Label muted size={12}>
-                  {tr(graded.source === 'saved' ? 'review.depthSaved' : 'review.depthDevice', { n: review.maxDepth ? `${review.depth}–${review.maxDepth}` : review.depth })}
+                  {tr((keepShallow ? shallow.saved : graded.source === 'saved') ? 'review.depthSaved' : 'review.depthDevice', { n: review.maxDepth ? `${review.depth}–${review.maxDepth}` : review.depth })}
                 </Label>
+                {canDeepen && (
+                  <>
+                    <Button variant="secondary" title={tr('review.deep.button', { n: deepRange })} onPress={askDeep} />
+                    <Label muted size={12}>
+                      {tr('review.deep.hint')}
+                    </Label>
+                  </>
+                )}
               </Card>
               )}
 
