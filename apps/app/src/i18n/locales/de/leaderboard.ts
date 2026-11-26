@@ -17,4 +17,6 @@ export const leaderboard: Messages<typeof en> = {
   rowA11y: 'Platz {rank}, {name}, Wertung {rating}',
   games: { one: '{count} Partie', other: '{count} Partien' },
   peak: 'Höchstwert {n}',
+  countryRank: 'Nr. {n} in {country}',
+  openProfile: 'Öffnet das Profil',
 };

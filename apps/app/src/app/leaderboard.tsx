@@ -1,6 +1,7 @@
 import type { TimeCategory } from '@chessmate/core';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 import { fonts, rimShadow } from '@/ui';
 
@@ -16,6 +17,7 @@ import {
 } from '@/lib/leaderboardApi';
 import { formatNumber, translate, useT, type TKey } from '@/i18n';
 import { countryLabel } from '@/i18n/chess';
+import { useSocialIdentity } from '@/lib/social/session';
 
 const SCOPES: { key: LeaderboardScope; label: TKey }[] = [
   { key: 'global', label: 'leaderboard.global' },
@@ -23,21 +25,19 @@ const SCOPES: { key: LeaderboardScope; label: TKey }[] = [
   { key: 'friends', label: 'home.friends.title' },
 ];
 
-/**
- * Session token for the signed-in user. Accounts plug in here; without it
- * the Friends board asks the viewer to sign in and no "you" row is shown.
- */
-const useSessionToken = (): string | null => null;
 
 export default function LeaderboardScreen() {
   const t = useTheme();
   const tr = useT();
-  const token = useSessionToken();
+  // The signed-in account (set by the auth bridge at sign-in). Without it the
+  // Friends board asks the viewer to sign in and no "you" row is shown.
+  const me = useSocialIdentity();
+  const signedInAs = me ? (me.userId ?? me.name) : null;
   const [category, setCategory] = useState<TimeCategory>('blitz');
   const [scope, setScope] = useState<LeaderboardScope>('global');
   const [countryInput, setCountryInput] = useState('');
   const country = scope === 'country' && /^[A-Za-z]{2}$/.test(countryInput) ? countryInput.toUpperCase() : null;
-  const { page, error, loading, refresh, loadMore, hasMore } = useLeaderboard({ category, scope, country }, token);
+  const { page, error, loading, refresh, loadMore, hasMore } = useLeaderboard({ category, scope, country }, signedInAs);
 
   const header = (
     <View style={styles.headerWrap}>
@@ -107,6 +107,9 @@ export default function LeaderboardScreen() {
                       : tr('leaderboard.emptyBody')}
                 </Label>
                 {error?.status === 0 && <Button variant="secondary" title={tr('common.tryAgain')} onPress={refresh} />}
+                {error?.status === 401 && !me && (
+                  <Button title={tr('auth.signIn')} onPress={() => router.push({ pathname: '/sign-in', params: { next: '/leaderboard' } })} />
+                )}
               </Card>
             )}
           </View>
@@ -127,11 +130,20 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
   const t = useTheme();
   const tr = useT();
   const podium = entry.rank <= 3;
+  const country = entry.country ? (countryLabel(entry.country) ?? entry.country) : null;
+  const countryRank = country && entry.countryRank ? tr('leaderboard.countryRank', { n: formatNumber(entry.countryRank), country }) : null;
   return (
-    <View
-      style={[styles.row, { borderColor: highlight ? t.borderStrong : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface }, rimShadow(t, highlight ? 'bright' : 'soft')]}
-      accessible
-      accessibilityLabel={[tr('leaderboard.rowA11y', { rank: entry.rank, name: entry.displayName, rating: entry.rating }), countryLabel(entry.country)].filter(Boolean).join(', ')}>
+    <Pressable
+      onPress={() => router.push({ pathname: '/profile/[username]', params: { username: entry.username } })}
+      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+        styles.row,
+        { borderColor: highlight || hovered ? t.borderStrong : t.glassBorder, backgroundColor: highlight ? t.surfaceSolid : t.surface },
+        rimShadow(t, highlight ? 'bright' : 'soft'),
+        pressed && styles.pressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityHint={tr('leaderboard.openProfile')}
+      accessibilityLabel={[tr('leaderboard.rowA11y', { rank: entry.rank, name: entry.displayName, rating: entry.rating }), countryRank ?? country].filter(Boolean).join(', ')}>
       <View style={[styles.rank, podium && { backgroundColor: t.accent }]}>
         <Text style={[styles.rankText, { color: podium ? t.onAccent : t.muted }]}>{entry.rank}</Text>
       </View>
@@ -142,6 +154,11 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
             {entry.displayName}
           </Text>
         </View>
+        {countryRank ? (
+          <Text style={[styles.sub, styles.countryRank, { color: t.text }]} numberOfLines={1}>
+            {countryRank}
+          </Text>
+        ) : null}
         <Text style={[styles.sub, { color: t.muted }]} numberOfLines={1}>
           @{entry.username}
           {entry.games > 0 ? ` · ${tr('leaderboard.games', { count: entry.games })} · ${entry.wins}${tr('profile.w')} ${entry.draws}${tr('profile.d')} ${entry.losses}${tr('profile.l')}` : ''}
@@ -154,7 +171,7 @@ function Row({ entry, highlight }: { entry: LeaderboardEntry; highlight?: boolea
         </Text>
         <Text style={[styles.sub, { color: t.muted }]}>{tr('leaderboard.peak', { n: entry.peak })}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -179,6 +196,8 @@ const styles = StyleSheet.create({
   flagLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   shrink: { flexShrink: 1 },
   sub: { fontSize: 12 },
+  pressed: { opacity: 0.7 },
+  countryRank: { fontWeight: '600' },
   score: { alignItems: 'flex-end' },
   rating: { fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });
