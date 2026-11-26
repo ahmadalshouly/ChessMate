@@ -96,17 +96,32 @@ const SOUND_AFTER = 0.45;
 /** Expected score (about +1 by centipawns) at which a sacrifice has given the mover the advantage. */
 const ADVANTAGE = 0.6;
 /**
- * At or above this expected score (about +5.5 by centipawns, not mate) the
- * mover is already completely winning, so a sacrifice or only move is not
- * special: plenty of moves win.
+ * At or above this expected score (about +4.3 by centipawns, not mate) with
+ * the engine's second choice too, the mover is already completely winning, so
+ * a sacrifice or only move is not special: plenty of moves win. A position
+ * that wins only with the best move (a combination) is not "already won".
  */
-const ALREADY_WINNING = 0.9;
+const ALREADY_WINNING = 0.85;
+/** Mates in this many moves or fewer every search finds exactly. */
+const SHORT_MATE = 3;
 /** A theory move keeps its badge unless the engine calls it a mistake or worse. */
 const BOOK_MAX_LOSS = 0.1;
 /** Opponent's previous move loss that opens a chance worth noticing. */
 const CHANCE = 0.15;
 /** Loss at which letting such a chance go counts as a miss. */
 const MISS_LOSS = 0.1;
+
+/** What `classifyMove` found the move gives up (see `findSacrifice`). */
+export interface SacrificeFacts {
+  /** The piece offered. */
+  piece: PieceType;
+  /** Net material the opponent can win, in pawns (after the mover's capture, if any). */
+  amount: number;
+  /** The piece can't really be taken: the mover wins as much straight back. */
+  trap?: boolean;
+  /** The material was lost whatever the mover played (counts only for a mate). */
+  lostAnyway?: boolean;
+}
 
 /**
  * Judges a move by how much expected score the mover gave up compared with
@@ -128,7 +143,7 @@ export function judgeMove(params: {
    * a move, so it may be passed as a function, called only for a move that
    * could earn !! or !!!.
    */
-  sacrifice?: { piece: PieceType; amount: number } | null | (() => { piece: PieceType; amount: number } | null);
+  sacrifice?: SacrificeFacts | null | (() => SacrificeFacts | null);
   /** Whether the engine's line after the move wins the sacrificed material back within a few moves (asked only for a sacrifice). */
   winsMaterialBack?: boolean | (() => boolean);
   isRecapture?: boolean;
@@ -143,12 +158,18 @@ export function judgeMove(params: {
   if (params.book && loss < BOOK_MAX_LOSS) return { classification: 'book', loss, accuracy: 100 };
 
   const top = params.playedIsBest || loss < TOP_LOSS;
-  const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING;
+  // Completely winning whatever the mover plays: the best move and the second choice both win easily.
+  const second = params.secondBestScore ? expectedScoreFor(params.secondBestScore, params.mover) : before;
+  const easilyWinning = params.bestScore.mate === undefined && before >= ALREADY_WINNING && second >= ALREADY_WINNING;
   const forMover = (s: Score) => s.mate !== undefined && (params.mover === 'w' ? s.mate > 0 : s.mate < 0);
   // The move forces mate, and no slower than a mate the engine had already seen
-  // (one move of slack, for separate searches): dragging out a won mating attack is not special.
+  // (one move of slack for a long mate, which separate searches may count
+  // differently; a short one every search finds exactly): dragging out a won
+  // mating attack is not special.
+  const playedMate = Math.abs(params.playedScore.mate ?? 0);
+  const bestMate = Math.abs(params.bestScore.mate ?? 0);
   const forcesMate =
-    forMover(params.playedScore) && (!forMover(params.bestScore) || Math.abs(params.playedScore.mate!) <= Math.abs(params.bestScore.mate!));
+    forMover(params.playedScore) && (!forMover(params.bestScore) || playedMate < bestMate || (playedMate === bestMate && bestMate > SHORT_MATE));
   // A sacrifice that forces mate counts even from a won position: the search
   // before the move just had not seen the mate yet.
   if (top && (!easilyWinning || forcesMate)) {
@@ -159,17 +180,17 @@ export function judgeMove(params: {
     }
     // !!: the sacrifice gives the mover the advantage, or the material comes back
     // within a few moves. One that only keeps the balance is just a good move,
-    // and so is one that merely slows down a mate the mover already had.
-    if (sac && !easilyWinning && !forMover(params.bestScore)) {
-      const back = () => (typeof params.winsMaterialBack === 'function' ? params.winsMaterialBack() : !!params.winsMaterialBack);
+    // and so is one that merely slows down a mate the mover already had. A
+    // piece that can't be taken (taking it loses as much at once) must give
+    // the advantage: its material always "comes back". Material that was lost
+    // whatever the mover did counts only for a mate (above).
+    if (sac && !sac.lostAnyway && !easilyWinning && !forMover(params.bestScore)) {
+      const back = () => !sac.trap && (typeof params.winsMaterialBack === 'function' ? params.winsMaterialBack() : !!params.winsMaterialBack);
       if (after >= ADVANTAGE || back()) return { classification: 'brilliant', loss, accuracy: 100 };
     }
   }
-  if (top && !easilyWinning) {
-    if (params.secondBestScore && !params.isRecapture && after >= SOUND_AFTER) {
-      const second = expectedScoreFor(params.secondBestScore, params.mover);
-      if (before - second >= ONLY_MOVE_GAP) return { classification: 'great', loss, accuracy: 100 };
-    }
+  if (top && !easilyWinning && params.secondBestScore && !params.isRecapture && after >= SOUND_AFTER && before - second >= ONLY_MOVE_GAP) {
+    return { classification: 'great', loss, accuracy: 100 };
   }
   if (params.playedIsBest || loss < BEST_LOSS) return { classification: 'best', loss, accuracy: 100 };
 
