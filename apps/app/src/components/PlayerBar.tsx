@@ -24,18 +24,20 @@ export function PlayerBar({
 }
 
 /**
- * The current time, refreshed every 100 ms while `running`, so clocks tick.
+ * The current time, refreshed every `intervalMs` (100 ms by default) while
+ * `running`, so clocks tick. Pick the slowest interval the display needs: each
+ * tick re-renders the caller, and fast ticks on idle screens heat up phones.
  * Use the returned value in the time calculation: with the React Compiler, a
  * value computed from Date.now() without it is cached until its other inputs
  * change, which froze spectator clocks until the next move.
  */
-export function useTicker(running: boolean): number {
+export function useTicker(running: boolean, intervalMs = 100): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!running) return;
     setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 100);
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, intervalMs]);
   return running ? now : Date.now();
 }

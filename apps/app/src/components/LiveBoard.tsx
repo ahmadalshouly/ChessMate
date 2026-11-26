@@ -1,6 +1,6 @@
 import { formatClock, formatTimeControl, type Color, type PlayedMove, type PlayerInfo, type TimeControl } from '@chessmate/core';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { AppState, Platform, Pressable, ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
@@ -99,6 +99,15 @@ export function LiveBoard({ width }: { width: number }) {
   const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
   const count = games.length;
   const active = Math.min(index, Math.max(0, count - 1));
+  // Follow the game only while Home is on screen: under another screen it would
+  // keep the socket, the board and the clocks busy for nobody.
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
 
   const go = useCallback(
     (i: number) => {
@@ -129,7 +138,7 @@ export function LiveBoard({ width }: { width: number }) {
         style={{ width }}>
         {games.map((g, i) => (
           <View key={g.gameId} style={{ width }}>
-            {i === active ? (
+            {i === active && focused ? (
               // Keyed so each game starts from a clean spectator state.
               <LiveGame key={g.gameId} game={g} wide={wide} boardSize={boardSize} onDone={refresh} />
             ) : (
@@ -193,7 +202,12 @@ function PagerArrow({ icon, label, disabled, onPress }: { icon: 'chevron-back' |
 
 function LiveGame({ game, wide, boardSize, onDone }: { game: FeaturedGame; wide: boolean; boardSize: number; onDone: () => void }) {
   const s = useSpectate(game.gameId);
-  const now = useTicker(s.status === 'live' && !!s.clock?.running);
+  // A small card on Home: twice a second is enough until the running clock shows tenths (under 10 s).
+  const [tickMs, setTickMs] = useState(500);
+  const now = useTicker(s.status === 'live' && !!s.clock?.running, tickMs);
+  const runningLeft = s.clock?.running ? clockRemaining(s.clock, s.clock.running, s.clockOffset, now) : Infinity;
+  const wantTick = runningLeft < 10_500 ? 100 : 500;
+  if (wantTick !== tickMs) setTickMs(wantTick);
 
   const over = s.status === 'finished';
   const failed = s.status === 'error';
