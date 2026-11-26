@@ -35,6 +35,8 @@ export interface ArchivedGame {
   opening: string | null;
   /** Extra PGN tags kept from imports (Event, Site, Round, ...). */
   tags?: Record<string, string>;
+  /** The mover's clock after each ply (ms), null where unknown; written as [%clk] in the PGN. */
+  clocks?: (number | null)[];
 }
 
 /** Fills in opening and category for a game missing them. */

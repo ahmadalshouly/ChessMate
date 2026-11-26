@@ -9,6 +9,8 @@ export type FinishedOnlineGame = Pick<GameView, 'gameId' | 'white' | 'black' | '
   outcome: GameOutcome;
   /** Your side, or null when watching. */
   you: Color | null;
+  /** The mover's clock after each move (ms), when known: written as [%clk]. */
+  moveClocks?: (number | null)[];
 };
 
 /** Archive entry for a finished online game; also what its PGN is built from. */
@@ -35,6 +37,7 @@ export function onlineGameEntry(g: FinishedOnlineGame, startedAt: number, endedA
     reason: outcome.reason,
     initialFen: START_FEN,
     moves: g.history.map((m) => m.uci),
+    ...(g.moveClocks?.some((c) => c != null) ? { clocks: g.history.map((_, i) => g.moveClocks?.[i] ?? null) } : {}),
     startedAt,
     endedAt,
     eco: null,

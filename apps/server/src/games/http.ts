@@ -17,12 +17,20 @@ export interface PublicGame {
   initialFen: string;
   /** Moves in UCI ("e2e4"). */
   moves: string[];
+  /** The mover's clock right after each move (ms), null where not recorded. */
+  clocks: (number | null)[];
   result: string;
   endReason: string | null;
   startedAt: number;
   endedAt: number | null;
   /** Accuracy per side once the game has a saved review, else null. */
   accuracy: { w: number; b: number } | null;
+}
+
+/** The clock of whoever made each move, from the per-move record of both clocks. */
+export function moverClocks(initialFen: string, moves: readonly { whiteMs: number | null; blackMs: number | null }[]): (number | null)[] {
+  const blackFirst = initialFen.split(' ')[1] === 'b';
+  return moves.map((mv, i) => ((i % 2 === 0) !== blackFirst ? mv.whiteMs : mv.blackMs) ?? null);
 }
 
 export interface GameRouteDeps {
@@ -143,6 +151,7 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
         rated: g.rated,
         initialFen: g.initialFen,
         moves: g.moves.map((mv) => mv.uci),
+        clocks: moverClocks(g.initialFen, g.moves),
         result: g.result,
         endReason: g.endReason ?? null,
         startedAt: new Date(g.startedAt).getTime(),

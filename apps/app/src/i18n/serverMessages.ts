@@ -63,11 +63,20 @@ const EXACT: Record<string, TKey> = {
   'That move is illegal: the secret queen was revealed': 'server.secretRevealed',
   'Pick one of your pawns before your first move': 'server.secretPick',
   'Replies to the ChessMate team are not possible here': 'messages.teamReadOnly',
+  'Collection not found': 'collections.errors.notFound',
+  'Give the collection a name': 'collections.errors.needName',
+  'Sign in to keep game collections': 'collections.errors.signIn',
+  'This game cannot be added to a collection': 'collections.errors.cannotAdd',
+  'The game needs a title': 'collections.errors.cannotAdd',
+  'That game is not in this collection': 'collections.errors.notInCollection',
+  'This game is too long to keep in a collection': 'collections.errors.tooLong',
 };
 
 const PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^(.+) is not online right now$/, (m) => translate('server.notOnline', { name: m[1]! })],
   [/^(.+) is in another game$/, (m) => translate('server.inAnotherGame', { name: m[1]! })],
+  [/^You can have up to (\d+) collections$/, (m) => translate('collections.errors.tooMany', { count: Number(m[1]) })],
+  [/^A collection can hold up to (\d+) games$/, (m) => translate('collections.errors.full', { count: Number(m[1]) })],
   [/^Chat is disabled for your account for (\d+) more minutes?$/, (m) => translate('server.chatRestricted', { count: Number(m[1]) })],
 ];
 

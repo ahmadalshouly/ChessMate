@@ -82,6 +82,8 @@ export interface GameView {
   rated: boolean;
   fen: string;
   history: PlayedMove[];
+  /** The mover's clock right after each move (ms), null where not known: [%clk] in the PGN. */
+  moveClocks: (number | null)[];
   clock: ClockState;
   /** Add to Date.now() to get server time. */
   clockOffset: number;
@@ -417,6 +419,7 @@ class PlayClient {
         rated: s.rated,
         fen: secretQueen ? (s.fen ?? s.initialFen) : this.game.fen,
         history,
+        moveClocks: history.map((_, i) => s.clocks?.[i] ?? prev?.moveClocks[i] ?? null),
         clock: s.clock,
         clockOffset: s.serverNow - Date.now(),
         outcome: s.outcome,
@@ -474,12 +477,18 @@ class PlayClient {
     } else if (g.ply !== m.ply) {
       return this.send({ t: 'join', gameId: m.gameId });
     }
+    const history = g.history();
+    // Our own move is already on the board (played before the server confirmed it): its clock arrives now.
+    const movedColor = history[m.ply - 1]?.color;
+    const moveClocks = history.map((_, i) => view.moveClocks[i] ?? null);
+    if (movedColor) moveClocks[m.ply - 1] = Math.round(m.clock.remainingMs[movedColor]);
     this.patchGame({
       clock: m.clock,
       clockOffset: m.serverNow - Date.now(),
       drawOfferBy: null,
       fen: g.fen,
-      history: g.history(),
+      history,
+      moveClocks,
       // White's first move starts black's 30 seconds; after black's, the clocks take over.
       firstMoveDeadline: m.ply === 1 ? (m.clock.startedAt ?? m.serverNow) + FIRST_MOVE_TIMEOUT_MS : null,
     });

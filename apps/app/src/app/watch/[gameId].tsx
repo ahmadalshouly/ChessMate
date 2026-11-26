@@ -45,9 +45,10 @@ export default function WatchScreen() {
           title: vsTitle(s.white.name, s.black.name),
           live: !outcome,
           link: done ? gamePath(id) : watchPath(id),
+          keepLink: gamePath(id),
           pgn:
             done && s.timeControl
-              ? () => onlineGamePgn({ gameId: id, white: s.white!, black: s.black!, timeControl: s.timeControl!, rated: s.rated, history: s.history, outcome: outcome!, you: null })
+              ? () => onlineGamePgn({ gameId: id, white: s.white!, black: s.black!, timeControl: s.timeControl!, rated: s.rated, history: s.history, moveClocks: s.moveClocks, outcome: outcome!, you: null })
               : null,
           pgnNote: s.secretQueen ? tr('share.noPgnSecretQueen') : undefined,
         }
