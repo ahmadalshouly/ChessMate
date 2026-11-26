@@ -348,7 +348,8 @@ function SeekingCard() {
   const t = useAppTheme();
   const tr = useT();
   const s = usePlay();
-  const now = useTicker(true);
+  // Only while searching, and once a second: the card shows whole seconds.
+  const now = useTicker(s.seek !== null, 1000);
   if (!s.seek) return null;
   const st = s.seekStatus;
   const waited = st ? st.waitedMs + (now - st.at) : 0;
