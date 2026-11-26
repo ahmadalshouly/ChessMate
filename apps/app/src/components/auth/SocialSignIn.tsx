@@ -1,37 +1,31 @@
 import { AntDesign } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 
 import { Divider, FormMessage } from '@/components/auth/AuthShell';
 import { ApiError, authApi, useAuth, type OAuthProvider } from '@/lib/auth';
+import { AppleWebCancelled, appleServicesId, appleWebSupported, preloadAppleWeb, signInWithAppleWeb } from '@/lib/auth/appleWeb';
+import { GoogleCancelled, GoogleSetupError, googleBlockedByExpoGo, googleNativeReady, signInWithGoogleNative } from '@/lib/auth/googleNative';
 import { Button, useAppTheme } from '@/ui';
 import { translate } from '@/i18n';
 
 // Closes the Google pop-up on web once it lands back on the app.
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE = {
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined,
-  androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
-};
+/** Web uses Google's OAuth pop-up (expo-auth-session); Android and iPhone use Google's native SDK. */
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
 
-/** Expo Go can't receive Google's redirect (it needs the app's own URL scheme), so Google needs web or an installed build. */
-const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-
-function googleClientIdForPlatform(): string | undefined {
-  if (Platform.OS === 'web') return GOOGLE.webClientId;
-  if (Platform.OS === 'ios') return GOOGLE.iosClientId;
-  if (Platform.OS === 'android') return GOOGLE.androidClientId;
-  return undefined;
+function googleReadyHere(): boolean {
+  if (Platform.OS === 'web') return !!GOOGLE_WEB_CLIENT_ID;
+  return googleNativeReady();
 }
 
 function messageFor(provider: OAuthProvider, e: unknown): string {
   const name = provider === 'google' ? 'Google' : 'Apple';
+  if (e instanceof GoogleSetupError) return translate('auth.social.googleSetup');
   if (e instanceof ApiError) {
     if (e.code === 'network') return e.message;
     if (e.code === 'not_configured') return translate('auth.social.notConfigured', { provider: name });
@@ -43,7 +37,9 @@ function messageFor(provider: OAuthProvider, e: unknown): string {
 /**
  * "Continue with Google" and "Sign in with Apple", shown under the email form.
  * Each button only appears where it can work: the server has it turned on, and
- * the platform has what it needs (Apple: iOS; Google: a client ID for this platform).
+ * the platform has what it needs (Apple: iOS, or web with a Services ID over
+ * https; Google: the client ID this platform needs). In Expo Go on a phone the
+ * Google button only explains that it needs an installed build.
  */
 export function SocialSignIn({ onSignedIn, divider = true }: { onSignedIn: () => void; divider?: boolean }) {
   const [server, setServer] = useState<Record<OAuthProvider, boolean> | null>(null);
@@ -56,7 +52,12 @@ export function SocialSignIn({ onSignedIn, divider = true }: { onSignedIn: () =>
       .providers()
       .then((r) => live && setServer(r.providers))
       .catch(() => live && setServer({ google: false, apple: false }));
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === 'web') {
+      // Checked after mount: the static web build renders without a location.
+      const ok = !!appleServicesId && appleWebSupported();
+      if (ok) preloadAppleWeb();
+      void Promise.resolve().then(() => live && setAppleAvailable(ok));
+    } else if (Platform.OS === 'ios') {
       AppleAuthentication.isAvailableAsync()
         .then((ok) => live && setAppleAvailable(ok))
         .catch(() => {});
@@ -66,7 +67,7 @@ export function SocialSignIn({ onSignedIn, divider = true }: { onSignedIn: () =>
     };
   }, []);
 
-  const showGoogle = !!server?.google && (!!googleClientIdForPlatform() || (inExpoGo && Platform.OS !== 'web'));
+  const showGoogle = !!server?.google && (googleBlockedByExpoGo || googleReadyHere());
   const showApple = !!server?.apple && appleAvailable;
   if (!showGoogle && !showApple) return null;
 
@@ -74,9 +75,11 @@ export function SocialSignIn({ onSignedIn, divider = true }: { onSignedIn: () =>
     <View style={{ gap: 12 }}>
       {divider ? <Divider label={translate('common.or')} /> : null}
       {error ? <FormMessage kind="error">{error}</FormMessage> : null}
-      {showApple ? <AppleButton onError={setError} onSignedIn={onSignedIn} /> : null}
+      {showApple ? (
+        Platform.OS === 'web' ? <AppleWebButton onError={setError} onSignedIn={onSignedIn} /> : <AppleButton onError={setError} onSignedIn={onSignedIn} />
+      ) : null}
       {showGoogle ? (
-        inExpoGo && Platform.OS !== 'web' ? (
+        googleBlockedByExpoGo ? (
           <Button
             title={translate('auth.social.google')}
             variant="secondary"
@@ -84,8 +87,10 @@ export function SocialSignIn({ onSignedIn, divider = true }: { onSignedIn: () =>
             leftIcon={<GoogleIcon />}
             onPress={() => setError(translate('auth.social.expoGo'))}
           />
+        ) : Platform.OS === 'web' ? (
+          <GoogleWebButton onError={setError} onSignedIn={onSignedIn} />
         ) : (
-          <GoogleButton onError={setError} onSignedIn={onSignedIn} />
+          <GoogleNativeButton onError={setError} onSignedIn={onSignedIn} />
         )
       ) : null}
     </View>
@@ -97,14 +102,14 @@ function GoogleIcon() {
   return <AntDesign name="google" size={18} color={colors.text} />;
 }
 
-function GoogleButton({ onError, onSignedIn }: { onError: (m: string | null) => void; onSignedIn: () => void }) {
+function GoogleWebButton({ onError, onSignedIn }: { onError: (m: string | null) => void; onSignedIn: () => void }) {
   const { signInWithProvider } = useAuth();
   const [busy, setBusy] = useState(false);
   const [request, , promptAsync] = Google.useIdTokenAuthRequest({
-    ...GOOGLE,
+    webClientId: GOOGLE_WEB_CLIENT_ID,
     selectAccount: true,
-    // On web, return to the site root (add exactly this URL as an authorized redirect URI in Google Cloud).
-    ...(Platform.OS === 'web' && typeof window !== 'undefined' ? { redirectUri: window.location.origin } : null),
+    // Return to the site root (add exactly this URL as an authorized redirect URI in Google Cloud).
+    ...(typeof window !== 'undefined' ? { redirectUri: window.location.origin } : null),
   });
 
   async function signIn() {
@@ -135,6 +140,61 @@ function GoogleButton({ onError, onSignedIn }: { onError: (m: string | null) => 
       loading={busy}
       disabled={!request}
       leftIcon={<GoogleIcon />}
+      onPress={signIn}
+    />
+  );
+}
+
+function GoogleNativeButton({ onError, onSignedIn }: { onError: (m: string | null) => void; onSignedIn: () => void }) {
+  const { signInWithProvider } = useAuth();
+  const [busy, setBusy] = useState(false);
+
+  async function signIn() {
+    if (busy) return;
+    onError(null);
+    setBusy(true);
+    try {
+      const { idToken, fullName } = await signInWithGoogleNative();
+      await signInWithProvider('google', idToken, fullName);
+      onSignedIn();
+    } catch (e) {
+      setBusy(false);
+      if (e instanceof GoogleCancelled) return;
+      onError(messageFor('google', e));
+    }
+  }
+
+  return <Button title={translate('auth.social.google')} variant="secondary" fullWidth loading={busy} leftIcon={<GoogleIcon />} onPress={signIn} />;
+}
+
+/** Apple on the web: Apple's own pop-up, styled like the other buttons with Apple's logo. */
+function AppleWebButton({ onError, onSignedIn }: { onError: (m: string | null) => void; onSignedIn: () => void }) {
+  const { signInWithProvider } = useAuth();
+  const { colors } = useAppTheme();
+  const [busy, setBusy] = useState(false);
+
+  async function signIn() {
+    if (busy) return;
+    onError(null);
+    setBusy(true);
+    try {
+      const { idToken, fullName } = await signInWithAppleWeb();
+      await signInWithProvider('apple', idToken, fullName);
+      onSignedIn();
+    } catch (e) {
+      setBusy(false);
+      if (e instanceof AppleWebCancelled) return;
+      onError(messageFor('apple', e));
+    }
+  }
+
+  return (
+    <Button
+      title={translate('auth.social.apple')}
+      variant="secondary"
+      fullWidth
+      loading={busy}
+      leftIcon={<AntDesign name="apple" size={18} color={colors.text} />}
       onPress={signIn}
     />
   );

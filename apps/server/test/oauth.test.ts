@@ -88,6 +88,8 @@ describe('oauth config', () => {
     expect(oauthConfigFromEnv({ GOOGLE_CLIENT_IDS: 'a, b' })).toMatchObject({ googleClientIds: ['a', 'b'], appleClientIds: ['com.chessmate.app', 'host.exp.Exponent'] });
     expect(oauthConfigFromEnv({ NODE_ENV: 'production' }).appleClientIds).toEqual(['com.chessmate.app']);
     expect(oauthConfigFromEnv({ APPLE_CLIENT_IDS: '' }).appleClientIds).toEqual([]);
+    // The web Services ID joins the Apple audiences, so web tokens are accepted.
+    expect(oauthConfigFromEnv({ NODE_ENV: 'production', APPLE_SERVICES_ID: 'com.chessmate.web' }).appleClientIds).toEqual(['com.chessmate.app', 'com.chessmate.web']);
   });
 
   it('makes usable usernames', () => {
