@@ -29,6 +29,8 @@ export interface GameSnapshot {
   rated: boolean;
   initialFen: string;
   moves: string[];
+  /** The mover's clock right after each move (ms), for [%clk] in the PGN. Missing from older servers. */
+  clocks?: number[];
   clock: ClockState;
   /** Server time when the snapshot was produced, for clock sync. */
   serverNow: number;

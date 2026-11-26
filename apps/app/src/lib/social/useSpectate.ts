@@ -24,6 +24,8 @@ export interface SpectateState {
   black: PlayerInfo | null;
   fen: string;
   history: PlayedMove[];
+  /** The mover's clock right after each move (ms), null where not known. */
+  moveClocks: (number | null)[];
   clock: ClockState | null;
   clockOffset: number;
   outcome: GameOutcome | null;
@@ -43,6 +45,7 @@ export function useSpectate(gameId: string) {
     black: null,
     fen: new Game().fen,
     history: [],
+    moveClocks: [],
     clock: null,
     clockOffset: 0,
     outcome: null,
@@ -97,6 +100,7 @@ export function useSpectate(gameId: string) {
             outcome: s.outcome,
             fen: game.current.fen,
             history,
+            moveClocks: history.map((_, i) => s.clocks?.[i] ?? p.moveClocks[i] ?? null),
             timeControl: s.timeControl,
             rated: s.rated,
             secretQueen: secret.current,
@@ -116,7 +120,13 @@ export function useSpectate(gameId: string) {
           if (g.ply === m.ply - 1) {
             if (!g.move(m.uci)) return ws.send(encode({ t: 'watch', gameId }));
           } else if (g.ply !== m.ply) return ws.send(encode({ t: 'watch', gameId }));
-          return setState((p) => ({ ...p, clock: m.clock, clockOffset: m.serverNow - Date.now(), fen: g.fen, history: g.history() }));
+          return setState((p) => {
+            const history = g.history();
+            const moveClocks = history.map((_, i) => p.moveClocks[i] ?? null);
+            const mover = history[m.ply - 1]?.color;
+            if (mover) moveClocks[m.ply - 1] = Math.round(m.clock.remainingMs[mover]);
+            return { ...p, clock: m.clock, clockOffset: m.serverNow - Date.now(), fen: g.fen, history, moveClocks };
+          });
         }
         case 'gameOver':
           return setState((p) => ({ ...p, status: 'finished', outcome: m.outcome, clock: p.clock && { ...p.clock, running: null } }));

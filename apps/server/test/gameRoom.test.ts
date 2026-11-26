@@ -39,6 +39,14 @@ describe('GameRoom', () => {
     expect(r.outcome).toMatchObject({ reason: 'timeout', winner: 'b' });
   });
 
+  it('keeps the mover\'s clock after each move for the PGN', () => {
+    const { r } = room('1+2');
+    r.move('w', 'e2e4', 0, 1000);
+    r.move('b', 'e7e5', 1, 2000);
+    r.move('w', 'g1f3', 2, 7000); // white thought 5 s, then gets 2 s back
+    expect(r.snapshot(7000).clocks).toEqual([60_000, 60_000, 57_000]);
+  });
+
   it('aborts when nobody moves', () => {
     const { r } = room();
     expect(r.checkTime(FIRST_MOVE_TIMEOUT_MS + 1)).toBe(true);

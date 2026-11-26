@@ -62,17 +62,32 @@ export function pgnTags(g: ArchivedGame): [string, string][] {
   return tags;
 }
 
-/** Movetext only, e.g. "1. e4 e5 2. Nf3 1-0", wrapped at 80 columns. */
-export function pgnMovetext(moves: string[], initialFen: string, result: GameResult): string {
+/** A clock reading as PGN writes it: "[%clk 0:04:57]" (hours, minutes, whole seconds). */
+export function clkComment(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `{ [%clk ${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}] }`;
+}
+
+/**
+ * Movetext only, e.g. "1. e4 e5 2. Nf3 1-0", wrapped at 80 columns. With
+ * `clocks` (the mover's time left after each ply), every move gets its
+ * [%clk] comment, as Lichess and Chess.com write it.
+ */
+export function pgnMovetext(moves: string[], initialFen: string, result: GameResult, clocks?: readonly (number | null | undefined)[]): string {
   const chess = new Chess(initialFen);
   const parts: string[] = [];
   const [, side, , , , fullmove] = initialFen.split(' ');
   let moveNo = Number(fullmove) || 1;
   let white = side !== 'b';
+  // After a comment, black's move takes its number again ("1. e4 { … } 1... e5").
+  let afterComment = false;
   for (const [i, uci] of moves.entries()) {
     const m = chess.move(parseUci(uci));
     if (white) parts.push(`${moveNo}. ${m.san}`);
-    else parts.push(i === 0 ? `${moveNo}... ${m.san}` : m.san);
+    else parts.push(i === 0 || afterComment ? `${moveNo}... ${m.san}` : m.san);
+    const clk = clocks?.[i];
+    afterComment = typeof clk === 'number' && Number.isFinite(clk);
+    if (afterComment) parts.push(clkComment(clk!));
     if (!white) moveNo++;
     white = !white;
   }
@@ -92,7 +107,7 @@ export function pgnMovetext(moves: string[], initialFen: string, result: GameRes
 /** Full PGN for one game. */
 export function gameToPgn(g: ArchivedGame): string {
   const header = pgnTags(g).map(([k, v]) => tag(k, v)).join('\n');
-  return `${header}\n\n${pgnMovetext(g.moves, g.initialFen, g.result)}\n`;
+  return `${header}\n\n${pgnMovetext(g.moves, g.initialFen, g.result, g.clocks)}\n`;
 }
 
 /** A game or line the archive does not hold: a live game, a broadcast, an analysis line. */
@@ -108,6 +123,8 @@ export interface PgnLine {
   result?: GameResult;
   reason?: GameEndReason | null;
   timeControl?: TimeControl | null;
+  /** The mover's clock after each ply (ms), null where unknown: written as [%clk]. */
+  clocks?: readonly (number | null)[];
   /** When it was played (epoch ms); now when missing. */
   date?: number;
   /** Event, Site, Round and any other tags to write. */
@@ -135,6 +152,7 @@ export function linePgn(l: PgnLine): string {
       reason: l.reason ?? null,
       initialFen: l.initialFen || START_FEN,
       moves: [...l.moves],
+      ...(l.clocks?.some((c) => c != null) ? { clocks: [...l.clocks] } : {}),
       startedAt: at,
       endedAt: at,
       eco: null,
