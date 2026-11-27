@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { GlassView as NativeGlass, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, View, type PressableProps, type PressableStateCallbackType, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -96,6 +97,7 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
   const c = useAppTheme().colors;
   const dark = c.scheme === 'dark';
   const reduce = useReduceTransparency();
+  const onScreen = useOnScreen();
 
   if (reduce) {
     return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfaceSolid, borderRadius: radius }, rimShadow(c)]} />;
@@ -111,7 +113,12 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
 
   // iOS 26: chrome and controls are Apple's native Liquid Glass, so they refract and light up
   // like the system's own. The board never sits on glass.
-  if (nativeLiquidGlass && !plain) {
+  // Only on the screen in front. A native glass view that is not in the window (a tab in the
+  // background, the screen under a pushed one) runs a display-link timer at the screen's refresh
+  // rate (120 times a second on ProMotion iPhones) until it is shown again: expo-glass-effect
+  // waits that way for the view to become visible. Every glass button and header on every
+  // screen left behind kept one going, on every screen of the app.
+  if (nativeLiquidGlass && !plain && onScreen) {
     return (
       <NativeGlass
         pointerEvents="none"
@@ -135,6 +142,18 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius }, rimShadow(c, kind === 'panel' ? 'soft' : 'bright')]} />
     </>
   );
+}
+
+/**
+ * Whether the screen this sits on is the one in front. True outside any screen (root overlays).
+ * useIsFocused throws without a navigator around it, which is the only reason for the catch.
+ */
+function useOnScreen(): boolean {
+  try {
+    return useIsFocused();
+  } catch {
+    return true;
+  }
 }
 
 /**
