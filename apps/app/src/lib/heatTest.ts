@@ -11,6 +11,11 @@
  * - engine: no on-device Stockfish host
  * - keyboard: no keyboard tracking at the root
  * - shell: no backdrop, header or tab bar around the screens
+ * - screens: no screens at all (everything around them still runs)
+ * - overlays: no in-app notification and award banners
+ * - glass: no glass or blur anywhere (plain tint)
+ * - shadows: no shadows anywhere
+ * - skeleton: loading placeholders don't pulse
  *
  * Unset (the normal case) everything runs. Does nothing in release builds.
  */
@@ -22,7 +27,7 @@ const parts = new Set(
     .filter(Boolean),
 );
 
-export type HeatPart = 'blank' | 'sounds' | 'socket' | 'engine' | 'keyboard' | 'shell';
+export type HeatPart = 'blank' | 'sounds' | 'socket' | 'engine' | 'keyboard' | 'shell' | 'screens' | 'overlays' | 'glass' | 'shadows' | 'skeleton';
 
 /** True when this part of the app is switched off for a heat test. `blank` switches off everything. */
 export function heatOff(part: HeatPart): boolean {

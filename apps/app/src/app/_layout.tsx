@@ -73,6 +73,14 @@ function HeatTestNote() {
   );
 }
 
+function HeatNoScreens() {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
+      <Text style={{ color: '#fff', fontSize: 18 }}>Heat test: no screens</Text>
+    </View>
+  );
+}
+
 function Navigator() {
   const { scheme, colors: p } = useAppTheme();
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
@@ -85,9 +93,9 @@ function Navigator() {
           <PlayAuthBridge />
           <SocialAuthBridge />
           <AccountSettingsBridge />
-          <RootStack />
-          <InAppBanner />
-          <AwardsListener />
+          {heatOff('screens') ? <HeatNoScreens /> : <RootStack />}
+          {!heatOff('overlays') && <InAppBanner />}
+          {!heatOff('overlays') && <AwardsListener />}
           {/* Runs Stockfish on phones (hidden; only while a review needs it). */}
           <EngineHost />
         </NotificationsProvider>
