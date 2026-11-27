@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } fr
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -14,6 +14,7 @@ import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { NO_SWIPE_BACK, useNoBrowserSwipeBack } from '@/lib/useNoSwipeBack';
+import { heatOff, heatTestParts } from '@/lib/heatTest';
 import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
@@ -38,19 +39,37 @@ export default function RootLayout() {
   useEffect(() => {
     void initI18n({ beforeReady: (lang) => (lang === 'ar' ? loadArabicFonts() : undefined) });
     // Board sounds load now, so the first move of a session is heard too.
-    preloadSounds();
+    if (!heatOff('sounds')) preloadSounds();
   }, []);
   if (!fontsReady || !i18nReady) return null;
+  if (heatOff('blank')) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
+        <Text style={{ color: '#fff', fontSize: 18 }}>Heat test: everything off</Text>
+      </View>
+    );
+  }
+  const app = (
+    <UIProvider>
+      <Navigator />
+      {heatTestParts.length > 0 && <HeatTestNote />}
+    </UIProvider>
+  );
   return (
     // Board drag-and-drop runs on gesture-handler, which needs this at the root.
     <GestureHandlerRootView style={rootStyle}>
       {/* Tracks the keyboard so focused fields stay above it (iPhone and edge-to-edge Android). */}
-      <KeyboardProvider>
-        <UIProvider>
-          <Navigator />
-        </UIProvider>
-      </KeyboardProvider>
+      {heatOff('keyboard') ? app : <KeyboardProvider>{app}</KeyboardProvider>}
     </GestureHandlerRootView>
+  );
+}
+
+/** Reminds the developer that parts of the app are switched off (EXPO_PUBLIC_HEAT_TEST). */
+function HeatTestNote() {
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 54, alignSelf: 'center', backgroundColor: '#c00', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+      <Text style={{ color: '#fff', fontSize: 12 }}>Heat test off: {heatTestParts.join(', ')}</Text>
+    </View>
   );
 }
 

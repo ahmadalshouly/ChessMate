@@ -2,6 +2,8 @@ import { useEffect, useRef, type ComponentType, type Ref } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView as RNWebView } from 'react-native-webview';
 
+import { heatOff } from '@/lib/heatTest';
+
 import { ENGINE_HOST_HTML } from './hostHtml';
 import { hostMessage, setHostSender, useEngineHost } from './transport.native';
 
@@ -32,7 +34,7 @@ export function EngineHost() {
     setHostSender((msg) => ref.current?.postMessage(msg));
     return () => setHostSender(null);
   }, [payload, session]);
-  if (!payload) return null;
+  if (!payload || heatOff('engine')) return null;
   return (
     <View pointerEvents="none" style={styles.hidden} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <WebView

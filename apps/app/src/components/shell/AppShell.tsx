@@ -5,6 +5,7 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
+import { heatOff } from '@/lib/heatTest';
 import { useT } from '@/i18n';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
 import { Backdrop, BackdropContext } from '@/ui';
@@ -25,6 +26,7 @@ function useActiveTab() {
  * bottom tab bar on narrow screens or a sidebar on wide ones.
  */
 export function AppShell() {
+  const bare = heatOff('shell');
   const t = useTheme();
   const { width } = useWindowDimensions();
   const wide = width >= SIDEBAR_BREAKPOINT;
@@ -48,11 +50,11 @@ export function AppShell() {
       </TabList>
 
       <View style={[styles.fill, { backgroundColor: t.bg }]}>
-        <Backdrop />
+        {!bare && <Backdrop />}
         <View style={[styles.fill, wide && styles.row]}>
           {wide && <Sidebar />}
           <View style={styles.fill}>
-            <AppHeader title={tr(tab.title)} withSidebar={wide} />
+            {!bare && <AppHeader title={tr(tab.title)} withSidebar={wide} />}
             <RestrictionBanner style={styles.banner} />
             {wide ? (
               <TabSlot style={styles.fill} />
@@ -66,12 +68,12 @@ export function AppShell() {
                   <TabSlot style={styles.fill} />
                 </SafeAreaInsetsContext>
                 {/* The header has no bar, so content scrolling up fades out under it instead of being cut off. */}
-                <LinearGradient pointerEvents="none" colors={[t.bgGradient[0], fade(t.bgGradient[0])]} style={styles.fade} />
+                {!bare && <LinearGradient pointerEvents="none" colors={[t.bgGradient[0], fade(t.bgGradient[0])]} style={styles.fade} />}
               </View>
             )}
           </View>
         </View>
-        {!wide && <BottomTabBar />}
+        {!wide && !bare && <BottomTabBar />}
       </View>
     </Tabs>
     </BackdropContext>

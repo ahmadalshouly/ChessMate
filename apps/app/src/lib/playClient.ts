@@ -38,6 +38,7 @@ import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
 import { haptic } from './haptics';
 import { playSound } from './sounds';
 import { translate } from '@/i18n';
+import { heatOff } from './heatTest';
 
 /**
  * One realtime connection for the whole app, shared by the lobby and the game
@@ -240,7 +241,7 @@ class PlayClient {
   };
 
   private start() {
-    if (this.started) return;
+    if (this.started || heatOff('socket')) return;
     this.started = true;
     // Tell the server when the app goes to the background, so it sends push
     // notifications (your turn, challenges) instead of only in-app banners.
