@@ -14,11 +14,11 @@
  *
  * Unset (the normal case) everything runs. Does nothing in release builds.
  */
-const raw = __DEV__ ? (process.env.EXPO_PUBLIC_HEAT_TEST ?? '') : '';
+const raw: string = __DEV__ ? (process.env.EXPO_PUBLIC_HEAT_TEST ?? '') : '';
 const parts = new Set(
   raw
     .split(',')
-    .map((s) => s.trim().toLowerCase())
+    .map((s: string) => s.trim().toLowerCase())
     .filter(Boolean),
 );
 
