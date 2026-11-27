@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { StackHeader } from '@/components/shell/StackHeader';
+import { NO_SWIPE_BACK } from '@/lib/useNoSwipeBack';
 
 /**
  * Stack used inside every tab. The tab's `index` screen sits under the shell
@@ -12,6 +13,7 @@ export function TabStack() {
   return (
     <Stack
       screenOptions={{
+        ...NO_SWIPE_BACK,
         header: (props) => <StackHeader {...props} />,
         contentStyle: { backgroundColor: 'transparent' },
       }}>
