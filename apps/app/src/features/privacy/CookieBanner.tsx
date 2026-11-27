@@ -1,34 +1,38 @@
 import { router, useSegments } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
 import { Button, GlassView, Text } from '@/ui';
 
-import { setCookieConsent, useCookieConsent } from './cookieConsent';
+import { cookieConsentLoaded, setCookieConsent, useCookieConsent } from './cookieConsent';
 
 /**
- * First-visit cookie notice on the web. "Only necessary" and "Accept all" carry the
- * same weight, nothing optional loads before a choice, and the choice can be changed
- * later in Settings → Privacy or on the cookie policy page. Phones never embed
- * third-party players, so the apps don't show it.
+ * First-visit privacy notice, on the web and in the apps. "Only necessary" and
+ * "Accept all" carry the same weight, nothing optional (analytics, external media)
+ * runs before a choice, and the choice can be changed later in Settings → Privacy
+ * or on the cookie policy page. The apps never embed third-party players, so their
+ * text only speaks of analytics.
  */
 export function CookieBanner() {
   const tr = useT();
   const consent = useCookieConsent();
   const segments = useSegments();
-  if (Platform.OS !== 'web' || consent.decided) return null;
+  const insets = useSafeAreaInsets();
+  if (consent.decided || !cookieConsentLoaded()) return null;
   // The policy page has the full choices itself.
   if (segments[0] === 'cookies') return null;
+  const web = Platform.OS === 'web';
   return (
-    <View style={styles.wrap} pointerEvents="box-none">
+    <View style={[styles.wrap, { paddingBottom: 16 + insets.bottom }]} pointerEvents="box-none">
       <GlassView radius="xl" padding="lg" elevation="lg" style={styles.card} accessibilityRole="alert" accessibilityLabel={tr('cookies.banner.title')}>
         <Text variant="heading">{tr('cookies.banner.title')}</Text>
         <Text tone="muted" style={{ lineHeight: 21 }}>
-          {tr('cookies.banner.body')}
+          {tr(web ? 'cookies.banner.body' : 'cookies.banner.bodyApp')}
         </Text>
         <View style={styles.actions}>
-          <Button variant="secondary" title={tr('cookies.banner.necessary')} onPress={() => setCookieConsent({ externalMedia: false })} style={styles.action} />
-          <Button variant="secondary" title={tr('cookies.banner.acceptAll')} onPress={() => setCookieConsent({ externalMedia: true })} style={styles.action} />
+          <Button variant="secondary" title={tr('cookies.banner.necessary')} onPress={() => setCookieConsent({ externalMedia: false, analytics: false })} style={styles.action} />
+          <Button variant="secondary" title={tr('cookies.banner.acceptAll')} onPress={() => setCookieConsent({ externalMedia: web, analytics: true })} style={styles.action} />
         </View>
         <Button variant="ghost" size="sm" title={tr('cookies.banner.settings')} onPress={() => router.push('/cookies')} />
       </GlassView>

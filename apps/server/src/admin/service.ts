@@ -1,5 +1,6 @@
 import {
   ACCOUNT_CLOSE_REASONS,
+  type AnalyticsReport,
   DEFAULT_RATING,
   MESSAGE_MAX,
   ROLE_TAG_LABELS,
@@ -81,6 +82,7 @@ import { TournamentError, type TournamentService } from '../tournaments/service'
 import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
 import { BotError, type BotService } from '../bots/service';
+import type { AnalyticsService } from '../analytics/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
 import { closureEmail, fairPlayNotice, muteNotice, ratingRefundNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
 
@@ -168,6 +170,8 @@ export class AdminService {
   ads: AdService | null = null;
   /** Online computer opponents (database only). */
   bots: BotService | null = null;
+  /** First-party analytics (database mode). */
+  analytics: AnalyticsService | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -792,6 +796,14 @@ export class AdminService {
       if (e instanceof BotError) throw new AdminError(e.status === 404 ? 'not_found' : 'invalid_input', e.message);
       throw e;
     }
+  }
+
+  /** Usage report for the analytics page: database facts for everyone, app events from visitors who consented. */
+  async analyticsReport(actor: Actor, days: number | undefined): Promise<AnalyticsReport> {
+    this.require(actor, 'analytics.view');
+    if (!this.analytics) throw new AdminError('unavailable', 'Analytics need the database');
+    const report = await this.analytics.report(days ?? 30);
+    return { ...report, live: this.b.live() };
   }
 
   botConsole(actor: Actor) {

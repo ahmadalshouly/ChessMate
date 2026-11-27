@@ -53,6 +53,8 @@ jobs:
       # Sign in with Google and Apple on the web (public IDs; unset hides the buttons).
       EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
       EXPO_PUBLIC_APPLE_SERVICES_ID: ${{ vars.EXPO_PUBLIC_APPLE_SERVICES_ID }}
+      # Google Analytics 4 on the website (G-XXXXXXX; unset sends nothing to Google). See docs/ANALYTICS.md.
+      EXPO_PUBLIC_GA_MEASUREMENT_ID: ${{ vars.EXPO_PUBLIC_GA_MEASUREMENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - name: Check configuration

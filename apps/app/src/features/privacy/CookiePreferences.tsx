@@ -14,6 +14,12 @@ export function CookiePreferences() {
     <View style={{ gap: 4 }}>
       <ToggleRow title={tr('cookies.prefs.necessary')} detail={tr('cookies.prefs.necessaryDetail')} value disabled onChange={() => undefined} />
       <ToggleRow
+        title={tr('cookies.prefs.analytics')}
+        detail={tr('cookies.prefs.analyticsDetail')}
+        value={consent.analytics}
+        onChange={(analytics) => setCookieConsent({ analytics })}
+      />
+      <ToggleRow
         title={tr('cookies.prefs.externalMedia')}
         detail={tr(Platform.OS === 'web' ? 'cookies.prefs.externalMediaDetail' : 'cookies.prefs.externalMediaDetailApp')}
         value={consent.externalMedia}

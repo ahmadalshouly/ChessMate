@@ -33,6 +33,7 @@ import {
 import { useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
+import { track } from './analytics';
 import { SERVER_URL } from './config';
 import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
 import { haptic } from './haptics';
@@ -350,7 +351,11 @@ class PlayClient {
         const same = this.state.game?.gameId === m.game.gameId;
         this.load(m.game, m.you);
         this.set({ seek: null, seekStatus: null, openGame: null });
-        if (!same) gameStartFeedback();
+        if (!same) {
+          gameStartFeedback();
+          const tc = m.game.timeControl;
+          track('game_start', { time_control: `${Math.round(tc.initialMs / 60_000)}+${Math.round(tc.incrementMs / 1000)}`, category: timeCategory(tc), rated: m.game.rated });
+        }
         return;
       }
       case 'gameState':
@@ -367,6 +372,11 @@ class PlayClient {
       case 'gameOver':
         if (this.state.game?.gameId !== m.gameId) return;
         gameEndFeedback(m.outcome.winner === null ? 'draw' : m.outcome.winner === this.state.game.you ? 'win' : 'loss');
+        track('game_end', {
+          result: m.outcome.winner === null ? 'draw' : m.outcome.winner === this.state.game.you ? 'win' : 'loss',
+          reason: m.outcome.reason,
+          category: timeCategory(this.state.game.timeControl),
+        });
         this.applyMyRating(m.ratingChange?.[this.state.game.you]?.after.rating);
         return this.patchGame({
           outcome: m.outcome,
