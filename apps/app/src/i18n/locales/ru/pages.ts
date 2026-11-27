@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'Поддержать на сайте',
     give: 'Пожертвовать {amount}',
     secure: 'Платежи надёжно обрабатывает Stripe.',
+    customAmount: 'Другая сумма',
+    currency: 'Валюта',
   },
 };

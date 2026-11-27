@@ -66,6 +66,7 @@ import {
   type Database,
   type GameRow,
   type User,
+  listSponsorApplications,
 } from '@chessmate/db';
 import type { AuthService } from '../auth/service';
 import { validateUsername, AuthError } from '../auth/service';
@@ -80,6 +81,8 @@ import type { MessageService } from '../messages/service';
 import { TournamentError, type TournamentService } from '../tournaments/service';
 import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
+import { SponsorDeskError, type SponsorDesk } from '../sponsors/service';
+import type { DonationLedger } from '../payments/donate';
 import { BotError, type BotService } from '../bots/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
 import { closureEmail, fairPlayNotice, muteNotice, ratingRefundNotice, reopenNotice, sponsorMaterialEmail, warningNotice, type ModerationNotice } from './notices';
@@ -168,6 +171,10 @@ export class AdminService {
   ads: AdService | null = null;
   /** Online computer opponents (database only). */
   bots: BotService | null = null;
+  /** Sponsor conversations and payment links (database only). */
+  sponsorDesk: SponsorDesk | null = null;
+  /** Recorded donations (database only). */
+  donations: DonationLedger | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -691,7 +698,67 @@ export class AdminService {
 
   async sponsorApplications(actor: Actor) {
     this.require(actor, 'tournaments.manage');
-    return this.tournamentService().sponsorApplications();
+    const views = await this.tournamentService().sponsorApplications();
+    if (!this.sponsorDesk) return views;
+    const summaries = await this.sponsorDesk.summaries(await listSponsorApplications(this.db));
+    return views.map((v) => ({ ...v, desk: summaries.get(v.id) }));
+  }
+
+  // ---------------------------------------------------------------- sponsor conversations and payments
+
+  private desk(): SponsorDesk {
+    if (!this.sponsorDesk) throw new AdminError('unavailable', 'Sponsor conversations need the database');
+    return this.sponsorDesk;
+  }
+
+  private async deskCall<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof SponsorDeskError) throw new AdminError(e.status === 404 ? 'not_found' : e.status === 409 ? 'conflict' : e.status >= 500 ? 'unavailable' : 'invalid_input', e.message);
+      throw e;
+    }
+  }
+
+  /** The conversation with a sponsor applicant and the payment links sent to them. Opening it marks their messages read. */
+  async sponsorThread(actor: Actor, id: string) {
+    this.require(actor, 'tournaments.manage');
+    return this.deskCall(() => this.desk().staffThread(id));
+  }
+
+  async sponsorMessage(actor: Actor, id: string, input: { body?: unknown }) {
+    this.require(actor, 'tournaments.manage');
+    const t = await this.deskCall(() => this.desk().staffMessage(id, actor.username, input.body));
+    await this.audit(actor, 'sponsor.message', { type: 'system', id, name: id }, typeof input.body === 'string' ? input.body.slice(0, 200) : null);
+    return t;
+  }
+
+  /** Creates a Stripe payment link for the applicant, posts it in the conversation and emails it. */
+  async sponsorPaymentLink(actor: Actor, id: string, input: Record<string, unknown>) {
+    this.require(actor, 'payments.manage');
+    const t = await this.deskCall(() => this.desk().sendPaymentLink(id, actor.username, input));
+    const p = t.payments[0];
+    await this.audit(actor, 'sponsor.payment_link', { type: 'system', id, name: id }, p?.description ?? null, { amountCents: p?.amountCents, currency: p?.currency });
+    return t;
+  }
+
+  async cancelSponsorPayment(actor: Actor, id: string, input: { paymentId?: unknown }) {
+    this.require(actor, 'payments.manage');
+    const paymentId = typeof input.paymentId === 'string' ? input.paymentId : '';
+    const t = await this.deskCall(() => this.desk().cancelPayment(id, paymentId, actor.username));
+    await this.audit(actor, 'sponsor.payment_cancel', { type: 'system', id, name: id }, null, { paymentId });
+    return t;
+  }
+
+  /** Every sponsor payment link and the donations, for the console's Payments page. */
+  async paymentsOverview(actor: Actor) {
+    this.require(actor, 'payments.manage');
+    return {
+      enabled: !!this.sponsorDesk?.paymentsEnabled,
+      webhook: !!process.env.STRIPE_WEBHOOK_SECRET,
+      sponsorPayments: this.sponsorDesk ? await this.sponsorDesk.recentPayments() : [],
+      donations: this.donations ? await this.donations.totals() : { last30: {}, allTime: {}, recent: [] },
+    };
   }
 
   async reviewSponsor(actor: Actor, id: string, input: { status?: unknown; note?: unknown }) {

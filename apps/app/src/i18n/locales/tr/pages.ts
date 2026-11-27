@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'Web\'de bağış yap',
     give: '{amount} bağışla',
     secure: 'Ödemeler Stripe tarafından güvenle işlenir.',
+    customAmount: 'Başka tutar',
+    currency: 'Para birimi',
   },
 };

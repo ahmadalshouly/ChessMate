@@ -62,6 +62,8 @@ export const ADMIN_PERMISSIONS = [
   'ads.manage',
   /** Create, edit and remove online computer opponents (streamer and creator bots). Admins only. */
   'bots.manage',
+  /** Send Stripe payment links to sponsors and see payments and donations. Admins only. */
+  'payments.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'Im Web spenden',
     give: '{amount} spenden',
     secure: 'Zahlungen werden sicher über Stripe abgewickelt.',
+    customAmount: 'Anderer Betrag',
+    currency: 'Währung',
   },
 };

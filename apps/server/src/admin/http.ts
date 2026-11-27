@@ -67,6 +67,11 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /tournaments/:id/hidechat    { messageId, hidden } hide or show a chat message
  *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
  *   POST /sponsors/:id/material       emails the company asking for the title, text, image and link
+ *   GET  /sponsors/:id/thread         { messages, payments, portalUrl, paymentsEnabled } the conversation (marks it read)
+ *   POST /sponsors/:id/message        { body } writes to the company (emailed, shown on their page)
+ *   POST /sponsors/:id/payment        { amountCents, currency, description } sends a Stripe payment link (admins only)
+ *   POST /sponsors/:id/cancel-payment { paymentId } withdraws an unpaid link (admins only)
+ *   GET  /payments                    sponsor payment links and donations (admins only)
  *   GET  /ads                         { spots, placements } every spot's switch and every placement
  *   POST /ads-spots/:id               { enabled?, note? } switches one spot on or off
  *   POST /ads                         { spot, sponsor, title, body?, url?, image?, imageUrl?, startsAt?, period | endsAt, applicationId? }
@@ -209,6 +214,16 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ application: await admin.reviewSponsor(actor, id!, await body()) });
         case 'POST sponsors/:id/material':
           return ok({ application: await admin.requestSponsorMaterial(actor, id!) });
+        case 'GET sponsors/:id/thread':
+          return ok({ thread: await admin.sponsorThread(actor, id!) });
+        case 'POST sponsors/:id/message':
+          return ok({ thread: await admin.sponsorMessage(actor, id!, await body()) });
+        case 'POST sponsors/:id/payment':
+          return ok({ thread: await admin.sponsorPaymentLink(actor, id!, await body()) });
+        case 'POST sponsors/:id/cancel-payment':
+          return ok({ thread: await admin.cancelSponsorPayment(actor, id!, await body()) });
+        case 'GET payments':
+          return ok(await admin.paymentsOverview(actor));
         case 'GET ads':
           return ok(admin.adConsole(actor));
         case 'POST ads':

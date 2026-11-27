@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'تبرّع عبر الويب',
     give: 'تبرّع بمبلغ {amount}',
     secure: 'تُعالج المدفوعات بأمان عبر Stripe.',
+    customAmount: 'مبلغ آخر',
+    currency: 'العملة',
   },
 };

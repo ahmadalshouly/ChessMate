@@ -36,6 +36,8 @@ import type {
   ReportAction,
   PayoutRequestView,
   SponsorApplicationView,
+  SponsorMessageView,
+  SponsorPaymentView,
   StaffRole,
   TournamentChatMessage,
   TournamentDetail,
@@ -179,6 +181,12 @@ export function useAdminApi() {
       reviewSponsor: (aid: string, status: string, note: string) => post(`/sponsors/${id(aid)}`, { status, note }),
       /** Emails the company asking for the title, text, image and link. */
       requestSponsorMaterial: (aid: string) => post<{ application: SponsorApplicationView }>(`/sponsors/${id(aid)}/material`).then((r) => r.application),
+      /** The conversation with the company and its payment links. Opening it marks their messages read. */
+      sponsorThread: (aid: string) => get<{ thread: SponsorThread }>(`/sponsors/${id(aid)}/thread`).then((r) => r.thread),
+      sponsorMessage: (aid: string, body: string) => post<{ thread: SponsorThread }>(`/sponsors/${id(aid)}/message`, { body }).then((r) => r.thread),
+      sponsorPaymentLink: (aid: string, p: { amountCents: number; currency: string; description: string }) => post<{ thread: SponsorThread }>(`/sponsors/${id(aid)}/payment`, p).then((r) => r.thread),
+      cancelSponsorPayment: (aid: string, paymentId: string) => post<{ thread: SponsorThread }>(`/sponsors/${id(aid)}/cancel-payment`, { paymentId }).then((r) => r.thread),
+      payments: () => get<PaymentsOverview>('/payments'),
       ads: () => get<{ spots: AdSpotState[]; placements: AdPlacementView[] }>('/ads'),
       setAdSpot: (spot: string, patch: { enabled?: boolean; note?: string }) => post<{ spot: AdSpotState }>(`/ads-spots/${id(spot)}`, patch).then((r) => r.spot),
       createAdPlacement: (p: AdPlacementForm) => post<{ placement: AdPlacementView }>('/ads', { ...p }).then((r) => r.placement),
@@ -206,3 +214,23 @@ export function useAdminApi() {
 }
 
 export type AdminApi = ReturnType<typeof useAdminApi>;
+
+/** A sponsor conversation as staff see it. */
+export interface SponsorThread {
+  messages: SponsorMessageView[];
+  payments: SponsorPaymentView[];
+  /** The company's own page, to paste into an email. */
+  portalUrl: string | null;
+  paymentsEnabled: boolean;
+}
+
+export interface PaymentsOverview {
+  enabled: boolean;
+  webhook: boolean;
+  sponsorPayments: (SponsorPaymentView & { applicationId: string; sponsor: string })[];
+  donations: {
+    last30: Record<string, { cents: number; count: number }>;
+    allTime: Record<string, { cents: number; count: number }>;
+    recent: { id: string; amountCents: number; currency: string; email: string | null; paidAt: number | null; createdAt: number }[];
+  };
+}

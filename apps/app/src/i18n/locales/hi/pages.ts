@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'वेब पर दान करें',
     give: '{amount} दान करें',
     secure: 'भुगतान Stripe द्वारा सुरक्षित रूप से प्रोसेस किए जाते हैं।',
+    customAmount: 'अन्य राशि',
+    currency: 'मुद्रा',
   },
 };

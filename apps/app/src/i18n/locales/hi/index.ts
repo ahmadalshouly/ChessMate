@@ -41,6 +41,7 @@ import { tournaments } from './tournaments';
 import { qr } from './qr';
 import { share } from './share';
 import { collections } from './collections';
+import { sponsorship } from './sponsorship';
 import { messages } from './messages';
 import { secretQueen } from './secretQueen';
 import { h2h } from './h2h';
@@ -55,4 +56,4 @@ import { cookies } from './cookies';
 import { explorer } from './explorer';
 import { immortals } from './immortals';
 
-export const hi: PlayerMessages<typeof en> = { share, collections, explorer, immortals, ads, cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };
+export const hi: PlayerMessages<typeof en> = { share, collections, sponsorship, explorer, immortals, ads, cookies, tournaments, qr, messages, secretQueen, h2h, brand, more, community, news, forum, pages, limits, streak, awards, media, nav, chessTitle, common, home, social, learn, auth, errors, titles, play, watch, chess, computer, bots, practice, puzzleThemes, puzzles, analysis, server, chat, challenge, report, profile, settings, friends, leaderboard, notifications, moveClass, feedback, review, game, games, board, boardThemes, pieceSets };

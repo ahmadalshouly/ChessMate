@@ -37,7 +37,11 @@ import { AdService } from './ads/service';
 import { BotService } from './bots/service';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
-import { donateRoutes } from './payments/donate';
+import { DonationLedger, donateRoutes } from './payments/donate';
+import { stripeWebhookRoute } from './payments/webhook';
+import { SponsorDesk } from './sponsors/service';
+import { sponsorshipRoutes } from './sponsors/http';
+import { tournamentStripeHandler } from './tournaments/http';
 import { ExplorerService, LichessExplorer, explorerRoutes } from './explorer';
 
 const port = Number(process.env.PORT ?? 8787);
@@ -129,9 +133,11 @@ async function start() {
   // Profiles and settings (privacy included) live in the database, so they survive restarts.
   const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db), await DbProfileStore.load(db.db), db.db);
   const explorer = new ExplorerService({ db: db.db, lichess: lichessExplorer });
+  const stripe = stripeFromEnv();
+  const donations = new DonationLedger(db.db);
   base.http = [
     ...(base.http ?? []),
-    donateRoutes(stripeFromEnv()),
+    donateRoutes(stripe, { ledger: donations, userOf: (token) => auth.verifyAccessToken(token)?.userId ?? null }),
     explorerRoutes(explorer),
     gameRoutes(db.db, {
       viewerOf: (token) => auth.verifyAccessToken(token)?.userId ?? null,
@@ -194,9 +200,25 @@ async function start() {
   };
   setTimeout(detectLive, 15_000).unref();
   setInterval(detectLive, 60_000).unref();
-  const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
+  const tournaments = new TournamentService({ db: db.db, stripe });
   await tournaments.load();
   admin.tournaments = tournaments;
+  // Sponsors: staff and the company talk on the company's own page, and staff send Stripe payment links there.
+  const sponsorDesk = new SponsorDesk({
+    db: db.db,
+    stripe,
+    sendEmail: auth.mailer.sendAccountNotice ? (to, notice) => auth.mailer.sendAccountNotice!(to, notice) : undefined,
+    staffInbox: process.env.SPONSOR_INBOX_EMAIL || null,
+  });
+  tournaments.onSponsorApplication = (row) => sponsorDesk.welcome(row);
+  admin.sponsorDesk = sponsorDesk;
+  admin.donations = donations;
+  // One Stripe webhook for every payment: sponsor links, donations, then tournament entry fees.
+  base.http = [
+    ...(base.http ?? []),
+    stripeWebhookRoute([(e) => sponsorDesk.handleStripeEvent(e), (e) => donations.handleStripeEvent(e), tournamentStripeHandler(tournaments)]),
+    sponsorshipRoutes(sponsorDesk, (token) => auth.verifyAccessToken(token)?.userId ?? null),
+  ];
   // Sponsored ad spots: staff switch a spot on and place a sponsor on it for a period.
   const ads = new AdService({ db: db.db });
   await ads.load();
@@ -244,6 +266,7 @@ async function start() {
       return id;
     },
   });
+  sponsorDesk.attach((userId, title, body, url) => void server.notifications.notify(userId, { kind: 'system', title, body, url }));
   // Push campaigns from the admin console: send now, schedule, and triggers on what players do.
   const campaigns = new CampaignService({ db: db.db, notifications: server.notifications, isForeground: (id) => server.isForeground(id) });
   await campaigns.load();

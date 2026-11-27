@@ -95,5 +95,7 @@ export const pages = {
     openWeb: '在网页上捐助',
     give: '捐助 {amount}',
     secure: '付款由 Stripe 安全处理。',
+    customAmount: '其他金额',
+    currency: '币种',
   },
 };

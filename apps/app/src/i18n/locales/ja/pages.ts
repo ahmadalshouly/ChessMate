@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'ウェブで寄付する',
     give: '{amount}を寄付',
     secure: 'お支払いはStripeによって安全に処理されます。',
+    customAmount: 'その他の金額',
+    currency: '通貨',
   },
 };

@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'Donasi di web',
     give: 'Donasi {amount}',
     secure: 'Pembayaran diproses dengan aman oleh Stripe.',
+    customAmount: 'Jumlah lain',
+    currency: 'Mata uang',
   },
 };

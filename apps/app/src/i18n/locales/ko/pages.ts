@@ -95,5 +95,7 @@ export const pages = {
     openWeb: '웹에서 후원하기',
     give: '{amount} 후원하기',
     secure: '결제는 Stripe를 통해 안전하게 처리돼요.',
+    customAmount: '다른 금액',
+    currency: '통화',
   },
 };

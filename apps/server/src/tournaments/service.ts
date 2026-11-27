@@ -64,7 +64,7 @@ import {
   type TournamentGame,
   type TournamentMessage,
 } from '@chessmate/db';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 import type { StripeClient } from '../payments/stripe';
 
@@ -780,12 +780,18 @@ export class TournamentService {
   // ---------------------------------------------------------------- sponsors
 
   /** "Sponsor a tournament": anyone (signed in or not) can apply; staff review and get in touch. */
-  async applySponsor(userId: string | null, input: unknown): Promise<{ ok: true }> {
+  async applySponsor(userId: string | null, input: unknown): Promise<{ ok: true; token: string }> {
     const v = validateSponsorApplication(input);
     if ('error' in v) throw new TournamentError(400, v.error);
-    await insertSponsorApplication(this.db, { ...v.value, userId, status: 'new', createdAt: new Date(this.now()) });
-    return { ok: true };
+    // The token opens the company's own page (/sponsorship/<token>), where staff and the company talk and pay.
+    const accessToken = randomBytes(32).toString('base64url');
+    const row = await insertSponsorApplication(this.db, { ...v.value, userId, accessToken, status: 'new', createdAt: new Date(this.now()) });
+    if (this.onSponsorApplication) void Promise.resolve(this.onSponsorApplication(row)).catch((e) => console.warn('sponsor welcome email failed', e));
+    return { ok: true, token: accessToken };
   }
+
+  /** Called after each new sponsor application (the sponsor desk emails the link to their page). */
+  onSponsorApplication: ((row: SponsorApplication) => void | Promise<void>) | null = null;
 
   // ---------------------------------------------------------------- views
 

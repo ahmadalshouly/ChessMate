@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'Doar na web',
     give: 'Doar {amount}',
     secure: 'Os pagamentos são processados com segurança pela Stripe.',
+    customAmount: 'Outro valor',
+    currency: 'Moeda',
   },
 };

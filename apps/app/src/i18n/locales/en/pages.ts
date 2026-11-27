@@ -95,5 +95,7 @@ export const pages = {
     openWeb: 'Donate on the web',
     give: 'Donate {amount}',
     secure: 'Payments are processed securely by Stripe.',
+    customAmount: 'Other amount',
+    currency: 'Currency',
   },
 };
