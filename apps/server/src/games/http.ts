@@ -2,7 +2,7 @@ import { getGame, getReviewForGame, headToHead, reviewAccuracies, saveReviewForG
 
 import { readJson } from '../auth/http';
 import type { HttpRoute } from '../social/http';
-import { reviewFromUpload, uploadDepth } from './reviewUpload';
+import { STANDARD_REVIEW_DEPTH, reviewFromUpload, uploadDepth } from './reviewUpload';
 
 const round = (v: number | null | undefined) => (v === null || v === undefined ? null : Math.round(v));
 
@@ -71,11 +71,13 @@ async function theoryOf(deps: GameRouteDeps, initialFen: string, moves: string[]
  *   GET  /api/games/h2h/:userId   → { h2h: HeadToHead }  your record against that player (signed in)
  *
  * Reviews are graded on players' devices; the server runs no engine for them.
- * The first review saved for a game is the one everyone sees, until a player
- * saves one that searched deeper (a Deep review), which replaces it. Only the
- * two players can save one (anyone signed in can read it), so nobody can
- * attach a review to someone else's game; other viewers grade it on their own
- * device without saving until one of the players reviews it.
+ * The first review saved for a game is the one everyone sees, until someone
+ * saves one that searched deeper, which replaces it. A standard review can
+ * be saved by the two players only, so nobody else attaches the first review
+ * to their game; other viewers grade it on their own device without saving.
+ * A Deep review (every position searched deeper than a standard review) can
+ * be saved by anyone signed in who can open the game, and replaces the saved
+ * one when it searched deeper than it.
  *
  * Live and aborted games are not served here (live games are watched over the socket).
  * If either player keeps their games private, only the two players can open it,
@@ -126,7 +128,6 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
           const review = await getReviewForGame(db, g.id);
           return review ? json(200, { review }) : json(404, { error: 'Not reviewed yet' });
         }
-        if (!players.includes(viewer)) return json(403, { error: 'Only the players can save the review of this game' });
         let body: Record<string, unknown>;
         try {
           body = await readJson(req, 1024 * 1024);
@@ -135,7 +136,10 @@ export function gameRoutes(db: Database, deps: GameRouteDeps): HttpRoute {
         }
         // A saved review stays unless this one searched deeper everywhere (a Deep review): no need to grade it.
         const saved = await getReviewForGame(db, g.id);
-        if (saved && !(uploadDepth(body.evals) > saved.depth)) return json(200, { review: saved });
+        const depth = uploadDepth(body.evals);
+        // Anyone may save a Deep review; only the players a standard one.
+        if (!players.includes(viewer) && !(depth > STANDARD_REVIEW_DEPTH)) return json(403, { error: 'Only the players can save the review of this game' });
+        if (saved && !(depth > saved.depth)) return json(200, { review: saved });
         const ucis = g.moves.map((mv) => mv.uci);
         const built = reviewFromUpload(g.initialFen, ucis, body.evals, { theoryPlies: await theoryOf(deps, g.initialFen, ucis) });
         if ('error' in built) return json(400, { error: built.error });

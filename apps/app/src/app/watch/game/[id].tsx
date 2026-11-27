@@ -4,6 +4,7 @@ import { Stack as RouterStack, router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { ReviewButton } from '@/components/ReviewButton';
 import { Board } from '@/components/Board';
 import { EvalBar } from '@/components/EvalBar';
 import { BoardMoveBadge } from '@/components/MoveBadge';
@@ -145,13 +146,21 @@ export default function BroadcastGameScreen() {
       {g.result !== '*' && g.moves.length > 0 ? (
         // A finished game: the full engine review, or the analysis board to try lines.
         <Row gap="sm" wrap>
-          <Button
+          <ReviewButton
             title={tr('watch.reviewGame')}
-            leftIcon={<Ionicons name="analytics-outline" size={16} color={t.colors.textInverse} />}
             onPress={() =>
               router.push({
                 pathname: '/review',
-                params: { moves: g.moves.join(','), initialFen: g.initialFen, white: g.white.name, black: g.black.name, orientation: orientation, result: g.result },
+                params: {
+                  moves: g.moves.join(','),
+                  initialFen: g.initialFen,
+                  white: g.white.name,
+                  black: g.black.name,
+                  ...(g.white.rating ? { whiteRating: String(g.white.rating) } : {}),
+                  ...(g.black.rating ? { blackRating: String(g.black.rating) } : {}),
+                  orientation: orientation,
+                  result: g.result,
+                },
               })
             }
           />

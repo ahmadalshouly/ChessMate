@@ -2,6 +2,12 @@ import { ANALYSIS_LIMITS, Game, buildReview, terminalScore, terminalState, type 
 
 /** Shallowest search accepted for a position in an uploaded review (the app searches depth 10, and 14 around moves that matter; 18 and 20 for a Deep review). */
 export const MIN_UPLOAD_DEPTH = 8;
+/**
+ * The deepest search a standard review does (the app's depth 14 pass). An
+ * upload that searched every position deeper than this is a Deep review,
+ * which anyone signed in may save over a shallower one.
+ */
+export const STANDARD_REVIEW_DEPTH = 14;
 /** Moves of each engine line kept from an upload. */
 const MAX_PV = 12;
 const UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
