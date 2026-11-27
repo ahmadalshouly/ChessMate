@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { NO_SWIPE_BACK, useNoBrowserSwipeBack } from '@/lib/useNoSwipeBack';
 import { heatOff, heatTestParts } from '@/lib/heatTest';
+import { Probe } from '@/lib/Probe';
 import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
@@ -68,7 +69,7 @@ export default function RootLayout() {
 function HeatTestNote() {
   return (
     <View pointerEvents="none" style={{ position: 'absolute', top: 54, alignSelf: 'center', backgroundColor: '#c00', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-      <Text style={{ color: '#fff', fontSize: 12 }}>Heat test off: {heatTestParts.join(', ')}</Text>
+      <Text style={{ color: '#fff', fontSize: 12 }}>Heat test: {heatTestParts.join(', ')}</Text>
     </View>
   );
 }
@@ -93,9 +94,11 @@ function Navigator() {
           <PlayAuthBridge />
           <SocialAuthBridge />
           <AccountSettingsBridge />
-          {heatOff('screens') ? <HeatNoScreens /> : <RootStack />}
-          {!heatOff('overlays') && <InAppBanner />}
-          {!heatOff('overlays') && <AwardsListener />}
+          <Probe id="screens">{heatOff('screens') ? <HeatNoScreens /> : <RootStack />}</Probe>
+          <Probe id="overlays">
+            {!heatOff('overlays') && <InAppBanner />}
+            {!heatOff('overlays') && <AwardsListener />}
+          </Probe>
           {/* Runs Stockfish on phones (hidden; only while a review needs it). */}
           <EngineHost />
         </NotificationsProvider>

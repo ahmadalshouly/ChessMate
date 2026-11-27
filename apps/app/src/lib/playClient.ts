@@ -38,6 +38,7 @@ import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
 import { haptic } from './haptics';
 import { playSound } from './sounds';
 import { translate } from '@/i18n';
+import { probeSocket } from './heatProbe';
 import { heatOff } from './heatTest';
 
 /**
@@ -273,6 +274,7 @@ class PlayClient {
     };
     sock.onmessage = (ev) => {
       const m = decodeServer(String(ev.data));
+      probeSocket(m?.t ?? '?');
       if (m) this.onMessage(m);
     };
     sock.onclose = (ev) => {

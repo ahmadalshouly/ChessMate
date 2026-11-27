@@ -16,6 +16,7 @@
  * - glass: no glass or blur anywhere (plain tint)
  * - shadows: no shadows anywhere
  * - skeleton: loading placeholders don't pulse
+ * - probe: turns nothing off; prints what the app keeps doing to the Expo terminal every 10 s
  *
  * Unset (the normal case) everything runs. Does nothing in release builds.
  */

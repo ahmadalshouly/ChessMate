@@ -6,6 +6,7 @@ import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area
 
 import { useTheme } from '@/constants/theme';
 import { heatOff } from '@/lib/heatTest';
+import { Probe } from '@/lib/Probe';
 import { useT } from '@/i18n';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
 import { Backdrop, BackdropContext } from '@/ui';
@@ -54,7 +55,7 @@ export function AppShell() {
         <View style={[styles.fill, wide && styles.row]}>
           {wide && <Sidebar />}
           <View style={styles.fill}>
-            {!bare && <AppHeader title={tr(tab.title)} withSidebar={wide} />}
+            <Probe id="header">{!bare && <AppHeader title={tr(tab.title)} withSidebar={wide} />}</Probe>
             <RestrictionBanner style={styles.banner} />
             {wide ? (
               <TabSlot style={styles.fill} />
@@ -65,7 +66,9 @@ export function AppShell() {
               // last row; screens that don't scroll pad for it the same way.
               <View style={styles.fill}>
                 <SafeAreaInsetsContext value={{ ...insets, bottom: tabBarSpace }}>
-                  <TabSlot style={styles.fill} />
+                  <Probe id="tabs">
+                    <TabSlot style={styles.fill} />
+                  </Probe>
                 </SafeAreaInsetsContext>
                 {/* The header has no bar, so content scrolling up fades out under it instead of being cut off. */}
                 {!bare && <LinearGradient pointerEvents="none" colors={[t.bgGradient[0], fade(t.bgGradient[0])]} style={styles.fade} />}
@@ -73,7 +76,7 @@ export function AppShell() {
             )}
           </View>
         </View>
-        {!wide && !bare && <BottomTabBar />}
+        <Probe id="tabbar">{!wide && !bare && <BottomTabBar />}</Probe>
       </View>
     </Tabs>
     </BackdropContext>
