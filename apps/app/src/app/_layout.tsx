@@ -13,6 +13,7 @@ import { useAccountSession } from '@/features/account/session';
 import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
+import { NO_SWIPE_BACK, useNoBrowserSwipeBack } from '@/lib/useNoSwipeBack';
 import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
@@ -56,6 +57,7 @@ export default function RootLayout() {
 function Navigator() {
   const { scheme, colors: p } = useAppTheme();
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+  useNoBrowserSwipeBack();
   return (
     <ThemeProvider value={{ ...base, colors: { ...base.colors, background: p.bg, card: p.surfaceSolid, text: p.text, primary: p.accent, border: p.border } }}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
@@ -144,7 +146,7 @@ function RootStack() {
 
   return (
     <>
-      <Stack screenOptions={{ header: (props) => <RootStackHeader {...props} /> }}>
+      <Stack screenOptions={{ header: (props) => <RootStackHeader {...props} />, ...NO_SWIPE_BACK }}>
         {/* The app shell: header + tab bar / sidebar around the main sections. */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'ChessMate' }} />
         {/* Full-screen flows shown above the shell. */}

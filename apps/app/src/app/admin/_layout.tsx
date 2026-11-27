@@ -5,6 +5,7 @@ import { RootStackHeader, StackHeader } from '@/components/shell/StackHeader';
 import { AdminGate } from '@/features/admin/AdminContext';
 import { AdminRail } from '@/features/admin/AdminNav';
 import { useT } from '@/i18n';
+import { NO_SWIPE_BACK } from '@/lib/useNoSwipeBack';
 import { useAppTheme } from '@/ui';
 
 /** Admin console: staff only. A side rail on wide screens, a stack with a hub dashboard on phones. */
@@ -16,6 +17,7 @@ export default function AdminLayout() {
   const stack = (
     <Stack
       screenOptions={{
+        ...NO_SWIPE_BACK,
         header: (props) => (wide ? <StackHeader {...props} insetTop /> : <RootStackHeader {...props} />),
         contentStyle: { backgroundColor: c.bg },
       }}>
