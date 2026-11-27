@@ -7,6 +7,7 @@ import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area
 import { useTheme } from '@/constants/theme';
 import { heatOff } from '@/lib/heatTest';
 import { Probe } from '@/lib/Probe';
+import { useProbe } from '@/lib/heatProbe';
 import { useT } from '@/i18n';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
 import { Backdrop, BackdropContext } from '@/ui';
@@ -27,6 +28,7 @@ function useActiveTab() {
  * bottom tab bar on narrow screens or a sidebar on wide ones.
  */
 export function AppShell() {
+  useProbe('AppShell');
   const bare = heatOff('shell');
   const t = useTheme();
   const { width } = useWindowDimensions();

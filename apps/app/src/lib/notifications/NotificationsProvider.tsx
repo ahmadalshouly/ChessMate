@@ -8,6 +8,7 @@ import { notificationsApi, onNotificationsAccountChange } from './api';
 import { playClient } from '../playClient';
 import { currentPushStatus, disablePush, enablePush, pushSupported, pushTokensAvailable, type PushStatus } from './push';
 import { translate } from '@/i18n';
+import { useProbe } from '@/lib/heatProbe';
 
 const POLL_MS = 30_000;
 /** With the live connection up, new notifications are pushed; poll only now and then (read state from other devices). */
@@ -51,6 +52,7 @@ function go(url: string | null | undefined) {
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
+  useProbe('NotificationsProvider');
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);

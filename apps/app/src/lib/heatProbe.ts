@@ -1,3 +1,5 @@
+import { DeviceEventEmitter } from 'react-native';
+
 import { heatTestParts } from './heatTest';
 
 /**
@@ -31,6 +33,13 @@ export function onProbeRender(id: string) {
   renderers.set(id, (renderers.get(id) ?? 0) + 1);
 }
 
+/** Counts one render of the named component (call at the top of its body). */
+export function useProbe(name: string) {
+  if (!probing) return;
+  const key = `render ${name}`;
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+}
+
 /** Counts a message that arrived over the live connection. */
 export function probeSocket(type: string) {
   if (!probing) return;
@@ -47,8 +56,25 @@ if (probing) {
       return orig.apply(this, args);
     };
   }
+  // Native events (app state, appearance, dimensions, keyboard, sockets, ...) by name.
+  const emitter = DeviceEventEmitter as unknown as { emit: (type: string, ...a: unknown[]) => void };
+  const emit = emitter.emit.bind(emitter);
+  emitter.emit = (type: string, ...a: unknown[]) => {
+    const key = `event ${type}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    emit(type, ...a);
+  };
+  const expoEmitter = (globalThis as { expo?: { EventEmitter?: { prototype: { emit: (this: unknown, type: string, ...a: unknown[]) => void } } } }).expo?.EventEmitter?.prototype;
+  if (expoEmitter?.emit) {
+    const orig = expoEmitter.emit;
+    expoEmitter.emit = function (type: string, ...a: unknown[]) {
+      const key = `expo-event ${type}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      return orig.call(this, type, ...a);
+    };
+  }
   const report = () => {
-    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25);
     const parts = [...renderers.entries()].map(([k, v]) => `${k}:${v}`).join(' ');
     console.log(`[heat] last 10 s: ${renders} React renders (${parts || 'none'})`);
     for (const [k, v] of top) console.log(`[heat]   ${v}× ${k}`);

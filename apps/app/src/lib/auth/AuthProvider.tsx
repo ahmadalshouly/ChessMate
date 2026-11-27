@@ -4,6 +4,7 @@ import { ApiError, authApi, request, type OAuthProvider } from './client';
 import type { AuthResponse, AuthTokens, AuthUser } from './contract';
 import * as storage from './storage';
 import { releasePushToken } from '@/lib/notifications/api';
+import { useProbe } from '@/lib/heatProbe';
 
 export type AuthStatus = 'loading' | 'signedIn' | 'guest' | 'signedOut';
 
@@ -37,6 +38,7 @@ function newGuestName(): string {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  useProbe('AuthProvider');
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
   const [guestName, setGuestName] = useState<string | null>(null);

@@ -16,6 +16,7 @@ import { playClient } from '@/lib/playClient';
 import { NO_SWIPE_BACK, useNoBrowserSwipeBack } from '@/lib/useNoSwipeBack';
 import { heatOff, heatTestParts } from '@/lib/heatTest';
 import { Probe } from '@/lib/Probe';
+import { useProbe } from '@/lib/heatProbe';
 import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
@@ -32,6 +33,7 @@ WebBrowser.maybeCompleteAuthSession();
 const rootStyle = { flex: 1 } as const;
 
 export default function RootLayout() {
+  useProbe('RootLayout');
   // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
   const fontsReady = useAppFonts();
   // Load the saved language (or follow the device) and apply text direction before the
@@ -83,6 +85,7 @@ function HeatNoScreens() {
 }
 
 function Navigator() {
+  useProbe('Navigator');
   const { scheme, colors: p } = useAppTheme();
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   useNoBrowserSwipeBack();
@@ -109,11 +112,13 @@ function Navigator() {
 
 /** Loads the player's saved settings (board, pieces, sounds) at sign-in so every board uses them. */
 function AccountSettingsBridge() {
+  useProbe('AccountSettingsBridge');
   return <SettingsBridge session={useAccountSession()} />;
 }
 
 /** Signed-in players join games with their account; guests keep their guest identity. */
 function PlayAuthBridge() {
+  useProbe('PlayAuthBridge');
   const { status, getAccessToken } = useAuth();
   const signedIn = status === 'signedIn';
   const prev = useRef<boolean | null>(null);
@@ -136,6 +141,7 @@ function PlayAuthBridge() {
  * username to pick. Signing out clears it.
  */
 function SocialAuthBridge() {
+  useProbe('SocialAuthBridge');
   const { status, user, getAccessToken } = useAuth();
   useEffect(() => {
     if (status === 'loading') return;
@@ -163,6 +169,7 @@ function SocialAuthBridge() {
 const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'cookies', 'fair-play', 'about', 'support']);
 
 function RootStack() {
+  useProbe('RootStack');
   const { status } = useAuth();
   const segments = useSegments();
   const onPublicRoute = PUBLIC_ROOTS.has(segments[0] ?? '');
