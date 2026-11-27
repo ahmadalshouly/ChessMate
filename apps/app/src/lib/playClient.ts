@@ -38,8 +38,6 @@ import { gameEndFeedback, gameStartFeedback, moveFeedback } from './feedback';
 import { haptic } from './haptics';
 import { playSound } from './sounds';
 import { translate } from '@/i18n';
-import { probeSocket } from './heatProbe';
-import { heatOff } from './heatTest';
 
 /**
  * One realtime connection for the whole app, shared by the lobby and the game
@@ -242,7 +240,7 @@ class PlayClient {
   };
 
   private start() {
-    if (this.started || heatOff('socket')) return;
+    if (this.started) return;
     this.started = true;
     // Tell the server when the app goes to the background, so it sends push
     // notifications (your turn, challenges) instead of only in-app banners.
@@ -274,7 +272,6 @@ class PlayClient {
     };
     sock.onmessage = (ev) => {
       const m = decodeServer(String(ev.data));
-      probeSocket(m?.t ?? '?');
       if (m) this.onMessage(m);
     };
     sock.onclose = (ev) => {

@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } fr
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -14,9 +14,6 @@ import { SettingsBridge } from '@/features/account/settingsStore';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { NO_SWIPE_BACK, useNoBrowserSwipeBack } from '@/lib/useNoSwipeBack';
-import { heatOff, heatTestParts } from '@/lib/heatTest';
-import { Probe } from '@/lib/Probe';
-import { useProbe } from '@/lib/heatProbe';
 import { preloadSounds } from '@/lib/sounds';
 import { setSocialIdentity, setSocialToken, setSocialTokenProvider } from '@/lib/social/session';
 import { UIProvider, useAppTheme } from '@/ui';
@@ -33,7 +30,6 @@ WebBrowser.maybeCompleteAuthSession();
 const rootStyle = { flex: 1 } as const;
 
 export default function RootLayout() {
-  useProbe('RootLayout');
   // Fonts are bundled, so this resolves in a frame or two; the splash covers it.
   const fontsReady = useAppFonts();
   // Load the saved language (or follow the device) and apply text direction before the
@@ -42,50 +38,23 @@ export default function RootLayout() {
   useEffect(() => {
     void initI18n({ beforeReady: (lang) => (lang === 'ar' ? loadArabicFonts() : undefined) });
     // Board sounds load now, so the first move of a session is heard too.
-    if (!heatOff('sounds')) preloadSounds();
+    preloadSounds();
   }, []);
   if (!fontsReady || !i18nReady) return null;
-  if (heatOff('blank')) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
-        <Text style={{ color: '#fff', fontSize: 18 }}>Heat test: everything off</Text>
-      </View>
-    );
-  }
-  const app = (
-    <UIProvider>
-      <Navigator />
-      {heatTestParts.length > 0 && <HeatTestNote />}
-    </UIProvider>
-  );
   return (
     // Board drag-and-drop runs on gesture-handler, which needs this at the root.
     <GestureHandlerRootView style={rootStyle}>
       {/* Tracks the keyboard so focused fields stay above it (iPhone and edge-to-edge Android). */}
-      {heatOff('keyboard') ? app : <KeyboardProvider>{app}</KeyboardProvider>}
+      <KeyboardProvider>
+        <UIProvider>
+          <Navigator />
+        </UIProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
 
-/** Reminds the developer that parts of the app are switched off (EXPO_PUBLIC_HEAT_TEST). */
-function HeatTestNote() {
-  return (
-    <View pointerEvents="none" style={{ position: 'absolute', top: 54, alignSelf: 'center', backgroundColor: '#c00', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-      <Text style={{ color: '#fff', fontSize: 12 }}>Heat test: {heatTestParts.join(', ')}</Text>
-    </View>
-  );
-}
-
-function HeatNoScreens() {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
-      <Text style={{ color: '#fff', fontSize: 18 }}>Heat test: no screens</Text>
-    </View>
-  );
-}
-
 function Navigator() {
-  useProbe('Navigator');
   const { scheme, colors: p } = useAppTheme();
   const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
   useNoBrowserSwipeBack();
@@ -97,11 +66,9 @@ function Navigator() {
           <PlayAuthBridge />
           <SocialAuthBridge />
           <AccountSettingsBridge />
-          <Probe id="screens">{heatOff('screens') ? <HeatNoScreens /> : <RootStack />}</Probe>
-          <Probe id="overlays">
-            {!heatOff('overlays') && <InAppBanner />}
-            {!heatOff('overlays') && <AwardsListener />}
-          </Probe>
+          <RootStack />
+          <InAppBanner />
+          <AwardsListener />
           {/* Runs Stockfish on phones (hidden; only while a review needs it). */}
           <EngineHost />
         </NotificationsProvider>
@@ -112,13 +79,11 @@ function Navigator() {
 
 /** Loads the player's saved settings (board, pieces, sounds) at sign-in so every board uses them. */
 function AccountSettingsBridge() {
-  useProbe('AccountSettingsBridge');
   return <SettingsBridge session={useAccountSession()} />;
 }
 
 /** Signed-in players join games with their account; guests keep their guest identity. */
 function PlayAuthBridge() {
-  useProbe('PlayAuthBridge');
   const { status, getAccessToken } = useAuth();
   const signedIn = status === 'signedIn';
   const prev = useRef<boolean | null>(null);
@@ -141,7 +106,6 @@ function PlayAuthBridge() {
  * username to pick. Signing out clears it.
  */
 function SocialAuthBridge() {
-  useProbe('SocialAuthBridge');
   const { status, user, getAccessToken } = useAuth();
   useEffect(() => {
     if (status === 'loading') return;
@@ -169,7 +133,6 @@ function SocialAuthBridge() {
 const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'cookies', 'fair-play', 'about', 'support']);
 
 function RootStack() {
-  useProbe('RootStack');
   const { status } = useAuth();
   const segments = useSegments();
   const onPublicRoute = PUBLIC_ROOTS.has(segments[0] ?? '');

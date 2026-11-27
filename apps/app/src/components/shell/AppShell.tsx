@@ -5,9 +5,6 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
-import { heatOff } from '@/lib/heatTest';
-import { Probe } from '@/lib/Probe';
-import { useProbe } from '@/lib/heatProbe';
 import { useT } from '@/i18n';
 import { SIDEBAR_BREAKPOINT, TABS } from '@/navigation/tabs';
 import { Backdrop, BackdropContext } from '@/ui';
@@ -28,8 +25,6 @@ function useActiveTab() {
  * bottom tab bar on narrow screens or a sidebar on wide ones.
  */
 export function AppShell() {
-  useProbe('AppShell');
-  const bare = heatOff('shell');
   const t = useTheme();
   const { width } = useWindowDimensions();
   const wide = width >= SIDEBAR_BREAKPOINT;
@@ -53,11 +48,11 @@ export function AppShell() {
       </TabList>
 
       <View style={[styles.fill, { backgroundColor: t.bg }]}>
-        {!bare && <Backdrop />}
+        <Backdrop />
         <View style={[styles.fill, wide && styles.row]}>
           {wide && <Sidebar />}
           <View style={styles.fill}>
-            <Probe id="header">{!bare && <AppHeader title={tr(tab.title)} withSidebar={wide} />}</Probe>
+            <AppHeader title={tr(tab.title)} withSidebar={wide} />
             <RestrictionBanner style={styles.banner} />
             {wide ? (
               <TabSlot style={styles.fill} />
@@ -68,17 +63,15 @@ export function AppShell() {
               // last row; screens that don't scroll pad for it the same way.
               <View style={styles.fill}>
                 <SafeAreaInsetsContext value={{ ...insets, bottom: tabBarSpace }}>
-                  <Probe id="tabs">
-                    <TabSlot style={styles.fill} />
-                  </Probe>
+                  <TabSlot style={styles.fill} />
                 </SafeAreaInsetsContext>
                 {/* The header has no bar, so content scrolling up fades out under it instead of being cut off. */}
-                {!bare && <LinearGradient pointerEvents="none" colors={[t.bgGradient[0], fade(t.bgGradient[0])]} style={styles.fade} />}
+                <LinearGradient pointerEvents="none" colors={[t.bgGradient[0], fade(t.bgGradient[0])]} style={styles.fade} />
               </View>
             )}
           </View>
         </View>
-        <Probe id="tabbar">{!wide && !bare && <BottomTabBar />}</Probe>
+        {!wide && <BottomTabBar />}
       </View>
     </Tabs>
     </BackdropContext>

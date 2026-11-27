@@ -1,7 +1,5 @@
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
-import { heatOff } from '@/lib/heatTest';
-
 import { families } from './fonts';
 
 /**
@@ -293,7 +291,6 @@ export function shadows(c: ColorTokens) {
   // Android draws `elevation` as a solid shadow under the whole box, which shows through any
   // translucent fill as a grey slab. Glass there leans on the hairline edge instead.
   const android = Platform.OS === 'android';
-  if (heatOff('shadows')) return { none: {}, sm: {}, md: {}, lg: {}, float: {} } as Record<'none' | 'sm' | 'md' | 'lg' | 'float', ViewStyle>;
   // iPhone: React Native can only give a shadow a cheap, cached outline when the view has a solid
   // background. Glass cards are translucent, so a plain shadow there falls back to a per-pixel
   // shadow that the GPU redraws off-screen on every frame anything on screen changes: with a dozen

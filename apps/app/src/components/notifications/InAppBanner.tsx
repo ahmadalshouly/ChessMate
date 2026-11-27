@@ -10,13 +10,11 @@ import { useNotifications } from '@/lib/notifications';
 
 import { KIND_GLYPH } from './format';
 import { translate } from '@/i18n';
-import { useProbe } from '@/lib/heatProbe';
 
 const VISIBLE_MS = 5000;
 
 /** Frosted banner at the top of the screen for notifications that arrive while the app is open. */
 export function InAppBanner() {
-  useProbe('InAppBanner');
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { incoming, dismissIncoming, open } = useNotifications();

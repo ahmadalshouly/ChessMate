@@ -17,7 +17,6 @@ import { Page } from '@/components/shell/Page';
 import { useCurrentUser } from '@/lib/currentUser';
 import { Button, GlassView, SectionHeader, Text, rimShadow, useAppTheme } from '@/ui';
 import { translate, useI18n, type TKey } from '@/i18n';
-import { useProbe } from '@/lib/heatProbe';
 
 type Glyph = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -55,7 +54,6 @@ function greeting() {
 }
 
 export default function Home() {
-  useProbe('Home');
   const t = useAppTheme();
   const c = t.colors;
   const user = useCurrentUser();

@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../theme/ThemeProvider';
 import { GlassView } from './Glass';
 import { Text } from './Text';
-import { useProbe } from '@/lib/heatProbe';
 
 export type ToastTone = 'neutral' | 'success' | 'warning' | 'danger';
 
@@ -33,7 +32,6 @@ let nextId = 1;
 
 /** Mount once near the root (inside ThemeProvider). `UIProvider` does this for you. */
 export function ToastProvider({ children }: { children: ReactNode }) {
-  useProbe('ToastProvider');
   const [items, setItems] = useState<ToastItem[]>([]);
   const insets = useSafeAreaInsets();
 

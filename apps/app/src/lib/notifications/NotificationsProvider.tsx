@@ -8,7 +8,6 @@ import { notificationsApi, onNotificationsAccountChange } from './api';
 import { playClient } from '../playClient';
 import { currentPushStatus, disablePush, enablePush, pushSupported, pushTokensAvailable, type PushStatus } from './push';
 import { translate } from '@/i18n';
-import { useProbe } from '@/lib/heatProbe';
 
 const POLL_MS = 30_000;
 /** With the live connection up, new notifications are pushed; poll only now and then (read state from other devices). */
@@ -52,7 +51,6 @@ function go(url: string | null | undefined) {
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  useProbe('NotificationsProvider');
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -62,6 +60,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [push, setPush] = useState<PushStatus>({ state: 'unknown' });
   const seen = useRef<Set<string> | null>(null);
+  /** Keeps the same object when the push status hasn't changed, so the whole app doesn't re-render for nothing. */
+  const setPushIfChanged = useCallback((next: PushStatus) => setPush((cur) => (samePush(cur, next) ? cur : next)), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -123,14 +123,27 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setPush({ state: 'unsupported', reason: translate('notifications.pushNativeOnly') });
       return;
     }
-    void currentPushStatus().then(setPush);
+    void currentPushStatus().then(setPushIfChanged);
     // Apple or Google can rotate the device token; register the new one. Not in
     // Expo Go on Android, where subscribing throws instead of doing nothing --
     // and this provider wraps the whole app, so a throw here means a blank app.
+    //
+    // Only for a token we haven't seen. On iPhone, registering asks the system for the device
+    // token again, and the system answers with this same event even when the token is unchanged:
+    // re-registering on every event looped forever, re-rendering the whole app ~150 times a second
+    // (and posting the token to the server each time), which is what made iPhones run hot.
+    let lastDeviceToken: string | null = null;
     let rotated: Notifications.EventSubscription | null = null;
     if (pushTokensAvailable) {
       try {
-        rotated = Notifications.addPushTokenListener(() => void currentPushStatus().then(setPush));
+        rotated = Notifications.addPushTokenListener((t) => {
+          const data = typeof t.data === 'string' ? t.data : JSON.stringify(t.data);
+          if (data === lastDeviceToken) return;
+          const first = lastDeviceToken === null;
+          lastDeviceToken = data;
+          // The first event answers our own registration above: nothing new to register.
+          if (!first) void currentPushStatus().then(setPushIfChanged);
+        });
       } catch {
         // No remote token in this environment, so there is nothing to follow.
       }
@@ -149,7 +162,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       received.remove();
       tapped.remove();
     };
-  }, [refresh]);
+  }, [refresh, setPushIfChanged]);
 
   // Keep the app icon badge in step with the unread count.
   useEffect(() => {
@@ -212,9 +225,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         void refresh();
         void loadPrefs();
         // Push follows the account: register this device for whoever is signed in now.
-        if (pushSupported) void currentPushStatus().then(setPush);
+        if (pushSupported) void currentPushStatus().then(setPushIfChanged);
       }),
-    [refresh, loadPrefs],
+    [refresh, loadPrefs, setPushIfChanged],
   );
 
   const updatePrefs = useCallback(async (patch: Record<string, unknown>) => {
@@ -256,4 +269,11 @@ export function useNotifications(): NotificationsContextValue {
   const v = useContext(Ctx);
   if (!v) throw new Error('useNotifications must be used inside NotificationsProvider');
   return v;
+}
+
+function samePush(a: PushStatus, b: PushStatus): boolean {
+  if (a.state !== b.state) return false;
+  if (a.state === 'enabled' && b.state === 'enabled') return a.token === b.token;
+  if ((a.state === 'unsupported' || a.state === 'error') && (b.state === 'unsupported' || b.state === 'error')) return a.reason === b.reason;
+  return true;
 }

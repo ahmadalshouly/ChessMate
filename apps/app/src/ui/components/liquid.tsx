@@ -8,7 +8,6 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { ColorTokens } from '../theme/tokens';
-import { heatOff } from '@/lib/heatTest';
 
 /**
  * Liquid Glass building blocks shared by every glass surface.
@@ -64,7 +63,6 @@ export function webBackdrop(intensity: number): ViewStyle {
  * heavy outline that frosted panels usually lean on.
  */
 export function rimShadow(c: ColorTokens, weight: 'soft' | 'bright' = 'soft'): ViewStyle {
-  if (heatOff('shadows')) return {};
   const top = c.glassRimTop;
   const bottom = c.glassRimBottom;
   const edge = c.scheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.35)';
@@ -111,7 +109,7 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
   // GPU busy and the phone hot while the app simply sat open. The backdrop behind cards is a soft
   // gradient, so the blur barely showed there. Chrome (header, tab bar, menus, sheets, controls)
   // floats over moving content and keeps the real material.
-  const plain = flat || (Platform.OS === 'ios' && kind === 'panel') || heatOff('glass');
+  const plain = flat || (Platform.OS === 'ios' && kind === 'panel');
 
   // iOS 26: chrome and controls are Apple's native Liquid Glass, so they refract and light up
   // like the system's own. The board never sits on glass.

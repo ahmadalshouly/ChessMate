@@ -5,7 +5,6 @@ import { getSettings, updateSettings, useSettings } from '@/features/account/set
 
 import { boardThemes, DEFAULT_BOARD_THEME, type BoardTheme, type BoardThemeId } from './boardThemes';
 import { themes, type ColorScheme, type ColorTokens, type Theme } from './tokens';
-import { useProbe } from '@/lib/heatProbe';
 
 export type ThemePreference = 'system' | ColorScheme;
 
@@ -64,7 +63,6 @@ export function ThemeProvider({
   storage?: AppearanceStorage;
   initial?: Partial<AppearanceSettings>;
 }) {
-  useProbe('ThemeProvider');
   const system = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [settings, setSettings] = useState<AppearanceSettings>(() => ({
     preference: initial?.preference ?? 'system',

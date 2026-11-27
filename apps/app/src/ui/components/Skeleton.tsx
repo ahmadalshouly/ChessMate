@@ -4,7 +4,6 @@ import { Animated, Easing, Platform, View, type DimensionValue, type StyleProp, 
 import { useAppTheme } from '../theme/ThemeProvider';
 import type { Radius } from '../theme/tokens';
 import { translate } from '@/i18n';
-import { heatOff } from '@/lib/heatTest';
 
 const useNative = Platform.OS !== 'web';
 
@@ -20,7 +19,6 @@ export function Skeleton({ width = '100%', height = 14, radius = 'xs', style }: 
   const t = useAppTheme();
   const [pulse] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    if (heatOff('skeleton')) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: useNative }),

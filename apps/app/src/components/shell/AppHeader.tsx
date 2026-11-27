@@ -9,14 +9,12 @@ import { Text } from '@/ui/primitives';
 import { Glass, floatShadow } from './Glass';
 import { HeaderActions } from './HeaderActions';
 import { Logo } from './Logo';
-import { useProbe } from '@/lib/heatProbe';
 
 /**
  * Top bar of the app shell. On phones it carries the logo mark and section title;
  * next to the sidebar it is a quiet row with the section title and actions.
  */
 export function AppHeader({ title, withSidebar, actions }: { title: string; withSidebar: boolean; /** The screen's own buttons, before the usual ones (next to the sidebar only). */ actions?: ReactNode }) {
-  useProbe('AppHeader');
   const t = useTheme();
   const insets = useSafeAreaInsets();
 

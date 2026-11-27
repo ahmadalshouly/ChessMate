@@ -2,7 +2,6 @@ import { PROTOCOL_VERSION, decodeServer, encode, type Presence, type SocialEvent
 import { useEffect, useRef } from 'react';
 
 import { SERVER_URL } from '@/lib/config';
-import { heatOff } from '@/lib/heatTest';
 import { freshSocialToken, useSocialIdentity } from './session';
 
 /**
@@ -15,7 +14,7 @@ export function useSocialLive(handlers: { onPresence?: (userId: string, p: Prese
   ref.current = handlers;
 
   useEffect(() => {
-    if (!id || heatOff('socket')) return;
+    if (!id) return;
     let closed = false;
     let ws: WebSocket | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
