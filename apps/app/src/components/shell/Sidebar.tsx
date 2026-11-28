@@ -7,6 +7,7 @@ import { useTheme } from '@/constants/theme';
 import { dirIcon, useT } from '@/i18n';
 import { useAuth } from '@/lib/auth';
 import { useCurrentUser } from '@/lib/currentUser';
+import { useSupportShown } from '@/features/support/useSupportShown';
 import { MORE_SECTIONS } from '@/navigation/more';
 import { SIDEBAR_WIDTH, TABS } from '@/navigation/tabs';
 
@@ -32,6 +33,7 @@ export function Sidebar({ standalone = false }: { standalone?: boolean }) {
   const insets = useSafeAreaInsets();
   const user = useCurrentUser();
   const tr = useT();
+  const supportShown = useSupportShown();
   const { user: account } = useAuth();
   const staff = account?.role === 'moderator' || account?.role === 'admin';
   return (
@@ -49,7 +51,7 @@ export function Sidebar({ standalone = false }: { standalone?: boolean }) {
         </View>
         {/* Everything else from the phone's More menu, minus what is already above. */}
         {MORE_SECTIONS.map((section) => {
-          const items = section.items.filter((it) => !IN_TABS.has(it.key));
+          const items = section.items.filter((it) => !IN_TABS.has(it.key) && (supportShown || it.key !== 'donate'));
           if (!items.length) return null;
           return (
             <View key={section.title} style={{ marginTop: 16 }}>

@@ -1,4 +1,4 @@
-import type { PayoutMethod, SponsorApplicationInput, TournamentChatMessage, TournamentDetail, TournamentSummary } from '@chessmate/core';
+import type { PayoutMethod, SponsorApplicationInput, SponsorPortalView, SponsorshipListItem, TournamentChatMessage, TournamentDetail, TournamentSummary } from '@chessmate/core';
 
 import { API_URL } from './config';
 import { apiRequest } from './social/api';
@@ -15,7 +15,16 @@ export const tournamentsApi = {
   requestPayout: (id: string, body: { method: PayoutMethod; details: string; note: string | null }) => apiRequest<{ tournament: TournamentDetail }>('POST', `/api/tournaments/${tid(id)}/payout`, body),
   chat: (id: string) => apiRequest<{ messages: TournamentChatMessage[] }>('GET', `/api/tournaments/${tid(id)}/chat`, undefined, { optionalAuth: true }),
   postChat: (id: string, text: string) => apiRequest<{ message: TournamentChatMessage }>('POST', `/api/tournaments/${tid(id)}/chat`, { text }),
-  applySponsor: (body: SponsorApplicationInput) => apiRequest<{ ok: true }>('POST', '/api/sponsors', body, { optionalAuth: true }),
+  /** Returns the token of the company's own page (/sponsorship/<token>). */
+  applySponsor: (body: SponsorApplicationInput) => apiRequest<{ ok: true; token?: string }>('POST', '/api/sponsors', body, { optionalAuth: true }),
+};
+
+/** A sponsor applicant's own page: the token from their email is the key, no account needed. */
+export const sponsorshipApi = {
+  get: (token: string) => apiRequest<{ sponsorship: SponsorPortalView }>('GET', `/api/sponsorship/${tid(token)}`, undefined, { optionalAuth: true }).then((r) => r.sponsorship),
+  reply: (token: string, body: string) => apiRequest<{ sponsorship: SponsorPortalView }>('POST', `/api/sponsorship/${tid(token)}/messages`, { body }, { optionalAuth: true }).then((r) => r.sponsorship),
+  /** Applications made while signed in to this account. */
+  mine: () => apiRequest<{ sponsorships: SponsorshipListItem[] }>('GET', '/api/sponsorship/mine').then((r) => r.sponsorships),
 };
 
 /** Full URL of a sponsor logo path from the server. */

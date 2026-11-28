@@ -1,4 +1,5 @@
-import { AD_SPOT_KEY, SPONSOR_STATUSES, type SponsorApplicationView, type SponsorStatus } from '@chessmate/core';
+import { AD_SPOT_KEY, SPONSOR_STATUSES, formatMoney, type SponsorApplicationView, type SponsorStatus } from '@chessmate/core';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -7,9 +8,9 @@ import { Segmented } from '@/components/play/Controls';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, ErrorLine, PageHeader, useLoad } from '@/features/admin/ui';
 import { formatDateTime, useT } from '@/i18n';
-import { Badge, Button, GlassView, Row, Stack, Text, TextField, useToast } from '@/ui';
+import { Badge, Button, GlassView, Row, Stack, Text, TextField, useAppTheme, useToast } from '@/ui';
 
-/** "Sponsor a tournament" applications: review, note, mark as contacted / accepted / declined. */
+/** "Sponsor a tournament" and ad-spot applications: review, note, mark as contacted / accepted / declined; open one to talk and send payment links. */
 export default function AdminSponsors() {
   const tr = useT();
   const { api } = useAdmin();
@@ -32,6 +33,7 @@ function SponsorRow({ a, onDone }: { a: SponsorApplicationView; onDone: () => vo
   const tr = useT();
   const { api, can } = useAdmin();
   const toast = useToast();
+  const c = useAppTheme().colors;
   const [status, setStatus] = useState<SponsorStatus>(a.status);
   const [note, setNote] = useState(a.staffNote ?? '');
   const [busy, setBusy] = useState(false);
@@ -66,7 +68,12 @@ function SponsorRow({ a, onDone }: { a: SponsorApplicationView; onDone: () => vo
       <Stack gap="sm">
         <Row justify="space-between" wrap gap="sm">
           <Text variant="subheading">{a.company ?? a.name}</Text>
-          <Badge label={tr(`admin.sponsors.status.${a.status}`)} tone={a.status === 'new' ? 'solid' : a.status === 'declined' ? 'danger' : 'outline'} />
+          <Row gap="xs" wrap>
+            {a.desk?.unread ? <Badge tone="danger" label={tr('admin.sponsors.unread', { count: a.desk.unread })} /> : null}
+            {a.desk?.paidCents && a.desk.paidCurrency ? <Badge tone="success" label={tr('admin.sponsors.paid', { amount: formatMoney(a.desk.paidCents, a.desk.paidCurrency) })} /> : null}
+            {a.desk?.openPayments ? <Badge tone="warning" label={tr('admin.sponsors.openLinks', { count: a.desk.openPayments })} /> : null}
+            <Badge label={tr(`admin.sponsors.status.${a.status}`)} tone={a.status === 'new' ? 'solid' : a.status === 'declined' ? 'danger' : 'outline'} />
+          </Row>
         </Row>
         <Text variant="caption" tone="muted">
           {`${a.name} · ${a.email}${a.website ? ` · ${a.website}` : ''}${a.budget ? ` · ${a.budget}` : ''} · ${formatDateTime(a.createdAt)}`}
@@ -79,8 +86,9 @@ function SponsorRow({ a, onDone }: { a: SponsorApplicationView; onDone: () => vo
         <Text selectable>{a.message}</Text>
         <Segmented<SponsorStatus> size="sm" value={status} onChange={setStatus} options={SPONSOR_STATUSES.map((s) => ({ value: s, label: tr(`admin.sponsors.status.${s}`) }))} />
         <TextField label={tr('admin.common.note')} value={note} onChangeText={setNote} multiline maxLength={1000} />
+        <Button size="sm" title={tr('admin.sponsors.open')} onPress={() => router.push(`/admin/sponsors/${a.id}`)} leftIcon={<Ionicons name="chatbubbles-outline" size={14} color={c.onAccent} />} />
         <Row gap="sm" wrap>
-          <Button size="sm" title={tr('admin.common.save')} loading={busy} onPress={() => void save()} />
+          <Button size="sm" variant="secondary" title={tr('admin.common.save')} loading={busy} onPress={() => void save()} />
           <Button size="sm" variant="secondary" title={tr('admin.sponsors.email')} onPress={() => void Linking.openURL(`mailto:${a.email}?subject=${encodeURIComponent('ChessMate sponsorship')}`)} />
           <Button size="sm" variant="secondary" loading={material} title={tr('admin.sponsors.requestMaterial')} onPress={() => void askMaterial()} />
           {can('ads.manage') ? <Button size="sm" variant="ghost" title={tr('admin.sponsors.place')} onPress={() => router.push('/admin/ads')} /> : null}

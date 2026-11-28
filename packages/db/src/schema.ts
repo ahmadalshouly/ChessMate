@@ -808,9 +808,76 @@ export const sponsorApplications = pgTable('sponsor_applications', {
   reviewedBy: text('reviewed_by'),
   /** When staff last emailed them asking for the title, text, image and link. */
   materialRequestedAt: ts('material_requested_at'),
+  /** Secret in the link to the company's own page (/sponsorship/<token>). Made on apply, or on first contact for older rows. */
+  accessToken: text('access_token').unique(),
+  /** When staff last opened the conversation, and when the company last opened its page. */
+  staffSeenAt: ts('staff_seen_at'),
+  applicantSeenAt: ts('applicant_seen_at'),
   createdAt: createdAt(),
   updatedAt: ts('updated_at'),
 });
+
+/** The conversation between staff and a sponsor applicant. */
+export const sponsorMessages = pgTable(
+  'sponsor_messages',
+  {
+    id: id(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => sponsorApplications.id, { onDelete: 'cascade' }),
+    /** staff | applicant | system */
+    sender: text('sender').notNull(),
+    author: text('author'),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('sponsor_messages_app_idx').on(t.applicationId, t.createdAt)],
+);
+
+/** Stripe Payment Links that staff send to a sponsor applicant. */
+export const sponsorPayments = pgTable(
+  'sponsor_payments',
+  {
+    id: id(),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => sponsorApplications.id, { onDelete: 'cascade' }),
+    description: text('description').notNull(),
+    amountCents: integer('amount_cents').notNull(),
+    currency: text('currency').notNull(),
+    stripeLinkId: text('stripe_link_id').notNull().unique(),
+    url: text('url').notNull(),
+    /** The Checkout Session that paid it, once someone paid. */
+    stripeSessionId: text('stripe_session_id'),
+    /** open | processing | paid | failed | canceled */
+    status: text('status').notNull().default('open'),
+    createdBy: text('created_by'),
+    createdAt: createdAt(),
+    paidAt: ts('paid_at'),
+    updatedAt: ts('updated_at'),
+  },
+  (t) => [index('sponsor_payments_app_idx').on(t.applicationId, t.createdAt)],
+);
+
+/** Donations through Stripe Checkout; recorded when the checkout starts, marked paid by the webhook. */
+export const donations = pgTable(
+  'donations',
+  {
+    id: id(),
+    stripeSessionId: text('stripe_session_id').notNull().unique(),
+    amountCents: integer('amount_cents').notNull(),
+    currency: text('currency').notNull(),
+    /** pending | paid | expired | failed */
+    status: text('status').notNull().default('pending'),
+    /** Signed-in account that started it, when there was one. */
+    userId: text('user_id'),
+    /** From Stripe once paid. */
+    email: text('email'),
+    createdAt: createdAt(),
+    paidAt: ts('paid_at'),
+  },
+  (t) => [index('donations_created_idx').on(t.createdAt)],
+);
 
 /** Prize winners asking to be paid; staff review them and get in touch. */
 export const payoutRequests = pgTable(
@@ -843,6 +910,9 @@ export type TournamentPayment = typeof tournamentPayments.$inferSelect;
 export type TournamentGame = typeof tournamentGames.$inferSelect;
 export type TournamentMessage = typeof tournamentMessages.$inferSelect;
 export type SponsorApplication = typeof sponsorApplications.$inferSelect;
+export type SponsorMessage = typeof sponsorMessages.$inferSelect;
+export type SponsorPayment = typeof sponsorPayments.$inferSelect;
+export type Donation = typeof donations.$inferSelect;
 export type PayoutRequest = typeof payoutRequests.$inferSelect;
 
 // ---------------------------------------------------------------- community: news and forum

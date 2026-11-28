@@ -43,4 +43,30 @@ describe('Stripe', () => {
     expect(sent!.auth).toBe('Bearer sk_test_1');
     expect(decodeURIComponent(sent!.body)).toContain('metadata[userId]=u1');
   });
+
+  it('makes a one-time Payment Link from a price, and switches it off', async () => {
+    const sent: { url: string; body: string }[] = [];
+    const fake = (async (url: string, init: RequestInit) => {
+      sent.push({ url, body: decodeURIComponent(String(init.body)) });
+      if (url.endsWith('/prices')) return new Response(JSON.stringify({ id: 'price_1' }), { status: 200 });
+      if (url.endsWith('/payment_links')) return new Response(JSON.stringify({ id: 'plink_1', url: 'https://buy.stripe.com/x' }), { status: 200 });
+      return new Response(JSON.stringify({ id: 'plink_1', active: false }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const s = stripeClient('sk_test_1', fake);
+    const r = await s.createPaymentLink({ amountCents: 30000, currency: 'eur', productName: 'Home top', redirectUrl: 'https://x/sponsorship/t?paid=1', metadata: { kind: 'sponsor', applicationId: 'a1' } });
+    expect(r).toEqual({ id: 'plink_1', url: 'https://buy.stripe.com/x' });
+    expect(sent[0]!.body).toContain('unit_amount=30000');
+    expect(sent[0]!.body).toContain('product_data[name]=Home top');
+    expect(sent[1]!.body).toContain('line_items[0][price]=price_1');
+    expect(sent[1]!.body).toContain('restrictions[completed_sessions][limit]=1');
+    expect(sent[1]!.body).toContain('after_completion[redirect][url]=https://x/sponsorship/t?paid=1');
+    expect(sent[1]!.body).toContain('metadata[applicationId]=a1');
+    await s.deactivatePaymentLink('plink_1');
+    expect(sent[2]).toEqual({ url: 'https://api.stripe.com/v1/payment_links/plink_1', body: 'active=false' });
+  });
+
+  it('throws Stripe\'s own message when it refuses', async () => {
+    const fake = (async () => new Response(JSON.stringify({ error: { message: 'Invalid API Key provided' } }), { status: 401 })) as unknown as typeof fetch;
+    await expect(stripeClient('sk_bad', fake).createPaymentLink({ amountCents: 100, currency: 'eur', productName: 'x', redirectUrl: 'https://x', metadata: {} })).rejects.toThrow('Invalid API Key provided');
+  });
 });

@@ -1,17 +1,17 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack } from 'expo-router';
-import { useState } from 'react';
+import { Stack, router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AD_SPOTS, AD_SPOT_KEY, type AdSpotId } from '@chessmate/core';
+import { AD_SPOTS, AD_SPOT_KEY, type AdSpotId, type SponsorshipListItem } from '@chessmate/core';
 
 import { MAX_CONTENT_WIDTH } from '@/constants/theme';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
 import { useAuth } from '@/lib/auth';
-import { tournamentsApi } from '@/lib/tournamentsApi';
-import { Button, GlassView, Text, TextField, useAppTheme } from '@/ui';
+import { sponsorshipApi, tournamentsApi } from '@/lib/tournamentsApi';
+import { Badge, Button, GlassView, ListGroup, ListRow, Text, TextField, useAppTheme } from '@/ui';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
 import { goBack } from '@/lib/goBack';
 
@@ -27,13 +27,22 @@ export default function SponsorApply() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  /** The new application's own page, where the team answers and payment links arrive. */
+  const [pageToken, setPageToken] = useState<string | null>(null);
+  const [mine, setMine] = useState<SponsorshipListItem[]>([]);
   const set = (k: keyof typeof f) => (v: string) => setF((x) => ({ ...x, [k]: v }));
+  const signedIn = !!user;
+  useEffect(() => {
+    if (!signedIn) return;
+    sponsorshipApi.mine().then(setMine, () => setMine([]));
+  }, [signedIn, sent]);
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      await tournamentsApi.applySponsor({ ...f, company: f.company || null, website: f.website || null, budget: f.budget || null, spot });
+      const r = await tournamentsApi.applySponsor({ ...f, company: f.company || null, website: f.website || null, budget: f.budget || null, spot });
+      setPageToken(r.token ?? null);
       setSent(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -54,7 +63,8 @@ export default function SponsorApply() {
           <GlassView padding="lg" radius="xl" style={{ gap: t.space.md, alignItems: 'flex-start' }}>
             <Ionicons name="checkmark-circle" size={28} color={t.colors.success} />
             <Text variant="heading">{tr('tournaments.sponsor.thanksTitle')}</Text>
-            <Text tone="muted">{tr('tournaments.sponsor.thanksBody')}</Text>
+            <Text tone="muted">{pageToken ? tr('sponsorship.followBody') : tr('tournaments.sponsor.thanksBody')}</Text>
+            {pageToken ? <Button title={tr('sponsorship.openPage')} onPress={() => router.push(`/sponsorship/${pageToken}`)} /> : null}
             <Button variant="secondary" title={tr('tournaments.back')} onPress={() => goBack('/tournaments')} />
           </GlassView>
         ) : (
@@ -97,6 +107,25 @@ export default function SponsorApply() {
             <Button title={tr('tournaments.sponsor.submit')} loading={busy} disabled={!f.name.trim() || !f.email.trim() || f.message.trim().length < 10} onPress={() => void submit()} />
           </GlassView>
         )}
+        {mine.length ? (
+          <View style={{ gap: t.space.sm }}>
+            <Text variant="overline" tone="muted">
+              {tr('sponsorship.mine')}
+            </Text>
+            <ListGroup>
+              {mine.map((m) => (
+                <ListRow
+                  key={m.token}
+                  title={m.company ?? m.name}
+                  subtitle={tr(`sponsorship.status.${m.status}`)}
+                  right={m.unread ? <Badge tone="solid" label={tr('sponsorship.newMessages', { count: m.unread })} /> : undefined}
+                  chevron
+                  onPress={() => router.push(`/sponsorship/${m.token}`)}
+                />
+              ))}
+            </ListGroup>
+          </View>
+        ) : null}
       </View>
     </KeyboardScrollView>
   );

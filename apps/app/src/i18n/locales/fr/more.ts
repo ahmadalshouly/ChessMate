@@ -23,7 +23,7 @@ export const more = {
   settings: 'Paramètres',
   about: 'À propos de ChessMate',
   support: 'Assistance',
-  donate: 'Faire un don',
+  donate: 'Soutenez-nous',
   privacy: 'Confidentialité',
   cookies: 'Cookies',
   fairPlay: 'Règles de fair-play',

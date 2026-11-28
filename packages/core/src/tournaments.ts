@@ -1,5 +1,6 @@
 import { isAdSpot, type AdSpotId } from './ads';
 import type { TimeControl } from './timeControl';
+import type { SponsorDeskSummary } from './sponsorship';
 
 /**
  * Tournaments: staff create and schedule them; players join.
@@ -547,6 +548,8 @@ export interface SponsorApplicationView extends SponsorApplicationInput {
   createdAt: number;
   /** When staff last asked the company for material. */
   materialRequestedAt: number | null;
+  /** Unread messages and payment totals (staff console, database mode). */
+  desk?: SponsorDeskSummary;
 }
 
 export interface PayoutRequestView {

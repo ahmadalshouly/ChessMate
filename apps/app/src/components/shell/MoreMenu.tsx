@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/constants/theme';
 import { useI18n } from '@/i18n';
+import { useSupportShown } from '@/features/support/useSupportShown';
 import { MORE_SECTIONS, type MoreItem } from '@/navigation/more';
 import { fonts } from '@/ui';
 import { Text } from '@/ui/primitives';
@@ -37,6 +38,7 @@ export function MoreMenu({ visible, onClose }: { visible: boolean; onClose: () =
   // From the left in left-to-right languages, from the right in Arabic.
   const from = rtl ? panelW + EDGE : -(panelW + EDGE);
   const translateX = slide.interpolate({ inputRange: [0, 1], outputRange: [from, 0] });
+  const supportShown = useSupportShown();
   const go = (item: MoreItem) => {
     if (item.soon || !item.href) return;
     onClose();
@@ -59,7 +61,7 @@ export function MoreMenu({ visible, onClose }: { visible: boolean; onClose: () =
             {MORE_SECTIONS.map((section) => (
               <View key={section.title} style={{ marginTop: 18 }}>
                 <Text style={[styles.section, { color: t.textTertiary }]}>{tr(section.title)}</Text>
-                {section.items.map((item) => (
+                {section.items.filter((item) => supportShown || item.key !== 'donate').map((item) => (
                   <Pressable
                     key={item.key}
                     accessibilityRole="link"

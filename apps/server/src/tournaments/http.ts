@@ -1,9 +1,23 @@
 import type { IncomingMessage } from 'node:http';
 
-import { verifyStripeEvent } from '../payments/stripe';
+import type { StripeEvent } from '../payments/stripe';
 import type { HttpRoute, ResolveUser } from '../social/http';
 import { isAccountId } from '../social/service';
 import { TournamentError, type TournamentService } from './service';
+
+/** Stripe events for entry fees: Checkout Sessions this service started (looked up by session id). */
+export function tournamentStripeHandler(tournaments: TournamentService) {
+  return async (event: StripeEvent): Promise<boolean> => {
+    const obj = event.data.object;
+    const sessionId = typeof obj.id === 'string' ? obj.id : '';
+    if ((event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') && obj.payment_status === 'paid') {
+      await tournaments.paymentCompleted(sessionId);
+    } else if (event.type === 'checkout.session.expired') {
+      await tournaments.paymentExpired(sessionId);
+    }
+    return false;
+  };
+}
 
 async function readBody(req: IncomingMessage, max = 32 * 1024): Promise<string> {
   let size = 0;
@@ -39,42 +53,20 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
  *   POST /api/tournaments/:id/checkout    { acceptRules: true, returnUrl } → { url } Stripe Checkout for the entry fee
  *   POST /api/tournaments/:id/withdraw
  *   POST /api/tournaments/:id/payout      { method, details, note? } prize winners
- *   POST /api/sponsors                    { name, email, company?, website?, budget?, message } sponsor application
- *   POST /api/stripe/webhook              Stripe events (signed with STRIPE_WEBHOOK_SECRET)
+ *   POST /api/sponsors                    { name, email, company?, website?, budget?, message, spot? } sponsor application → { ok, token }
+ *
+ * Entry fee payments are confirmed by the Stripe webhook (payments/webhook.ts) through `tournamentStripeHandler`.
  */
 export function tournamentRoutes(tournaments: TournamentService, resolveUser: ResolveUser): HttpRoute {
   return async (req, res, url) => {
     const p = url.pathname;
-    const mine = p === '/api/tournaments' || p.startsWith('/api/tournaments/') || p === '/api/sponsors' || p === '/api/stripe/webhook';
+    const mine = p === '/api/tournaments' || p.startsWith('/api/tournaments/') || p === '/api/sponsors';
     if (!mine) return false;
     const json = (status: number, body: unknown) => {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(body));
       return true as const;
     };
-
-    // Stripe calls this server to server: no CORS, raw body for the signature.
-    if (p === '/api/stripe/webhook') {
-      if (req.method !== 'POST') return json(405, { error: 'POST only' });
-      const secret = process.env.STRIPE_WEBHOOK_SECRET;
-      if (!secret) return json(503, { error: 'Webhook secret not configured' });
-      try {
-        const raw = await readBody(req, 512 * 1024);
-        const event = verifyStripeEvent(raw, req.headers['stripe-signature'] as string | undefined, secret);
-        if (!event) return json(400, { error: 'Bad signature' });
-        const obj = event.data.object;
-        const sessionId = typeof obj.id === 'string' ? obj.id : '';
-        if ((event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') && obj.payment_status === 'paid') {
-          await tournaments.paymentCompleted(sessionId);
-        } else if (event.type === 'checkout.session.expired') {
-          await tournaments.paymentExpired(sessionId);
-        }
-        return json(200, { received: true });
-      } catch (e) {
-        console.error('stripe webhook failed', e);
-        return json(500, { error: 'Webhook failed' });
-      }
-    }
 
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
