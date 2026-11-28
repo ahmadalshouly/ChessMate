@@ -5,11 +5,15 @@ import {
   evalBarFraction,
   gameReviewPath,
   linePgn,
+  materialBalance,
+  opposite,
   parseUci,
   positionKey,
   reviewPath,
+  type Color,
   type GameReview,
   type MoveClass,
+  type PlayerInfo,
   type PositionAnalysis,
   type ReviewedMove,
   type Square,
@@ -20,6 +24,10 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
+import { PLAYER_CARD_HEIGHT, PlayerCard } from '@/components/game/PlayerCard';
+import { ReviewButton } from '@/components/ReviewButton';
+import { BotAvatar } from '@/features/bots/BotAvatar';
+import { formatAccuracy } from '@/features/engine/useReviewEntry';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
 import { BoardMoveBadge, MoveBadge } from '@/components/MoveBadge';
@@ -39,6 +47,7 @@ import { deepReviewSupported, reviewModeHere, useReviewSettings } from '@/featur
 import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 import { vsTitle } from '@/features/share/gameShares';
+import { track } from '@/lib/analytics';
 
 const EVAL_BAR = 20;
 /** Classes where the played move needs no "better move" arrow. */
@@ -58,10 +67,11 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
  */
 export default function Review() {
   const tr = useT();
-  const params = useLocalSearchParams<{ gameId?: string; moves?: string; initialFen?: string; orientation?: string; white?: string; black?: string; result?: string }>();
+  const params = useLocalSearchParams<ReviewParams>();
+  useEffect(() => track('review_open', { deep: false }), []);
   const signedIn = useAuth().status === 'signedIn';
   const t = useTheme();
-  const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 140 });
+  const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 140 + 2 * PLAYER_CARD_HEIGHT, phoneReserve: 300 + 2 * PLAYER_CARD_HEIGHT });
   const size = boardSpace - EVAL_BAR - 6;
   // The review beside the board scrolls within the window height (web).
   const [fillH, onFill] = useFillHeight();
@@ -103,6 +113,7 @@ export default function Review() {
   const [doneShown, setDoneShown] = useState(false);
   const askDeep = () => {
     if (!review) return;
+    track('review_open', { deep: true });
     setShallow({ review, saved: graded.source === 'saved' });
     setSawGrading(false);
     setDoneShown(false);
@@ -299,6 +310,25 @@ export default function Review() {
     setAutoplay(false);
     setBranch(null);
     setPly(fn);
+  };
+  // The players, above and below the board like on every other board, with their accuracy once graded.
+  const balance = materialBalance(fen);
+  const playerCard = (c: Color) => {
+    const bot = params.bot === c;
+    const player = reviewPlayer(params, c, tr(c === 'w' ? 'review.white' : 'review.black'));
+    return (
+      <View style={{ marginStart: EVAL_BAR + 6 }}>
+        <PlayerCard
+          player={player}
+          avatar={bot ? <BotAvatar bot={{ name: player.name, initial: player.name.slice(0, 1).toUpperCase(), rating: player.rating, avatar: null }} size={36} /> : undefined}
+          subtitle={player.rating ? undefined : tr(c === 'w' ? 'review.white' : 'review.black')}
+          status={final && review ? `${formatAccuracy(review.accuracy[c])}%` : null}
+          active={!branch && !previewMove && sideToMove(fen) === c}
+          pressable={!bot}
+          material={{ ...balance[c], color: opposite(c) }}
+        />
+      </View>
+    );
   };
   const boardRow = (
           <View style={styles.boardRow}>
@@ -522,7 +552,7 @@ export default function Review() {
                 </Label>
                 {canDeepen && (
                   <>
-                    <Button variant="secondary" title={tr('review.deep.button', { n: deepRange })} onPress={askDeep} />
+                    <ReviewButton fullWidth title={tr('review.deep.button', { n: deepRange })} onPress={askDeep} />
                     <Label muted size={12}>
                       {tr('review.deep.hint')}
                     </Label>
@@ -581,7 +611,9 @@ export default function Review() {
         // Web and tablets: a big board with the controls under it, the review beside it.
         <View style={styles.wide} onLayout={onFill}>
           <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {playerCard(opposite(orientation))}
             {boardRow}
+            {playerCard(orientation)}
             {bar}
           </View>
           <ScrollView style={{ width: panelWidth, flexGrow: 0, height: fillH ? fillH - 32 : undefined, alignSelf: 'stretch' }} contentContainerStyle={styles.widePanel}>
@@ -591,7 +623,9 @@ export default function Review() {
       ) : (
         <ScrollView contentContainerStyle={styles.page}>
           <View style={{ width: size + EVAL_BAR + 6, gap: 12 }}>
+            {playerCard(opposite(orientation))}
             {boardRow}
+            {playerCard(orientation)}
             {bar}
             {panel}
           </View>
@@ -599,6 +633,39 @@ export default function Review() {
       )}
     </Screen>
   );
+}
+
+/**
+ * What a screen passes when it opens the review. Names, ratings and which
+ * sides are ChessMate accounts (`accounts`: "w", "b" or "wb") or the computer
+ * (`bot`) let the review show the players like the game screens do.
+ */
+type ReviewParams = {
+  gameId?: string;
+  moves?: string;
+  initialFen?: string;
+  orientation?: string;
+  white?: string;
+  black?: string;
+  whiteRating?: string;
+  blackRating?: string;
+  accounts?: string;
+  bot?: string;
+  result?: string;
+};
+
+/** A side of the reviewed game as a player card shows it; rating 0 when unknown. */
+function reviewPlayer(params: ReviewParams, c: Color, fallback: string): PlayerInfo {
+  const name = (c === 'w' ? params.white : params.black) || fallback;
+  const rating = Number(c === 'w' ? params.whiteRating : params.blackRating);
+  const account = !!params.accounts?.includes(c) && name !== fallback;
+  // Only accounts have a profile (avatar, flag, title) to look up: other ids start with g_ or bot_.
+  const id = params.bot === c ? `bot_${name}` : account ? `review_${c}` : `g_${c}`;
+  return { id, name, rating: Number.isFinite(rating) && rating > 0 ? rating : 0, provisional: false };
+}
+
+function sideToMove(fen: string): Color {
+  return fen.split(' ')[1] === 'b' ? 'b' : 'w';
 }
 
 /** A UCI move as SAN in a position ("Nf3"), or the UCI text if it cannot be played there. */

@@ -18,6 +18,7 @@ import { GameLayout } from '@/components/game/GameLayout';
 import { MoveStrip } from '@/components/game/MoveStrip';
 import { ConfirmPanel, BoardNotice, NoticeButton, OptionsPanel, type OptionItem } from '@/components/game/Panels';
 import { PlayerCard } from '@/components/game/PlayerCard';
+import { hasProfile } from '@/components/game/usePlayerProfile';
 import { useHistoryNav } from '@/components/game/useHistoryNav';
 import { GameEndCelebration } from '@/components/play/GameEndCelebration';
 import { GameStartHandshake, useGameStartHandshake } from '@/components/play/GameStartHandshake';
@@ -240,7 +241,17 @@ export default function OnlinePlay() {
       setHideResult(true);
       router.push({
         pathname: '/review',
-        params: { gameId: view.gameId, moves: history.map((m) => m.uci).join(','), orientation: view.you, white: view.white.name, black: view.black.name, result: view.outcome?.result },
+        params: {
+          gameId: view.gameId,
+          moves: history.map((m) => m.uci).join(','),
+          orientation: view.you,
+          white: view.white.name,
+          black: view.black.name,
+          whiteRating: String(view.white.rating),
+          blackRating: String(view.black.rating),
+          accounts: `${hasProfile(view.white) ? 'w' : ''}${hasProfile(view.black) ? 'b' : ''}`,
+          result: view.outcome?.result,
+        },
       });
     });
   const confirmThen = (fn: () => void) => () => {
@@ -272,7 +283,7 @@ export default function OnlinePlay() {
       ? history.length < 2
         ? [{ key: 'abort', icon: 'close-circle-outline' as const, label: tr('game.action.abort'), onPress: () => toggle('abort'), active: panel === 'abort' }]
         : [{ key: 'draw', icon: 'handshake-outline' as const, label: tr('game.action.draw'), onPress: () => toggle('draw'), active: panel === 'draw', disabled: view.drawOfferBy === you || view.drawOfferBy === opp, dot: view.drawOfferBy === opp }]
-      : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), onPress: openReview, disabled: !reviewable }]),
+      : [{ key: 'review', icon: 'chart-box-outline' as const, label: tr('game.action.review'), review: true, onPress: openReview, disabled: !reviewable }]),
     ...(canFrenzy
       ? [{ key: 'frenzy', icon: 'lightning-bolt' as const, label: tr('tournaments.frenzy.button'), onPress: () => toggle('frenzy'), active: panel === 'frenzy' }]
       : []),

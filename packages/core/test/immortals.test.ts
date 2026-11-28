@@ -5,6 +5,8 @@ import {
   IMMORTAL_GAMES,
   IMMORTAL_PLAYERS,
   IMMORTAL_THEMES,
+  IMMORTAL_THUMBS,
+  computeImmortalThumb,
   immortalGame,
   immortalGamePath,
   immortalGamePgn,
@@ -16,6 +18,7 @@ import {
   immortalOrientation,
   immortalOutcome,
   immortalSide,
+  immortalThumb,
   parseMomentMove,
   parsePgn,
   pathWithQuery,
@@ -205,5 +208,25 @@ describe('immortals helpers', () => {
     const day = Date.UTC(2026, 10, 25);
     expect(immortalOfTheDay(day).id).toBe(immortalOfTheDay(day + 3_600_000).id);
     expect(immortalOfTheDay(day).id).not.toBe(immortalOfTheDay(day + 86_400_000).id);
+  });
+});
+
+describe('immortal thumbnails', () => {
+  it('has a precomputed key position for every game that matches its score', () => {
+    // If this fails after adding or changing a game: npx tsx packages/core/scripts/build-immortal-thumbs.ts
+    expect(Object.keys(IMMORTAL_THUMBS).sort()).toEqual(IMMORTAL_GAMES.map((g) => g.id).sort());
+    for (const g of IMMORTAL_GAMES) {
+      expect(IMMORTAL_THUMBS[g.id], g.id).toEqual(computeImmortalThumb(g));
+      const line = immortalLine(g);
+      const t = immortalThumb(g);
+      expect(t.ply, g.id).toBe(immortalKeyPly(g));
+      expect(t.fen, g.id).toBe(line.fens[t.ply]);
+      expect(t.orientation, g.id).toBe(immortalOrientation(g));
+    }
+  });
+
+  it('works a thumbnail out for a game missing from the table', () => {
+    const g = { ...IMMORTAL_GAMES[0]!, id: 'not-in-the-table' };
+    expect(immortalThumb(g)).toEqual({ ...IMMORTAL_THUMBS[IMMORTAL_GAMES[0]!.id] });
   });
 });

@@ -38,6 +38,8 @@ const EXACT: Record<string, TKey> = {
   'Accept the tournament rules to join': 'server.acceptRules',
   'This tournament has an entry fee: register and pay on the web': 'server.feeOnWeb',
   'Payments are not set up yet': 'server.paymentsOff',
+  'This link is not valid': 'sponsorship.notFound',
+  'This application is closed': 'sponsorship.closed',
   'Late joining is closed for this tournament': 'server.lateJoinClosed',
   'You were removed from this tournament': 'server.removedTournament',
   'Payouts open when the tournament has finished': 'server.payoutsLater',

@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { GlassView as NativeGlass, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Platform, Pressable, StyleSheet, View, type PressableProps, type PressableStateCallbackType, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -96,15 +97,28 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
   const c = useAppTheme().colors;
   const dark = c.scheme === 'dark';
   const reduce = useReduceTransparency();
+  const onScreen = useOnScreen();
 
   if (reduce) {
     return <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: c.surfaceSolid, borderRadius: radius }, rimShadow(c)]} />;
   }
 
-  // iOS 26: every glass surface is Apple's native Liquid Glass, content panels included, so cards
-  // refract and light up like the system's own. Long lists pass `flat` to stay on a plain tint,
-  // and the board never sits on glass.
-  if (nativeLiquidGlass && !flat) {
+  // iPhone: content panels (cards) draw as a tint, rim and sheen without a live blur, the way
+  // Android always has. Every live glass or blur view re-samples what is behind it each time
+  // anything on screen changes; a page holds a dozen cards, and running one per card kept the
+  // GPU busy and the phone hot while the app simply sat open. The backdrop behind cards is a soft
+  // gradient, so the blur barely showed there. Chrome (header, tab bar, menus, sheets, controls)
+  // floats over moving content and keeps the real material.
+  const plain = flat || (Platform.OS === 'ios' && kind === 'panel');
+
+  // iOS 26: chrome and controls are Apple's native Liquid Glass, so they refract and light up
+  // like the system's own. The board never sits on glass.
+  // Only on the screen in front. A native glass view that is not in the window (a tab in the
+  // background, the screen under a pushed one) runs a display-link timer at the screen's refresh
+  // rate (120 times a second on ProMotion iPhones) until it is shown again: expo-glass-effect
+  // waits that way for the view to become visible. Every glass button and header on every
+  // screen left behind kept one going, on every screen of the app.
+  if (nativeLiquidGlass && !plain && onScreen) {
     return (
       <NativeGlass
         pointerEvents="none"
@@ -121,13 +135,25 @@ export function LiquidLayers({ kind, radius, intensity, fill, flat, sheen = true
   const sheenColors = dark ? (['rgba(255,255,255,0.07)', 'rgba(255,255,255,0)'] as const) : (['rgba(255,255,255,0.75)', 'rgba(255,255,255,0)'] as const);
   return (
     <>
-      {!flat && Platform.OS === 'ios' && <BlurView intensity={intensity} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+      {!plain && Platform.OS === 'ios' && <BlurView intensity={intensity} tint={dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
       {!flat && Platform.OS === 'web' && <View pointerEvents="none" style={[StyleSheet.absoluteFill, webBackdrop(intensity)]} />}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: fill }]} />
       {sheen && <LinearGradient pointerEvents="none" colors={sheenColors} locations={[0, 1]} style={[styles.sheen, { borderTopLeftRadius: radius, borderTopRightRadius: radius }]} />}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius }, rimShadow(c, kind === 'panel' ? 'soft' : 'bright')]} />
     </>
   );
+}
+
+/**
+ * Whether the screen this sits on is the one in front. True outside any screen (root overlays).
+ * useIsFocused throws without a navigator around it, which is the only reason for the catch.
+ */
+function useOnScreen(): boolean {
+  try {
+    return useIsFocused();
+  } catch {
+    return true;
+  }
 }
 
 /**

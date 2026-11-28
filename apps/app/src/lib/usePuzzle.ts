@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useSettings } from '@/features/account/settingsStore';
 
+import { track } from './analytics';
 import { haptic } from './haptics';
 import { playSound } from './sounds';
 
@@ -81,6 +82,7 @@ export function usePuzzle(puzzle: PuzzleDto | null, opts: { failOnMistake?: bool
       finished.current = true;
       const solved = s.status === 'solved';
       setFeedback(solved ? 'solved' : 'failed');
+      track('puzzle_attempt', { solved, hints: s.hints });
       onFinish.current?.({
         puzzle,
         solved,

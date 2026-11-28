@@ -1,0 +1,16 @@
+export const share = {
+  button: 'Compartilhar partida',
+  title: 'Compartilhar partida',
+  copyPgn: 'Copiar PGN',
+  copyPgnBody: 'Os lances, prontos para colar em qualquer app de xadrez',
+  pgnAfterGame: 'Disponível para copiar quando a partida terminar',
+  noPgnSecretQueen: 'Partidas de Rainha Secreta não têm PGN: peões que se movem como dama o quebram',
+  shareLink: 'Compartilhar link',
+  copyLink: 'Copiar link',
+  pgnCopied: 'PGN copiado',
+  linkCopied: 'Link copiado',
+  failed: 'Não foi possível compartilhar a partida',
+  copyByHand: 'Copiar está bloqueado aqui. Selecione o texto abaixo e copie.',
+  message: '{title} no ChessMate',
+  messageLive: 'Assista a {title} ao vivo no ChessMate',
+};

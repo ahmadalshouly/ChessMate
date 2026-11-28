@@ -1,5 +1,6 @@
 import { opposite, type Color, type MaterialBalance, type PlayerInfo } from '@chessmate/core';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { PlayerCard } from '@/components/game/PlayerCard';
 
@@ -29,13 +30,26 @@ export function PlayerBar({
  * value computed from Date.now() without it is cached until its other inputs
  * change, which froze spectator clocks until the next move.
  */
-export function useTicker(running: boolean): number {
+export function useTicker(running: boolean, everyMs = 100): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!running) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(id);
-  }, [running]);
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      setNow(Date.now());
+      id ??= setInterval(() => setNow(Date.now()), everyMs);
+    };
+    const stop = () => {
+      if (id !== null) clearInterval(id);
+      id = null;
+    };
+    // Nothing to tick for while the app is in the background: stop, and catch up on return.
+    if (AppState.currentState !== 'background') start();
+    const sub = AppState.addEventListener('change', (st) => (st === 'active' ? start() : st === 'background' && stop()));
+    return () => {
+      stop();
+      sub.remove();
+    };
+  }, [running, everyMs]);
   return running ? now : Date.now();
 }

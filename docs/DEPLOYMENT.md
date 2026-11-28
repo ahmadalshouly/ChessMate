@@ -95,7 +95,8 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `NODE_ENV` | unset | `fly.toml` / image (`production`) | `production` disables dev-only `dev:` login tokens |
 | `AUTH_SECRET` | dev: generated into `.data/auth-secret` | `fly secrets set` (secret), `.env` for Docker Compose | **Required in production**: the server refuses to start without it. At least 32 random characters, e.g. `openssl rand -hex 32` |
 | `RESEND_API_KEY`, `MAIL_FROM` | unset: emails are printed to the server console | `fly secrets set` (secret) | Sends password resets and moderation notices (warnings, chat mutes, fair-play bans, closures) through Resend. `MAIL_FROM` is the sender, e.g. `ChessMate <no-reply@your-domain.com>` on a domain verified in Resend. `APP_WEB_URL` sets the link in reset emails |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | unset: paid tournaments are off | `fly secrets set` (secret) | Entry fees for tournaments, paid with Stripe Checkout on the web. Add a Stripe webhook to `https://<server>/api/stripe/webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`; its signing secret is `STRIPE_WEBHOOK_SECRET`. `APP_WEB_URL` must be the web app address so Stripe can send players back |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | unset: paid tournaments, donations and sponsor payment links are off | `fly secrets set` (secret) | Every Stripe payment: tournament entry fees and donations (Stripe Checkout on the web) and the payment links staff send sponsors (Stripe Payment Links). Add one Stripe webhook to `https://<server>/api/stripe/webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` and `checkout.session.expired`; its signing secret is `STRIPE_WEBHOOK_SECRET`. `APP_WEB_URL` must be the web app address so Stripe can send payers back and emails link to `/sponsorship/<token>` |
+| `SPONSOR_INBOX_EMAIL` | unset: no email | `fly secrets set` | Optional. Staff address that gets an email when a sponsor replies or pays. Replies always show as unread in Admin → Sponsors |
 | `GOOGLE_CLIENT_IDS` | unset (Google sign-in off) | `fly.toml` or `fly secrets set` | Comma-separated Google OAuth client IDs (web, iOS, Android). See [sign-in-with-google-and-apple.md](sign-in-with-google-and-apple.md) |
 | `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | unset (Twitch not checked) | `fly secrets set` | Streamers on Twitch show as live automatically, with viewers. Free app at dev.twitch.tv |
 | `YOUTUBE_API_KEY` | unset (live yes, viewers no) | `fly secrets set` | YouTube live title, viewers and start time (YouTube Data API v3 key) |
@@ -103,6 +104,7 @@ HTTPS must use `wss://`, so set `EXPO_PUBLIC_SERVER_URL` for every production bu
 | `LICHESS_EXPLORER_URL` | `https://explorer.lichess.ovh` | `fly.toml` | A self-hosted lila-openingexplorer instead of Lichess's (no token needed then) |
 | `KICK_CLIENT_ID`, `KICK_CLIENT_SECRET` | unset (Kick's site API, may refuse) | `fly secrets set` | Kick live status and viewers through Kick's public API |
 | `APPLE_CLIENT_IDS` | `com.chessmate.app` (+ `host.exp.Exponent` outside production) | `fly.toml` | Accepted Sign in with Apple audiences. Empty string turns Apple off |
+| `APPLE_SERVICES_ID` | unset (Apple on the web off) | `fly.toml` | The Services ID behind Sign in with Apple on the web, e.g. `com.chessmate.web`; added to the Apple audiences |
 | `DATABASE_URL` | unset | `fly secrets set` (secret) | Postgres connection string. Unset = embedded PGlite |
 | `DATABASE_PATH` | `.data/pglite` (image: `/data/pglite`) | rarely needed | PGlite data directory when `DATABASE_URL` is unset |
 | `DATABASE_POOL_MAX` | driver default | `fly.toml` | Max Postgres connections |
@@ -138,6 +140,10 @@ Anything secret goes in `fly secrets set`, never in `fly.toml` or git.
 | `GOOGLE_SERVICES_JSON` | `./google-services.json` if present | EAS file variable with the Firebase `google-services.json`; Android builds need it for push ([PUSH_NOTIFICATIONS.md](PUSH_NOTIFICATIONS.md)) |
 | `EXPO_PUBLIC_SERVER_URL` | variable | `ci.yml`, `deploy.yml` | Server URL baked into web builds |
 | `CLOUDFLARE_PAGES_PROJECT` | variable | `deploy.yml` | Pages project name (default `chessmate`) |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | variable | `deploy.yml` | Google web client ID baked into the web build (Google button on the web) |
+| `EXPO_PUBLIC_APPLE_SERVICES_ID` | variable | `deploy.yml` | Apple Services ID baked into the web build (Apple button on the web) |
+| `EXPO_PUBLIC_GA_MEASUREMENT_ID` | variable | `deploy.yml` | Google Analytics 4 measurement ID (`G-…`) baked into the web build ([ANALYTICS.md](ANALYTICS.md)) |
+| `GOOGLE_SERVICE_INFO_PLIST` | EAS file variable | EAS | Firebase `GoogleService-Info.plist`; iOS builds need it for Firebase Analytics ([ANALYTICS.md](ANALYTICS.md)) |
 
 Set them under repo Settings → Secrets and variables → Actions.
 

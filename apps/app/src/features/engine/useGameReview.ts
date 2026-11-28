@@ -45,9 +45,9 @@ export interface GameReviewState {
  *    saved review.
  * 2. Otherwise this device grades it, moves streaming in from the first one.
  *    A game reviewed on this device before opens finished.
- * 3. When it finishes, an online game's review is saved for everyone (the
- *    server accepts it from the two players only, and a later one only when
- *    it searched deeper).
+ * 3. When it finishes, an online game's review is saved for everyone. The
+ *    server takes a standard review from the two players only, a Deep review
+ *    from anyone signed in, and a later one only when it searched deeper.
  *
  * Pass `enabled: false` (signed out) to do nothing.
  */

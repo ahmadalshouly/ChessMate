@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useTicker } from '@/components/PlayerBar';
 import { useT } from '@/i18n';
-import { currentPlayLock, useHabits } from '@/lib/habits';
+import { useHabits } from '@/lib/habits';
 import { Button, GlassView, Text, useAppTheme } from '@/ui';
 
 /** "1:05:09" or "4:12" for a break countdown. */
@@ -17,11 +17,28 @@ export function formatCountdown(ms: number): string {
   return `${h ? `${h}:` : ''}${mm}:${String(sec).padStart(2, '0')}`;
 }
 
-/** The current break (null when play is allowed), ticking every second. */
+/**
+ * The current break (null when play is allowed), counting down once a second. The clock only
+ * runs during a break: this sits on the home and play screens, and a clock ticking there all the
+ * time kept the phone awake for nothing. A break starts as a change in the habits store (server
+ * or device lock), which re-renders through useHabits and starts the countdown.
+ */
 export function usePlayLock(): { until: number | null; left: number } {
-  useHabits();
-  const now = useTicker(true);
-  const until = currentPlayLock(now);
+  const h = useHabits();
+  const lockUntil = Math.max(h.habits?.lockedUntil ?? 0, h.deviceLock ?? 0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const first = Date.now();
+    setNow(first);
+    if (lockUntil <= first) return;
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= lockUntil) clearInterval(id);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lockUntil]);
+  const until = lockUntil > now ? lockUntil : null;
   return { until, left: until ? until - now : 0 };
 }
 

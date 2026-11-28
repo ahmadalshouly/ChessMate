@@ -99,6 +99,8 @@ export const auth: Messages<typeof en> = {
     notConfigured: 'تسجيل الدخول عبر {provider} غير مُعدّ على الخادم بعد.',
     failed: 'لم ينجح تسجيل الدخول عبر {provider}. حاول مرة أخرى.',
     google: 'المتابعة باستخدام Google',
+    apple: 'المتابعة باستخدام Apple',
+    googleSetup: 'تسجيل الدخول عبر Google غير مُعدّ لهذه النسخة بعد (بصمة التطبيق غير مضافة في Google Cloud).',
     expoGo: 'لا يعمل تسجيل الدخول عبر Google داخل Expo Go. جرّبه في نسخة الويب (اضغط w في Expo) أو في نسخة مثبّتة.',
   },
 };

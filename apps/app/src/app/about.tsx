@@ -3,11 +3,13 @@ import { router } from 'expo-router';
 import { View } from 'react-native';
 
 import { InfoPage } from '@/components/InfoPage';
+import { useSupportShown } from '@/features/support/useSupportShown';
 import { useT } from '@/i18n';
 import { Button, Text } from '@/ui';
 
 export default function About() {
   const tr = useT();
+  const supportShown = useSupportShown();
   return (
     <InfoPage
       title="pages.about.title"
@@ -20,7 +22,7 @@ export default function About() {
       ]}>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button size="sm" variant="secondary" title={tr('more.support')} onPress={() => router.push('/support')} />
-        <Button size="sm" variant="secondary" title={tr('more.donate')} onPress={() => router.push('/donate')} />
+        {supportShown ? <Button size="sm" variant="secondary" title={tr('more.donate')} onPress={() => router.push('/donate')} /> : null}
         <Text variant="caption" tone="tertiary" style={{ marginStart: 'auto' }}>
           {tr('pages.about.version', { version: Constants.expoConfig?.version ?? '1.0.0' })}
         </Text>

@@ -67,6 +67,12 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /tournaments/:id/hidechat    { messageId, hidden } hide or show a chat message
  *   GET  /sponsors                    sponsor applications;  POST /sponsors/:id { status, note? }
  *   POST /sponsors/:id/material       emails the company asking for the title, text, image and link
+ *   GET  /sponsors/:id/thread         { messages, payments, portalUrl, paymentsEnabled } the conversation (marks it read)
+ *   POST /sponsors/:id/message        { body } writes to the company (emailed, shown on their page)
+ *   POST /sponsors/:id/payment        { amountCents, currency, description } sends a Stripe payment link (admins only)
+ *   POST /sponsors/:id/cancel-payment { paymentId } withdraws an unpaid link (admins only)
+ *   GET  /payments                    sponsor payment links and donations (admins only)
+ *   POST /payments/support            { shown } shows or hides "Support us" in the app (admins only)
  *   GET  /ads                         { spots, placements } every spot's switch and every placement
  *   POST /ads-spots/:id               { enabled?, note? } switches one spot on or off
  *   POST /ads                         { spot, sponsor, title, body?, url?, image?, imageUrl?, startsAt?, period | endsAt, applicationId? }
@@ -78,6 +84,7 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /bots/:id                    same fields, saves (image left out keeps the stored picture)
  *   POST /bots/:id/flags              { enabled?, featured? } switches it on or off, in or out of the featured row
  *   POST /bots/:id/delete             removes it for good
+ *   GET  /analytics?days=7|30|90     usage report (sign-ups, games, puzzles, retention; screens and events from consented app visitors)
  *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  *   GET  /lessons                     every chapter and lesson, drafts included
  *   POST /lessons                     { lesson } creates a lesson; POST /lessons/:id { lesson } saves it
@@ -209,6 +216,20 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ application: await admin.reviewSponsor(actor, id!, await body()) });
         case 'POST sponsors/:id/material':
           return ok({ application: await admin.requestSponsorMaterial(actor, id!) });
+        case 'GET sponsors/:id/thread':
+          return ok({ thread: await admin.sponsorThread(actor, id!) });
+        case 'POST sponsors/:id/message':
+          return ok({ thread: await admin.sponsorMessage(actor, id!, await body()) });
+        case 'POST sponsors/:id/payment':
+          return ok({ thread: await admin.sponsorPaymentLink(actor, id!, await body()) });
+        case 'POST sponsors/:id/cancel-payment':
+          return ok({ thread: await admin.cancelSponsorPayment(actor, id!, await body()) });
+        case 'GET payments':
+          return ok(await admin.paymentsOverview(actor));
+        case 'POST payments/:id':
+          if (id === 'support') return ok(await admin.setSupportShown(actor, await body()));
+          sendJson(res, 404, { error: { code: 'not_found', message: 'No such endpoint' } });
+          return true;
         case 'GET ads':
           return ok(admin.adConsole(actor));
         case 'POST ads':
@@ -231,6 +252,8 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ bot: await admin.setBotFlags(actor, id!, await body()) });
         case 'POST bots/:id/delete':
           return ok(await admin.deleteBot(actor, id!));
+        case 'GET analytics':
+          return ok(await admin.analyticsReport(actor, num('days')));
         case 'GET payouts':
           return ok({ requests: admin.payoutRequests(actor) });
         case 'POST payouts/:id':

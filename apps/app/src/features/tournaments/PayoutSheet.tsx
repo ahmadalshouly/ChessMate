@@ -46,7 +46,7 @@ export function PayoutSheet({
       description={tr('tournaments.payout.body', { place, prize })}
       actions={
         <>
-          <Button variant="ghost" title={tr('admin.common.cancel')} onPress={onClose} />
+          <Button variant="ghost" title={tr('common.cancel')} onPress={onClose} />
           <Button title={tr('tournaments.payout.submit')} loading={busy} disabled={details.trim().length < 4} onPress={() => void submit()} />
         </>
       }>

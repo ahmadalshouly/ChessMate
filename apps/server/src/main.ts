@@ -35,9 +35,14 @@ import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { AdService } from './ads/service';
 import { BotService } from './bots/service';
+import { AnalyticsService, analyticsRoutes } from './analytics';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
-import { donateRoutes } from './payments/donate';
+import { DonationLedger, SupportSwitch, donateRoutes } from './payments/donate';
+import { stripeWebhookRoute } from './payments/webhook';
+import { SponsorDesk } from './sponsors/service';
+import { sponsorshipRoutes } from './sponsors/http';
+import { tournamentStripeHandler } from './tournaments/http';
 import { footballLogoRoutes, footballLogosFromEnv } from './football/logos';
 import { ExplorerService, LichessExplorer, explorerRoutes } from './explorer';
 
@@ -134,9 +139,12 @@ async function start() {
   // Profiles and settings (privacy included) live in the database, so they survive restarts.
   const { auth, base, profileDeps, profileStore } = services(new DbAuthStore(db.db), dbGamesOf(db.db), await DbProfileStore.load(db.db), db.db);
   const explorer = new ExplorerService({ db: db.db, lichess: lichessExplorer });
+  const stripe = stripeFromEnv();
+  const donations = new DonationLedger(db.db);
+  const support = await new SupportSwitch(db.db).load();
   base.http = [
     ...(base.http ?? []),
-    donateRoutes(stripeFromEnv()),
+    donateRoutes(stripe, { ledger: donations, support, userOf: (token) => auth.verifyAccessToken(token)?.userId ?? null }),
     explorerRoutes(explorer),
     gameRoutes(db.db, {
       viewerOf: (token) => auth.verifyAccessToken(token)?.userId ?? null,
@@ -199,9 +207,26 @@ async function start() {
   };
   setTimeout(detectLive, 15_000).unref();
   setInterval(detectLive, 60_000).unref();
-  const tournaments = new TournamentService({ db: db.db, stripe: stripeFromEnv() });
+  const tournaments = new TournamentService({ db: db.db, stripe });
   await tournaments.load();
   admin.tournaments = tournaments;
+  // Sponsors: staff and the company talk on the company's own page, and staff send Stripe payment links there.
+  const sponsorDesk = new SponsorDesk({
+    db: db.db,
+    stripe,
+    sendEmail: auth.mailer.sendAccountNotice ? (to, notice) => auth.mailer.sendAccountNotice!(to, notice) : undefined,
+    staffInbox: process.env.SPONSOR_INBOX_EMAIL || null,
+  });
+  tournaments.onSponsorApplication = (row) => sponsorDesk.welcome(row);
+  admin.sponsorDesk = sponsorDesk;
+  admin.donations = donations;
+  admin.support = support;
+  // One Stripe webhook for every payment: sponsor links, donations, then tournament entry fees.
+  base.http = [
+    ...(base.http ?? []),
+    stripeWebhookRoute([(e) => sponsorDesk.handleStripeEvent(e), (e) => donations.handleStripeEvent(e), tournamentStripeHandler(tournaments)]),
+    sponsorshipRoutes(sponsorDesk, (token) => auth.verifyAccessToken(token)?.userId ?? null),
+  ];
   // Sponsored ad spots: staff switch a spot on and place a sponsor on it for a period.
   const ads = new AdService({ db: db.db });
   await ads.load();
@@ -214,6 +239,22 @@ async function start() {
   await lessons.load();
   admin.lessons = lessons;
   lessonCatalog = () => lessons.catalog();
+  // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
+  // tokens also get an account row on first use so friends and search can be tried.
+  const resolveUser = async (token: string) => {
+    const account = auth.verifyAccessToken(token);
+    if (account) return account.userId;
+    const id = devResolveUser(token);
+    if (!id) return null;
+    const name = token.split(':').slice(2).join(':');
+    await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
+    return id;
+  };
+  // First-party analytics for the admin console (events only from visitors who allowed analytics).
+  const analytics = new AnalyticsService({ db: db.db });
+  analytics.start();
+  admin.analytics = analytics;
+  base.http = [...(base.http ?? []), analyticsRoutes(analytics, resolveUser)];
   const server = new ChessServer({
     ...base,
     admin,
@@ -237,18 +278,9 @@ async function start() {
     broadcastAnalyzer,
     // The inbox, notification settings and push tokens survive restarts and deploys.
     notificationStore: await DbNotificationStore.load(db.db),
-    // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
-    // tokens also get an account row on first use so friends and search can be tried.
-    resolveUser: async (token) => {
-      const account = auth.verifyAccessToken(token);
-      if (account) return account.userId;
-      const id = devResolveUser(token);
-      if (!id) return null;
-      const name = token.split(':').slice(2).join(':');
-      await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
-      return id;
-    },
+    resolveUser,
   });
+  sponsorDesk.attach((userId, title, body, url) => void server.notifications.notify(userId, { kind: 'system', title, body, url }));
   // Push campaigns from the admin console: send now, schedule, and triggers on what players do.
   const campaigns = new CampaignService({ db: db.db, notifications: server.notifications, isForeground: (id) => server.isForeground(id) });
   await campaigns.load();

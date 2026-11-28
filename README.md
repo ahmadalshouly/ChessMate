@@ -65,7 +65,7 @@ Sections are folders in `apps/app/src/app/(tabs)/` (`(home)`, `puzzles`, `learn`
 
 ## Languages
 
-The app is in English, Arabic and German. It follows the device language and can be changed under **Settings → Language** (or the chips at the bottom of the welcome screen). Arabic mirrors the layout right to left, except the chessboard, and uses IBM Plex Sans Arabic. On a phone, switching to or from Arabic restarts the app once. To add text to a screen, see [apps/app/src/i18n/README.md](apps/app/src/i18n/README.md).
+The app is in English, Arabic, German, Spanish, French, Portuguese (Brazil), Russian, Turkish, Indonesian, Hindi, Chinese (Simplified), Japanese and Korean (the staff console in English, Arabic and German). It follows the device language and can be changed in the language dropdown under **Settings → Language** (or at the bottom of the welcome screen). Arabic mirrors the layout right to left, except the chessboard, and uses IBM Plex Sans Arabic. On a phone, switching to or from Arabic restarts the app once. To add text to a screen, see [apps/app/src/i18n/README.md](apps/app/src/i18n/README.md).
 
 To try it on the web, switch the language in Settings. To test the device default, set the browser language (Chrome: Settings → Languages) or the phone language, and pick **Device language** in Settings.
 

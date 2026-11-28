@@ -9,7 +9,7 @@ import { BrandLine } from '@/components/shell/BrandLine';
 import { Logo } from '@/components/shell/Logo';
 import { useAuth } from '@/lib/auth';
 import { Backdrop, Button, GlassView, Text, useAppTheme } from '@/ui';
-import { LanguageChips } from '@/components/i18n/LanguageChips';
+import { LanguagePicker } from '@/components/i18n/LanguagePicker';
 import { useI18n, type TKey } from '@/i18n';
 
 const FEATURES: { icon: ComponentProps<typeof Ionicons>['name']; title: TKey; body: TKey }[] = [
@@ -76,7 +76,7 @@ export default function Welcome() {
               </Text>
             </View>
             <BrandLine />
-            <LanguageChips />
+            <LanguagePicker includeSystem={false} compact />
           </View>
         </ScrollView>
       </SafeAreaView>

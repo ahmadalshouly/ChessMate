@@ -14,4 +14,6 @@ export const leaderboard = {
   rowA11y: 'Rank {rank}, {name}, rating {rating}',
   games: { one: '{count} game', other: '{count} games' },
   peak: 'peak {n}',
+  countryRank: '#{n} in {country}',
+  openProfile: 'Opens their profile',
 };

@@ -1,0 +1,16 @@
+export const share = {
+  button: 'Bagikan permainan',
+  title: 'Bagikan permainan',
+  copyPgn: 'Salin PGN',
+  copyPgnBody: 'Langkah-langkahnya, siap ditempel ke aplikasi catur mana pun',
+  pgnAfterGame: 'Bisa disalin setelah permainan selesai',
+  noPgnSecretQueen: 'Permainan Secret Queen tidak punya PGN: pion yang bergerak seperti menteri merusaknya',
+  shareLink: 'Bagikan tautan',
+  copyLink: 'Salin tautan',
+  pgnCopied: 'PGN disalin',
+  linkCopied: 'Tautan disalin',
+  failed: 'Tidak bisa membagikan permainan',
+  copyByHand: 'Penyalinan diblokir di sini. Pilih teks di bawah lalu salin.',
+  message: '{title} di ChessMate',
+  messageLive: 'Tonton {title} secara langsung di ChessMate',
+};

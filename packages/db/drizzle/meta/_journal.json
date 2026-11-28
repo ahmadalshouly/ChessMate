@@ -204,6 +204,20 @@
       "when": 1798050000000,
       "tag": "0028_game_collections",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1798200000000,
+      "tag": "0029_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1798350000000,
+      "tag": "0030_sponsor_payments",
+      "breakpoints": true
     }
   ]
 }

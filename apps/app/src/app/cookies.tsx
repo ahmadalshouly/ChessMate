@@ -16,6 +16,7 @@ export default function Cookies() {
       sections={[
         ['pages.cookies.whatTitle', 'pages.cookies.what'],
         ['pages.cookies.necessaryTitle', 'pages.cookies.necessary'],
+        ['pages.cookies.analyticsTitle', 'pages.cookies.analytics'],
         ['pages.cookies.mediaTitle', 'pages.cookies.media'],
         ['pages.cookies.paymentsTitle', 'pages.cookies.payments'],
         ['pages.cookies.noTrackingTitle', 'pages.cookies.noTracking'],

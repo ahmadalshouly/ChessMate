@@ -3,13 +3,19 @@
  * plural forms (CLDR categories, so Arabic gets zero/one/two/few/many/other).
  *
  * Keys are dotted paths into the English dictionary, e.g. `settings.language.title`.
- * English is the source of truth: Arabic and German must have exactly the same keys,
+ * English is the source of truth: every other language must have exactly the same keys,
  * which the type checker enforces (see `Messages`).
  */
 
-export type Lang = 'en' | 'ar' | 'de';
-export const LANGS: readonly Lang[] = ['en', 'ar', 'de'];
+export type Lang = 'en' | 'ar' | 'de' | 'es' | 'fr' | 'pt' | 'ru' | 'tr' | 'id' | 'hi' | 'zh' | 'ja' | 'ko';
+/** Picker order: English first, then by native name in Latin script, then the other scripts. */
+export const LANGS: readonly Lang[] = ['en', 'de', 'es', 'fr', 'id', 'pt', 'tr', 'ru', 'ar', 'hi', 'zh', 'ja', 'ko'];
 export const RTL_LANGS: ReadonlySet<Lang> = new Set(['ar']);
+/**
+ * Languages whose script the bundled faces (Inter, Playfair, Cinzel, trimmed to Latin) don't
+ * cover. Text there uses the platform's own font for that script (see `ui/theme/fonts.ts`).
+ */
+export const SYSTEM_FONT_LANGS: ReadonlySet<Lang> = new Set(['ru', 'hi', 'zh', 'ja', 'ko']);
 
 export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 /** A plural message. `other` is required; the rest are used where the language has them. */
@@ -25,6 +31,15 @@ export type Messages<T> = {
   [K in keyof T]: T[K] extends string ? string : IsPlural<T[K]> extends true ? Plural : Messages<T[K]>;
 };
 
+/**
+ * Namespaces only staff see (the /admin console). Languages other than English, Arabic and
+ * German leave them out, and those screens show English.
+ */
+export type StaffNamespace = 'admin' | 'pushAdmin';
+export const STAFF_NAMESPACES: readonly StaffNamespace[] = ['admin', 'pushAdmin'];
+/** A player-facing dictionary: every key but the staff console's. */
+export type PlayerMessages<T> = Messages<Omit<T, StaffNamespace>>;
+
 /** Every leaf path of a dictionary: `'a.b.c'`. Plural objects count as leaves. */
 export type KeyPath<T> = {
   [K in keyof T & string]: T[K] extends string ? K : IsPlural<T[K]> extends true ? K : `${K}.${KeyPath<T[K]>}`;
@@ -37,17 +52,40 @@ const PLURAL_KEYS: ReadonlySet<string> = new Set<PluralCategory>(['zero', 'one',
 /** CLDR plural rules for the shipped languages (no Intl.PluralRules needed on Hermes). */
 export function pluralCategory(lang: Lang, n: number): PluralCategory {
   const i = Math.abs(n);
-  if (lang === 'ar') {
-    if (i === 0) return 'zero';
-    if (i === 1) return 'one';
-    if (i === 2) return 'two';
-    if (!Number.isInteger(i)) return 'other';
-    const m = i % 100;
-    if (m >= 3 && m <= 10) return 'few';
-    if (m >= 11 && m <= 99) return 'many';
-    return 'other';
+  const int = Number.isInteger(i);
+  switch (lang) {
+    case 'ar': {
+      if (i === 0) return 'zero';
+      if (i === 1) return 'one';
+      if (i === 2) return 'two';
+      if (!int) return 'other';
+      const m = i % 100;
+      if (m >= 3 && m <= 10) return 'few';
+      if (m >= 11 && m <= 99) return 'many';
+      return 'other';
+    }
+    case 'ru': {
+      if (!int) return 'other';
+      const m10 = i % 10;
+      const m100 = i % 100;
+      if (m10 === 1 && m100 !== 11) return 'one';
+      if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'few';
+      return 'many';
+    }
+    // French, Brazilian Portuguese and Hindi: 0 and 1 are singular.
+    case 'fr':
+    case 'pt':
+    case 'hi':
+      return i < 2 ? 'one' : 'other';
+    // No grammatical plural.
+    case 'zh':
+    case 'ja':
+    case 'ko':
+    case 'id':
+      return 'other';
+    default:
+      return i === 1 ? 'one' : 'other';
   }
-  return i === 1 ? 'one' : 'other';
 }
 
 export function interpolate(template: string, params?: Params): string {

@@ -1,7 +1,7 @@
 import { ALL_SQUARES, FILES, fenBoard, type Color, type Piece, type PieceSet, type Square } from '@chessmate/core';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Image, Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native';
 import { GestureDetector, MouseButton, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -624,6 +624,48 @@ export const Board = memo(function Board(props: BoardProps) {
       {props.promotion && <PromotionPicker choice={props.promotion} orientation={orientation} size={size} set={set} />}
       {/* Glass edge: a hairline highlight that sits on top of everything. */}
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.edge, { borderColor: colors.frame, borderRadius: Math.max(4, size * 0.012) }]} />
+    </View>
+  );
+});
+
+export interface BoardThumbProps {
+  fen: string;
+  orientation: Color;
+  size: number;
+  lastMove?: { from: Square; to: Square } | null;
+  checkSquare?: Square | null;
+}
+
+/**
+ * A still position for lists and cards: the squares, the pieces, and the
+ * last-move and check tints, in the user's board theme and piece set. It has
+ * none of Board's gestures, animated pieces, sounds or drawing layers, so a
+ * page of them mounts in the time a couple of full boards take. Use Board for
+ * anything that moves or can be touched.
+ */
+export const BoardThumb = memo(function BoardThumb({ fen, orientation, size, lastMove, checkSquare }: BoardThumbProps) {
+  const { boardTheme: colors } = useBoardTheme();
+  const look = useBoardAppearance();
+  const position = useMemo(() => fenBoard(fen), [fen]);
+  const cell = size / 8;
+  const tints: { sq: Square; color: string }[] = [];
+  if (lastMove && look.highlightLastMove) tints.push({ sq: lastMove.from, color: colors.lastMove }, { sq: lastMove.to, color: colors.lastMove });
+  if (checkSquare) tints.push({ sq: checkSquare, color: colors.check });
+  const radius = Math.max(4, size * 0.012);
+  return (
+    <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.board, PLACE_ORIGIN, { width: size, height: size, borderRadius: radius, direction: 'ltr' }]}>
+      <Surface theme={colors} orientation={orientation} size={size} />
+      {tints.map(({ sq, color }, k) => {
+        const c = cellOrigin(sq, orientation);
+        return <View key={`tint-${k}`} style={[placeAt(c.col * cell, c.row * cell, cell, cell, size), { backgroundColor: color }]} />;
+      })}
+      {ORDER[orientation].map((sq) => {
+        const piece = pieceAt(position, sq);
+        if (!piece) return null;
+        const c = cellOrigin(sq, orientation);
+        return <Image key={sq} source={pieceImage(look.pieces, piece.color, piece.type)} style={placeAt(c.col * cell, c.row * cell, cell, cell, size) as ImageStyle} resizeMode="contain" />;
+      })}
+      <View style={[StyleSheet.absoluteFill, styles.edge, { borderColor: colors.frame, borderRadius: radius }]} />
     </View>
   );
 });

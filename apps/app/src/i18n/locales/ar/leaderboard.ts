@@ -17,4 +17,6 @@ export const leaderboard: Messages<typeof en> = {
   rowA11y: 'المركز {rank}، {name}، التصنيف {rating}',
   games: { other: 'المباريات: {count}' },
   peak: 'الأعلى {n}',
+  countryRank: 'رقم {n} في {country}',
+  openProfile: 'يفتح الملف الشخصي',
 };

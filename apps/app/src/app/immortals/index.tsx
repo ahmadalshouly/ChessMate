@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 
 import { GameCard, GameThumb, LegendCard, openGame, placeLine, playersLine } from '@/features/immortals/ImmortalCards';
 import { useI18n, useT } from '@/i18n';
+import { useRevealCount } from '@/lib/useRevealCount';
 import { Button, Chip, GlassView, Row, Screen, SectionHeader, Stack, Text, useAppTheme } from '@/ui';
 
 /** The Immortals hall of fame: a game of the day, the legends, and every famous game by theme. */
@@ -22,6 +23,8 @@ export default function ImmortalsScreen() {
   // Only offer themes that have games.
   const themes = IMMORTAL_THEMES.filter((th) => IMMORTAL_GAMES.some((g) => g.themes.includes(th)));
   const featuredSize = wide ? 280 : Math.min(320, Math.floor((width - 64) / 8) * 8);
+  // The page paints at once; the game boards fill in over the next few frames.
+  const boards = useRevealCount(IMMORTAL_GAMES.length);
 
   return (
     <Screen scroll width="wide">
@@ -91,8 +94,8 @@ export default function ImmortalsScreen() {
           ))}
         </ScrollView>
         <View style={styles.grid}>
-          {games.map((g) => (
-            <GameCard key={g.id} game={g} wide={wide} />
+          {games.map((g, i) => (
+            <GameCard key={g.id} game={g} wide={wide} boardReady={i < boards} />
           ))}
         </View>
       </Stack>

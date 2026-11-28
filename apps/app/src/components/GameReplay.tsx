@@ -6,6 +6,7 @@ import { Text } from '@/ui/primitives';
 
 import { Board } from '@/components/Board';
 import { SideDot, formatDate, gameMeta, playerLabel } from '@/components/archive';
+import { ReviewButton } from '@/components/ReviewButton';
 import { Button, Card, Label, Screen } from '@/components/ui';
 import { useTheme } from '@/constants/theme';
 import { dirIcon, translate, translateOr, useT } from '@/i18n';
@@ -19,6 +20,21 @@ import { useReviewEntry } from '@/features/engine/useReviewEntry';
 import { ShareGameButton, ShareGameSheet } from '@/features/share/ShareGame';
 import { archivedGameShare } from '@/features/share/gameShares';
 
+
+/**
+ * The players for the review screen: names, ratings, and which sides are
+ * ChessMate accounts (online games, and you in a practice game), so the
+ * review shows their avatar and flag. `accounts` overrides that guess.
+ */
+export function reviewPlayers(g: ArchivedGame, accounts?: string): Record<string, string> {
+  return {
+    white: g.white,
+    black: g.black,
+    ...(g.whiteRating ? { whiteRating: String(g.whiteRating) } : {}),
+    ...(g.blackRating ? { blackRating: String(g.blackRating) } : {}),
+    accounts: accounts ?? (g.source === 'online' ? 'wb' : g.source === 'practice' && g.myColor ? g.myColor : ''),
+  };
+}
 
 function resultLine(g: ArchivedGame): string {
   if (g.result === '*') return translate('games.replay.unfinished');
@@ -244,13 +260,14 @@ export function GameReplay({ game, deletable = true }: { game: ArchivedGame; del
               {notice && <Label muted>{notice}</Label>}
               <Label muted>{tr('games.replay.played', { date: formatDate(game.endedAt) })}</Label>
               {history.length > 0 && (
-                <Button
+                <ReviewButton
+                  fullWidth
                   title={reviewEntry.label ?? tr('analysis.review')}
                   onPress={() =>
                     reviewEntry.press(() =>
                       router.push({
                         pathname: '/review',
-                        params: { gameId: onlineId, moves: game.moves.join(','), initialFen: game.initialFen, orientation, white: game.white, black: game.black, result: game.result },
+                        params: { gameId: onlineId, moves: game.moves.join(','), initialFen: game.initialFen, orientation, ...reviewPlayers(game), result: game.result },
                       }),
                     )
                   }

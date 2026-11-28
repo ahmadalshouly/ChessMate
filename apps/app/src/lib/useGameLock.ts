@@ -37,5 +37,5 @@ export function useGameLock(locked: boolean) {
     return () => window.removeEventListener('beforeunload', onUnload);
   }, [locked]);
 
-  return locked ? { headerBackVisible: false, headerLeft: () => null, gestureEnabled: false } : { headerBackVisible: true, gestureEnabled: true };
+  return locked ? { headerBackVisible: false, headerLeft: () => null, gestureEnabled: false } : { headerBackVisible: true };
 }

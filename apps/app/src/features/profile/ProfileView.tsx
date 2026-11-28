@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { ReviewButton } from '@/components/ReviewButton';
 import { Screen } from '@/components/ui';
 import { MAX_CONTENT_WIDTH, useTheme } from '@/constants/theme';
 import { useAccountSession } from '@/features/account/session';
@@ -25,7 +26,6 @@ import { ProfileCollections } from '@/features/collections/ProfileCollections';
 import { ProfileStreamer } from '@/features/watch/ProfileStreamer';
 import { TitleBadge } from '@/features/titles/TitleBadge';
 import { formatAccuracy } from '@/features/engine/useReviewEntry';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { setMyPhoto } from '@/lib/myPhoto';
 
 const categoryLabel = (c: TimeCategory) => translate(`common.category.${c}`);
@@ -370,16 +370,14 @@ function GameRow({ game }: { game: RecentGame }) {
           {game.moves > 0 &&
             (game.accuracy ? (
               // Reviewed: the player's accuracy in place of Review; it opens the saved review.
-              <Button
+              <ReviewButton
                 size="sm"
-                variant="secondary"
                 title={`${formatAccuracy(game.accuracy[game.color])}%`}
-                leftIcon={<MaterialCommunityIcons name="chart-box-outline" size={14} color={c.text} />}
                 accessibilityLabel={tr('profile.accuracyA11y', { n: formatAccuracy(game.accuracy[game.color]) })}
                 onPress={() => openGame(game, true)}
               />
             ) : (
-              <Button size="sm" variant="secondary" title={tr('profile.review')} onPress={() => openGame(game, true)} />
+              <ReviewButton size="sm" title={tr('profile.review')} onPress={() => openGame(game, true)} />
             ))}
         </Row>
       }

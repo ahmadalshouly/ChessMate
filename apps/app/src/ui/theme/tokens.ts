@@ -291,6 +291,21 @@ export function shadows(c: ColorTokens) {
   // Android draws `elevation` as a solid shadow under the whole box, which shows through any
   // translucent fill as a grey slab. Glass there leans on the hairline edge instead.
   const android = Platform.OS === 'android';
+  // iPhone: React Native can only give a shadow a cheap, cached outline when the view has a solid
+  // background. Glass cards are translucent, so a plain shadow there falls back to a per-pixel
+  // shadow that the GPU redraws off-screen on every frame anything on screen changes: with a dozen
+  // cards on the home screen that kept the phone busy (and hot) just sitting open. A CSS-style box
+  // shadow is drawn from the box's outline instead, once, and looks the same.
+  if (Platform.OS === 'ios') {
+    const ink = (a: number) => rgba(c.shadow, a);
+    return {
+      none: {},
+      sm: { boxShadow: `0 1px 6px 0 ${ink(0.04 * k)}` } as ViewStyle,
+      md: { boxShadow: `0 12px 30px 0 ${ink(0.07 * k)}` } as ViewStyle,
+      lg: { boxShadow: `0 24px 50px 0 ${ink(0.12 * k)}` } as ViewStyle,
+      float: floatShadow(c),
+    } as const;
+  }
   return {
     none: {},
     sm: { shadowColor: c.shadow, shadowOpacity: 0.04 * k, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: android ? 0 : 1 },
@@ -301,8 +316,18 @@ export function shadows(c: ColorTokens) {
      * a CSS-style box shadow, which stays outside the box: it survives `overflow: hidden` (needed
      * to clip the glass) and never shows through a translucent fill as a grey slab on Android.
      */
-    float: { boxShadow: c.scheme === 'dark' ? '0 14px 36px 0 rgba(0,0,0,0.5), 0 2px 8px 0 rgba(0,0,0,0.3)' : '0 14px 36px 0 rgba(26,26,28,0.12), 0 2px 8px 0 rgba(26,26,28,0.06)' } as ViewStyle,
+    float: floatShadow(c),
   } as const;
+}
+
+function floatShadow(c: ColorTokens): ViewStyle {
+  return { boxShadow: c.scheme === 'dark' ? '0 14px 36px 0 rgba(0,0,0,0.5), 0 2px 8px 0 rgba(0,0,0,0.3)' : '0 14px 36px 0 rgba(26,26,28,0.12), 0 2px 8px 0 rgba(26,26,28,0.06)' };
+}
+
+/** `#RRGGBB` plus an alpha, as `rgba(...)`. */
+function rgba(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${Math.min(1, a).toFixed(3)})`;
 }
 export type Elevation = keyof ReturnType<typeof shadows>;
 

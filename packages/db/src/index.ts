@@ -22,3 +22,5 @@ export * from './repo/ads';
 export * from './repo/bots';
 export * from './repo/explorer';
 export * from './repo/collections';
+export * from './repo/sponsorship';
+export * from './repo/analytics';

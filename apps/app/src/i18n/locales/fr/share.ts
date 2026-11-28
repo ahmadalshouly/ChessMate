@@ -1,0 +1,16 @@
+export const share = {
+  button: 'Partager la partie',
+  title: 'Partager la partie',
+  copyPgn: 'Copier le PGN',
+  copyPgnBody: 'Les coups, prêts à coller dans n’importe quelle appli d’échecs',
+  pgnAfterGame: 'Prêt à copier une fois la partie terminée',
+  noPgnSecretQueen: 'Les parties Dame secrète n’ont pas de PGN : les pions qui se déplacent comme des dames le rendent invalide',
+  shareLink: 'Partager le lien',
+  copyLink: 'Copier le lien',
+  pgnCopied: 'PGN copié',
+  linkCopied: 'Lien copié',
+  failed: 'Impossible de partager la partie',
+  copyByHand: 'La copie est bloquée ici. Sélectionne le texte ci-dessous et copie-le.',
+  message: '{title} sur ChessMate',
+  messageLive: 'Regarde {title} en direct sur ChessMate',
+};

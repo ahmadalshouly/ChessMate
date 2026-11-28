@@ -33,7 +33,7 @@ export const forumApi = {
 };
 
 export const donateApi = {
-  info: () => read<{ enabled: boolean; min: number; max: number; currencies: string[] }>('/api/donate'),
+  info: () => read<{ enabled: boolean; shown?: boolean; min: number; max: number; currencies: string[] }>('/api/donate'),
   checkout: (amountCents: number, currency: string, returnUrl: string) =>
     apiRequest<{ url: string }>('POST', '/api/donate', { amountCents, currency, returnUrl }, { optionalAuth: true }),
 };

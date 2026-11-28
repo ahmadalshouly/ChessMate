@@ -1,0 +1,15 @@
+export const nav = {
+  play: 'Oyna',
+  learn: 'Öğren',
+  learnTitle: 'Öğren',
+  social: 'Sosyal',
+  tournaments: 'Turnuvalar',
+  profile: 'Profil',
+  unrated: 'Puansız',
+  signInToSave: 'Oyunları kaydetmek için giriş yap',
+  openProfile: 'Profili aç',
+  puzzles: 'Bulmacalar',
+  watch: 'İzle',
+  elo: 'ELO',
+  section: 'Gezin',
+};

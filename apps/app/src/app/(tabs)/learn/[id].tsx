@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { lichessPuzzleUrl, type Lesson, type LessonExplainStep, type LessonPuzzleStep } from '@chessmate/core';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Board } from '@/components/Board';
@@ -16,6 +16,7 @@ import { usePuzzle } from '@/lib/usePuzzle';
 import { SIDEBAR_BREAKPOINT, SIDEBAR_WIDTH } from '@/navigation/tabs';
 import { useFillHeight, useWideBoard } from '@/lib/useWideBoard';
 import { Button, GlassView, Row, Screen, Stack as Column, Text, useAppTheme } from '@/ui';
+import { track } from '@/lib/analytics';
 
 /** Width of the panel beside the board on wide screens (as on the puzzle screens). */
 const PANEL_WIDE = 380;
@@ -31,6 +32,10 @@ export default function LessonScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const catalog = useLessonCatalog();
   const lesson = id ? findLesson(catalog, id) : undefined;
+  const lessonId = lesson?.id;
+  useEffect(() => {
+    if (lessonId) track('lesson_open', { lesson: lessonId });
+  }, [lessonId]);
   // A lesson added since this device last looked: wait for the server before saying it doesn't exist.
   if (!lesson && !catalog.checked) {
     return (

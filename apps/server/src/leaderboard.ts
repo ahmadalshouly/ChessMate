@@ -1,5 +1,5 @@
 import { isProvisional, type TimeCategory } from '@chessmate/core';
-import { friendships, ratings, users, type Database } from '@chessmate/db';
+import { friendships, ratings, userProfiles, users, type Database } from '@chessmate/db';
 import { and, count, eq, inArray, isNull, lte, gt, or, sql, type SQL } from 'drizzle-orm';
 import type { Player } from './players';
 
@@ -22,6 +22,8 @@ export interface LeaderboardEntry {
   username: string;
   displayName: string;
   country: string | null;
+  /** Rank among ranked (non-provisional) players of the same country in this category; null without a country or when provisional. */
+  countryRank: number | null;
   rating: number;
   provisional: boolean;
   games: number;
@@ -87,6 +89,8 @@ export interface LeaderboardSource {
   countryOf(userId: string): Promise<string | null>;
   /** Accepted friends, in either direction. */
   friendIdsOf(userId: string): Promise<string[]>;
+  /** Country ranks (as on that country's board) for these players; players not on a country board are left out. */
+  countryRanks(category: TimeCategory, userIds: string[]): Promise<Map<string, number>>;
 }
 
 export class LeaderboardError extends Error {
@@ -147,24 +151,48 @@ export class Leaderboards {
       filter = { category: q.category, includeProvisional: false };
     }
 
-    const { total, entries } = await this.sharedPage(filter, limit, offset);
-    const you = viewerId ? (entries.find((e) => e.userId === viewerId) ?? (await this.source.standing(filter, viewerId))) : null;
-    return { category: q.category, scope: q.scope, country, total, offset, entries, you };
+    const shared = await this.sharedPage(filter, limit, offset);
+    let entries = shared.entries;
+    let you = viewerId ? (entries.find((e) => e.userId === viewerId) ?? (await this.source.standing(filter, viewerId))) : null;
+    if (filter.userIds) {
+      // A friends board ranks inside the friend group, so country ranks come from the real country boards.
+      const ids = [...new Set([...entries.map((e) => e.userId), ...(you ? [you.userId] : [])])];
+      const ranks = ids.length ? await this.source.countryRanks(q.category, ids) : new Map<string, number>();
+      const withRank = (e: LeaderboardEntry) => ({ ...e, countryRank: ranks.get(e.userId) ?? null });
+      entries = entries.map(withRank);
+      you = you && withRank(you);
+    }
+    return { category: q.category, scope: q.scope, country, total: shared.total, offset, entries, you };
   }
 }
 
 /** Standard competition ranking ("1224"): equal rounded ratings share a rank. */
 export function rankRows(rows: RankedRow[]): LeaderboardEntry[] {
   const sorted = [...rows].sort((a, b) => b.rating - a.rating || b.games - a.games || a.username.localeCompare(b.username));
-  let prev: number | null = null;
-  let rank = 0;
-  return sorted.map((r, i) => {
+  const ranker = () => {
+    let prev: number | null = null;
+    let rank = 0;
+    let seen = 0;
+    return (rating: number) => {
+      seen++;
+      if (rating !== prev) {
+        rank = seen;
+        prev = rating;
+      }
+      return rank;
+    };
+  };
+  const overall = ranker();
+  const byCountry = new Map<string, (rating: number) => number>();
+  return sorted.map((r) => {
     const rating = Math.round(r.rating);
-    if (rating !== prev) {
-      rank = i + 1;
-      prev = rating;
+    const c = normalizeCountry(r.country);
+    let countryRank: number | null = null;
+    if (c) {
+      if (!byCountry.has(c)) byCountry.set(c, ranker());
+      countryRank = byCountry.get(c)!(rating);
     }
-    return toEntry({ ...r, rank });
+    return toEntry({ ...r, rank: overall(rating), countryRank });
   });
 }
 
@@ -198,7 +226,7 @@ export class DbLeaderboardSource implements LeaderboardSource {
   private where(f: BoardFilter): SQL | null {
     const conds: SQL[] = [eq(ratings.category, f.category as never), gt(ratings.games, 0), isNull(users.deletedAt), isNull(users.closedAt)];
     if (!f.includeProvisional) conds.push(lte(ratings.rd, MAX_RANKED_RD));
-    if (f.country) conds.push(sql`upper(${users.country}) = ${f.country}`);
+    if (f.country) conds.push(sql`${COUNTRY} = ${f.country}`);
     if (f.userIds) {
       if (f.userIds.length === 0) return null;
       conds.push(inArray(ratings.userId, f.userIds));
@@ -213,8 +241,12 @@ export class DbLeaderboardSource implements LeaderboardSource {
         pos: sql<number>`row_number() over (order by ${ratings.rating} desc, ${ratings.games} desc, ${users.username})`.as('pos'),
         userId: sql<string>`${ratings.userId}`.as('user_id'),
         username: users.username,
-        displayName: sql<string>`coalesce(${users.displayName}, ${users.username})`.as('display_name'),
-        country: users.country,
+        displayName: sql<string>`coalesce(nullif(${userProfiles.displayName}, ''), ${users.displayName}, ${users.username})`.as('display_name'),
+        country: sql<string | null>`${COUNTRY}`.as('country'),
+        // Only meaningful on boards that hold every ranked player (global, country); friends boards use countryRanks().
+        countryRank: sql<number | null>`case when ${COUNTRY} is null then null else rank() over (partition by ${COUNTRY} order by round(${ratings.rating}) desc) end`.as(
+          'country_rank',
+        ),
         rating: ratings.rating,
         rd: ratings.rd,
         games: ratings.games,
@@ -225,6 +257,7 @@ export class DbLeaderboardSource implements LeaderboardSource {
       })
       .from(ratings)
       .innerJoin(users, eq(users.id, ratings.userId))
+      .leftJoin(userProfiles, eq(userProfiles.userId, ratings.userId))
       .where(where)
       .as('board');
   }
@@ -232,7 +265,12 @@ export class DbLeaderboardSource implements LeaderboardSource {
   async page(f: BoardFilter, limit: number, offset: number) {
     const where = this.where(f);
     if (!where) return { total: 0, entries: [] };
-    const [{ n }] = (await this.db.select({ n: count() }).from(ratings).innerJoin(users, eq(users.id, ratings.userId)).where(where)) as [{ n: number }];
+    const [{ n }] = (await this.db
+      .select({ n: count() })
+      .from(ratings)
+      .innerJoin(users, eq(users.id, ratings.userId))
+      .leftJoin(userProfiles, eq(userProfiles.userId, ratings.userId))
+      .where(where)) as [{ n: number }];
     const b = this.board(where);
     const rows = await this.db.select().from(b).orderBy(b.pos).limit(limit).offset(offset);
     return { total: Number(n), entries: rows.map(toEntry) };
@@ -247,8 +285,19 @@ export class DbLeaderboardSource implements LeaderboardSource {
   }
 
   async countryOf(userId: string) {
-    const [row] = await this.db.select({ country: users.country }).from(users).where(eq(users.id, userId));
+    const [row] = await this.db
+      .select({ country: sql<string | null>`${COUNTRY}` })
+      .from(users)
+      .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+      .where(eq(users.id, userId));
     return row?.country ?? null;
+  }
+
+  async countryRanks(category: TimeCategory, userIds: string[]) {
+    const where = this.where({ category, includeProvisional: false });
+    const b = this.board(and(where!, sql`${COUNTRY} is not null`)!);
+    const rows = await this.db.select({ userId: b.userId, countryRank: b.countryRank }).from(b).where(inArray(b.userId, userIds));
+    return new Map(rows.filter((r) => r.countryRank != null).map((r) => [r.userId, Number(r.countryRank)]));
   }
 
   async friendIdsOf(userId: string) {
@@ -260,13 +309,20 @@ export class DbLeaderboardSource implements LeaderboardSource {
   }
 }
 
-function toEntry(r: RankedRow & { rank: number | string }): LeaderboardEntry {
+/**
+ * The player's country: the one they set on their profile (user_profiles), else
+ * the account row's. Upper-cased so "de" and "DE" are one country.
+ */
+const COUNTRY = sql`upper(coalesce(nullif(${userProfiles.country}, ''), nullif(${users.country}, '')))`;
+
+function toEntry(r: RankedRow & { rank: number | string; countryRank?: number | string | null }): LeaderboardEntry {
   return {
     rank: Number(r.rank),
     userId: r.userId,
     username: r.username,
     displayName: r.displayName,
     country: r.country,
+    countryRank: r.countryRank == null ? null : Number(r.countryRank),
     rating: Math.round(r.rating),
     provisional: isProvisional({ rating: r.rating, rd: r.rd, volatility: 0 }),
     games: Number(r.games),
@@ -317,5 +373,11 @@ export class MemoryLeaderboardSource implements LeaderboardSource {
 
   async friendIdsOf(userId: string) {
     return this.friends(userId);
+  }
+
+  async countryRanks(category: TimeCategory, userIds: string[]) {
+    const want = new Set(userIds);
+    const ranked = rankRows(this.rows({ category, includeProvisional: false }));
+    return new Map(ranked.filter((e) => want.has(e.userId) && e.countryRank != null).map((e) => [e.userId, e.countryRank!]));
   }
 }

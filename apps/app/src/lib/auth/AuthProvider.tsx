@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiError, authApi, request, type OAuthProvider } from './client';
 import type { AuthResponse, AuthTokens, AuthUser } from './contract';
 import * as storage from './storage';
+import { track } from '@/lib/analytics';
 import { releasePushToken } from '@/lib/notifications/api';
 
 export type AuthStatus = 'loading' | 'signedIn' | 'guest' | 'signedOut';
@@ -141,18 +142,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const signIn = useCallback(
-    async (login: string, password: string) => acceptSession(await authApi.login({ login: login.trim(), password })),
+    async (login: string, password: string) => {
+      await acceptSession(await authApi.login({ login: login.trim(), password }));
+      track('login', { method: 'email' });
+    },
     [acceptSession],
   );
 
   const signUp = useCallback(
-    async (input: { username: string; email: string; password: string }) =>
-      acceptSession(await authApi.signUp({ username: input.username.trim(), email: input.email.trim(), password: input.password })),
+    async (input: { username: string; email: string; password: string }) => {
+      await acceptSession(await authApi.signUp({ username: input.username.trim(), email: input.email.trim(), password: input.password }));
+      track('sign_up', { method: 'email' });
+    },
     [acceptSession],
   );
 
   const signInWithProvider = useCallback(
-    async (provider: OAuthProvider, idToken: string, fullName?: string) => acceptSession(await authApi.oauth(provider, { idToken, fullName })),
+    async (provider: OAuthProvider, idToken: string, fullName?: string) => {
+      const res = await authApi.oauth(provider, { idToken, fullName });
+      await acceptSession(res);
+      // The server answers both with the same body; an account made just now is a sign-up.
+      const isNew = Date.now() - Date.parse(res.user.createdAt) < 2 * 60_000;
+      track(isNew ? 'sign_up' : 'login', { method: provider });
+    },
     [acceptSession],
   );
 
@@ -161,6 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const t = tokens.current;
       // While the session still works: stop this phone getting the account's push notifications.
       await releasePushToken();
+      track('logout');
       if (t) authApi.logout(t.refreshToken, !!opts?.everywhere).catch(() => {});
       await becomeSignedOut();
     },
@@ -172,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storage.saveGuestName(name);
     setGuestName(name);
     setStatus('guest');
+    track('login', { method: 'guest' });
   }, [guestName]);
 
   const getGameToken = useCallback(async () => {

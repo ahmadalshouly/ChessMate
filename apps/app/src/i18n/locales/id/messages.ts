@@ -1,0 +1,20 @@
+export const messages = {
+  title: 'Pesan',
+  subtitle: 'Percakapan dengan pemain dan pesan dari tim ChessMate.',
+  new: 'Pesan baru',
+  loadFailed: 'Tidak bisa memuat pesan',
+  sendFailed: 'Tidak bisa mengirim pesan',
+  emptyTitle: 'Belum ada pesan',
+  emptyBody: 'Buka profil teman dan ketuk Pesan untuk memulai percakapan.',
+  team: 'Tim ChessMate',
+  you: 'Kamu',
+  unread: {
+    other: '{count} pesan belum dibaca',
+  },
+  startConversation: 'Sapa {name}.',
+  announcement: 'Pengumuman',
+  teamReadOnly: 'Lewat sini tim ChessMate menghubungimu. Kamu tidak bisa membalas di sini.',
+  cannotSend: 'Kamu tidak bisa mengirim pesan ke pemain ini.',
+  placeholder: 'Tulis pesan',
+  send: 'Kirim',
+};

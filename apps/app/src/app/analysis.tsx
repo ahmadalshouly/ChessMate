@@ -18,6 +18,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Platform, Pressable, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import { Text, TextInput } from '@/ui/primitives';
 
+import { ReviewButton } from '@/components/ReviewButton';
 import { Board } from '@/components/Board';
 import { BoardArrows, type Arrow } from '@/components/BoardArrows';
 import { EvalBar } from '@/components/EvalBar';
@@ -372,8 +373,8 @@ export default function Analysis() {
                 onPress={() => router.push({ pathname: '/dig-deep', params: { moves: line.join(','), fen: start, ply: String(cursor) } })}
               />
               {line.length > 0 && (
-                <Button
-                  variant="secondary"
+                <ReviewButton
+                  fullWidth
                   title={tr('analysis.review')}
                   onPress={() => router.push({ pathname: '/review', params: { moves: line.join(','), initialFen: start } })}
                 />

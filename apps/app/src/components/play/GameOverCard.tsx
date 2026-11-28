@@ -8,6 +8,7 @@ import { Text } from '@/ui/primitives';
 
 import { pickIndex } from '@/components/play/GameEndCelebration';
 import { ResultHeader, Scoreline, STAMP_MS, reasonText, useCardEntrance, type EndResult } from '@/components/play/ResultBadges';
+import { ReviewPill } from '@/components/ReviewButton';
 import { Label } from '@/components/ui';
 import { AdSpot } from '@/features/ads/AdSpot';
 import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
@@ -145,7 +146,7 @@ export function GameOverCard({
       )}
       {canReview && (
         <View style={styles.buttons}>
-          <CardButton icon="chart-box-outline" label={reviewLabel ?? tr('play.over.reviewGame')} onPress={onReview!} primary />
+          <ReviewPill label={reviewLabel ?? tr('play.over.reviewGame')} onPress={onReview!} flex />
         </View>
       )}
       <View style={styles.buttons}>

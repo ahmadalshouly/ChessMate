@@ -17,6 +17,7 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconName; needs: AdminPermission }[] = [
   { key: 'dashboard', href: '/admin', label: 'admin.nav.dashboard', icon: 'speedometer-outline', needs: 'dashboard.view' },
+  { key: 'analytics', href: '/admin/analytics', label: 'admin.nav.analytics', icon: 'analytics-outline', needs: 'analytics.view' },
   { key: 'players', href: '/admin/players', label: 'admin.nav.players', icon: 'people-outline', needs: 'players.view' },
   { key: 'reports', href: '/admin/reports', label: 'admin.nav.reports', icon: 'flag-outline', needs: 'reports.view' },
   { key: 'fairplay', href: '/admin/fairplay', label: 'admin.nav.fairplay', icon: 'shield-checkmark-outline', needs: 'fairplay.view' },
@@ -25,6 +26,7 @@ export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconN
   { key: 'sponsors', href: '/admin/sponsors', label: 'admin.nav.sponsors', icon: 'ribbon-outline', needs: 'tournaments.manage' },
   { key: 'ads', href: '/admin/ads', label: 'admin.nav.ads', icon: 'pricetag-outline', needs: 'ads.manage' },
   { key: 'bots', href: '/admin/bots', label: 'admin.nav.bots', icon: 'hardware-chip-outline', needs: 'bots.manage' },
+  { key: 'payments', href: '/admin/payments', label: 'admin.nav.payments', icon: 'card-outline', needs: 'payments.manage' },
   { key: 'payouts', href: '/admin/payouts', label: 'admin.nav.payouts', icon: 'cash-outline', needs: 'tournaments.manage' },
   { key: 'lessons', href: '/admin/lessons', label: 'admin.nav.lessons', icon: 'school-outline', needs: 'lessons.manage' },
   { key: 'broadcasts', href: '/admin/broadcasts', label: 'watch.admin.broadcasts', icon: 'tv-outline', needs: 'broadcasts.manage' },
