@@ -73,6 +73,8 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /sponsors/:id/cancel-payment { paymentId } withdraws an unpaid link (admins only)
  *   GET  /payments                    sponsor payment links and donations (admins only)
  *   POST /payments/support            { shown } shows or hides "Support us" in the app (admins only)
+ *   GET  /maintenance                 { maintenance } the web maintenance page (admins only)
+ *   POST /maintenance                 { active?, title?, description?, endsAt? (ms | null), autoEnd? } (admins only)
  *   GET  /ads                         { spots, placements } every spot's switch and every placement
  *   POST /ads-spots/:id               { enabled?, note? } switches one spot on or off
  *   POST /ads                         { spot, sponsor, title, body?, url?, image?, imageUrl?, startsAt?, period | endsAt, applicationId? }
@@ -230,6 +232,10 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           if (id === 'support') return ok(await admin.setSupportShown(actor, await body()));
           sendJson(res, 404, { error: { code: 'not_found', message: 'No such endpoint' } });
           return true;
+        case 'GET maintenance':
+          return ok({ maintenance: admin.maintenanceState(actor) });
+        case 'POST maintenance':
+          return ok({ maintenance: await admin.setMaintenance(actor, await body()) });
         case 'GET ads':
           return ok(admin.adConsole(actor));
         case 'POST ads':

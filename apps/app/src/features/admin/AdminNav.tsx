@@ -27,6 +27,7 @@ export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconN
   { key: 'ads', href: '/admin/ads', label: 'admin.nav.ads', icon: 'pricetag-outline', needs: 'ads.manage' },
   { key: 'bots', href: '/admin/bots', label: 'admin.nav.bots', icon: 'hardware-chip-outline', needs: 'bots.manage' },
   { key: 'payments', href: '/admin/payments', label: 'admin.nav.payments', icon: 'card-outline', needs: 'payments.manage' },
+  { key: 'maintenance', href: '/admin/maintenance', label: 'admin.nav.maintenance', icon: 'construct-outline', needs: 'maintenance.manage' },
   { key: 'payouts', href: '/admin/payouts', label: 'admin.nav.payouts', icon: 'cash-outline', needs: 'tournaments.manage' },
   { key: 'lessons', href: '/admin/lessons', label: 'admin.nav.lessons', icon: 'school-outline', needs: 'lessons.manage' },
   { key: 'broadcasts', href: '/admin/broadcasts', label: 'watch.admin.broadcasts', icon: 'tv-outline', needs: 'broadcasts.manage' },

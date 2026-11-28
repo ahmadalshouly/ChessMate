@@ -66,6 +66,8 @@ export const ADMIN_PERMISSIONS = [
   'payments.manage',
   /** See the analytics dashboard: usage, screens, events, retention. Admins only. */
   'analytics.view',
+  /** Switch the web maintenance page on and off. Admins only. */
+  'maintenance.manage',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

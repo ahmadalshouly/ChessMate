@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, useSegments } fr
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -21,6 +21,8 @@ import { UIProvider, useAppTheme } from '@/ui';
 import { AwardsListener } from '@/features/awards/AwardsListener';
 import { EngineHost } from '@/features/engine/EngineHost';
 import { CookieBanner } from '@/features/privacy/CookieBanner';
+import { MaintenancePill } from '@/features/maintenance/MaintenancePill';
+import { useMaintenance } from '@/features/maintenance/useMaintenance';
 import { loadArabicFonts, useAppFonts } from '@/ui/theme/fonts';
 import { NotificationsProvider, setNotificationsTokenProvider } from '@/lib/notifications';
 import { initI18n, useI18n } from '@/i18n';
@@ -151,19 +153,37 @@ function SocialAuthBridge() {
 }
 
 /** Routes anyone may open without a session: the auth flow, emailed reset and sponsorship links, and donating. */
-const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'cookies', 'fair-play', 'about', 'support', 'donate', 'sponsorship']);
+const PUBLIC_ROOTS = new Set(['(auth)', 'reset-password', 'privacy', 'cookies', 'fair-play', 'about', 'support', 'donate', 'sponsorship', 'maintenance']);
+
+/** While web maintenance mode is on, non-admins may still open these: the page itself, staff sign-in, and the privacy and cookie pages the cookie notice links to. */
+const OPEN_DURING_MAINTENANCE = new Set(['maintenance', 'reset-password', 'privacy', 'cookies']);
+function openDuringMaintenance(segments: string[]): boolean {
+  const [root, child] = segments;
+  if (OPEN_DURING_MAINTENANCE.has(root ?? '')) return true;
+  return root === '(auth)' && (child === 'sign-in' || child === 'forgot-password');
+}
 
 function RootStack() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const segments = useSegments();
+  const maintenance = useMaintenance();
+  const admin = user?.role === 'admin';
+  // Web maintenance mode (Admin → Maintenance): everyone but admins sees only the maintenance page.
+  // Hold the first frame until the first check answers, so nobody glimpses the site behind it.
+  const maintenancePending = Platform.OS === 'web' && !maintenance.ready && status !== 'loading';
+  const lockedOut = maintenance.inForce && !admin && status !== 'loading' && !openDuringMaintenance(segments as string[]);
   const onPublicRoute = PUBLIC_ROOTS.has(segments[0] ?? '');
-  const mustWelcome = status === 'signedOut' && !onPublicRoute;
+  const mustWelcome = status === 'signedOut' && !onPublicRoute && !maintenance.inForce;
   const { tr } = useI18n();
 
   // First-time visitors (no account, never chose guest) start on the welcome screen.
   useEffect(() => {
     if (mustWelcome) router.replace('/welcome');
   }, [mustWelcome]);
+
+  useEffect(() => {
+    if (lockedOut) router.replace('/maintenance');
+  }, [lockedOut]);
 
   return (
     <>
@@ -202,12 +222,15 @@ function RootStack() {
         <Stack.Screen name="collections/index" options={{ title: tr('collections.mine') }} />
         <Stack.Screen name="collections/[id]" options={{ title: tr('collections.title') }} />
         <Stack.Screen name="design" options={{ title: tr('titles.design') }} />
+        <Stack.Screen name="maintenance" options={{ headerShown: false, title: maintenance.info?.title || tr('maintenance.defaultTitle') }} />
         {/* Staff console: its own layout (side rail on wide screens). */}
         <Stack.Screen name="admin" options={{ headerShown: false, title: tr('admin.title') }} />
       </Stack>
       <CookieBanner />
-      {/* Cover the first frame while the saved session is read, and while redirecting to welcome. */}
-      {status === 'loading' || mustWelcome ? (
+      {/* Admins browsing during maintenance: a reminder that the public sees only the maintenance page. */}
+      {maintenance.inForce && admin && segments[0] !== 'maintenance' ? <MaintenancePill /> : null}
+      {/* Cover the first frame while the saved session is read, while redirecting to welcome, and while maintenance mode is checked or applied. */}
+      {status === 'loading' || mustWelcome || maintenancePending || lockedOut ? (
         <View style={StyleSheet.absoluteFill}>
           <Screen>{null}</Screen>
         </View>

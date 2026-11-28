@@ -84,6 +84,7 @@ import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
 import { SponsorDeskError, type SponsorDesk } from '../sponsors/service';
 import type { DonationLedger, SupportSwitch } from '../payments/donate';
+import { MaintenanceInputError, type MaintenanceSwitch } from './maintenance';
 import { BotError, type BotService } from '../bots/service';
 import type { AnalyticsService } from '../analytics/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
@@ -181,6 +182,8 @@ export class AdminService {
   analytics: AnalyticsService | null = null;
   /** Whether the app shows "Support us" (database only). */
   support: SupportSwitch | null = null;
+  /** The web maintenance page. */
+  maintenance: MaintenanceSwitch | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -764,6 +767,30 @@ export class AdminService {
     await this.support.set(input.shown);
     await this.audit(actor, input.shown ? 'support.show' : 'support.hide', { type: 'system', id: 'support', name: 'Support us' }, null);
     return { shown: input.shown };
+  }
+
+  /** The web maintenance page as staff set it. */
+  maintenanceState(actor: Actor) {
+    this.require(actor, 'maintenance.manage');
+    if (!this.maintenance) throw new AdminError('unavailable', 'Maintenance mode is not available on this server');
+    return this.maintenance.state;
+  }
+
+  /** Switches the web maintenance page on or off and sets its title, text and countdown. */
+  async setMaintenance(actor: Actor, input: Record<string, unknown>) {
+    this.require(actor, 'maintenance.manage');
+    if (!this.maintenance) throw new AdminError('unavailable', 'Maintenance mode is not available on this server');
+    const before = this.maintenance.state;
+    let after;
+    try {
+      after = await this.maintenance.update(input, actor.username);
+    } catch (e) {
+      if (e instanceof MaintenanceInputError) throw new AdminError('invalid_input', e.message);
+      throw e;
+    }
+    const action = after.active && !before.active ? 'maintenance.on' : !after.active && before.active ? 'maintenance.off' : 'maintenance.update';
+    await this.audit(actor, action, { type: 'system', id: 'maintenance', name: 'Maintenance mode' }, after.title || null, { endsAt: after.endsAt, autoEnd: after.autoEnd });
+    return after;
   }
 
   /** Every sponsor payment link and the donations, for the console's Payments page. */
