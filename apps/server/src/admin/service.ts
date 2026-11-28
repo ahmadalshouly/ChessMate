@@ -83,7 +83,7 @@ import { TournamentError, type TournamentService } from '../tournaments/service'
 import { LessonError, type LessonService } from '../lessons/service';
 import { AdError, type AdService } from '../ads/service';
 import { SponsorDeskError, type SponsorDesk } from '../sponsors/service';
-import type { DonationLedger } from '../payments/donate';
+import type { DonationLedger, SupportSwitch } from '../payments/donate';
 import { BotError, type BotService } from '../bots/service';
 import type { AnalyticsService } from '../analytics/service';
 import { CampaignError, type CampaignService } from '../notifications/campaigns';
@@ -179,6 +179,8 @@ export class AdminService {
   donations: DonationLedger | null = null;
   /** First-party analytics (database mode). */
   analytics: AnalyticsService | null = null;
+  /** Whether the app shows "Support us" (database only). */
+  support: SupportSwitch | null = null;
 
   constructor(opts: AdminServiceOptions) {
     this.db = opts.db;
@@ -754,12 +756,23 @@ export class AdminService {
     return t;
   }
 
+  /** Shows or hides "Support us" in the app (More menu, sidebar, About) without a new build. */
+  async setSupportShown(actor: Actor, input: { shown?: unknown }) {
+    this.require(actor, 'payments.manage');
+    if (typeof input.shown !== 'boolean') throw new AdminError('invalid_input', 'shown must be true or false');
+    if (!this.support) throw new AdminError('unavailable', 'This switch needs the database');
+    await this.support.set(input.shown);
+    await this.audit(actor, input.shown ? 'support.show' : 'support.hide', { type: 'system', id: 'support', name: 'Support us' }, null);
+    return { shown: input.shown };
+  }
+
   /** Every sponsor payment link and the donations, for the console's Payments page. */
   async paymentsOverview(actor: Actor) {
     this.require(actor, 'payments.manage');
     return {
       enabled: !!this.sponsorDesk?.paymentsEnabled,
       webhook: !!process.env.STRIPE_WEBHOOK_SECRET,
+      supportShown: this.support?.shown ?? true,
       sponsorPayments: this.sponsorDesk ? await this.sponsorDesk.recentPayments() : [],
       donations: this.donations ? await this.donations.totals() : { last30: {}, allTime: {}, recent: [] },
     };

@@ -1,12 +1,13 @@
 import { formatMoney } from '@chessmate/core';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { paymentTone } from '@/features/sponsors/Conversation';
 import { useAdmin } from '@/features/admin/AdminContext';
 import { AdminPage, EmptyState, ErrorLine, PageHeader, Section, StatTile, TileGrid, useLoad } from '@/features/admin/ui';
 import { formatDateTime, useT } from '@/i18n';
-import { Badge, Row, Stack, Text, useAppTheme } from '@/ui';
+import { Badge, Row, Stack, Switch, Text, useAppTheme, useToast } from '@/ui';
 
 const totals = (t: Record<string, { cents: number; count: number }>) => {
   const list = Object.entries(t);
@@ -18,7 +19,22 @@ export default function AdminPayments() {
   const tr = useT();
   const { api } = useAdmin();
   const c = useAppTheme().colors;
+  const toast = useToast();
   const { data, error, loading, reload } = useLoad(() => api.payments(), [api]);
+  const [supportShown, setSupportShown] = useState<boolean | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const shown = supportShown ?? data?.supportShown ?? true;
+  const switchSupport = async (v: boolean) => {
+    setSwitching(true);
+    try {
+      setSupportShown((await api.setSupportShown(v)).shown);
+      toast.show({ title: tr(v ? 'admin.payments.supportOn' : 'admin.payments.supportOff'), tone: 'success' });
+    } catch (e) {
+      toast.show({ title: e instanceof Error ? e.message : tr('admin.common.failed'), tone: 'danger' });
+    } finally {
+      setSwitching(false);
+    }
+  };
   const last30 = data ? totals(data.donations.last30) : null;
   const all = data ? totals(data.donations.allTime) : null;
   return (
@@ -28,6 +44,18 @@ export default function AdminPayments() {
       {data ? (
         <Stack gap="lg">
           <Text tone={!data.enabled || !data.webhook ? 'warning' : 'success'}>{!data.enabled ? tr('admin.payments.off') : !data.webhook ? tr('admin.payments.noWebhook') : tr('admin.payments.ready')}</Text>
+
+          <Section title={tr('admin.payments.supportTitle')}>
+            <Row justify="space-between" gap="md">
+              <Stack gap="xs" style={{ flex: 1 }}>
+                <Text variant="subheading">{tr(shown ? 'admin.payments.supportOn' : 'admin.payments.supportOff')}</Text>
+                <Text variant="caption" tone="muted">
+                  {tr('admin.payments.supportBody')}
+                </Text>
+              </Stack>
+              <Switch value={shown} disabled={switching} onValueChange={(v) => void switchSupport(v)} accessibilityLabel={tr('admin.payments.supportTitle')} />
+            </Row>
+          </Section>
 
           <Section title={tr('admin.payments.donations')} padding="none">
             <View style={{ padding: 16, gap: 16 }}>

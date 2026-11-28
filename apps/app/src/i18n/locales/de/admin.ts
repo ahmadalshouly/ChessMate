@@ -140,6 +140,10 @@ export const admin: Messages<typeof en> = {
     sponsorPayments: 'Zahlungslinks für Sponsoren',
     noSponsorPayments: 'Noch keine Zahlungslinks gesendet.',
     anonymous: 'Keine E-Mail',
+    supportTitle: '„Unterstütze uns“ in der App',
+    supportBody: 'Zeigt „Unterstütze uns“ im Menü, in der Seitenleiste und unter „Über“. Ausschalten blendet es sofort überall aus, ohne neuen App-Build.',
+    supportOn: '„Unterstütze uns“ wird angezeigt',
+    supportOff: '„Unterstütze uns“ ist ausgeblendet',
   },
   ads: {
     subtitle: 'Stellen in der App, die einen Sponsor tragen können. Platz einschalten, dann einen Sponsor für einen Zeitraum platzieren.',

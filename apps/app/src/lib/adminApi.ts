@@ -190,6 +190,8 @@ export function useAdminApi() {
       sponsorPaymentLink: (aid: string, p: { amountCents: number; currency: string; description: string }) => post<{ thread: SponsorThread }>(`/sponsors/${id(aid)}/payment`, p).then((r) => r.thread),
       cancelSponsorPayment: (aid: string, paymentId: string) => post<{ thread: SponsorThread }>(`/sponsors/${id(aid)}/cancel-payment`, { paymentId }).then((r) => r.thread),
       payments: () => get<PaymentsOverview>('/payments'),
+      /** Shows or hides "Support us" in the app, without a new build. */
+      setSupportShown: (shown: boolean) => post<{ shown: boolean }>('/payments/support', { shown }),
       ads: () => get<{ spots: AdSpotState[]; placements: AdPlacementView[] }>('/ads'),
       setAdSpot: (spot: string, patch: { enabled?: boolean; note?: string }) => post<{ spot: AdSpotState }>(`/ads-spots/${id(spot)}`, patch).then((r) => r.spot),
       createAdPlacement: (p: AdPlacementForm) => post<{ placement: AdPlacementView }>('/ads', { ...p }).then((r) => r.placement),
@@ -230,6 +232,8 @@ export interface SponsorThread {
 export interface PaymentsOverview {
   enabled: boolean;
   webhook: boolean;
+  /** Whether the app shows "Support us". */
+  supportShown: boolean;
   sponsorPayments: (SponsorPaymentView & { applicationId: string; sponsor: string })[];
   donations: {
     last30: Record<string, { cents: number; count: number }>;

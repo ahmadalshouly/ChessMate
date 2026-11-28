@@ -1,6 +1,6 @@
 import type { IncomingMessage } from 'node:http';
 
-import { donationBySession, insertDonation, paidDonations, updateDonation, type Database } from '@chessmate/db';
+import { donationBySession, getAppSetting, insertDonation, paidDonations, setAppSetting, updateDonation, type Database } from '@chessmate/db';
 
 import type { HttpRoute } from '../social/http';
 import type { StripeClient, StripeEvent } from './stripe';
@@ -19,6 +19,31 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
     return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
   } catch {
     return {};
+  }
+}
+
+/**
+ * Staff switch for the "Support us" entry in the app (More menu, sidebar,
+ * About). Off hides it everywhere without a new app build. Stored in
+ * app_settings, so it survives restarts; on by default.
+ */
+export class SupportSwitch {
+  static readonly KEY = 'support.shown';
+  private value = true;
+  constructor(private readonly db: Database | null = null) {}
+
+  async load(): Promise<this> {
+    if (this.db) this.value = (await getAppSetting<boolean>(this.db, SupportSwitch.KEY)) !== false;
+    return this;
+  }
+
+  get shown(): boolean {
+    return this.value;
+  }
+
+  async set(shown: boolean): Promise<void> {
+    if (this.db) await setAppSetting(this.db, SupportSwitch.KEY, shown);
+    this.value = shown;
   }
 }
 
@@ -86,12 +111,14 @@ export class DonationLedger {
 /**
  * Donations through Stripe Checkout:
  *
- *   GET  /api/donate                                   { enabled, min, max, currencies }
+ *   GET  /api/donate                                   { enabled, shown, min, max, currencies }
+ *
+ * `enabled`: Stripe is set up. `shown`: staff want the Support us entry in the app (Admin → Payments).
  *   POST /api/donate   { amountCents, currency, returnUrl }  → { url }  (open it to pay)
  *
  * Without STRIPE_SECRET_KEY donations are switched off and the page says so.
  */
-export function donateRoutes(stripe: StripeClient | null, opts: { ledger?: DonationLedger | null; userOf?: (token: string) => string | null } = {}): HttpRoute {
+export function donateRoutes(stripe: StripeClient | null, opts: { ledger?: DonationLedger | null; userOf?: (token: string) => string | null; support?: SupportSwitch } = {}): HttpRoute {
   return async (req, res, url) => {
     if (url.pathname !== '/api/donate') return false;
     res.setHeader('access-control-allow-origin', '*');
@@ -106,7 +133,7 @@ export function donateRoutes(stripe: StripeClient | null, opts: { ledger?: Donat
       res.writeHead(204).end();
       return true;
     }
-    if (req.method === 'GET') return json(200, { enabled: !!stripe, ...DONATION });
+    if (req.method === 'GET') return json(200, { enabled: !!stripe, shown: opts.support?.shown ?? true, ...DONATION });
     if (req.method !== 'POST') return json(405, { error: 'GET or POST' });
     if (!stripe) return json(503, { error: 'Donations are not open yet' });
     const b = await readJson(req);

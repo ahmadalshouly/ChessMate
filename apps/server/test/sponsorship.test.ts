@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AdminService } from '../src/admin';
 import { AuthService, ConsoleMailer, DbAuthStore, authRoutes } from '../src/auth';
 import type { AccountNotice } from '../src/auth/mailer';
-import { DonationLedger, donateRoutes } from '../src/payments/donate';
+import { DonationLedger, SupportSwitch, donateRoutes } from '../src/payments/donate';
 import type { StripeClient } from '../src/payments/stripe';
 import { stripeWebhookRoute } from '../src/payments/webhook';
 import { ChessServer } from '../src/server';
@@ -102,6 +102,8 @@ beforeAll(async () => {
   admin.sponsorDesk = desk;
   const donations = new DonationLedger(h.db);
   admin.donations = donations;
+  const support = await new SupportSwitch(h.db).load();
+  admin.support = support;
   const userOf = (t: string) => auth.verifyAccessToken(t)?.userId ?? null;
   server = new ChessServer({
     port: 0,
@@ -111,7 +113,7 @@ beforeAll(async () => {
     tournaments,
     http: [
       authRoutes(auth, { rateLimit: false }),
-      donateRoutes(fakeStripe, { ledger: donations, userOf }),
+      donateRoutes(fakeStripe, { ledger: donations, userOf, support }),
       stripeWebhookRoute([(e) => desk.handleStripeEvent(e), (e) => donations.handleStripeEvent(e), tournamentStripeHandler(tournaments)]),
       sponsorshipRoutes(desk, userOf),
     ],
@@ -254,5 +256,20 @@ describe('donations', () => {
   it('refuses amounts out of range', async () => {
     expect((await pub('POST', '/api/donate', { amountCents: 100, currency: 'eur', returnUrl: 'https://x.test/donate' })).status).toBe(400);
     expect((await pub('POST', '/api/donate', { amountCents: 500, currency: 'jpy', returnUrl: 'https://x.test/donate' })).status).toBe(400);
+  });
+});
+
+describe('Support us switch', () => {
+  it('lets admins hide and show Support us in the app, and remembers it', async () => {
+    expect((await pub('GET', '/api/donate')).body.shown).toBe(true);
+    expect((await call('mod', 'POST', '/payments/support', { shown: false })).status).toBe(403);
+    expect((await call('owner', 'POST', '/payments/support', { shown: 'no' })).status).toBe(400);
+    expect((await call('owner', 'POST', '/payments/support', { shown: false })).body).toEqual({ shown: false });
+    expect((await pub('GET', '/api/donate')).body.shown).toBe(false);
+    expect((await call('owner', 'GET', '/payments')).body.supportShown).toBe(false);
+    // Survives a restart: a fresh switch reads it back from the database.
+    expect((await new SupportSwitch(h.db).load()).shown).toBe(false);
+    await call('owner', 'POST', '/payments/support', { shown: true });
+    expect((await pub('GET', '/api/donate')).body.shown).toBe(true);
   });
 });

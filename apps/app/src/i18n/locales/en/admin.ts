@@ -137,6 +137,10 @@ export const admin = {
     sponsorPayments: 'Sponsor payment links',
     noSponsorPayments: 'No payment links sent yet.',
     anonymous: 'No email',
+    supportTitle: 'Support us in the app',
+    supportBody: 'Shows "Support us" in the menu, the sidebar and About. Switch it off to hide it everywhere right away, no new app build needed.',
+    supportOn: '"Support us" is shown',
+    supportOff: '"Support us" is hidden',
   },
   ads: {
     subtitle: 'Places in the app that can carry a sponsor. Switch a spot on, then place a sponsor on it for a period.',

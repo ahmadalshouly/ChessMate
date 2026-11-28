@@ -38,7 +38,7 @@ import { BotService } from './bots/service';
 import { AnalyticsService, analyticsRoutes } from './analytics';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
-import { DonationLedger, donateRoutes } from './payments/donate';
+import { DonationLedger, SupportSwitch, donateRoutes } from './payments/donate';
 import { stripeWebhookRoute } from './payments/webhook';
 import { SponsorDesk } from './sponsors/service';
 import { sponsorshipRoutes } from './sponsors/http';
@@ -136,9 +136,10 @@ async function start() {
   const explorer = new ExplorerService({ db: db.db, lichess: lichessExplorer });
   const stripe = stripeFromEnv();
   const donations = new DonationLedger(db.db);
+  const support = await new SupportSwitch(db.db).load();
   base.http = [
     ...(base.http ?? []),
-    donateRoutes(stripe, { ledger: donations, userOf: (token) => auth.verifyAccessToken(token)?.userId ?? null }),
+    donateRoutes(stripe, { ledger: donations, support, userOf: (token) => auth.verifyAccessToken(token)?.userId ?? null }),
     explorerRoutes(explorer),
     gameRoutes(db.db, {
       viewerOf: (token) => auth.verifyAccessToken(token)?.userId ?? null,
@@ -214,6 +215,7 @@ async function start() {
   tournaments.onSponsorApplication = (row) => sponsorDesk.welcome(row);
   admin.sponsorDesk = sponsorDesk;
   admin.donations = donations;
+  admin.support = support;
   // One Stripe webhook for every payment: sponsor links, donations, then tournament entry fees.
   base.http = [
     ...(base.http ?? []),

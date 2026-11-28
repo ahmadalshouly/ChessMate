@@ -6,6 +6,7 @@ import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { InfoPage } from '@/components/InfoPage';
 import { useT } from '@/i18n';
 import { serverText } from '@/i18n/serverMessages';
+import { useSupportShown } from '@/features/support/useSupportShown';
 import { donateApi } from '@/lib/communityApi';
 import { webLink } from '@/lib/links';
 import { Button, GlassView, Text, TextField, useAppTheme } from '@/ui';
@@ -19,14 +20,17 @@ const CURRENCIES = [
 ] as const;
 
 /**
- * Donations through Stripe Checkout on the web. Phones open the web page to
- * donate (like paid tournament entries), so the app stores' payment rules are kept.
+ * "Support us": donations through Stripe Checkout on the web. Phones only
+ * explain how to support ChessMate, with a Learn more link to the web page,
+ * so the app stores' payment rules are kept. Staff can hide the whole entry
+ * from Admin → Payments without a new build.
  */
 export default function Donate() {
   const tr = useT();
   const c = useAppTheme().colors;
   const { donated } = useLocalSearchParams<{ donated?: string }>();
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  const shown = useSupportShown();
   const [amount, setAmount] = useState(10);
   /** A typed amount wins over the buttons while it holds a number. */
   const [custom, setCustom] = useState('');
@@ -53,7 +57,7 @@ export default function Donate() {
 
   const pay = async () => {
     if (!webPage) return;
-    track('donate_start', { amount });
+    track('donate_start', { amount: chosen });
     setBusy(true);
     try {
       const r = await donateApi.checkout(Math.round(chosen * 100), currency, webPage);
@@ -73,22 +77,25 @@ export default function Donate() {
         ['pages.donate.freeTitle', 'pages.donate.free'],
       ]}>
       <GlassView radius="xl" padding="lg" style={{ gap: 14 }}>
-        {donated === '1' ? (
+        {!shown ? (
+          <Text tone="muted">{tr('pages.donate.hidden')}</Text>
+        ) : donated === '1' ? (
           <View style={styles.thanks}>
             <Ionicons name="heart" size={22} color={c.danger} />
             <Text variant="heading" style={{ flex: 1 }}>
               {tr('pages.donate.thanks')}
             </Text>
           </View>
-        ) : enabled === false ? (
-          <Text tone="muted">{tr('pages.donate.soon')}</Text>
         ) : !web ? (
           <>
-            <Text tone="muted">{tr('pages.donate.onWeb')}</Text>
+            <Text variant="heading">{tr('pages.donate.howTitle')}</Text>
+            <Text tone="muted">{tr('pages.donate.how')}</Text>
             {webPage ? (
-              <Button title={tr('pages.donate.openWeb')} onPress={() => void Linking.openURL(webPage)} rightIcon={<Ionicons name="open-outline" size={16} color={c.onAccent} />} />
+              <Button variant="secondary" title={tr('pages.donate.learnMore')} onPress={() => void Linking.openURL(webPage)} rightIcon={<Ionicons name="open-outline" size={16} color={c.text} />} />
             ) : null}
           </>
+        ) : enabled === false ? (
+          <Text tone="muted">{tr('pages.donate.soon')}</Text>
         ) : (
           <>
             <View style={styles.amounts} accessibilityRole="radiogroup" accessibilityLabel={tr('pages.donate.currency')}>
