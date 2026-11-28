@@ -6,6 +6,7 @@ import { Image, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } fr
 
 import { dirIcon, useT } from '@/i18n';
 import { adImageUrl } from '@/lib/adsApi';
+import { track } from '@/lib/analytics';
 import { GlassView, Text, useAppTheme } from '@/ui';
 
 import { countClick, countView, useAd } from './store';
@@ -51,6 +52,7 @@ export function AdSpot({
   const open = () => {
     if (!ad.url) return;
     countClick(ad.id);
+    track('sponsor_click', { spot });
     void Linking.openURL(ad.url).catch(() => {});
   };
 

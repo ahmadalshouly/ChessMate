@@ -12,6 +12,8 @@ import type {
   PushHealth,
   AdminAuditEntry,
   AdminDashboard,
+  AnalyticsRange,
+  AnalyticsReport,
   AdminEngineReport,
   AdminFairPlayCase,
   AdminFairPlayFile,
@@ -108,6 +110,7 @@ export function useAdminApi() {
     return {
       me: () => get<AdminMe>('/me'),
       dashboard: () => get<AdminDashboard>('/dashboard'),
+      analytics: (days: AnalyticsRange) => get<AnalyticsReport>(`/analytics?days=${days}`),
       players: (q: string, filter: PlayerFilter, offset = 0) =>
         get<{ players: AdminPlayerSummary[]; total: number }>(
           `/players${qs({ q, offset, status: filter === 'active' || filter === 'closed' || filter === 'muted' ? filter : undefined, role: filter === 'staff' ? 'staff' : undefined })}`,

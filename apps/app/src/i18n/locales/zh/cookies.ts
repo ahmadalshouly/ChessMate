@@ -1,7 +1,8 @@
 export const cookies = {
   banner: {
     title: 'ChessMate 上的 Cookie',
-    body: '我们只使用 ChessMate 保持你的登录状态和记住你的设置所需的存储。经你同意后，“观战”还可以加载来自 Twitch、YouTube 和 Kick 的直播播放器，它们会设置自己的 Cookie。你可以随时在“设置 → 隐私”中更改。',
+    body: 'ChessMate 只保存让你保持登录和记住设置所需的数据。经你同意后，我们还会统计 ChessMate 的使用情况（Google Analytics 和我们自己的统计）以改进它，“观看”页面也可以加载 Twitch、YouTube 和 Kick 的直播播放器，它们会设置自己的 Cookie。你可以随时在“设置 → 隐私”中更改。',
+    bodyApp: 'ChessMate 只保存让你保持登录和记住设置所需的数据。经你同意后，我们还会统计应用的使用情况（Google Analytics 和我们自己的统计）以改进它。没有广告，也不会跨应用追踪。你可以随时在“设置 → 隐私”中更改。',
     necessary: '仅必需',
     acceptAll: '全部接受',
     settings: '设置和 Cookie 政策',
@@ -13,7 +14,9 @@ export const cookies = {
     externalMedia: '外部媒体',
     externalMediaDetail: '“观战”中来自 Twitch、YouTube 和 Kick 的直播播放器。它们会设置自己的 Cookie。',
     externalMediaDetailApp: '适用于 ChessMate 网站。在应用中，直播会在其所属平台打开。',
-    noTracking: 'ChessMate 不使用任何统计分析或广告 Cookie。',
+    analytics: '使用统计',
+    analyticsDetail: '通过 Google Analytics 和 ChessMate 自己的统计，了解哪些页面和功能被使用。绝不包括你的消息或走法，也绝不用于广告。',
+    noTracking: 'ChessMate 不使用广告 Cookie，也不使用设备指纹。',
     savedAt: '已在此设备上保存选择：{date}',
   },
   embed: {

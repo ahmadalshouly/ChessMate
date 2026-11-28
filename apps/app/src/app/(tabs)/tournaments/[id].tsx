@@ -21,6 +21,7 @@ import { SponsorBadge } from '@/features/tournaments/SponsorBadge';
 import { TournamentChat } from '@/features/tournaments/TournamentChat';
 import { TournamentResults } from '@/features/tournaments/TournamentResults';
 import { useTournamentChat } from '@/features/tournaments/useTournamentChat';
+import { track } from '@/lib/analytics';
 import { webLink } from '@/lib/links';
 import { KeyboardScrollView } from '@/ui/components/Keyboard';
 
@@ -123,6 +124,7 @@ export default function TournamentScreen() {
         return;
       }
       setTour((await tournamentsApi.join(tour.id)).tournament);
+      track('tournament_join');
       setJoining(false);
       setError(null);
     } catch (e) {

@@ -3,4 +3,7 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+  # Pulled in by @react-native-firebase/app (its web fallback); their install scripts are not needed.
+  '@firebase/util': false
+  protobufjs: false
 nodeLinker: hoisted

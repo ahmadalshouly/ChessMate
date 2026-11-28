@@ -9,6 +9,7 @@ import { serverText } from '@/i18n/serverMessages';
 import { donateApi } from '@/lib/communityApi';
 import { webLink } from '@/lib/links';
 import { Button, GlassView, Text, useAppTheme } from '@/ui';
+import { track } from '@/lib/analytics';
 
 const AMOUNTS = [5, 10, 25, 50];
 
@@ -36,6 +37,7 @@ export default function Donate() {
 
   const pay = async () => {
     if (!webPage) return;
+    track('donate_start', { amount });
     setBusy(true);
     try {
       const r = await donateApi.checkout(amount * 100, 'eur', webPage);

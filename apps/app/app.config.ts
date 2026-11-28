@@ -26,6 +26,15 @@ const { existsSync } = require('node:fs') as { existsSync(path: string): boolean
  *    or ./google-services.json when present (it is not secret, but keep it out
  *    of git if you prefer). See docs/PUSH_NOTIFICATIONS.md.
  *
+ * 4. Google Analytics in the apps (Firebase Analytics, @react-native-firebase).
+ *    Android uses the same google-services.json. iOS needs the Firebase app's
+ *    GoogleService-Info.plist from the EAS file variable GOOGLE_SERVICE_INFO_PLIST
+ *    (or ./GoogleService-Info.plist) and static frameworks; both are added only
+ *    when the plist is there, and react-native.config.js leaves Firebase out of
+ *    a platform that has no file, so a build without Firebase is unchanged.
+ *    Collection stays off until the player allows analytics (firebase.json).
+ *    See docs/ANALYTICS.md.
+ *
  * Store builds (EAS profile "production") must name a public wss:// game
  * server, or the app would look for one on the local network. The build
  * stops here instead of shipping that.
@@ -54,6 +63,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   if (process.env.EAS_BUILD_PLATFORM === 'android' && !googleServicesFile) {
     console.warn('No google-services.json (EAS variable GOOGLE_SERVICES_JSON): this Android build cannot receive push notifications. See docs/PUSH_NOTIFICATIONS.md');
   }
+  const iosPlistFile = process.env.GOOGLE_SERVICE_INFO_PLIST || (existsSync('./GoogleService-Info.plist') ? './GoogleService-Info.plist' : undefined);
+  const buildPlatform = process.env.EAS_BUILD_PLATFORM;
+  // The Firebase plugin configures both platforms; it is added when the platform being built has its file.
+  const firebase = buildPlatform === 'android' ? !!googleServicesFile : buildPlatform === 'ios' ? !!iosPlistFile : !!googleServicesFile && !!iosPlistFile;
+  if (buildPlatform === 'ios' && !iosPlistFile) {
+    console.warn('No GoogleService-Info.plist (EAS variable GOOGLE_SERVICE_INFO_PLIST): this iOS build has no Firebase Analytics. See docs/ANALYTICS.md');
+  }
   const googleIos = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
   const googleIosScheme = googleIos ? `com.googleusercontent.apps.${googleIos.replace(/\.apps\.googleusercontent\.com$/, '')}` : undefined;
   if (process.env.EAS_BUILD_PLATFORM === 'ios' && !googleIosScheme) {
@@ -62,12 +78,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...base,
     scheme: [...new Set([...scheme, bundleId])],
-    ios: { ...base.ios, usesAppleSignIn: true },
+    ios: { ...base.ios, usesAppleSignIn: true, ...(iosPlistFile ? { googleServicesFile: iosPlistFile } : null) },
     android: { ...base.android, ...(googleServicesFile ? { googleServicesFile } : null) },
     plugins: [
       ...(base.plugins ?? []),
       'expo-apple-authentication',
       ...(googleIosScheme ? [['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosScheme }] as [string, unknown]] : []),
+      ...(firebase
+        ? [
+            // CocoaPods (not Swift Package Manager) with static frameworks: the setup Expo documents for React Native Firebase.
+            ['@react-native-firebase/app', { ios: { disableSPM: true } }] as [string, unknown],
+            // No advertising id on iOS, so no App Tracking Transparency prompt is needed.
+            ['@react-native-firebase/analytics', { ios: { withoutAdIdSupport: true } }] as [string, unknown],
+            ...(iosPlistFile ? [['expo-build-properties', { ios: { useFrameworks: 'static' } }] as [string, unknown]] : []),
+          ]
+        : []),
     ],
     extra: {
       ...base.extra,

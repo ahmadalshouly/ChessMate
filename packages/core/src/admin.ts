@@ -62,6 +62,8 @@ export const ADMIN_PERMISSIONS = [
   'ads.manage',
   /** Create, edit and remove online computer opponents (streamer and creator bots). Admins only. */
   'bots.manage',
+  /** See the analytics dashboard: usage, screens, events, retention. Admins only. */
+  'analytics.view',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

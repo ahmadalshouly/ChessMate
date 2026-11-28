@@ -1,7 +1,8 @@
 export const cookies = {
   banner: {
     title: 'ChessMate\'te çerezler',
-    body: 'Yalnızca ChessMate\'in oturumunu açık tutmak ve ayarlarını hatırlamak için gereken depolamayı kullanıyoruz. Onay verirsen İzle bölümü Twitch, YouTube ve Kick\'ten canlı yayın oynatıcıları da yükleyebilir; bunlar kendi çerezlerini yerleştirir. Bunu istediğin zaman Ayarlar → Gizlilik bölümünden değiştirebilirsin.',
+    body: 'ChessMate, oturumunu açık tutmak ve ayarlarını hatırlamak için gerekenleri saklar. Onay verirsen ChessMate\'i geliştirmek için nasıl kullanıldığını da ölçeriz (Google Analytics ve kendi istatistiklerimiz) ve İzle bölümü, kendi çerezlerini ayarlayan Twitch, YouTube ve Kick canlı yayın oynatıcılarını yükleyebilir. Bunu istediğin zaman Ayarlar → Gizlilik bölümünden değiştirebilirsin.',
+    bodyApp: 'ChessMate, oturumunu açık tutmak ve ayarlarını hatırlamak için gerekenleri saklar. Onay verirsen uygulamayı geliştirmek için nasıl kullanıldığını da ölçeriz (Google Analytics ve kendi istatistiklerimiz). Reklam yok, uygulamalar arası takip yok. Bunu istediğin zaman Ayarlar → Gizlilik bölümünden değiştirebilirsin.',
     necessary: 'Yalnızca gerekli',
     acceptAll: 'Tümünü kabul et',
     settings: 'Ayarlar ve çerez politikası',
@@ -13,7 +14,9 @@ export const cookies = {
     externalMedia: 'Harici medya',
     externalMediaDetail: 'İzle bölümünde Twitch, YouTube ve Kick canlı yayın oynatıcıları. Kendi çerezlerini yerleştirirler.',
     externalMediaDetailApp: 'ChessMate web sitesinde geçerlidir. Uygulamada yayınlar kendi platformlarında açılır.',
-    noTracking: 'ChessMate hiçbir analiz veya reklam çerezi kullanmaz.',
+    analytics: 'Analiz',
+    analyticsDetail: 'Hangi ekranların ve özelliklerin kullanıldığı; Google Analytics ve ChessMate\'in kendi istatistikleriyle. Asla mesajların veya hamlelerin değil, asla reklam için değil.',
+    noTracking: 'ChessMate reklam çerezi ve cihaz parmak izi kullanmaz.',
     savedAt: 'Bu cihazda kaydedilen tercih: {date}',
   },
   embed: {
