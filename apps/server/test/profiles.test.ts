@@ -69,6 +69,22 @@ describe('profile API', () => {
     expect((await call('PATCH', '/api/me/profile', { token, body: { avatar: { id: 'dragon', tone: 'ink' } } })).status).toBe(400);
   });
 
+  it('sets and clears a Football Mate club', async () => {
+    const token = 'dev:u5:eve';
+    const set = await call<MyProfile>('PATCH', '/api/me/profile', { token, body: { footballClub: 'real-madrid' } });
+    expect(set.status).toBe(200);
+    expect(set.data.footballClub).toBe('real-madrid');
+    expect((await call<MyProfile>('GET', '/api/profiles/eve')).data.footballClub).toBe('real-madrid');
+    // Other edits leave the club alone.
+    expect((await call<MyProfile>('PATCH', '/api/me/profile', { token, body: { bio: 'Hala Madrid' } })).data.footballClub).toBe('real-madrid');
+
+    const bad = await call<{ field: string }>('PATCH', '/api/me/profile', { token, body: { footballClub: 'sunday-league-fc' } });
+    expect(bad.status).toBe(400);
+    expect(bad.data.field).toBe('footballClub');
+
+    expect((await call<MyProfile>('PATCH', '/api/me/profile', { token, body: { footballClub: null } })).data.footballClub).toBeNull();
+  });
+
   it('patches settings and rejects unknown or mistyped keys', async () => {
     const token = 'dev:u2:bob';
     expect((await call('GET', '/api/me/settings', { token })).data).toEqual(DEFAULT_SETTINGS);
@@ -130,7 +146,17 @@ describe('SqliteProfileStore', () => {
   it('round-trips a profile and fills settings added later', () => {
     const db = new DatabaseSync(':memory:');
     const store = new SqliteProfileStore(db);
-    const rec = { userId: 'u', displayName: 'U', bio: null, country: 'DE', avatar: { id: 'rook' as const, tone: 'silver' as const }, settings: DEFAULT_SETTINGS, updatedAt: 1 };
+    const rec = {
+      userId: 'u',
+      displayName: 'U',
+      bio: null,
+      country: 'DE',
+      avatar: { id: 'rook' as const, tone: 'silver' as const },
+      playerTag: 'tactician' as const,
+      footballClub: 'dortmund',
+      settings: DEFAULT_SETTINGS,
+      updatedAt: 1,
+    };
     store.save(rec);
     expect(store.get('u')).toEqual(rec);
     db.prepare('UPDATE user_profiles SET settings = ? WHERE user_id = ?').run(JSON.stringify({ board: { theme: 'marble' } }), 'u');
@@ -138,5 +164,14 @@ describe('SqliteProfileStore', () => {
     expect(store.get('u')!.settings.sound).toEqual(DEFAULT_SETTINGS.sound);
     store.delete('u');
     expect(store.get('u')).toBeUndefined();
+  });
+
+  it('adds the tag and club columns to a table made by an older version', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE user_profiles (user_id TEXT PRIMARY KEY, display_name TEXT, bio TEXT, country TEXT, avatar TEXT NOT NULL, settings TEXT NOT NULL, updated_at INTEGER NOT NULL)');
+    const store = new SqliteProfileStore(db);
+    store.save({ userId: 'u', displayName: null, bio: null, country: null, avatar: { id: 'initials', tone: 'ink' }, footballClub: 'al-hilal', settings: DEFAULT_SETTINGS, updatedAt: 1 });
+    expect(store.get('u')!.footballClub).toBe('al-hilal');
+    expect(store.get('u')!.playerTag).toBeNull();
   });
 });

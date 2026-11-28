@@ -78,6 +78,8 @@ export interface ProfileRecord {
   avatar: Avatar;
   /** Tag the player picked for themselves. */
   playerTag?: PlayerTag | null;
+  /** Football Mate: id of the club they support. */
+  footballClub?: string | null;
   settings: UserSettings;
   updatedAt: number;
 }

@@ -1,9 +1,10 @@
-import { DEFAULT_AVATAR, formatClock, type Color, type MaterialSide, type PlayerInfo, type PublicProfile } from '@chessmate/core';
+import { DEFAULT_AVATAR, footballClub, formatClock, type Color, type MaterialSide, type PlayerInfo, type PublicProfile } from '@chessmate/core';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CountryFlag } from '@/components/CountryFlag';
+import { ClubBadge } from '@/features/football/ClubBadge';
 import { Avatar } from '@/features/profile/Avatar';
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
@@ -52,8 +53,9 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
   const canOpen = pressable && !!player;
   const tag = profile?.roleTag ?? null;
   const tagName = tag ? tr(`chessTitle.roleTags.${tag}`) : null;
+  const club = footballClub(profile?.footballClub);
   const label = player
-    ? [profile?.title ? tr(`chessTitle.names.${profile.title}`) : null, player.name, country, tagName, rating].filter(Boolean).join(', ')
+    ? [profile?.title ? tr(`chessTitle.names.${profile.title}`) : null, player.name, country, tagName, club ? tr('football.supports', { club: club.name }) : null, rating].filter(Boolean).join(', ')
     : undefined;
 
   return (
@@ -79,6 +81,7 @@ export function PlayerCard({ player, ms, active, offline, avatar, subtitle, stat
                   <CountryFlag code={profile?.country} size={13} decorative />
                   <RoleTagBadge tag={tag} compact />
                   {!tag && <PlayerTagBadge tag={profile?.playerTag} compact />}
+                  <ClubBadge club={profile?.footballClub} compact />
                 </View>
                 <View style={styles.subLine}>
                   <Text variant="caption" tone="muted" numberOfLines={1} style={styles.sub}>
@@ -136,10 +139,11 @@ function PlayerSheet({ visible, onClose, player, profile }: { visible: boolean; 
               {profile?.displayName || player.name}
             </Text>
           </View>
-          {profile?.roleTag || profile?.playerTag ? (
+          {profile?.roleTag || profile?.playerTag || profile?.footballClub ? (
             <View style={styles.sheetTag}>
               <RoleTagBadge tag={profile.roleTag} />
               <PlayerTagBadge tag={profile.playerTag} />
+              <ClubBadge club={profile.footballClub} />
             </View>
           ) : null}
           <Text tone="muted" numberOfLines={1}>
@@ -206,7 +210,7 @@ const styles = StyleSheet.create({
   pill: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   clock: { minWidth: 92, height: 44, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   clockText: { fontSize: 24, lineHeight: 28 },
-  sheetTag: { flexDirection: 'row', gap: 6, marginVertical: 2 },
+  sheetTag: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 2 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stats: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1, alignItems: 'center', gap: 2 },

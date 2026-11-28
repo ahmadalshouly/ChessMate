@@ -6381,6 +6381,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "player_tag": {
+          "name": "player_tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "football_club": {
+          "name": "football_club",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "settings": {
           "name": "settings",
           "type": "jsonb",

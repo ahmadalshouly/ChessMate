@@ -159,54 +159,61 @@
     {
       "idx": 22,
       "version": "7",
+      "when": 1797200000000,
+      "tag": "0022_football_mate",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
       "when": 1797300000000,
       "tag": "0023_push_campaigns",
       "breakpoints": true
     },
     {
-      "idx": 23,
+      "idx": 24,
       "version": "7",
       "when": 1797450000000,
       "tag": "0024_private_tournaments",
       "breakpoints": true
     },
     {
-      "idx": 24,
+      "idx": 25,
       "version": "7",
       "when": 1797600000000,
       "tag": "0025_ad_spots",
       "breakpoints": true
     },
     {
-      "idx": 25,
+      "idx": 26,
       "version": "7",
       "when": 1797750000000,
       "tag": "0026_online_bots",
       "breakpoints": true
     },
     {
-      "idx": 26,
+      "idx": 27,
       "version": "7",
       "when": 1797900000000,
       "tag": "0027_explorer",
       "breakpoints": true
     },
     {
-      "idx": 27,
+      "idx": 28,
       "version": "7",
       "when": 1798050000000,
       "tag": "0028_game_collections",
       "breakpoints": true
     },
     {
-      "idx": 28,
+      "idx": 29,
       "version": "7",
       "when": 1798200000000,
       "tag": "0029_analytics",
       "breakpoints": true
     },
     {
-      "idx": 29,
+      "idx": 30,
       "version": "7",
       "when": 1798350000000,
       "tag": "0030_sponsor_payments",

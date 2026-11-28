@@ -1,3 +1,4 @@
+import { isFootballClubId } from './footballClubs';
 import { isPlayerTag, type PlayerTag, type RoleTag } from './roleTags';
 import type { ChessTitle } from './titles';
 import type { TimeCategory } from './timeControl';
@@ -240,6 +241,8 @@ export interface ProfileEdit {
   country?: string | null;
   avatar?: Avatar;
   playerTag?: PlayerTag | null;
+  /** Football Mate: id from FOOTBALL_CLUBS, or null to clear. */
+  footballClub?: string | null;
 }
 
 export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { error: string; field: string } {
@@ -273,6 +276,10 @@ export function validateProfileEdit(input: unknown): { edit: ProfileEdit } | { e
   if (input.playerTag !== undefined) {
     if (input.playerTag !== null && !isPlayerTag(input.playerTag)) return { error: 'Pick a tag from the list', field: 'playerTag' };
     edit.playerTag = input.playerTag;
+  }
+  if (input.footballClub !== undefined) {
+    if (input.footballClub !== null && !isFootballClubId(input.footballClub)) return { error: 'Pick a club from the list', field: 'footballClub' };
+    edit.footballClub = input.footballClub;
   }
   return { edit };
 }
@@ -316,6 +323,8 @@ export interface PublicProfile {
   roleTag?: RoleTag | null;
   /** Tag the player picked for themselves (Tactician, Night owl, ...). */
   playerTag?: PlayerTag | null;
+  /** Football Mate: the club they support (id from FOOTBALL_CLUBS), shown as a badge by their name. */
+  footballClub?: string | null;
   displayName: string;
   avatar: Avatar;
   bio: string | null;

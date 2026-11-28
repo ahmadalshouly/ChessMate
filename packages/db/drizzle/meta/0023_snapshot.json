@@ -1,6 +1,6 @@
 {
   "id": "f9dc1d17-20a3-4e30-8ae0-086063eee53c",
-  "prevId": "f9e71413-eb33-403e-b427-c1459f4b84b7",
+  "prevId": "4c5bbc54-77bf-41f7-a739-bff4e190b1e5",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6024,6 +6024,18 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "player_tag": {
+          "name": "player_tag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "football_club": {
+          "name": "football_club",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "settings": {
           "name": "settings",

@@ -39,6 +39,7 @@ export * from './awards';
 export * from './broadcasts';
 export * from './media';
 export * from './material';
+export * from './footballClubs';
 export * from './lessons';
 export * from './ads';
 export * from './sponsorship';

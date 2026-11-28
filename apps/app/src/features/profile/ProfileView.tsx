@@ -17,6 +17,7 @@ import { Badge, Button, GlassView, ListGroup, ListRow, Row, SectionHeader, Stack
 import { Avatar } from './Avatar';
 import { RatingGraph } from './RatingGraph';
 import { RoleTagBadge } from '@/features/titles/RoleTagBadge';
+import { ClubBadge } from '@/features/football/ClubBadge';
 import { PlayerTagBadge } from '@/features/titles/PlayerTagBadge';
 import { ProfileActions } from './ProfileActions';
 import { HeadToHeadCard } from '@/components/HeadToHead';
@@ -128,6 +129,7 @@ function ProfileBody({ profile }: { profile: PublicProfile }) {
               {profile.online !== null &&
                 (profile.online ? <Badge tone="live" label={tr('profile.online')} /> : <Badge tone="outline" label={tr('play.offline')} />)}
               {profile.playerTag ? <PlayerTagBadge tag={profile.playerTag} /> : null}
+              <ClubBadge club={profile.footballClub} size="md" />
             </Row>
             <Row gap="xs" wrap>
               <CountryFlag code={profile.country} decorative />
