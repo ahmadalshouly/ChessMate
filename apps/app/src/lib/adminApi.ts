@@ -1,5 +1,6 @@
 import type {
   AccountCloseReason,
+  MaintenanceState,
   AdPlacementInput,
   AdPlacementView,
   AdSpotState,
@@ -192,6 +193,10 @@ export function useAdminApi() {
       payments: () => get<PaymentsOverview>('/payments'),
       /** Shows or hides "Support us" in the app, without a new build. */
       setSupportShown: (shown: boolean) => post<{ shown: boolean }>('/payments/support', { shown }),
+      /** The web maintenance page: on/off, title, text, countdown. */
+      maintenance: () => get<{ maintenance: MaintenanceState }>('/maintenance').then((r) => r.maintenance),
+      setMaintenance: (patch: Partial<Pick<MaintenanceState, 'active' | 'title' | 'description' | 'endsAt' | 'autoEnd'>>) =>
+        post<{ maintenance: MaintenanceState }>('/maintenance', patch).then((r) => r.maintenance),
       ads: () => get<{ spots: AdSpotState[]; placements: AdPlacementView[] }>('/ads'),
       setAdSpot: (spot: string, patch: { enabled?: boolean; note?: string }) => post<{ spot: AdSpotState }>(`/ads-spots/${id(spot)}`, patch).then((r) => r.spot),
       createAdPlacement: (p: AdPlacementForm) => post<{ placement: AdPlacementView }>('/ads', { ...p }).then((r) => r.placement),

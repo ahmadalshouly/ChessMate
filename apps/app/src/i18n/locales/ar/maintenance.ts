@@ -1,0 +1,45 @@
+/** The web maintenance page (Admin → Maintenance). */
+export const maintenance = {
+  defaultTitle: 'سنعود قريبًا',
+  defaultBody: 'ChessMate متوقف للصيانة. نعمل على تحسينه وسنعود قريبًا. شكرًا لصبرك.',
+  backIn: 'نعود خلال',
+  opensIn: 'يفتح خلال',
+  anyMoment: 'في أي لحظة الآن. ستُحدَّث هذه الصفحة تلقائيًا.',
+  staffSignIn: 'دخول الفريق',
+  signedInAs: 'مسجّل الدخول باسم {name}.',
+  signOut: 'تسجيل الخروج',
+  units: {
+    days: {
+      zero: 'يوم',
+      one: 'يوم',
+      two: 'يومان',
+      few: 'أيام',
+      many: 'يومًا',
+      other: 'يوم',
+    },
+    hours: {
+      zero: 'ساعة',
+      one: 'ساعة',
+      two: 'ساعتان',
+      few: 'ساعات',
+      many: 'ساعة',
+      other: 'ساعة',
+    },
+    minutes: {
+      zero: 'دقيقة',
+      one: 'دقيقة',
+      two: 'دقيقتان',
+      few: 'دقائق',
+      many: 'دقيقة',
+      other: 'دقيقة',
+    },
+    seconds: {
+      zero: 'ثانية',
+      one: 'ثانية',
+      two: 'ثانيتان',
+      few: 'ثوانٍ',
+      many: 'ثانية',
+      other: 'ثانية',
+    },
+  },
+};

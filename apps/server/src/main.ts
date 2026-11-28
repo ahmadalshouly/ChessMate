@@ -39,6 +39,7 @@ import { AnalyticsService, analyticsRoutes } from './analytics';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
 import { DonationLedger, SupportSwitch, donateRoutes } from './payments/donate';
+import { MaintenanceSwitch, maintenanceRoutes } from './admin/maintenance';
 import { stripeWebhookRoute } from './payments/webhook';
 import { SponsorDesk } from './sponsors/service';
 import { sponsorshipRoutes } from './sponsors/http';
@@ -120,7 +121,7 @@ async function start() {
   if (process.env.CHESSMATE_DB === 'off') {
     console.log('Database disabled (CHESSMATE_DB=off): accounts and games are not saved, friends are off');
     const { base, profileDeps } = services(new MemoryAuthStore());
-    base.http = [...(base.http ?? []), explorerRoutes(new ExplorerService({ lichess: lichessExplorer }))];
+    base.http = [...(base.http ?? []), explorerRoutes(new ExplorerService({ lichess: lichessExplorer })), maintenanceRoutes(new MaintenanceSwitch())];
     const server = new ChessServer(base);
     profileDeps.online = (id) => server.isOnline(id);
     profileDeps.liveGame = (id) => server.liveGameOf(id);
@@ -137,8 +138,11 @@ async function start() {
   const stripe = stripeFromEnv();
   const donations = new DonationLedger(db.db);
   const support = await new SupportSwitch(db.db).load();
+  // Web maintenance page: staff switch it in Admin → Maintenance.
+  const maintenance = await new MaintenanceSwitch(db.db).load();
   base.http = [
     ...(base.http ?? []),
+    maintenanceRoutes(maintenance),
     donateRoutes(stripe, { ledger: donations, support, userOf: (token) => auth.verifyAccessToken(token)?.userId ?? null }),
     explorerRoutes(explorer),
     gameRoutes(db.db, {
@@ -216,6 +220,7 @@ async function start() {
   admin.sponsorDesk = sponsorDesk;
   admin.donations = donations;
   admin.support = support;
+  admin.maintenance = maintenance;
   // One Stripe webhook for every payment: sponsor links, donations, then tournament entry fees.
   base.http = [
     ...(base.http ?? []),
