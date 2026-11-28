@@ -17,6 +17,7 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export const ADMIN_SECTIONS: { key: string; href: Href; label: TKey; icon: IconName; needs: AdminPermission }[] = [
   { key: 'dashboard', href: '/admin', label: 'admin.nav.dashboard', icon: 'speedometer-outline', needs: 'dashboard.view' },
+  { key: 'analytics', href: '/admin/analytics', label: 'admin.nav.analytics', icon: 'analytics-outline', needs: 'analytics.view' },
   { key: 'players', href: '/admin/players', label: 'admin.nav.players', icon: 'people-outline', needs: 'players.view' },
   { key: 'reports', href: '/admin/reports', label: 'admin.nav.reports', icon: 'flag-outline', needs: 'reports.view' },
   { key: 'fairplay', href: '/admin/fairplay', label: 'admin.nav.fairplay', icon: 'shield-checkmark-outline', needs: 'fairplay.view' },

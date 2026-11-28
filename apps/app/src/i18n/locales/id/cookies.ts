@@ -1,7 +1,8 @@
 export const cookies = {
   banner: {
     title: 'Cookie di ChessMate',
-    body: 'Kami hanya menggunakan penyimpanan yang dibutuhkan ChessMate agar kamu tetap masuk dan pengaturanmu tersimpan. Dengan persetujuanmu, Tonton juga dapat memuat pemutar siaran langsung dari Twitch, YouTube, dan Kick, yang memasang cookie mereka sendiri. Kamu bisa mengubahnya kapan saja di Pengaturan → Privasi.',
+    body: 'ChessMate menyimpan yang diperlukan agar kamu tetap masuk dan pengaturanmu diingat. Dengan persetujuanmu, kami juga mengukur cara ChessMate digunakan (Google Analytics dan statistik kami sendiri) untuk memperbaikinya, dan Tonton dapat memuat pemutar siaran langsung dari Twitch, YouTube, dan Kick yang memasang cookie sendiri. Kamu bisa mengubahnya kapan saja di Pengaturan → Privasi.',
+    bodyApp: 'ChessMate menyimpan yang diperlukan agar kamu tetap masuk dan pengaturanmu diingat. Dengan persetujuanmu, kami juga mengukur cara aplikasi digunakan (Google Analytics dan statistik kami sendiri) untuk memperbaikinya. Tanpa iklan, tanpa pelacakan antar-aplikasi. Kamu bisa mengubahnya kapan saja di Pengaturan → Privasi.',
     necessary: 'Hanya yang diperlukan',
     acceptAll: 'Terima semua',
     settings: 'Pengaturan dan kebijakan cookie',
@@ -13,7 +14,9 @@ export const cookies = {
     externalMedia: 'Media eksternal',
     externalMediaDetail: 'Pemutar siaran langsung dari Twitch, YouTube, dan Kick di Tonton. Mereka memasang cookie sendiri.',
     externalMediaDetailApp: 'Berlaku di situs web ChessMate. Di aplikasi, siaran dibuka di platformnya masing-masing.',
-    noTracking: 'ChessMate tidak menggunakan cookie analitik atau iklan.',
+    analytics: 'Analitik',
+    analyticsDetail: 'Layar dan fitur mana yang digunakan, dengan Google Analytics dan statistik ChessMate sendiri. Tidak pernah pesan atau langkahmu, tidak pernah untuk iklan.',
+    noTracking: 'ChessMate tidak memakai cookie iklan dan sidik jari perangkat.',
     savedAt: 'Pilihan disimpan di perangkat ini: {date}',
   },
   embed: {

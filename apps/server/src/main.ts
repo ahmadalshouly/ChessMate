@@ -35,6 +35,7 @@ import { MessageService } from './messages/service';
 import { TournamentService } from './tournaments/service';
 import { AdService } from './ads/service';
 import { BotService } from './bots/service';
+import { AnalyticsService, analyticsRoutes } from './analytics';
 import { stripeFromEnv } from './payments/stripe';
 import { gameRoutes } from './games/http';
 import { DonationLedger, donateRoutes } from './payments/donate';
@@ -231,6 +232,22 @@ async function start() {
   await lessons.load();
   admin.lessons = lessons;
   lessonCatalog = () => lessons.catalog();
+  // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
+  // tokens also get an account row on first use so friends and search can be tried.
+  const resolveUser = async (token: string) => {
+    const account = auth.verifyAccessToken(token);
+    if (account) return account.userId;
+    const id = devResolveUser(token);
+    if (!id) return null;
+    const name = token.split(':').slice(2).join(':');
+    await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
+    return id;
+  };
+  // First-party analytics for the admin console (events only from visitors who allowed analytics).
+  const analytics = new AnalyticsService({ db: db.db });
+  analytics.start();
+  admin.analytics = analytics;
+  base.http = [...(base.http ?? []), analyticsRoutes(analytics, resolveUser)];
   const server = new ChessServer({
     ...base,
     admin,
@@ -254,17 +271,7 @@ async function start() {
     broadcastAnalyzer,
     // The inbox, notification settings and push tokens survive restarts and deploys.
     notificationStore: await DbNotificationStore.load(db.db),
-    // Signed-in accounts use their access token. In development, "dev:<id>:<name>"
-    // tokens also get an account row on first use so friends and search can be tried.
-    resolveUser: async (token) => {
-      const account = auth.verifyAccessToken(token);
-      if (account) return account.userId;
-      const id = devResolveUser(token);
-      if (!id) return null;
-      const name = token.split(':').slice(2).join(':');
-      await ensureUser(db.db, { id, username: name.replace(/[^\w-]/g, '_') });
-      return id;
-    },
+    resolveUser,
   });
   sponsorDesk.attach((userId, title, body, url) => void server.notifications.notify(userId, { kind: 'system', title, body, url }));
   // Push campaigns from the admin console: send now, schedule, and triggers on what players do.

@@ -22,6 +22,7 @@ export default function AdminLayout() {
         contentStyle: { backgroundColor: c.bg },
       }}>
       <Stack.Screen name="index" options={{ title: tr('admin.title'), headerShown: !wide }} />
+      <Stack.Screen name="analytics" options={{ title: tr('admin.nav.analytics'), headerShown: !wide }} />
       <Stack.Screen name="players/index" options={{ title: tr('admin.nav.players'), headerShown: !wide }} />
       <Stack.Screen name="reports" options={{ title: tr('admin.nav.reports'), headerShown: !wide }} />
       <Stack.Screen name="fairplay/index" options={{ title: tr('admin.nav.fairplay'), headerShown: !wide }} />

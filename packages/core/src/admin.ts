@@ -64,6 +64,8 @@ export const ADMIN_PERMISSIONS = [
   'bots.manage',
   /** Send Stripe payment links to sponsors and see payments and donations. Admins only. */
   'payments.manage',
+  /** See the analytics dashboard: usage, screens, events, retention. Admins only. */
+  'analytics.view',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

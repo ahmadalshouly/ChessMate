@@ -38,6 +38,7 @@ import { GameStartHandshake, HANDSHAKE_MS, useGameStartHandshake } from '@/compo
 import { Segmented as SegmentedControl } from '@/components/play/Controls';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 import { vsTitle } from '@/features/share/gameShares';
+import { track } from '@/lib/analytics';
 
 /** The bot's one line: its own for an online bot, translated for a built-in one. */
 const botTagline = (b: Opponent) => (b.kind === 'online' ? (b.tagline ?? '') : translate(`bots.taglines.${b.id}` as TKey));
@@ -136,6 +137,7 @@ function BotPicker({ startFen, onStart }: { startFen: string; onStart: (s: Setup
   const start = () => {
     lastChoice = { id: bot.id, color };
     const c: Color = color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : color;
+    track('computer_game_start', { level: bot.rating, from_position: !!startFen });
     onStart({ bot, color: c, startFen });
   };
   const visit = (url: string) => void Linking.openURL(url).catch(() => {});

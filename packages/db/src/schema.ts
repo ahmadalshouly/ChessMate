@@ -1648,3 +1648,33 @@ export const gameCollectionItems = pgTable(
 
 export type GameCollectionRow = typeof gameCollections.$inferSelect;
 export type GameCollectionItemRow = typeof gameCollectionItems.$inferSelect;
+
+// ---------------------------------------------------------------- analytics
+
+/**
+ * App events for the admin console's analytics page, sent only by visitors
+ * who allowed analytics (cookie consent). `deviceId` and `sessionId` are
+ * random ids the app makes after consent; `userId` is set when signed in.
+ * Names and props are the closed set in @chessmate/core (ANALYTICS_EVENTS).
+ * Rows older than ANALYTICS_RETENTION_DAYS are deleted by the server.
+ */
+export const analyticsEvents = pgTable(
+  'analytics_events',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    at: ts('at').notNull(),
+    deviceId: text('device_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    userId: text('user_id'),
+    platform: text('platform').notNull(),
+    screen: text('screen'),
+    props: jsonb('props'),
+    appVersion: text('app_version'),
+    lang: text('lang'),
+    receivedAt: createdAt(),
+  },
+  (t) => [index('analytics_events_at_idx').on(t.at), index('analytics_events_name_idx').on(t.name, t.at), index('analytics_events_session_idx').on(t.sessionId)],
+);
+
+export type AnalyticsEventRow = typeof analyticsEvents.$inferSelect;

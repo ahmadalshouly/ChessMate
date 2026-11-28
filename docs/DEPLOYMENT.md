@@ -142,6 +142,8 @@ Anything secret goes in `fly secrets set`, never in `fly.toml` or git.
 | `CLOUDFLARE_PAGES_PROJECT` | variable | `deploy.yml` | Pages project name (default `chessmate`) |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | variable | `deploy.yml` | Google web client ID baked into the web build (Google button on the web) |
 | `EXPO_PUBLIC_APPLE_SERVICES_ID` | variable | `deploy.yml` | Apple Services ID baked into the web build (Apple button on the web) |
+| `EXPO_PUBLIC_GA_MEASUREMENT_ID` | variable | `deploy.yml` | Google Analytics 4 measurement ID (`G-…`) baked into the web build ([ANALYTICS.md](ANALYTICS.md)) |
+| `GOOGLE_SERVICE_INFO_PLIST` | EAS file variable | EAS | Firebase `GoogleService-Info.plist`; iOS builds need it for Firebase Analytics ([ANALYTICS.md](ANALYTICS.md)) |
 
 Set them under repo Settings → Secrets and variables → Actions.
 

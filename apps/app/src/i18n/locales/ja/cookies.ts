@@ -1,7 +1,8 @@
 export const cookies = {
   banner: {
     title: 'ChessMateのCookieについて',
-    body: 'ChessMateが使用するのは、ログイン状態の維持と設定の保存に必要なストレージのみです。同意いただいた場合、観戦ページでTwitch、YouTube、Kickのライブ配信プレーヤーを読み込むこともあり、これらは独自のCookieを設定します。この設定は、設定 → プライバシーからいつでも変更できます。',
+    body: 'ChessMateが保存するのは、ログイン状態の維持と設定の記憶に必要なものだけです。同意いただいた場合は、改善のためにChessMateの利用状況（Google Analyticsと独自の統計）も計測し、「観戦」ではTwitch、YouTube、Kickのライブ配信プレーヤーを読み込みます。これらは独自のCookieを設定します。設定はいつでも「設定 → プライバシー」で変更できます。',
+    bodyApp: 'ChessMateが保存するのは、ログイン状態の維持と設定の記憶に必要なものだけです。同意いただいた場合は、改善のためにアプリの利用状況（Google Analyticsと独自の統計）も計測します。広告やアプリをまたいだトラッキングはありません。設定はいつでも「設定 → プライバシー」で変更できます。',
     necessary: '必須のみ',
     acceptAll: 'すべて許可',
     settings: '設定とCookieポリシー',
@@ -13,7 +14,9 @@ export const cookies = {
     externalMedia: '外部メディア',
     externalMediaDetail: '観戦ページに表示されるTwitch、YouTube、Kickのライブ配信プレーヤー。これらは独自のCookieを設定します。',
     externalMediaDetailApp: 'ChessMateのウェブサイトに適用されます。アプリでは、配信は各プラットフォームで開きます。',
-    noTracking: 'ChessMateは分析用や広告用のCookieを一切使用しません。',
+    analytics: '利用状況の分析',
+    analyticsDetail: 'どの画面や機能が使われているかを、Google AnalyticsとChessMate独自の統計で計測します。メッセージや指し手は含まれず、広告には使いません。',
+    noTracking: 'ChessMateは広告用Cookieやデバイスのフィンガープリントを使用しません。',
     savedAt: 'この端末に保存された選択：{date}',
   },
   embed: {

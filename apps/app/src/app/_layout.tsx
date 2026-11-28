@@ -11,6 +11,7 @@ import { RootStackHeader } from '@/components/shell/StackHeader';
 import { Screen } from '@/components/ui';
 import { useAccountSession } from '@/features/account/session';
 import { SettingsBridge } from '@/features/account/settingsStore';
+import { startAnalytics, setAnalyticsUser, trackScreen } from '@/lib/analytics';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playClient } from '@/lib/playClient';
 import { NO_SWIPE_BACK, useNoBrowserSwipeBack } from '@/lib/useNoSwipeBack';
@@ -66,6 +67,7 @@ function Navigator() {
           <PlayAuthBridge />
           <SocialAuthBridge />
           <AccountSettingsBridge />
+          <AnalyticsBridge />
           <RootStack />
           <InAppBanner />
           <AwardsListener />
@@ -75,6 +77,25 @@ function Navigator() {
       </AuthProvider>
     </ThemeProvider>
   );
+}
+
+/**
+ * Screens and the signed-in account for analytics. Sends nothing until the
+ * player allowed analytics (see src/lib/analytics). Renders nothing.
+ */
+function AnalyticsBridge() {
+  const segments = useSegments();
+  const { status, user, getAccessToken } = useAuth();
+  useEffect(() => startAnalytics(), []);
+  const screen = segments.join('/');
+  useEffect(() => {
+    trackScreen(screen.split('/'));
+  }, [screen]);
+  const userId = status === 'signedIn' ? (user?.id ?? null) : null;
+  useEffect(() => {
+    setAnalyticsUser(userId, userId ? getAccessToken : null);
+  }, [userId, getAccessToken]);
+  return null;
 }
 
 /** Loads the player's saved settings (board, pieces, sounds) at sign-in so every board uses them. */

@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { CountryFlag } from '@/components/CountryFlag';
 import { useTheme } from '@/constants/theme';
+import { track } from '@/lib/analytics';
 import { LANGS, LANGUAGE_FLAG_COUNTRY, LANGUAGE_NAMES, deviceLanguage, needsRestartFor, setLanguagePreference, useI18n, type LanguagePreference } from '@/i18n';
 import { rimShadow } from '@/ui';
 import { Text } from '@/ui/primitives';
@@ -35,6 +36,7 @@ export function LanguagePicker({ includeSystem = true, compact = false }: Langua
     setOpen(false);
     if (p === current || busy) return;
     setBusy(true);
+    track('language_change', { lang: p });
     setLanguagePreference(p).finally(() => setBusy(false));
   };
 

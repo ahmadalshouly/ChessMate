@@ -7,6 +7,7 @@ import { GameIcon, type GameIconName } from '@/components/game/ActionBar';
 import { Glass, floatShadow } from '@/components/shell/Glass';
 import { useTheme } from '@/constants/theme';
 import { useT } from '@/i18n';
+import { track } from '@/lib/analytics';
 import { appLink, shareLink, sharesWithSheet } from '@/lib/links';
 import { CollectionPicker } from '@/features/collections/CollectionPicker';
 import type { CollectableGame } from '@/lib/collectionsApi';
@@ -87,12 +88,14 @@ export function ShareGameSheet({ visible, onClose, share }: { visible: boolean; 
       toast.show({ title: tr('share.failed'), tone: 'danger' });
       return;
     }
+    track('share', { method: 'copy_pgn' });
     if (await copyText(pgn)) done(tr('share.pgnCopied'));
     else setByHand(pgn);
   };
 
   const sendLink = async () => {
     // The share sheet opens over this one; it closes once something was shared.
+    track('share', { method: 'link' });
     const r = await shareLink(url, tr(share.live ? 'share.messageLive' : 'share.message', { title: share.title }));
     if (r === 'copied') done(tr('share.linkCopied'));
     else if (r === 'shared') close();
@@ -106,6 +109,7 @@ export function ShareGameSheet({ visible, onClose, share }: { visible: boolean; 
     } catch {
       // Kept without its PGN: the link still opens the game.
     }
+    track('share', { method: 'collection' });
     setCollecting({ title: share.title, link: share.keepLink ?? share.link, pgn });
   };
 

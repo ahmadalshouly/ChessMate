@@ -1,7 +1,8 @@
 export const cookies = {
   banner: {
     title: 'Cookies sur ChessMate',
-    body: 'Nous utilisons uniquement le stockage dont ChessMate a besoin pour te garder connecté et mémoriser tes paramètres. Avec ton accord, Regarder peut aussi charger les lecteurs de streams en direct de Twitch, YouTube et Kick, qui déposent leurs propres cookies. Tu peux modifier ce choix à tout moment dans Paramètres → Confidentialité.',
+    body: 'ChessMate enregistre ce qu’il faut pour que vous restiez connecté et que vos réglages soient conservés. Avec votre accord, nous mesurons aussi l’utilisation de ChessMate (Google Analytics et nos propres statistiques) pour l’améliorer, et Regarder peut charger les lecteurs de direct de Twitch, YouTube et Kick, qui déposent leurs propres cookies. Vous pouvez modifier ce choix à tout moment dans Réglages → Confidentialité.',
+    bodyApp: 'ChessMate enregistre ce qu’il faut pour que vous restiez connecté et que vos réglages soient conservés. Avec votre accord, nous mesurons aussi l’utilisation de l’app (Google Analytics et nos propres statistiques) pour l’améliorer. Pas de publicité, pas de suivi entre applications. Vous pouvez modifier ce choix à tout moment dans Réglages → Confidentialité.',
     necessary: 'Uniquement les nécessaires',
     acceptAll: 'Tout accepter',
     settings: 'Paramètres et politique de cookies',
@@ -13,7 +14,9 @@ export const cookies = {
     externalMedia: 'Médias externes',
     externalMediaDetail: 'Lecteurs de streams en direct de Twitch, YouTube et Kick dans Regarder. Ils déposent leurs propres cookies.',
     externalMediaDetailApp: 'S’applique sur le site web de ChessMate. Dans l’application, les streams s’ouvrent sur leur plateforme.',
-    noTracking: 'ChessMate n’utilise aucun cookie d’analyse ni de publicité.',
+    analytics: 'Mesure d’audience',
+    analyticsDetail: 'Quels écrans et fonctions sont utilisés, avec Google Analytics et les statistiques propres à ChessMate. Jamais vos messages ni vos coups, jamais pour la publicité.',
+    noTracking: 'ChessMate n’utilise aucun cookie publicitaire ni empreinte de l’appareil.',
     savedAt: 'Choix enregistré sur cet appareil : {date}',
   },
   embed: {

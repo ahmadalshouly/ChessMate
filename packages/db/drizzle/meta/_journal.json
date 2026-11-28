@@ -202,7 +202,14 @@
       "idx": 28,
       "version": "7",
       "when": 1798200000000,
-      "tag": "0029_sponsor_payments",
+      "tag": "0029_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1798350000000,
+      "tag": "0030_sponsor_payments",
       "breakpoints": true
     }
   ]

@@ -42,5 +42,6 @@ export * from './material';
 export * from './lessons';
 export * from './ads';
 export * from './sponsorship';
+export * from './analytics';
 export * from './immortals';
 export * from './setup';

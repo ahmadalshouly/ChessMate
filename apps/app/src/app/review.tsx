@@ -47,6 +47,7 @@ import { deepReviewSupported, reviewModeHere, useReviewSettings } from '@/featur
 import { BoardScan, ReviewProgress } from '@/features/engine/ReviewProgress';
 import { ShareGameButton, type GameShare } from '@/features/share/ShareGame';
 import { vsTitle } from '@/features/share/gameShares';
+import { track } from '@/lib/analytics';
 
 const EVAL_BAR = 20;
 /** Classes where the played move needs no "better move" arrow. */
@@ -67,6 +68,7 @@ const GRAPH_MARKED = new Set<MoveClass>(['masterpiece', 'brilliant', 'great', 'm
 export default function Review() {
   const tr = useT();
   const params = useLocalSearchParams<ReviewParams>();
+  useEffect(() => track('review_open', { deep: false }), []);
   const signedIn = useAuth().status === 'signedIn';
   const t = useTheme();
   const { wide, size: boardSpace, panel: panelWidth } = useWideBoard({ panel: 420, reserve: 140 + 2 * PLAYER_CARD_HEIGHT, phoneReserve: 300 + 2 * PLAYER_CARD_HEIGHT });
@@ -111,6 +113,7 @@ export default function Review() {
   const [doneShown, setDoneShown] = useState(false);
   const askDeep = () => {
     if (!review) return;
+    track('review_open', { deep: true });
     setShallow({ review, saved: graded.source === 'saved' });
     setSawGrading(false);
     setDoneShown(false);

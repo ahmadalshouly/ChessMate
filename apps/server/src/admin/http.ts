@@ -83,6 +83,7 @@ const STATUS: Record<AdminError['code'], number> = {
  *   POST /bots/:id                    same fields, saves (image left out keeps the stored picture)
  *   POST /bots/:id/flags              { enabled?, featured? } switches it on or off, in or out of the featured row
  *   POST /bots/:id/delete             removes it for good
+ *   GET  /analytics?days=7|30|90     usage report (sign-ups, games, puzzles, retention; screens and events from consented app visitors)
  *   GET  /payouts                     prize payout requests; POST /payouts/:id  { status, note? }
  *   GET  /lessons                     every chapter and lesson, drafts included
  *   POST /lessons                     { lesson } creates a lesson; POST /lessons/:id { lesson } saves it
@@ -246,6 +247,8 @@ export function adminRoutes(admin: AdminService, auth: AuthService, opts: { cors
           return ok({ bot: await admin.setBotFlags(actor, id!, await body()) });
         case 'POST bots/:id/delete':
           return ok(await admin.deleteBot(actor, id!));
+        case 'GET analytics':
+          return ok(await admin.analyticsReport(actor, num('days')));
         case 'GET payouts':
           return ok({ requests: admin.payoutRequests(actor) });
         case 'POST payouts/:id':

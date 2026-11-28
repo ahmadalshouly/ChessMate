@@ -1,7 +1,8 @@
 export const cookies = {
   banner: {
     title: 'Cookies on ChessMate',
-    body: 'We only use the storage ChessMate needs to keep you signed in and remember your settings. With your consent, Watch can also load live-stream players from Twitch, YouTube and Kick, which set their own cookies. You can change this at any time in Settings → Privacy.',
+    body: 'ChessMate stores what it needs to keep you signed in and remember your settings. With your consent, we also measure how ChessMate is used (Google Analytics and our own statistics) to make it better, and Watch can load live-stream players from Twitch, YouTube and Kick, which set their own cookies. You can change this at any time in Settings → Privacy.',
+    bodyApp: 'ChessMate stores what it needs to keep you signed in and remember your settings. With your consent, we also measure how the app is used (Google Analytics and our own statistics) to make it better. No advertising, no tracking across apps. You can change this at any time in Settings → Privacy.',
     necessary: 'Only necessary',
     acceptAll: 'Accept all',
     settings: 'Settings and cookie policy',
@@ -13,7 +14,9 @@ export const cookies = {
     externalMedia: 'External media',
     externalMediaDetail: 'Live-stream players from Twitch, YouTube and Kick on Watch. They set their own cookies.',
     externalMediaDetailApp: 'Applies on the ChessMate website. In the app, streams open on their platform.',
-    noTracking: 'ChessMate uses no analytics or advertising cookies.',
+    analytics: 'Analytics',
+    analyticsDetail: 'Which screens and features are used, with Google Analytics and ChessMate\'s own statistics. Never your messages or moves, never for advertising.',
+    noTracking: 'ChessMate uses no advertising cookies and no fingerprinting.',
     savedAt: 'Choice saved on this device: {date}',
   },
   embed: {
